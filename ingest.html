@@ -650,10 +650,18 @@ async function callWorker(parts, promptText, from, to, maxTokens){
     generationConfig: { temperature:0.15, maxOutputTokens:maxTokens, responseMimeType:"application/json" }
   };
 
-  /* 요청 하나를 실제로 보내는 부분. 90초 안에 응답이 없으면 끊는다. */
+  /* 요청 하나를 실제로 보내는 부분. SVG 켜짐: 5분, 꺼짐: 90초 대기 */
   async function attempt(base){
     const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), 90000);
+    
+    // ★ 추가: 화면의 SVG 체크박스가 켜져 있는지 확인
+    const isSvgOn = $("#svgOn").checked;
+    
+    // ★ 수정: SVG가 켜져 있으면 300초(5분), 꺼져 있으면 90초로 엄청 넉넉하게 잡습니다.
+    const timeoutMs = isSvgOn ? 300000 : 90000;
+    const timeoutLabel = isSvgOn ? "5분" : "90초";
+    
+    const timer = setTimeout(() => ac.abort(), timeoutMs);
     let elapsed = 0;
     const ticker = setInterval(() => {
       elapsed += 10;
@@ -674,11 +682,13 @@ async function callWorker(parts, promptText, from, to, maxTokens){
         model: d.usedModel
       };
     }catch(e){
-      return { ok:false, detail: e.name === "AbortError" ? "90초 안에 응답이 없었습니다" : e.message };
+      // ★ 수정: 에러 메시지에 5분/90초가 찍히도록 변경
+      return { ok:false, detail: e.name === "AbortError" ? `${timeoutLabel} 안에 응답이 없었습니다 (타임아웃)` : e.message };
     }finally{
       clearTimeout(timer); clearInterval(ticker);
     }
   }
+
 
   /* ── 두 서버를 "겹쳐서" 부른다 ────────────────────────────────
      예전에는 1번 서버가 죽어 있으면 90초를 꽉 기다린 뒤에야 2번 서버로 넘어갔다.
