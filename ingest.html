@@ -280,7 +280,11 @@ if(!CFG.SUPABASE_URL || CFG.SUPABASE_URL.includes("xxxx")){
   showFatal("config.js 에 Supabase 정보가 없습니다.", "SUPABASE_URL 과 SUPABASE_ANON_KEY 를 채워주세요.");
 }
 const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
-const ENDPOINTS = [CFG.WORKER_URL, CFG.WORKER_BACKUP_URL].filter(Boolean);
+// PC 환경(너비 768px 초과 및 모바일 기기가 아님)에서는 Render 서버만 단독으로 사용
+const isPC = window.innerWidth > 768 && !/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+const ENDPOINTS = isPC 
+  ? ["https://sniper-render.onrender.com"] 
+  : [CFG.WORKER_URL, CFG.WORKER_BACKUP_URL].filter(Boolean);
 
 /* ── 서버 고르기 ──────────────────────────────────────────────
    앞 서버가 죽어 있으면 묶음마다 타임아웃(최대 90초)을 처음부터 다시 기다리게 된다.
