@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<script>
+/* ★ 낡은 서비스 워커가 이 페이지를 물고 있으면 스스로 지우고 한 번만 새로고침한다.
+   "강력 새로고침 해주세요" "Unregister 눌러주세요" 안내를 계속 반복할 필요가 없도록. */
+(function(){
+  if('serviceWorker' in navigator && navigator.serviceWorker.controller && !sessionStorage.getItem('sw-cleared-v3')){
+    sessionStorage.setItem('sw-cleared-v3','1');
+    navigator.serviceWorker.getRegistrations().then(function(regs){
+      return Promise.all(regs.map(function(r){ return r.unregister(); }));
+    }).then(function(){ location.reload(); });
+  }
+})();
+</script>
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>업로더 · 기출 해설 노트</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.css">
+<style>
+:root{--paper:#E9ECE6;--card:#FCFCFA;--ink:#10233D;--ink-2:#5A6B7F;--rule:#D3D8CD;
+      --accent:#1D4ED8;--stamp:#BE2B26;--ok:#137A4B;
+      --font-d:"IBM Plex Sans KR",Pretendard,sans-serif;--font-m:"IBM Plex Mono",monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,sans-serif;
+     font-size:14px;line-height:1.6}
+.wrap{max-width:860px;margin:0 auto;padding:24px 16px 80px}
+h1{font:700 20px/1.3 var(--font-d);margin:0 0 4px;letter-spacing:-.02em}
+.lead{color:var(--ink-2);font-size:13px;margin-bottom:22px}
+.box{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:18px;margin-bottom:14px}
+.eyebrow{display:flex;align-items:baseline;gap:10px;font:600 11px/1 var(--font-d);
+         letter-spacing:.14em;color:var(--ink-2);margin-bottom:14px}
+.eyebrow::after{content:"";flex:1;height:1px;background:var(--rule)}
+label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:0 0 5px}
+input,select,textarea{width:100%;padding:10px 12px;border:1.4px solid var(--rule);
+  border-radius:9px;background:var(--paper);color:var(--ink);font:inherit}
+textarea{font-family:var(--font-m);font-size:12px;line-height:1.5;min-height:180px;resize:vertical}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+button{font:600 14px/1 var(--font-d);padding:12px 18px;border:0;border-radius:10px;
+       background:var(--ink);color:var(--paper);cursor:pointer}
+button.ghost{background:transparent;border:1.4px solid var(--rule);color:var(--ink)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center}
+.msg{margin-top:12px;padding:11px 13px;border-radius:9px;font-size:13px;white-space:pre-wrap;
+     font-family:var(--font-m);display:none}
+.msg.ok{display:block;background:#E3F3EA;color:var(--ok)}
+.msg.err{display:block;background:#FBE9E8;color:var(--stamp)}
+.hint{font-size:12px;color:var(--ink-2);margin-top:8px}
+code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px;border-radius:4px}
+#fatal{display:none;position:sticky;top:0;z-index:99;margin:0 0 16px;padding:13px 15px;
+  background:#FBE9E8;border:1.4px solid var(--stamp);border-radius:10px;color:var(--stamp);
+  font-family:var(--font-m);font-size:12.5px;white-space:pre-wrap;line-height:1.6}
+#fatal b{display:block;font-family:var(--font-d);font-size:13px;margin-bottom:4px}
+.tabs{display:flex;gap:6px;margin-bottom:14px}
+.tab{padding:8px 14px;border-radius:999px;border:1.4px solid var(--rule);
+     font:600 12px/1 var(--font-d);background:none;color:var(--ink-2)}
+.tab.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.pv{border:1px solid var(--rule);border-radius:10px;padding:12px;margin-top:12px;
+    max-height:260px;overflow:auto;font-family:var(--font-m);font-size:11.5px;display:none}
+.pv.on{display:block}
+.pv .q{padding:7px 0;border-bottom:1px dashed var(--rule)}
+.pv .q b{color:var(--accent)}
+#app{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>업로더</h1>
+  <div class="lead">Gemini가 만든 JSON을 붙여넣으면 Supabase에 바로 올라갑니다. 뷰어는 새로고침만 하면 반영됩니다.</div>
+  <div id="fatal"></div>
+
+  <!-- 로그인 -->
+  <div class="box" id="auth">
+    <div class="eyebrow">로그인</div>
+    <div class="grid">
+      <div><label>이메일</label><input id="em" type="email" autocomplete="username"></div>
+      <div><label>비밀번호</label><input id="pw" type="password" autocomplete="current-password"></div>
+    </div>
+    <div class="bar"><button id="login">로그인</button></div>
+    <div class="hint">Supabase 대시보드 → Authentication → Users 에서 만든 계정 하나면 됩니다. 쓰기는 이 계정만 가능합니다.</div>
+    <div class="msg" id="am"></div>
+  </div>
+
+  <div id="app">
+    <!-- 대상 -->
+    <div class="box">
+      <div class="eyebrow">어디에 넣을지</div>
+      <div class="grid">
+        <div><label>과목명</label><input id="sname" placeholder="위험물산업기사"></div>
+        <div><label>과목 코드 (영문·고유)</label><input id="scode" placeholder="danger-ind"></div>
+        <div><label>분류</label><input id="scat" placeholder="소방·안전"></div>
+        <div><label>연도</label><input id="year" type="number" placeholder="2020"></div>
+        <div><label>회차</label><input id="sess" type="number" placeholder="3"></div>
+      </div>
+      <div class="hint">같은 과목 코드 + 같은 연도/회차면 기존 문항을 번호 기준으로 덮어씁니다.</div>
+    </div>
+
+    <!-- 입력 -->
+    <div class="box">
+      <div class="eyebrow">문항 데이터</div>
+      <div class="tabs">
+        <button class="tab on" data-t="json">JSON 붙여넣기</button>
+        <button class="tab" data-t="html">기존 HTML 시트 옮기기</button>
+      </div>
+
+      <div id="p-json">
+        <textarea id="json" placeholder='{"questions":[{"number":1,"question_text":"...","choices":["40","46","78","121"],"answer":3,"summary":"이상기체 상태방정식","explanation_md":"$PV=nRT$ 를 이용한다..."}]}'></textarea>
+        <div class="bar">
+          <button class="ghost" id="pick">JSON 파일 열기</button>
+          <input id="file" type="file" accept=".json,.txt" hidden>
+          <button class="ghost" id="check">미리보기</button>
+        </div>
+      </div>
+
+      <div id="p-html" hidden>
+        <textarea id="html" placeholder='기존 도구가 뽑아준 &lt;div class="sheet"&gt;...&lt;/div&gt; 덩어리를 통째로 붙여넣으세요.'></textarea>
+        <div class="bar"><button class="ghost" id="split">시트 쪼개기</button></div>
+        <div class="hint">시트 하나 = 문항 하나로 잘라서 1번부터 순서대로 번호를 붙입니다. 문제·보기·정답은 비어 있으니, 필요하면 JSON 탭에서 채워 넣으세요. 해설 HTML(도표·SVG 포함)은 그대로 보존됩니다.</div>
+      </div>
+
+      <div class="pv" id="pv"></div>
+    </div>
+
+    <div class="bar">
+      <button id="up" disabled>Supabase에 올리기</button>
+      <button class="ghost" id="out">로그아웃</button>
+    </div>
+    <div class="msg" id="um"></div>
+  </div>
+</div>
+
+<script>
+/* ★ 무슨 에러가 나든 화면에 바로 보여준다 — 콘솔 뒤질 필요 없게 */
+function showFatal(title, detail){
+  const el = document.getElementById("fatal");
+  if(!el) return;
+  el.style.display = "block";
+  el.innerHTML = "<b>" + title + "</b>" + detail;
+}
+window.addEventListener("error", e => showFatal("스크립트 오류", (e.message||"") + (e.filename?"\n"+e.filename+":"+e.lineno:"")));
+window.addEventListener("unhandledrejection", e => showFatal("처리 안 된 오류", String(e.reason?.message||e.reason||"")));
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="./config.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+
+/* 시작하자마자 로그인 박스부터 확실히 보여준다 (CSS 기본값에 기대지 않는다) */
+$("#auth").style.display="block";
+$("#app").style.display="none";
+
+if(typeof window.supabase === "undefined"){
+  showFatal("Supabase 라이브러리를 불러오지 못했습니다.",
+    "인터넷 연결을 확인하거나, 광고 차단 확장 프로그램이 jsdelivr.net 을 막고 있는지 확인해 주세요.");
+  throw new Error("supabase-js not loaded");
+}
+const CFG = window.APP_CONFIG || {};
+if(!CFG.SUPABASE_URL || CFG.SUPABASE_URL.includes("xxxx")){
+  showFatal("config.js 에 Supabase 정보가 없습니다.", "SUPABASE_URL 과 SUPABASE_ANON_KEY 를 채워주세요.");
+}
+const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+let payload=null;
+const say=(el,t,ok)=>{el.textContent=t;el.className="msg "+(ok?"ok":"err")};
+
+/* 로그인 */
+async function refresh(){
+  try{
+    const {data,error} = await sb.auth.getSession();
+    if(error) return showFatal("로그인 상태를 확인하지 못했습니다.", error.message);
+    const on = !!data.session;
+    $("#auth").style.display = on ? "none" : "block";
+    $("#app").style.display  = on ? "block" : "none";
+    document.getElementById("fatal").style.display = "none";
+  }catch(err){
+    showFatal("화면을 전환하는 중 오류가 났습니다.", err.message);
+  }
+}
+$("#login").onclick=async()=>{
+  try{
+    const {error}=await sb.auth.signInWithPassword({email:$("#em").value.trim(),password:$("#pw").value});
+    if(error) return say($("#am"),"로그인 실패 — "+error.message,false);
+    await refresh();
+  }catch(err){ showFatal("로그인 요청 중 오류가 났습니다.", err.message); }
+};
+$("#out").onclick=async()=>{await sb.auth.signOut();refresh()};
+
+/* 탭 */
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x===t));
+  $("#p-json").hidden=t.dataset.t!=="json";
+  $("#p-html").hidden=t.dataset.t!=="html";
+});
+
+/* 파일 */
+$("#pick").onclick=()=>$("#file").click();
+$("#file").onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  $("#json").value=await f.text(); parseJson();
+};
+$("#check").onclick=parseJson;
+
+function normalize(list){
+  return list.map((q,i)=>({
+    number:+(q.number??q.no??i+1),
+    subject_part:q.subject_part||q.part||null,
+    question_text:q.question_text||q.question||q.q||"",
+    choices:Array.isArray(q.choices)?q.choices:(q.options||[]),
+    answer:q.answer!=null?+q.answer:null,
+    summary:q.summary||q.title||null,
+    explanation_md:q.explanation_md||q.explanation||null,
+    explanation_html:q.explanation_html||null,
+    tags:Array.isArray(q.tags)?q.tags:[],
+    correct_rate:q.correct_rate!=null?+q.correct_rate:null
+  })).sort((a,b)=>a.number-b.number);
+}
+function preview(list){
+  payload=list;
+  $("#pv").className="pv on";
+  $("#pv").innerHTML=list.map(q=>`<div class="q"><b>${q.number}번</b> ${
+    (q.question_text||"(문제 없음)").slice(0,70)}${q.answer?` — 정답 ${q.answer}`:""}${
+    (q.explanation_html||q.explanation_md)?" · 해설 ○":" · 해설 ✕"}</div>`).join("");
+  $("#up").disabled=!list.length;
+  say($("#um"),`${list.length}문항 확인. 위 정보로 올릴 준비가 됐습니다.`,true);
+}
+function parseJson(){
+  try{
+    const raw=$("#json").value.trim().replace(/^```(json)?|```$/g,"");
+    const o=JSON.parse(raw);
+    const list=Array.isArray(o)?o:(o.questions||o.items||[]);
+    if(!list.length) throw new Error("questions 배열이 비어 있습니다.");
+    preview(normalize(list));
+  }catch(e){ $("#up").disabled=true; say($("#um"),"JSON을 읽지 못했습니다 — "+e.message,false); }
+}
+
+/* 기존 HTML 시트 → 문항 */
+$("#split").onclick=()=>{
+  const src=$("#html").value;
+  const doc=new DOMParser().parseFromString(src,"text/html");
+  const style=doc.querySelector("style")?.outerHTML||"";
+  const sheets=[...doc.querySelectorAll(".sheet")];
+  if(!sheets.length) return say($("#um"),'<div class="sheet"> 블록을 찾지 못했습니다.',false);
+  preview(sheets.map((s,i)=>({
+    number:i+1, question_text:(s.textContent||"").trim().slice(0,120),
+    choices:[], answer:null,
+    summary:(s.querySelector("h1,h2,h3,.title,strong")?.textContent||"").trim().slice(0,40)||null,
+    explanation_html:(i===0?style:"")+s.outerHTML, explanation_md:null, tags:[], correct_rate:null
+  })));
+};
+
+/* 업로드 */
+$("#up").onclick=async()=>{
+  const need=[["sname","과목명"],["scode","과목 코드"],["year","연도"],["sess","회차"]];
+  for(const [id,nm] of need) if(!$("#"+id).value.trim()) return say($("#um"),nm+"을(를) 입력해 주세요.",false);
+  $("#up").disabled=true; say($("#um"),"올리는 중…",true);
+  const {data,error}=await sb.rpc("upsert_exam_bundle",{
+    p_subject_name:$("#sname").value.trim(),
+    p_subject_code:$("#scode").value.trim(),
+    p_category:$("#scat").value.trim()||"기타",
+    p_year:+$("#year").value, p_session:+$("#sess").value,
+    p_questions:payload
+  });
+  $("#up").disabled=false;
+  if(error) return say($("#um"),"업로드 실패 — "+error.message,false);
+  say($("#um"),`완료. ${payload.length}문항이 회차 #${data} 에 저장됐습니다. 뷰어를 새로고침하면 보입니다.`,true);
+};
+refresh().catch(err => showFatal("초기화 중 오류가 났습니다.", err.message));
+</script>
+</body>
+</html>
