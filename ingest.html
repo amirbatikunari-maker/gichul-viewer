@@ -546,8 +546,8 @@ function buildPrompt(from, to, asImage){
     ? "이 자료에는 정답만 표시돼 있고 해설은 없다. 표시된 정답을 answer 에 넣고, 해설은 네가 직접 작성해라."
     : "이 자료에는 해설이 없다. 정답을 네가 판단해서 answer 에 넣되 확신이 없으면 null 로 두고, 해설 안에 근거를 밝혀라.";
 
-  const svg = $("#svgOn").checked
-    ? `\n[예외] 블록선도·계통도·플로우차트가 있어야만 설명되는 문항에 한해, "explanation_md" 대신 "explanation_html" 에 인라인 <svg> 를 포함한 HTML 을 넣어라. <svg> 에는 width/height 를 px 숫자로 명시하고, 화살표는 <defs><marker> 로 정의하고, SVG 안 글자는 <text> 로 쓰고 LaTeX 를 쓰지 마라. 외부 이미지·스크립트는 금지. 그 외 문항에는 explanation_html 을 넣지 마라.`
+    const svg = $("#svgOn").checked
+    ? `\n[예외] 계통도, 수전설비 단선도, 습공기선도 등 복잡한 그래픽이 반드시 필요한 문항에 한해서만 "explanation_md" 대신 "explanation_html" 에 인라인 <svg> 를 포함한 HTML 을 넣어라. 일반적인 표나 간단한 그림에는 절대 SVG를 쓰지 마라(속도 저하의 주원인). <svg> 에는 width/height 를 px 숫자로 명시하고, 화살표는 <defs><marker> 로 정의하고, SVG 안 글자는 <text> 로 쓰고 LaTeX 를 쓰지 마라. 외부 이미지·스크립트는 금지. 그 외 문항에는 explanation_html 을 넣지 마라.`
     : "";
 
   const label = SRC === "pdf" ? `${from}쪽부터 ${to}쪽까지` : `${from}번째부터 ${to}번째까지`;
