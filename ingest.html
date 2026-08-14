@@ -76,6 +76,11 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
 .bt.fail{background:#FBE9E8;border-color:#F0C7C5;color:var(--stamp)}
 .bt.split{background:#FDF3DC;border-color:#EAD9A8;color:var(--warn)}
 .bt.skip{background:#EEF0F3;border-color:var(--rule);color:var(--ink-2);opacity:.75}
+/* 묶음 칩을 눌러 켜고 끄기 — 꺼진(제외된) 묶음 */
+.bt{cursor:pointer;user-select:none;position:relative;background:var(--card)}
+.bt.off{opacity:.4;border-style:dashed;text-decoration:line-through}
+.bt:active{transform:scale(.96)}
+button.sm{font:600 12px/1 var(--font-d);padding:7px 11px;border-radius:8px}
 @keyframes pulse{50%{opacity:.45}}
 .log{margin-top:14px;max-height:220px;overflow:auto;font-family:var(--font-m);font-size:11.5px;
      background:var(--paper);border:1px solid var(--rule);border-radius:9px;padding:10px;line-height:1.7}
@@ -218,7 +223,16 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
         <span>실패 <b id="stF">0</b></span>
         <span>토큰 <b id="stT">0</b></span>
       </div>
+      <div class="hint" style="margin-top:12px">묶음을 눌러 켜고 끄세요 — 꺼진 묶음(점선)은 건너뜁니다. 초록색은 이미 끝난 묶음이라 다시 돌리지 않습니다.</div>
+      <div class="bar" style="margin-top:8px">
+        <button class="ghost sm" data-sel="all">전체 켜기</button>
+        <button class="ghost sm" data-sel="none">전체 끄기</button>
+        <button class="ghost sm" data-sel="fail">실패한 것만</button>
+        <button class="ghost sm" data-sel="todo">아직 안 된 것만</button>
+      </div>
       <div class="batches" id="batches"></div>
+      <div class="check"><input type="checkbox" id="redo">
+        <span>이미 끝난 묶음도 다시 뽑기 <span style="color:var(--ink-2)">— 평소에는 꺼두세요. 켜면 초록색 묶음까지 처음부터 다시 돌립니다</span></span></div>
       <div class="log" id="log"></div>
     </div>
 
@@ -367,11 +381,12 @@ function load(){
   stats(); preview();
   fetchSavedNumbers(); // ★ 추가: 데이터를 불러올 때 DB도 같이 체크
 }
-["scode","year","sess"].forEach(id => $("#"+id).addEventListener("change", load));
+["scode","year","sess"].forEach(id => $("#"+id).addEventListener("change", () => { load(); plan(); }));
 $("#reset").onclick = () => {
   if(!confirm("이 회차의 변환 기록을 지웁니다. Supabase에 이미 올라간 것은 남습니다.")) return;
-  localStorage.removeItem(slot()); RESULTS = {}; BATCHES = []; TOKENS = 0; ANSWER_KEY = {};
-  $("#log").innerHTML=""; $("#batches").innerHTML=""; drawBatches(); stats(); preview();
+  localStorage.removeItem(slot()); localStorage.removeItem(bslot());
+  RESULTS = {}; BATCHES = []; TOKENS = 0; ANSWER_KEY = {};
+  $("#log").innerHTML=""; $("#batches").innerHTML=""; plan(); drawBatches(); stats(); preview();
 };
 
 /* ── 소스 전환: PDF ↔ 사진 여러 장 ── */
@@ -532,6 +547,23 @@ function drawImgList(){
   });
 }
 
+/* ── 묶음 진행 상황 저장 ──
+   문항(RESULTS)만 저장하고 묶음 상태는 안 남겼더니, 파일을 다시 올리거나 새로고침할 때마다
+   전부 처음부터 다시 뽑았다. 어느 쪽이 이미 끝났는지를 따로 기억해 둔다. */
+const bslot = () => slot() + ":batches";
+function saveBatches(){
+  try{
+    const m = {};
+    for(const b of BATCHES)
+      if(b.status === "done" || b.status === "skip")
+        m[`${b.from}-${b.to}`] = { status:b.status, count:b.count||0, mode:b.mode||"", msg:b.msg||"" };
+    localStorage.setItem(bslot(), JSON.stringify(m));
+  }catch(e){}
+}
+function loadBatchState(){
+  try{ return JSON.parse(localStorage.getItem(bslot()) || "{}"); }catch(e){ return {}; }
+}
+
 /* ── 묶음 계획 ── */
 function plan(){
   const total = SRC === "pdf" ? PAGES : IMAGES.length;
@@ -543,8 +575,14 @@ function plan(){
   const to   = Math.min(total, +$("#pTo").value||total);
   const size = +($("#chunk")?.value || 1);   // 선택칸을 없앴으므로 기본은 1장(쪽)씩
   BATCHES = [];
-  for(let p = from; p <= to; p += size)
-    BATCHES.push({ from:p, to:Math.min(p+size-1, to), status:"", count:0, kind:SRC });
+  const prev = loadBatchState();
+  for(let p = from; p <= to; p += size){
+    const end = Math.min(p+size-1, to);
+    const b = { from:p, to:end, status:"", count:0, kind:SRC, off:false };
+    const saved = prev[`${p}-${end}`];
+    if(saved) Object.assign(b, saved);   // 지난번에 이미 끝낸 묶음은 그대로 두고 건너뛴다
+    BATCHES.push(b);
+  }
   drawBatches(); stats();
 }
 ["pFrom","pTo","chunk"].forEach(id => $("#"+id)?.addEventListener("change", plan));
@@ -552,8 +590,29 @@ function plan(){
 function unit(){ return SRC === "pdf" ? "쪽" : "번"; }
 function drawBatches(){
   $("#batches").innerHTML = BATCHES.map((b,i) =>
-    `<span class="bt ${b.status}" title="${b.msg||""}">${b.from}${b.to>b.from?"–"+b.to:""}${b.count?` · ${b.count}`:""}</span>`).join("");
+    `<button type="button" class="bt ${b.status} ${b.off?"off":""}" data-i="${i}" title="${
+      (b.msg||"") || (b.status==="done" ? "이미 끝남 — 건너뜁니다" : "눌러서 켜고 끄기")
+    }">${b.from}${b.to>b.from?"–"+b.to:""}${b.count?` · ${b.count}`:""}</button>`).join("");
+  saveBatches();
 }
+/* 묶음 칩을 눌러 켜고 끄기 — 페이지 번호를 연달아 타이핑하지 않아도 되게 */
+$("#batches").addEventListener("click", e => {
+  const el = e.target.closest(".bt"); if(!el) return;
+  if(RUNNING) return;
+  const b = BATCHES[+el.dataset.i]; if(!b) return;
+  b.off = !b.off; drawBatches();
+});
+document.querySelectorAll("[data-sel]").forEach(btn => btn.onclick = () => {
+  if(RUNNING) return;
+  const how = btn.dataset.sel;
+  BATCHES.forEach(b => {
+    b.off = how === "all"  ? false
+          : how === "none" ? true
+          : how === "fail" ? b.status !== "fail"
+          : /* todo */       (b.status === "done" || b.status === "skip");
+  });
+  drawBatches();
+});
 function stats(){
   const done = BATCHES.filter(b=>b.status==="done"||b.status==="skip").length;
   const fail = BATCHES.filter(b=>b.status==="fail").length;
@@ -1038,15 +1097,24 @@ async function go(only, forceImage){
   wakeBackup();   // 예비 서버 깨우기를 먼저 걸어둔다(백그라운드) — 필요할 때 이미 깨어 있도록
   if(!only) await extractAnswerKey(); // 전체를 새로 돌릴 때만 정답표를 (다시) 뽑는다
   const gap = +$("#gap").value;
-  const list = only ? BATCHES.filter(b => b.status === "fail") : BATCHES;
-  log(`시작 — 묶음 ${list.length}개`);
-
-  /* 이미 끝난 묶음은 건너뛴다. 다만 "0문항이라 건너뛴" 묶음은 방식을 바꿔 다시 누른 것이라면
-     한 번 더 돌린다 — PDF 그대로는 안 읽히던 스캔 쪽을 이미지로 다시 잡으려는 게 이 버튼의 목적이다. */
+  const redo = !!$("#redo")?.checked;
   const MODE = FORCE_IMAGE_MODE ? "img" : "pdf";
+
+  /* 꺼놓은 묶음은 아예 대상에서 뺀다. 이미 끝난 묶음은 목록엔 있되 아래에서 건너뛴다
+     ("이미 끝난 묶음도 다시 뽑기"를 켰을 때만 다시 돈다) */
+  const picked = BATCHES.filter(b => !b.off);
+  const list = only ? picked.filter(b => b.status === "fail") : picked;
+  const already = only ? 0
+    : list.filter(b => !redo && (b.status === "done" || (b.status === "skip" && b.mode === MODE))).length;
+  const offCount = BATCHES.length - picked.length;
+  log(`시작 — 대상 ${list.length - already}개${already ? ` (이미 끝난 ${already}개 건너뜀)` : ""}${offCount ? ` · 꺼둔 ${offCount}개 제외` : ""}`);
+  if(list.length - already <= 0){
+    log("돌릴 묶음이 없습니다. 묶음을 눌러 켜거나 \"이미 끝난 묶음도 다시 뽑기\"를 켜주세요.", "e");
+  }
+
   for(const b of list){
     if(ABORT){ log("중지했습니다."); break; }
-    if(!only && (b.status === "done" || (b.status === "skip" && b.mode === MODE))) continue;
+    if(!only && !redo && (b.status === "done" || (b.status === "skip" && b.mode === MODE))) continue;
     b.status = ""; b.count = 0;
     await runBatch(b);
     if(b !== list[list.length-1]) await new Promise(r => setTimeout(r, gap));
