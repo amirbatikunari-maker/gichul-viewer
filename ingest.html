@@ -658,7 +658,7 @@ async function callWorker(parts, promptText, from, to, maxTokens){
     const isSvgOn = !!$("#svgOn")?.checked;
     
     // ★ 수정: SVG가 켜져 있으면 300초(5분), 꺼져 있으면 90초로 엄청 넉넉하게 잡습니다.
-    const timeoutMs = isSvgOn ? 300000 : 90000;
+    const timeoutMs = isSvgOn ? 300000 : 150000;
     const timeoutLabel = isSvgOn ? "5분" : "90초";
     
     const timer = setTimeout(() => ac.abort(), timeoutMs);
