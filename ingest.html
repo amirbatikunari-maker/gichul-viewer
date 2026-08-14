@@ -63,12 +63,17 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
 .pv .q b{color:var(--accent);font-family:var(--font-m)}
 .pv .q .bad{color:var(--stamp)}
 #app{display:none}
+#fatal{display:none;position:sticky;top:0;z-index:99;margin:0 0 16px;padding:13px 15px;
+  background:#FBE9E8;border:1.4px solid var(--stamp);border-radius:10px;color:var(--stamp);
+  font-family:var(--font-m);font-size:12.5px;white-space:pre-wrap;line-height:1.6}
+#fatal b{display:block;font-family:var(--font-d);font-size:13px;margin-bottom:4px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>PDF 자동 변환</h1>
   <div class="lead">PDF를 넣으면 페이지 묶음으로 잘라 차례대로 AI에 보내고, 나온 문항을 합쳐 Supabase에 올립니다. 중간에 끊겨도 그 조각만 다시 돌리면 됩니다.</div>
+  <div id="fatal"></div>
 
   <!-- 로그인 -->
   <div class="box" id="auth">
@@ -171,14 +176,42 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
   </div>
 </div>
 
+<script>
+/* ★ 무슨 에러가 나든 화면에 바로 보여준다 — 콘솔 뒤질 필요 없게 */
+function showFatal(title, detail){
+  const el = document.getElementById("fatal");
+  if(!el) return;
+  el.style.display = "block";
+  el.innerHTML = "<b>" + title + "</b>" + detail;
+}
+window.addEventListener("error", e => showFatal("스크립트 오류", (e.message||"") + (e.filename?"\n"+e.filename+":"+e.lineno:"")));
+window.addEventListener("unhandledrejection", e => showFatal("처리 안 된 오류", String(e.reason?.message||e.reason||"")));
+</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <script src="./config.js"></script>
 <script>
+const $ = s => document.querySelector(s);
+
+/* 시작하자마자 로그인 박스부터 확실히 보여준다 */
+$("#auth").style.display = "block";
+$("#app").style.display = "none";
+
+if(typeof window.supabase === "undefined"){
+  showFatal("Supabase 라이브러리를 불러오지 못했습니다.",
+    "인터넷 연결을 확인하거나, 광고 차단 확장 프로그램이 jsdelivr.net 을 막고 있는지 확인해 주세요.");
+  throw new Error("supabase-js not loaded");
+}
+if(typeof window.PDFLib === "undefined"){
+  showFatal("PDF 라이브러리를 불러오지 못했습니다.",
+    "인터넷 연결을 확인하거나, 광고 차단 확장 프로그램을 확인해 주세요.");
+}
 const CFG = window.APP_CONFIG || {};
+if(!CFG.SUPABASE_URL || CFG.SUPABASE_URL.includes("xxxx")){
+  showFatal("config.js 에 Supabase 정보가 없습니다.", "SUPABASE_URL 과 SUPABASE_ANON_KEY 를 채워주세요.");
+}
 const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
 const ENDPOINTS = [CFG.WORKER_URL, CFG.WORKER_BACKUP_URL].filter(Boolean);
-const $ = s => document.querySelector(s);
 const say = (el,t,k) => { el.textContent = t; el.className = "msg " + (k||"info"); };
 
 let PDF = null, PAGES = 0, BATCHES = [], RESULTS = {}, RUNNING = false, ABORT = false, TOKENS = 0;
@@ -192,14 +225,22 @@ function log(t, k){
 
 /* ── 로그인 ── */
 async function refresh(){
-  const {data} = await sb.auth.getSession();
-  $("#auth").style.display = data.session ? "none" : "block";
-  $("#app").style.display  = data.session ? "block" : "none";
+  try{
+    const {data,error} = await sb.auth.getSession();
+    if(error) return showFatal("로그인 상태를 확인하지 못했습니다.", error.message);
+    $("#auth").style.display = data.session ? "none" : "block";
+    $("#app").style.display  = data.session ? "block" : "none";
+    document.getElementById("fatal").style.display = "none";
+  }catch(err){
+    showFatal("화면을 전환하는 중 오류가 났습니다.", err.message);
+  }
 }
 $("#login").onclick = async () => {
-  const {error} = await sb.auth.signInWithPassword({email:$("#em").value.trim(), password:$("#pw").value});
-  if(error) return say($("#am"), "로그인 실패 — " + error.message, "err");
-  refresh();
+  try{
+    const {error} = await sb.auth.signInWithPassword({email:$("#em").value.trim(), password:$("#pw").value});
+    if(error) return say($("#am"), "로그인 실패 — " + error.message, "err");
+    await refresh();
+  }catch(err){ showFatal("로그인 요청 중 오류가 났습니다.", err.message); }
 };
 
 /* ── 저장된 진행 상황 ── */
@@ -514,7 +555,7 @@ $("#dl").onclick = () => {
 };
 
 addEventListener("beforeunload", e => { if(RUNNING){ e.preventDefault(); e.returnValue = ""; } });
-refresh(); load();
+refresh().then(load).catch(err => showFatal("초기화 중 오류가 났습니다.", err.message));
 </script>
 </body>
 </html>
