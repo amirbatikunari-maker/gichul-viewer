@@ -52,6 +52,16 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
 .drop{border:1.6px dashed var(--rule);border-radius:12px;padding:26px;text-align:center;color:var(--ink-2);cursor:pointer;transition:.15s}
 .drop.on{border-color:var(--accent);background:#E4ECFD;color:var(--accent)}
 .drop b{display:block;font:600 15px/1.4 var(--font-d);color:var(--ink);margin-bottom:4px}
+.srctabs{display:flex;gap:6px;margin-bottom:14px}
+.srctab{padding:8px 14px;border-radius:999px;border:1.4px solid var(--rule);
+     font:600 12px/1 var(--font-d);background:none;color:var(--ink-2)}
+.srctab.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.imglist{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.imgchip{display:flex;align-items:center;gap:6px;padding:5px 6px 5px 5px;border:1.4px solid var(--rule);
+  border-radius:8px;background:var(--card);font-family:var(--font-m);font-size:11px;max-width:160px}
+.imgchip img{width:28px;height:28px;object-fit:cover;border-radius:4px;flex:none}
+.imgchip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.imgchip b{flex:none;color:var(--ink-2);cursor:pointer;padding:0 2px}
 
 /* 진행 */
 .prog{height:6px;border-radius:99px;background:var(--rule);overflow:hidden;margin:14px 0 10px}
@@ -94,12 +104,12 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
 <nav class="nav3">
   <a href="./index.html">뷰어</a>
   <a href="./upload.html">업로더</a>
-  <a href="./ingest.html" class="on">PDF 변환</a>
+  <a href="./ingest.html" class="on">자동 변환</a>
 </nav>
 
 <div class="wrap">
-  <h1>PDF 자동 변환</h1>
-  <div class="lead">PDF를 넣으면 페이지 묶음으로 잘라 차례대로 AI에 보내고, 나온 문항을 합쳐 Supabase에 올립니다. 중간에 끊겨도 그 조각만 다시 돌리면 됩니다.</div>
+  <h1>자동 변환</h1>
+  <div class="lead">PDF나 사진 여러 장을 넣으면 묶음으로 잘라 차례대로 AI에 보내고, 나온 문항을 합쳐 Supabase에 올립니다. 중간에 끊겨도 그 조각만 다시 돌리면 됩니다.</div>
   <div id="fatal"></div>
 
   <!-- 로그인 -->
@@ -126,20 +136,37 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
       </div>
     </div>
 
-    <!-- 2. PDF -->
+    <!-- 2. 자료 -->
     <div class="box">
-      <div class="eyebrow">2 · PDF 넣기</div>
-      <div class="drop" id="drop">
-        <b>PDF 파일을 여기에 끌어다 놓기</b>
-        눌러서 고르셔도 됩니다
+      <div class="eyebrow">2 · 자료 넣기</div>
+      <div class="srctabs">
+        <button class="srctab on" data-src="pdf" type="button">PDF 한 개</button>
+        <button class="srctab" data-src="images" type="button">사진 여러 장</button>
       </div>
-      <input id="file" type="file" accept="application/pdf" hidden>
+
+      <div id="src-pdf">
+        <div class="drop" id="drop">
+          <b>PDF 파일을 여기에 끌어다 놓기</b>
+          눌러서 고르셔도 됩니다
+        </div>
+        <input id="file" type="file" accept="application/pdf,.pdf" hidden>
+      </div>
+
+      <div id="src-images" hidden>
+        <div class="drop" id="dropImg">
+          <b>사진 여러 장을 한꺼번에 끌어다 놓기</b>
+          문제지를 순서대로 찍은 사진들. 눌러서 고르셔도 됩니다
+        </div>
+        <input id="fileImg" type="file" accept="image/*" multiple hidden>
+        <div class="imglist" id="imglist"></div>
+      </div>
+
       <div class="msg" id="fm"></div>
 
       <div class="grid" style="margin-top:14px">
-        <div><label>시작 페이지</label><input id="pFrom" type="number" min="1" value="1"></div>
-        <div><label>끝 페이지</label><input id="pTo" type="number" min="1"></div>
-        <div><label>한 번에 보낼 페이지</label>
+        <div><label id="fromLabel">시작 페이지</label><input id="pFrom" type="number" min="1" value="1"></div>
+        <div><label id="toLabel">끝 페이지</label><input id="pTo" type="number" min="1"></div>
+        <div><label id="chunkLabel">한 번에 보낼 페이지</label>
           <select id="chunk">
             <option value="2">2쪽 (가장 안전)</option>
             <option value="3" selected>3쪽 (권장)</option>
@@ -156,7 +183,7 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
         </div>
       </div>
 
-      <label style="margin-top:14px">PDF에 해설이 실려 있나요</label>
+      <label style="margin-top:14px">자료에 해설이 실려 있나요</label>
       <select id="hasExp">
         <option value="no" selected>없음 — AI가 해설을 새로 씁니다</option>
         <option value="yes">있음 — 실린 해설을 근거로 다시 정리합니다</option>
@@ -166,7 +193,9 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
       <div class="check"><input type="checkbox" id="autoUp" checked>
         <span>묶음이 끝날 때마다 곧바로 Supabase에 올리기 <span style="color:var(--ink-2)">— 도중에 창이 닫혀도 그때까지 한 건 남습니다</span></span></div>
       <div class="check"><input type="checkbox" id="svgOn">
-        <span>계통도·블록선도가 필요한 문항은 SVG 그림까지 그리게 하기 <span style="color:var(--ink-2)">— 느려지고 잘릴 확률이 올라갑니다</span></span></div>
+        <span>계통도·블록선도가 필요한 문항은 SVG 그림까지 그리게 하기 <span style="color:var(--ink-2)">— 그림 코드까지 써야 해서 시간이 더 걸립니다. 회로도·계통도가 실제로 나오는 과목에서만 켜세요</span></span></div>
+      <div class="check" id="autoImgRow"><input type="checkbox" id="autoImg" checked>
+        <span>PDF가 텍스트로 안 읽히면 그 쪽만 사진으로 바꿔서 다시 시도 <span style="color:var(--ink-2)">— 스캔본이거나 깨진 PDF에서 도움이 됩니다. 시간은 더 걸립니다</span></span></div>
     </div>
 
     <!-- 3. 실행 -->
@@ -216,6 +245,7 @@ window.addEventListener("unhandledrejection", e => showFatal("처리 안 된 오
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="./config.js"></script>
 <script>
 const $ = s => document.querySelector(s);
@@ -233,17 +263,25 @@ if(typeof window.PDFLib === "undefined"){
   showFatal("PDF 라이브러리를 불러오지 못했습니다.",
     "인터넷 연결을 확인하거나, 광고 차단 확장 프로그램을 확인해 주세요.");
 }
+if(typeof window.pdfjsLib !== "undefined"){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+}
 const CFG = window.APP_CONFIG || {};
 if(!CFG.SUPABASE_URL || CFG.SUPABASE_URL.includes("xxxx")){
   showFatal("config.js 에 Supabase 정보가 없습니다.", "SUPABASE_URL 과 SUPABASE_ANON_KEY 를 채워주세요.");
 }
-const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, {
-  auth: { persistSession: false }
-});
+const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
 const ENDPOINTS = [CFG.WORKER_URL, CFG.WORKER_BACKUP_URL].filter(Boolean);
 const say = (el,t,k) => { el.textContent = t; el.className = "msg " + (k||"info"); };
 
-let PDF = null, PAGES = 0, BATCHES = [], RESULTS = {}, RUNNING = false, ABORT = false, TOKENS = 0;
+/* ── 자료 상태 ──
+   SRC: 'pdf' | 'images'
+   PDF_BYTES: 원본 PDF 바이트 (pdf.js 렌더링용, pdf-lib 와 별개로 보관)
+   IMAGES: 사진 모드일 때 사용자가 올린 파일들 [{name, mime, b64}] */
+let SRC = "pdf";
+let PDF = null, PDF_BYTES = null, PAGES = 0;
+let IMAGES = [];
+let BATCHES = [], RESULTS = {}, RUNNING = false, ABORT = false, TOKENS = 0;
 
 /* ── 로그 ── */
 function log(t, k){
@@ -286,43 +324,126 @@ $("#reset").onclick = () => {
   $("#log").innerHTML=""; $("#batches").innerHTML=""; drawBatches(); stats(); preview();
 };
 
+/* ── 소스 전환: PDF ↔ 사진 여러 장 ── */
+function setSource(src){
+  SRC = src;
+  document.querySelectorAll(".srctab").forEach(t => t.classList.toggle("on", t.dataset.src === src));
+  $("#src-pdf").hidden = src !== "pdf";
+  $("#src-images").hidden = src !== "images";
+  $("#autoImgRow").style.display = src === "pdf" ? "flex" : "none";
+  if(src === "pdf"){
+    $("#fromLabel").textContent = "시작 페이지";
+    $("#toLabel").textContent = "끝 페이지";
+    $("#chunkLabel").textContent = "한 번에 보낼 페이지";
+  }else{
+    $("#fromLabel").textContent = "시작 번호";
+    $("#toLabel").textContent = "끝 번호";
+    $("#chunkLabel").textContent = "한 번에 보낼 장수";
+  }
+  $("#fm").className = "msg";
+  $("#run").disabled = src === "pdf" ? !PDF : !IMAGES.length;
+  if(src === "pdf" && PDF) plan(); else if(src === "images" && IMAGES.length) plan();
+}
+document.querySelectorAll(".srctab").forEach(t => t.onclick = () => setSource(t.dataset.src));
+
 /* ── PDF 받기 ── */
 const drop = $("#drop");
 drop.onclick = () => $("#file").click();
 ["dragenter","dragover"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add("on"); }));
 ["dragleave","drop"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove("on"); }));
-drop.addEventListener("drop", ev => { const f = ev.dataTransfer.files[0]; if(f) take(f); });
-$("#file").onchange = e => { const f = e.target.files[0]; if(f) take(f); };
+drop.addEventListener("drop", ev => { const f = ev.dataTransfer.files[0]; if(f) takePDF(f); });
+$("#file").onchange = e => { const f = e.target.files[0]; if(f) takePDF(f); };
 
-async function take(file){
-  if(file.type !== "application/pdf") return say($("#fm"), "PDF 파일만 넣을 수 있습니다.", "err");
+function looksLikePDF(file){
+  return file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
+}
+async function takePDF(file){
+  if(!looksLikePDF(file)) return say($("#fm"), "PDF 파일만 넣을 수 있습니다.", "err");
   say($("#fm"), "여는 중…", "info");
   try{
     const bytes = new Uint8Array(await file.arrayBuffer());
     const doc = await PDFLib.PDFDocument.load(bytes, {ignoreEncryption:true});
-    PDF = doc; PAGES = doc.getPageCount();
+    PDF = doc; PDF_BYTES = bytes; PAGES = doc.getPageCount();
     $("#pTo").value = PAGES; $("#pFrom").value = 1;
     drop.innerHTML = `<b>${file.name}</b>${PAGES}쪽 · ${(file.size/1048576).toFixed(1)}MB`;
     say($("#fm"), `${PAGES}쪽을 읽었습니다. 페이지 범위를 확인하고 시작하세요.`, "ok");
     $("#run").disabled = false;
     plan();
   }catch(e){
-    say($("#fm"), "PDF를 열지 못했습니다 — " + e.message + "\n암호가 걸린 파일이면 먼저 암호를 풀어주세요.", "err");
+    say($("#fm"), "PDF를 열지 못했습니다 — " + e.message + "\n암호가 걸린 파일이면 먼저 암호를 풀어주세요. 스캔 이미지들을 그대로 갖고 계시면 위쪽 \"사진 여러 장\" 탭을 대신 써보세요.", "err");
   }
+}
+
+/* ── 사진 여러 장 받기 ── */
+const dropImg = $("#dropImg");
+dropImg.onclick = () => $("#fileImg").click();
+["dragenter","dragover"].forEach(e => dropImg.addEventListener(e, ev => { ev.preventDefault(); dropImg.classList.add("on"); }));
+["dragleave","drop"].forEach(e => dropImg.addEventListener(e, ev => { ev.preventDefault(); dropImg.classList.remove("on"); }));
+dropImg.addEventListener("drop", ev => { takeImages([...ev.dataTransfer.files].filter(f => f.type.startsWith("image/"))); });
+$("#fileImg").onchange = e => takeImages([...e.target.files]);
+
+function fileToB64(file){
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(",")[1]);
+    r.onerror = () => rej(new Error("파일을 읽지 못했습니다: " + file.name));
+    r.readAsDataURL(file);
+  });
+}
+/* 자연스러운 순서로: "2쪽.jpg" 가 "10쪽.jpg" 보다 앞에 오도록 숫자 기준 정렬 */
+function naturalSort(a, b){
+  return a.name.localeCompare(b.name, undefined, {numeric:true, sensitivity:"base"});
+}
+async function takeImages(files){
+  if(!files.length) return;
+  say($("#fm"), `${files.length}장 읽는 중…`, "info");
+  try{
+    const added = [];
+    for(const f of files){
+      const b64 = await fileToB64(f);
+      added.push({ name:f.name, mime:f.type || "image/jpeg", b64, size:f.size });
+    }
+    IMAGES = IMAGES.concat(added).sort(naturalSort);
+    drawImgList();
+    $("#pFrom").value = 1; $("#pTo").value = IMAGES.length;
+    say($("#fm"), `총 ${IMAGES.length}장. 순서가 이상하면 파일명 앞에 01, 02 처럼 번호를 붙여 다시 올려주세요.`, "ok");
+    $("#run").disabled = false;
+    plan();
+  }catch(e){
+    say($("#fm"), "사진을 읽지 못했습니다 — " + e.message, "err");
+  }
+}
+function drawImgList(){
+  $("#imglist").innerHTML = IMAGES.map((im, i) => `
+    <span class="imgchip" data-i="${i}">
+      <img src="data:${im.mime};base64,${im.b64}" alt="">
+      <span>${im.name}</span>
+      <b data-del="${i}" title="빼기">✕</b>
+    </span>`).join("");
+  $("#imglist").querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+    IMAGES.splice(+b.dataset.del, 1);
+    drawImgList();
+    $("#pTo").value = IMAGES.length;
+    if(!IMAGES.length){ $("#run").disabled = true; say($("#fm"), "사진을 다시 올려주세요.", "info"); }
+    plan();
+  });
 }
 
 /* ── 묶음 계획 ── */
 function plan(){
+  const total = SRC === "pdf" ? PAGES : IMAGES.length;
+  if(!total) return;
   const from = Math.max(1, +$("#pFrom").value||1);
-  const to   = Math.min(PAGES, +$("#pTo").value||PAGES);
+  const to   = Math.min(total, +$("#pTo").value||total);
   const size = +$("#chunk").value;
   BATCHES = [];
   for(let p = from; p <= to; p += size)
-    BATCHES.push({ from:p, to:Math.min(p+size-1, to), status:"", count:0 });
+    BATCHES.push({ from:p, to:Math.min(p+size-1, to), status:"", count:0, kind:SRC });
   drawBatches(); stats();
 }
-["pFrom","pTo","chunk"].forEach(id => $("#"+id).addEventListener("change", () => PDF && plan()));
+["pFrom","pTo","chunk"].forEach(id => $("#"+id).addEventListener("change", plan));
 
+function unit(){ return SRC === "pdf" ? "쪽" : "번"; }
 function drawBatches(){
   $("#batches").innerHTML = BATCHES.map((b,i) =>
     `<span class="bt ${b.status}" title="${b.msg||""}">${b.from}${b.to>b.from?"–"+b.to:""}${b.count?` · ${b.count}`:""}</span>`).join("");
@@ -343,24 +464,27 @@ function stats(){
 }
 
 /* ── 프롬프트 ── */
-function buildPrompt(from, to){
+function buildPrompt(from, to, asImage){
   const mode = $("#hasExp").value;
   const src = mode === "yes"
-    ? "이 PDF에는 해설이 함께 실려 있다. 실린 해설을 근거로 삼되, 원문을 그대로 옮기지 말고 아래 4단 구성으로 다시 정리해라."
+    ? "이 자료에는 해설이 함께 실려 있다. 실린 해설을 근거로 삼되, 원문을 그대로 옮기지 말고 아래 4단 구성으로 다시 정리해라."
     : mode === "answer"
-    ? "이 PDF에는 정답만 표시돼 있고 해설은 없다. 표시된 정답을 answer 에 넣고, 해설은 네가 직접 작성해라."
-    : "이 PDF에는 해설이 없다. 정답을 네가 판단해서 answer 에 넣되 확신이 없으면 null 로 두고, 해설 안에 근거를 밝혀라.";
+    ? "이 자료에는 정답만 표시돼 있고 해설은 없다. 표시된 정답을 answer 에 넣고, 해설은 네가 직접 작성해라."
+    : "이 자료에는 해설이 없다. 정답을 네가 판단해서 answer 에 넣되 확신이 없으면 null 로 두고, 해설 안에 근거를 밝혀라.";
 
   const svg = $("#svgOn").checked
     ? `\n[예외] 블록선도·계통도·플로우차트가 있어야만 설명되는 문항에 한해, "explanation_md" 대신 "explanation_html" 에 인라인 <svg> 를 포함한 HTML 을 넣어라. <svg> 에는 width/height 를 px 숫자로 명시하고, 화살표는 <defs><marker> 로 정의하고, SVG 안 글자는 <text> 로 쓰고 LaTeX 를 쓰지 마라. 외부 이미지·스크립트는 금지. 그 외 문항에는 explanation_html 을 넣지 마라.`
     : "";
 
-  return `첨부한 PDF는 자격증 기출문제집의 ${from}쪽부터 ${to}쪽까지다.
+  const label = SRC === "pdf" ? `${from}쪽부터 ${to}쪽까지` : `${from}번째부터 ${to}번째까지`;
+  const kind = asImage ? "사진으로 찍은" : (SRC === "pdf" ? "PDF" : "사진으로 찍은");
+
+  return `첨부한 자료는 자격증 기출문제집을 ${kind} 것으로, ${label}이다.
 ${src}
 
 [대상]
-- 이 페이지들 안에 있는 문항을 하나도 빠뜨리지 말고 전부 뽑아라.
-- 페이지 경계에서 잘려 문제나 보기가 온전하지 않은 문항은 아예 넣지 마라. (다음 묶음에서 다시 잡힌다)
+- 이 범위 안에 있는 문항을 하나도 빠뜨리지 말고 전부 뽑아라.
+- 경계에서 잘려 문제나 보기가 온전하지 않은 문항은 아예 넣지 마라. (다음 묶음에서 다시 잡힌다)
 - 목차·표지·광고·수험 안내처럼 문제가 아닌 페이지는 무시해라.
 
 [출력 형식]
@@ -369,7 +493,7 @@ ${src}
 {
   "number": 인쇄된 문항 번호(정수),
   "subject_part": "1과목 : 에너지관리" 형태의 과목 구분. 안 보이면 null,
-  "question_text": "문제 원문 그대로 (단, 맨 앞의 문항 번호 '1.', '2.' 등은 제외하고 문제 내용만 넣을 것). 수식은 $…$",
+  "question_text": "문제 원문 그대로. 수식은 $…$",
   "choices": ["보기1","보기2","보기3","보기4"],
   "answer": 정답 번호 1~4. 모르면 null,
   "summary": "12자 이내 유형 요약",
@@ -394,20 +518,29 @@ ${src}
 - 첨자와 단위를 특히 조심해라. $x^2$ 와 $x_2$, kW 와 kVA 를 혼동하지 마라.${svg}`;
 }
 
-/* ── 워커 호출 ── */
-async function ask(pdfB64, from, to){
+/* ── 워커 호출 (parts: [{mime, b64}, ...]) ── */
+async function ask(parts, from, to, asImage){
   const body = {
     contents: [{ role:"user", parts:[
-      { inline_data:{ mime_type:"application/pdf", data:pdfB64 } },
-      { text: buildPrompt(from, to) }
+      ...parts.map(p => ({ inline_data:{ mime_type:p.mime, data:p.b64 } })),
+      { text: buildPrompt(from, to, asImage) }
     ]}],
     generationConfig: { temperature:0.15, maxOutputTokens:32768, responseMimeType:"application/json" }
   };
   let last = "";
   for(const base of ENDPOINTS){
+    /* 90초까지만 기다린다. 그동안 15초마다 "아직 기다리는 중"이라고 로그에 남긴다. */
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 90000);
+    let elapsed = 0;
+    const ticker = setInterval(() => {
+      elapsed += 15;
+      log(`${from}–${to}${unit()} · ${new URL(base).hostname} 응답 기다리는 중… ${elapsed}초`);
+    }, 15000);
     try{
       const res = await fetch(base.replace(/\/$/,"") + "/get-data", {
-        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body),
+        signal: ac.signal
       });
       const d = await res.json();
       if(!res.ok){ last = d.detail || res.status; continue; }
@@ -417,19 +550,55 @@ async function ask(pdfB64, from, to){
         truncated: d.finishReason === "MAX_TOKENS",
         model: d.usedModel
       };
-    }catch(e){ last = e.message; }
+    }catch(e){
+      last = (e.name === "AbortError") ? "90초 안에 응답이 없었습니다" : e.message;
+    }finally{
+      clearTimeout(timer); clearInterval(ticker);
+    }
   }
   throw new Error(last || "모든 서버가 응답하지 않았습니다.");
 }
 
-/* ── PDF 조각 만들기 ── */
-async function slice(from, to){
+/* ── PDF 페이지 조각(PDF 그대로) ── */
+async function slicePDF(from, to){
   const out = await PDFLib.PDFDocument.create();
   const idx = []; for(let p=from; p<=to; p++) idx.push(p-1);
   const pages = await out.copyPages(PDF, idx);
   pages.forEach(p => out.addPage(p));
-  return b64(await out.save());
+  return [{ mime:"application/pdf", b64: b64(await out.save()) }];
 }
+
+/* ── PDF 페이지를 사진(PNG)으로 렌더링 — 깨진/스캔 PDF용 ── */
+async function renderPDFPagesAsImages(from, to){
+  if(typeof window.pdfjsLib === "undefined" || !PDF_BYTES)
+    throw new Error("PDF를 이미지로 바꾸는 기능을 쓸 수 없습니다.");
+  const copy = PDF_BYTES.slice(); // pdf.js 가 버퍼를 소비하므로 매번 복사본을 준다
+  const doc = await pdfjsLib.getDocument({ data: copy }).promise;
+  const parts = [];
+  for(let p = from; p <= to; p++){
+    const page = await doc.getPage(p);
+    const viewport = page.getViewport({ scale: 2.2 });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+    const blob = await new Promise(res => canvas.toBlob(res, "image/png", 0.95));
+    const dataUrl = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.onerror = rej;
+      r.readAsDataURL(blob);
+    });
+    parts.push({ mime:"image/png", b64: dataUrl.split(",")[1] });
+  }
+  return parts;
+}
+
+/* ── 사진 여러 장 중 index 범위(1-based)를 parts 로 ── */
+function imagesToParts(from, to){
+  return IMAGES.slice(from-1, to).map(im => ({ mime: im.mime, b64: im.b64 }));
+}
+
 function b64(u8){
   let s = "", CH = 0x8000;
   for(let i=0; i<u8.length; i+=CH) s += String.fromCharCode.apply(null, u8.subarray(i, i+CH));
@@ -461,16 +630,26 @@ function merge(list){
   save(); return n;
 }
 
-/* ── 한 묶음 처리 (실패하면 반으로 쪼개 재시도) ── */
-async function runBatch(b, depth = 0){
+/* ── 한 묶음 처리 ──
+   실패하면: 아직 나눌 수 있으면 반으로 쪼갠다.
+   PDF 이고 더는 못 나누는데(1쪽)도 실패하면, "PDF가 텍스트로 안 읽히면 사진으로" 옵션이
+   켜져 있는 경우 그 한 쪽을 그림으로 다시 렌더링해서 마지막으로 한 번 더 시도한다. */
+async function runBatch(b, depth = 0, asImage = false){
   b.status = "run"; drawBatches();
-  const data = await slice(b.from, b.to);
-  const mb = (data.length * 0.75 / 1048576).toFixed(1);
-  log(`${b.from}–${b.to}쪽 전송 (${mb}MB)`);
+  let parts;
+  try{
+    if(asImage) parts = await renderPDFPagesAsImages(b.from, b.to);
+    else if(b.kind === "pdf") parts = await slicePDF(b.from, b.to);
+    else parts = imagesToParts(b.from, b.to);
+  }catch(e){
+    return bad(b, "자료를 준비하지 못했습니다 — " + e.message, depth, asImage);
+  }
+  const mb = (JSON.stringify(parts).length * 0.75 / 1048576).toFixed(1);
+  log(`${b.from}–${b.to}${unit()} 전송 (${mb}MB)${asImage ? " · 사진으로 재시도" : ""}`);
 
   let r;
-  try{ r = await ask(data, b.from, b.to); }
-  catch(e){ return bad(b, e.message, depth); }
+  try{ r = await ask(parts, b.from, b.to, asImage); }
+  catch(e){ return bad(b, e.message, depth, asImage); }
 
   let list = null;
   try{
@@ -478,38 +657,44 @@ async function runBatch(b, depth = 0){
     const o = JSON.parse(clean);
     list = Array.isArray(o) ? o : (o.questions || []);
   }catch(e){
-    return bad(b, r.truncated ? "응답이 잘렸습니다" : "JSON을 읽지 못했습니다", depth);
+    return bad(b, r.truncated ? "응답이 잘렸습니다" : "JSON을 읽지 못했습니다", depth, asImage);
   }
 
   const n = merge(list);
-  b.status = "done"; b.count = n; b.msg = r.model || "";
-  log(`${b.from}–${b.to}쪽 → ${n}문항 (${r.model||"?"})`, "g");
+  b.status = "done"; b.count = n; b.msg = (r.model || "") + (asImage ? " · 사진 변환" : "");
+  log(`${b.from}–${b.to}${unit()} → ${n}문항 (${r.model||"?"}${asImage ? ", 사진 변환" : ""})`, "g");
   drawBatches(); stats(); preview();
 
   if($("#autoUp").checked && n) await push(true);
   return true;
 }
 
-async function bad(b, why, depth){
+async function bad(b, why, depth, wasImage){
+  /* PDF 이고, 더는 쪼갤 수 없는 한 쪽인데, 아직 사진 변환을 안 써봤고, 옵션이 켜져 있으면 마지막으로 사진으로 시도 */
+  if(!wasImage && b.kind === "pdf" && b.to === b.from && $("#autoImg").checked && typeof window.pdfjsLib !== "undefined"){
+    log(`${b.from}${unit()} ${why}. 텍스트로 안 읽혀서 사진으로 바꿔 다시 시도합니다.`, "e");
+    return runBatch(b, depth, true);
+  }
   if(depth < 2 && b.to > b.from){
     const mid = Math.floor((b.from + b.to)/2);
     b.status = "split"; b.msg = why + " → 쪼갬"; drawBatches();
-    log(`${b.from}–${b.to}쪽 ${why}. 반으로 나눠 다시 시도합니다.`, "e");
-    const ok1 = await runBatch({from:b.from, to:mid, status:"", count:0}, depth+1);
-    const ok2 = await runBatch({from:mid+1, to:b.to, status:"", count:0}, depth+1);
+    log(`${b.from}–${b.to}${unit()} ${why}. 반으로 나눠 다시 시도합니다.`, "e");
+    const ok1 = await runBatch({from:b.from, to:mid, status:"", count:0, kind:b.kind}, depth+1);
+    const ok2 = await runBatch({from:mid+1, to:b.to, status:"", count:0, kind:b.kind}, depth+1);
     b.status = (ok1 && ok2) ? "done" : "fail";
     drawBatches(); stats();
     return b.status === "done";
   }
   b.status = "fail"; b.msg = why;
-  log(`${b.from}–${b.to}쪽 실패 — ${why}`, "e");
+  log(`${b.from}–${b.to}${unit()} 실패 — ${why}`, "e");
   drawBatches(); stats();
   return false;
 }
 
 /* ── 전체 실행 ── */
 async function go(only){
-  if(!PDF) return;
+  if(SRC === "pdf" && !PDF) return;
+  if(SRC === "images" && !IMAGES.length) return;
   RUNNING = true; ABORT = false;
   $("#run").disabled = $("#retry").disabled = true; $("#stop").disabled = false;
   const gap = +$("#gap").value;
