@@ -580,7 +580,7 @@ function hydrate(i){
     </div>
     <div class="qcard">
       ${q.subject_part?`<div class="part">${esc(q.subject_part)}</div>`:""}
-      <div class="qtext">${md(q.question_text).replace(/^<p>|<\/p>$/g,"")}</div>
+      <div class="qtext">${md((q.question_text||"").replace(/^\s*\d+\.\s*/, "")).replace(/^<p>|<\/p>$/g,"")}</div>
       ${chs?`<div class="choices">${chs}</div>`:""}
     </div>
     ${(expInner||q.answer)?`
