@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PDF 자동 변환 · 기출 해설 노트</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.css">
+<style>
+:root{--paper:#E9ECE6;--card:#FCFCFA;--ink:#10233D;--ink-2:#5A6B7F;--rule:#D3D8CD;
+      --accent:#1D4ED8;--stamp:#BE2B26;--ok:#137A4B;--warn:#9A6B00;
+      --font-d:"IBM Plex Sans KR",Pretendard,sans-serif;--font-m:"IBM Plex Mono",monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,sans-serif;font-size:14px;line-height:1.6}
+.wrap{max-width:900px;margin:0 auto;padding:24px 16px 90px}
+h1{font:700 20px/1.3 var(--font-d);margin:0 0 4px;letter-spacing:-.02em}
+.lead{color:var(--ink-2);font-size:13px;margin-bottom:22px}
+.box{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:18px;margin-bottom:14px}
+.eyebrow{display:flex;align-items:baseline;gap:10px;font:600 11px/1 var(--font-d);letter-spacing:.14em;color:var(--ink-2);margin-bottom:14px}
+.eyebrow::after{content:"";flex:1;height:1px;background:var(--rule)}
+label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:0 0 5px}
+input,select,textarea{width:100%;padding:10px 12px;border:1.4px solid var(--rule);border-radius:9px;background:var(--paper);color:var(--ink);font:inherit}
+textarea{font-family:var(--font-m);font-size:12px;min-height:120px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+button{font:600 14px/1 var(--font-d);padding:12px 18px;border:0;border-radius:10px;background:var(--ink);color:var(--paper);cursor:pointer}
+button.ghost{background:transparent;border:1.4px solid var(--rule);color:var(--ink)}
+button.danger{background:var(--stamp)}
+button:disabled{opacity:.4;cursor:not-allowed}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center}
+.msg{margin-top:12px;padding:11px 13px;border-radius:9px;font-size:13px;white-space:pre-wrap;font-family:var(--font-m);display:none}
+.msg.ok{display:block;background:#E3F3EA;color:var(--ok)}
+.msg.err{display:block;background:#FBE9E8;color:var(--stamp)}
+.msg.info{display:block;background:#E4ECFD;color:var(--accent)}
+.hint{font-size:12px;color:var(--ink-2);margin-top:8px}
+code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px;border-radius:4px}
+.check{display:flex;align-items:flex-start;gap:9px;margin:10px 0;font-size:13px}
+.check input{width:18px;height:18px;flex:none;margin-top:2px;accent-color:var(--accent)}
+.drop{border:1.6px dashed var(--rule);border-radius:12px;padding:26px;text-align:center;color:var(--ink-2);cursor:pointer;transition:.15s}
+.drop.on{border-color:var(--accent);background:#E4ECFD;color:var(--accent)}
+.drop b{display:block;font:600 15px/1.4 var(--font-d);color:var(--ink);margin-bottom:4px}
+
+/* 진행 */
+.prog{height:6px;border-radius:99px;background:var(--rule);overflow:hidden;margin:14px 0 10px}
+.prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.stats{display:flex;gap:16px;font-family:var(--font-m);font-size:12px;color:var(--ink-2);flex-wrap:wrap}
+.stats b{color:var(--ink);font-weight:600}
+.batches{display:flex;flex-wrap:wrap;gap:5px;margin-top:12px}
+.bt{min-width:52px;padding:5px 8px;border-radius:7px;border:1.4px solid var(--rule);
+    font:500 11px/1 var(--font-m);color:var(--ink-2);text-align:center}
+.bt.run{border-color:var(--accent);color:var(--accent);animation:pulse 1s infinite}
+.bt.done{background:#E3F3EA;border-color:#B7DEC8;color:var(--ok)}
+.bt.fail{background:#FBE9E8;border-color:#F0C7C5;color:var(--stamp)}
+.bt.split{background:#FDF3DC;border-color:#EAD9A8;color:var(--warn)}
+@keyframes pulse{50%{opacity:.45}}
+.log{margin-top:14px;max-height:220px;overflow:auto;font-family:var(--font-m);font-size:11.5px;
+     background:var(--paper);border:1px solid var(--rule);border-radius:9px;padding:10px;line-height:1.7}
+.log div{white-space:pre-wrap}
+.log .e{color:var(--stamp)}
+.log .g{color:var(--ok)}
+.pv{margin-top:12px;max-height:300px;overflow:auto;border:1px solid var(--rule);border-radius:10px;padding:12px;font-size:12px}
+.pv .q{padding:7px 0;border-bottom:1px dashed var(--rule)}
+.pv .q b{color:var(--accent);font-family:var(--font-m)}
+.pv .q .bad{color:var(--stamp)}
+#app{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>PDF 자동 변환</h1>
+  <div class="lead">PDF를 넣으면 페이지 묶음으로 잘라 차례대로 AI에 보내고, 나온 문항을 합쳐 Supabase에 올립니다. 중간에 끊겨도 그 조각만 다시 돌리면 됩니다.</div>
+
+  <!-- 로그인 -->
+  <div class="box" id="auth">
+    <div class="eyebrow">로그인</div>
+    <div class="grid">
+      <div><label>이메일</label><input id="em" type="email" autocomplete="username"></div>
+      <div><label>비밀번호</label><input id="pw" type="password" autocomplete="current-password"></div>
+    </div>
+    <div class="bar"><button id="login">로그인</button></div>
+    <div class="msg" id="am"></div>
+  </div>
+
+  <div id="app">
+    <!-- 1. 대상 -->
+    <div class="box">
+      <div class="eyebrow">1 · 어느 회차인가</div>
+      <div class="grid">
+        <div><label>과목명</label><input id="sname" placeholder="위험물산업기사"></div>
+        <div><label>과목 코드</label><input id="scode" placeholder="danger-ind"></div>
+        <div><label>분류</label><input id="scat" placeholder="소방·안전"></div>
+        <div><label>연도</label><input id="year" type="number" placeholder="2020"></div>
+        <div><label>회차</label><input id="sess" type="number" placeholder="3"></div>
+      </div>
+    </div>
+
+    <!-- 2. PDF -->
+    <div class="box">
+      <div class="eyebrow">2 · PDF 넣기</div>
+      <div class="drop" id="drop">
+        <b>PDF 파일을 여기에 끌어다 놓기</b>
+        눌러서 고르셔도 됩니다
+      </div>
+      <input id="file" type="file" accept="application/pdf" hidden>
+      <div class="msg" id="fm"></div>
+
+      <div class="grid" style="margin-top:14px">
+        <div><label>시작 페이지</label><input id="pFrom" type="number" min="1" value="1"></div>
+        <div><label>끝 페이지</label><input id="pTo" type="number" min="1"></div>
+        <div><label>한 번에 보낼 페이지</label>
+          <select id="chunk">
+            <option value="2">2쪽 (가장 안전)</option>
+            <option value="3" selected>3쪽 (권장)</option>
+            <option value="4">4쪽</option>
+            <option value="6">6쪽 (빠름·잘릴 위험)</option>
+          </select>
+        </div>
+        <div><label>호출 간격</label>
+          <select id="gap">
+            <option value="1500">1.5초</option>
+            <option value="4000" selected>4초 (무료 한도 안전)</option>
+            <option value="8000">8초</option>
+          </select>
+        </div>
+      </div>
+
+      <label style="margin-top:14px">PDF에 해설이 실려 있나요</label>
+      <select id="hasExp">
+        <option value="no" selected>없음 — AI가 해설을 새로 씁니다</option>
+        <option value="yes">있음 — 실린 해설을 근거로 다시 정리합니다</option>
+        <option value="answer">정답만 표시돼 있음</option>
+      </select>
+
+      <div class="check"><input type="checkbox" id="autoUp" checked>
+        <span>묶음이 끝날 때마다 곧바로 Supabase에 올리기 <span style="color:var(--ink-2)">— 도중에 창이 닫혀도 그때까지 한 건 남습니다</span></span></div>
+      <div class="check"><input type="checkbox" id="svgOn">
+        <span>계통도·블록선도가 필요한 문항은 SVG 그림까지 그리게 하기 <span style="color:var(--ink-2)">— 느려지고 잘릴 확률이 올라갑니다</span></span></div>
+    </div>
+
+    <!-- 3. 실행 -->
+    <div class="box">
+      <div class="eyebrow">3 · 돌리기</div>
+      <div class="bar">
+        <button id="run" disabled>변환 시작</button>
+        <button class="ghost" id="stop" disabled>중지</button>
+        <button class="ghost" id="retry" disabled>실패한 묶음만 다시</button>
+        <button class="ghost" id="reset">기록 지우기</button>
+      </div>
+      <div class="prog"><i id="pi"></i></div>
+      <div class="stats">
+        <span>묶음 <b id="stB">0 / 0</b></span>
+        <span>문항 <b id="stQ">0</b></span>
+        <span>해설 있음 <b id="stE">0</b></span>
+        <span>실패 <b id="stF">0</b></span>
+        <span>토큰 <b id="stT">0</b></span>
+      </div>
+      <div class="batches" id="batches"></div>
+      <div class="log" id="log"></div>
+    </div>
+
+    <!-- 4. 결과 -->
+    <div class="box">
+      <div class="eyebrow">4 · 결과 확인과 저장</div>
+      <div class="bar">
+        <button id="up" disabled>Supabase에 올리기</button>
+        <button class="ghost" id="dl" disabled>JSON 내려받기</button>
+      </div>
+      <div class="msg" id="um"></div>
+      <div class="pv" id="pv" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="./config.js"></script>
+<script>
+const CFG = window.APP_CONFIG || {};
+const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+const ENDPOINTS = [CFG.WORKER_URL, CFG.WORKER_BACKUP_URL].filter(Boolean);
+const $ = s => document.querySelector(s);
+const say = (el,t,k) => { el.textContent = t; el.className = "msg " + (k||"info"); };
+
+let PDF = null, PAGES = 0, BATCHES = [], RESULTS = {}, RUNNING = false, ABORT = false, TOKENS = 0;
+
+/* ── 로그 ── */
+function log(t, k){
+  const d = document.createElement("div");
+  d.className = k||""; d.textContent = new Date().toTimeString().slice(0,8) + "  " + t;
+  $("#log").appendChild(d); $("#log").scrollTop = 1e9;
+}
+
+/* ── 로그인 ── */
+async function refresh(){
+  const {data} = await sb.auth.getSession();
+  $("#auth").style.display = data.session ? "none" : "block";
+  $("#app").style.display  = data.session ? "block" : "none";
+}
+$("#login").onclick = async () => {
+  const {error} = await sb.auth.signInWithPassword({email:$("#em").value.trim(), password:$("#pw").value});
+  if(error) return say($("#am"), "로그인 실패 — " + error.message, "err");
+  refresh();
+};
+
+/* ── 저장된 진행 상황 ── */
+const slot = () => `ingest:${$("#scode").value.trim()}:${$("#year").value}:${$("#sess").value}`;
+function save(){ try{ localStorage.setItem(slot(), JSON.stringify(RESULTS)); }catch(e){} }
+function load(){
+  try{ RESULTS = JSON.parse(localStorage.getItem(slot())||"{}"); }catch(e){ RESULTS = {}; }
+  stats(); preview();
+}
+["scode","year","sess"].forEach(id => $("#"+id).addEventListener("change", load));
+$("#reset").onclick = () => {
+  if(!confirm("이 회차의 변환 기록을 지웁니다. Supabase에 이미 올라간 것은 남습니다.")) return;
+  localStorage.removeItem(slot()); RESULTS = {}; BATCHES = []; TOKENS = 0;
+  $("#log").innerHTML=""; $("#batches").innerHTML=""; drawBatches(); stats(); preview();
+};
+
+/* ── PDF 받기 ── */
+const drop = $("#drop");
+drop.onclick = () => $("#file").click();
+["dragenter","dragover"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add("on"); }));
+["dragleave","drop"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove("on"); }));
+drop.addEventListener("drop", ev => { const f = ev.dataTransfer.files[0]; if(f) take(f); });
+$("#file").onchange = e => { const f = e.target.files[0]; if(f) take(f); };
+
+async function take(file){
+  if(file.type !== "application/pdf") return say($("#fm"), "PDF 파일만 넣을 수 있습니다.", "err");
+  say($("#fm"), "여는 중…", "info");
+  try{
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const doc = await PDFLib.PDFDocument.load(bytes, {ignoreEncryption:true});
+    PDF = doc; PAGES = doc.getPageCount();
+    $("#pTo").value = PAGES; $("#pFrom").value = 1;
+    drop.innerHTML = `<b>${file.name}</b>${PAGES}쪽 · ${(file.size/1048576).toFixed(1)}MB`;
+    say($("#fm"), `${PAGES}쪽을 읽었습니다. 페이지 범위를 확인하고 시작하세요.`, "ok");
+    $("#run").disabled = false;
+    plan();
+  }catch(e){
+    say($("#fm"), "PDF를 열지 못했습니다 — " + e.message + "\n암호가 걸린 파일이면 먼저 암호를 풀어주세요.", "err");
+  }
+}
+
+/* ── 묶음 계획 ── */
+function plan(){
+  const from = Math.max(1, +$("#pFrom").value||1);
+  const to   = Math.min(PAGES, +$("#pTo").value||PAGES);
+  const size = +$("#chunk").value;
+  BATCHES = [];
+  for(let p = from; p <= to; p += size)
+    BATCHES.push({ from:p, to:Math.min(p+size-1, to), status:"", count:0 });
+  drawBatches(); stats();
+}
+["pFrom","pTo","chunk"].forEach(id => $("#"+id).addEventListener("change", () => PDF && plan()));
+
+function drawBatches(){
+  $("#batches").innerHTML = BATCHES.map((b,i) =>
+    `<span class="bt ${b.status}" title="${b.msg||""}">${b.from}${b.to>b.from?"–"+b.to:""}${b.count?` · ${b.count}`:""}</span>`).join("");
+}
+function stats(){
+  const done = BATCHES.filter(b=>b.status==="done").length;
+  const fail = BATCHES.filter(b=>b.status==="fail").length;
+  const qs = Object.values(RESULTS);
+  $("#stB").textContent = `${done} / ${BATCHES.length}`;
+  $("#stQ").textContent = qs.length;
+  $("#stE").textContent = qs.filter(q=>q.explanation_md||q.explanation_html).length;
+  $("#stF").textContent = fail;
+  $("#stT").textContent = TOKENS.toLocaleString();
+  $("#pi").style.width = BATCHES.length ? (done+fail)/BATCHES.length*100 + "%" : "0";
+  $("#up").disabled = !qs.length;
+  $("#dl").disabled = !qs.length;
+  $("#retry").disabled = !fail || RUNNING;
+}
+
+/* ── 프롬프트 ── */
+function buildPrompt(from, to){
+  const mode = $("#hasExp").value;
+  const src = mode === "yes"
+    ? "이 PDF에는 해설이 함께 실려 있다. 실린 해설을 근거로 삼되, 원문을 그대로 옮기지 말고 아래 4단 구성으로 다시 정리해라."
+    : mode === "answer"
+    ? "이 PDF에는 정답만 표시돼 있고 해설은 없다. 표시된 정답을 answer 에 넣고, 해설은 네가 직접 작성해라."
+    : "이 PDF에는 해설이 없다. 정답을 네가 판단해서 answer 에 넣되 확신이 없으면 null 로 두고, 해설 안에 근거를 밝혀라.";
+
+  const svg = $("#svgOn").checked
+    ? `\n[예외] 블록선도·계통도·플로우차트가 있어야만 설명되는 문항에 한해, "explanation_md" 대신 "explanation_html" 에 인라인 <svg> 를 포함한 HTML 을 넣어라. <svg> 에는 width/height 를 px 숫자로 명시하고, 화살표는 <defs><marker> 로 정의하고, SVG 안 글자는 <text> 로 쓰고 LaTeX 를 쓰지 마라. 외부 이미지·스크립트는 금지. 그 외 문항에는 explanation_html 을 넣지 마라.`
+    : "";
+
+  return `첨부한 PDF는 자격증 기출문제집의 ${from}쪽부터 ${to}쪽까지다.
+${src}
+
+[대상]
+- 이 페이지들 안에 있는 문항을 하나도 빠뜨리지 말고 전부 뽑아라.
+- 페이지 경계에서 잘려 문제나 보기가 온전하지 않은 문항은 아예 넣지 마라. (다음 묶음에서 다시 잡힌다)
+- 목차·표지·광고·수험 안내처럼 문제가 아닌 페이지는 무시해라.
+
+[출력 형식]
+- JSON 하나만 출력한다. 최상위는 {"questions":[ … ]} 이다.
+- 각 원소:
+{
+  "number": 인쇄된 문항 번호(정수),
+  "subject_part": "1과목 : 에너지관리" 형태의 과목 구분. 안 보이면 null,
+  "question_text": "문제 원문 그대로. 수식은 $…$",
+  "choices": ["보기1","보기2","보기3","보기4"],
+  "answer": 정답 번호 1~4. 모르면 null,
+  "summary": "12자 이내 유형 요약",
+  "tags": ["계산"|"암기"|"법규"|"그림" 중 해당하는 것],
+  "correct_rate": 정답률이 인쇄돼 있으면 숫자만, 없으면 null,
+  "explanation_md": "해설 본문"
+}
+
+[explanation_md 규칙]
+- 마크다운. **굵게**, 목록(- ), 빈 줄 문단 나눔만 쓴다. 표는 쓰지 마라.
+- 수식은 인라인 $…$, 독립 수식은 $$…$$ (KaTeX 로 렌더된다).
+- 구성 순서를 지켜라:
+  **핵심 개념** — 무엇을 묻는 문제인지 2~3줄.
+  **풀이** — 공식 → 값 대입 → 계산 → 답. 계산 과정을 절대 생략하지 마라.
+  **보기별 정오** — 1~4번이 각각 왜 맞고 틀린지 한 줄씩.
+  **시험장 암기 포인트** — 2~3개, 짧게.
+- 문과생 눈높이로 쉽게 쓰되 전문 용어와 기호는 그대로 쓰고 뜻을 괄호로 풀어라.
+- 기호가 나오면 뜻과 단위를 반드시 밝혀라. 예: $P$ = 압력(atm)
+
+[정확성]
+- 사진에서 읽히지 않는 값은 지어내지 말고 null 로 둬라.
+- 첨자와 단위를 특히 조심해라. $x^2$ 와 $x_2$, kW 와 kVA 를 혼동하지 마라.${svg}`;
+}
+
+/* ── 워커 호출 ── */
+async function ask(pdfB64, from, to){
+  const body = {
+    contents: [{ role:"user", parts:[
+      { inline_data:{ mime_type:"application/pdf", data:pdfB64 } },
+      { text: buildPrompt(from, to) }
+    ]}],
+    generationConfig: { temperature:0.15, maxOutputTokens:32768, responseMimeType:"application/json" }
+  };
+  let last = "";
+  for(const base of ENDPOINTS){
+    try{
+      const res = await fetch(base.replace(/\/$/,"") + "/get-data", {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)
+      });
+      const d = await res.json();
+      if(!res.ok){ last = d.detail || res.status; continue; }
+      if(d.usage) TOKENS += (d.usage.in||0) + (d.usage.out||0);
+      return {
+        text: d.candidates?.[0]?.content?.parts?.[0]?.text || "",
+        truncated: d.finishReason === "MAX_TOKENS",
+        model: d.usedModel
+      };
+    }catch(e){ last = e.message; }
+  }
+  throw new Error(last || "모든 서버가 응답하지 않았습니다.");
+}
+
+/* ── PDF 조각 만들기 ── */
+async function slice(from, to){
+  const out = await PDFLib.PDFDocument.create();
+  const idx = []; for(let p=from; p<=to; p++) idx.push(p-1);
+  const pages = await out.copyPages(PDF, idx);
+  pages.forEach(p => out.addPage(p));
+  return b64(await out.save());
+}
+function b64(u8){
+  let s = "", CH = 0x8000;
+  for(let i=0; i<u8.length; i+=CH) s += String.fromCharCode.apply(null, u8.subarray(i, i+CH));
+  return btoa(s);
+}
+
+/* ── 병합 ── */
+function merge(list){
+  let n = 0;
+  for(const raw of list){
+    const q = {
+      number: +(raw.number ?? 0),
+      subject_part: raw.subject_part || null,
+      question_text: raw.question_text || raw.question || "",
+      choices: Array.isArray(raw.choices) ? raw.choices : [],
+      answer: raw.answer != null ? +raw.answer : null,
+      summary: raw.summary || null,
+      explanation_md: raw.explanation_md || null,
+      explanation_html: raw.explanation_html || null,
+      tags: Array.isArray(raw.tags) ? raw.tags : [],
+      correct_rate: raw.correct_rate != null ? +raw.correct_rate : null
+    };
+    if(!q.number || !q.question_text) continue;
+    const old = RESULTS[q.number];
+    const len = x => ((x?.explanation_md||"") + (x?.explanation_html||"")).length;
+    if(!old || len(q) > len(old)) RESULTS[q.number] = q;
+    n++;
+  }
+  save(); return n;
+}
+
+/* ── 한 묶음 처리 (실패하면 반으로 쪼개 재시도) ── */
+async function runBatch(b, depth = 0){
+  b.status = "run"; drawBatches();
+  const data = await slice(b.from, b.to);
+  const mb = (data.length * 0.75 / 1048576).toFixed(1);
+  log(`${b.from}–${b.to}쪽 전송 (${mb}MB)`);
+
+  let r;
+  try{ r = await ask(data, b.from, b.to); }
+  catch(e){ return bad(b, e.message, depth); }
+
+  let list = null;
+  try{
+    const clean = r.text.trim().replace(/^```(json)?/,"").replace(/```$/,"");
+    const o = JSON.parse(clean);
+    list = Array.isArray(o) ? o : (o.questions || []);
+  }catch(e){
+    return bad(b, r.truncated ? "응답이 잘렸습니다" : "JSON을 읽지 못했습니다", depth);
+  }
+
+  const n = merge(list);
+  b.status = "done"; b.count = n; b.msg = r.model || "";
+  log(`${b.from}–${b.to}쪽 → ${n}문항 (${r.model||"?"})`, "g");
+  drawBatches(); stats(); preview();
+
+  if($("#autoUp").checked && n) await push(true);
+  return true;
+}
+
+async function bad(b, why, depth){
+  if(depth < 2 && b.to > b.from){
+    const mid = Math.floor((b.from + b.to)/2);
+    b.status = "split"; b.msg = why + " → 쪼갬"; drawBatches();
+    log(`${b.from}–${b.to}쪽 ${why}. 반으로 나눠 다시 시도합니다.`, "e");
+    const ok1 = await runBatch({from:b.from, to:mid, status:"", count:0}, depth+1);
+    const ok2 = await runBatch({from:mid+1, to:b.to, status:"", count:0}, depth+1);
+    b.status = (ok1 && ok2) ? "done" : "fail";
+    drawBatches(); stats();
+    return b.status === "done";
+  }
+  b.status = "fail"; b.msg = why;
+  log(`${b.from}–${b.to}쪽 실패 — ${why}`, "e");
+  drawBatches(); stats();
+  return false;
+}
+
+/* ── 전체 실행 ── */
+async function go(only){
+  if(!PDF) return;
+  RUNNING = true; ABORT = false;
+  $("#run").disabled = $("#retry").disabled = true; $("#stop").disabled = false;
+  const gap = +$("#gap").value;
+  const list = only ? BATCHES.filter(b => b.status === "fail") : BATCHES;
+  log(`시작 — 묶음 ${list.length}개`);
+
+  for(const b of list){
+    if(ABORT){ log("중지했습니다."); break; }
+    if(!only && b.status === "done") continue;
+    b.status = ""; b.count = 0;
+    await runBatch(b);
+    if(b !== list[list.length-1]) await new Promise(r => setTimeout(r, gap));
+  }
+
+  RUNNING = false;
+  $("#run").disabled = false; $("#stop").disabled = true;
+  stats();
+  const f = BATCHES.filter(b=>b.status==="fail").length;
+  say($("#um"), f
+    ? `끝났습니다. 문항 ${Object.keys(RESULTS).length}개. 실패한 묶음이 ${f}개 있으니 "실패한 묶음만 다시"를 눌러보세요.`
+    : `끝났습니다. 문항 ${Object.keys(RESULTS).length}개를 모았습니다.`, f ? "err" : "ok");
+}
+$("#run").onclick   = () => go(false);
+$("#retry").onclick = () => go(true);
+$("#stop").onclick  = () => { ABORT = true; $("#stop").disabled = true; };
+
+/* ── 미리보기 ── */
+function preview(){
+  const qs = Object.values(RESULTS).sort((a,b)=>a.number-b.number);
+  $("#pv").style.display = qs.length ? "" : "none";
+  const nums = qs.map(q=>q.number);
+  const holes = [];
+  for(let i = 1; i <= (nums[nums.length-1]||0); i++) if(!nums.includes(i)) holes.push(i);
+  $("#pv").innerHTML =
+    (holes.length ? `<div class="q"><span class="bad">빠진 번호: ${holes.join(", ")}</span></div>` : "") +
+    qs.map(q => `<div class="q"><b>${q.number}</b> ${
+      (q.question_text||"").slice(0,60)}${
+      q.answer ? ` <span style="color:var(--ok)">· 답 ${q.answer}</span>` : ` <span class="bad">· 답 없음</span>`}${
+      (q.explanation_md||q.explanation_html) ? "" : ` <span class="bad">· 해설 없음</span>`}${
+      q.choices.length !== 4 ? ` <span class="bad">· 보기 ${q.choices.length}개</span>` : ""}</div>`).join("");
+}
+
+/* ── Supabase 업로드 ── */
+async function push(quiet){
+  const need = [["sname","과목명"],["scode","과목 코드"],["year","연도"],["sess","회차"]];
+  for(const [id,nm] of need) if(!$("#"+id).value.trim()){
+    if(!quiet) say($("#um"), nm + "을(를) 먼저 입력해 주세요.", "err");
+    return false;
+  }
+  const qs = Object.values(RESULTS).sort((a,b)=>a.number-b.number);
+  if(!qs.length) return false;
+
+  const {data, error} = await sb.rpc("upsert_exam_bundle", {
+    p_subject_name: $("#sname").value.trim(),
+    p_subject_code: $("#scode").value.trim(),
+    p_category: $("#scat").value.trim() || "기타",
+    p_year: +$("#year").value, p_session: +$("#sess").value,
+    p_questions: qs
+  });
+  if(error){ log("업로드 실패 — " + error.message, "e"); if(!quiet) say($("#um"), "업로드 실패 — " + error.message, "err"); return false; }
+  if(!quiet) say($("#um"), `${qs.length}문항을 회차 #${data} 에 저장했습니다. 뷰어를 새로고침하면 보입니다.`, "ok");
+  else log(`저장 완료 — 누적 ${qs.length}문항`, "g");
+  return true;
+}
+$("#up").onclick = () => push(false);
+$("#dl").onclick = () => {
+  const qs = Object.values(RESULTS).sort((a,b)=>a.number-b.number);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify({questions:qs}, null, 2)], {type:"application/json"}));
+  a.download = `${$("#scode").value||"exam"}-${$("#year").value}-${$("#sess").value}.json`;
+  a.click();
+};
+
+addEventListener("beforeunload", e => { if(RUNNING){ e.preventDefault(); e.returnValue = ""; } });
+refresh(); load();
+</script>
+</body>
+</html>
