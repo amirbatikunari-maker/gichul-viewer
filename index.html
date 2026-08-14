@@ -317,6 +317,17 @@ html[data-theme="dark"] #blank{background:#fff}
 .qstar.on{color:var(--stamp)}
 .qstar.on svg{fill:currentColor}
 
+/* ── 정리 모드 — 로그인 + 스위치를 켰을 때만 보이는 삭제 단추 ── */
+.delx{display:none;flex:none;align-items:center;justify-content:center;
+      padding:5px 9px;border-radius:8px;background:transparent;
+      border:1.3px solid var(--stamp);color:var(--stamp);
+      font:600 11px/1 var(--font-d);white-space:nowrap;cursor:pointer}
+.delx:active{background:color-mix(in srgb,var(--stamp) 12%,transparent)}
+body.manage .delx{display:inline-flex}
+.delx.wipe{border-color:var(--ink-2);color:var(--ink-2)}
+.subj .delx,.row .delx{margin-left:6px}
+.qhead .delx{margin-left:2px}
+
 /* ── 문제 카드 ───────────────────────────────── */
 .qcard{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
        padding:16px;box-shadow:var(--shadow)}
@@ -499,7 +510,9 @@ html[data-theme="dark"] mark.hl{background:color-mix(in srgb,#FDE047 24%,transpa
         <div class="err" id="inkErr"></div>
       </div>
       <div id="inkPopOut" hidden>
-        <div class="hint" style="margin-top:0">필기 가능한 상태입니다.</div>
+        <div class="hint" style="margin-top:0">필기와 정리(삭제)가 가능한 상태입니다.</div>
+        <button id="manageBtn" style="margin-top:8px">정리 모드 켜기</button>
+        <div class="hint">켜면 과목·회차·문항 옆에 삭제 단추가 나타납니다. 지운 것은 되돌릴 수 없습니다.</div>
         <button id="inkLogoutBtn" style="margin-top:8px;background:transparent;border:1.4px solid var(--rule);color:var(--ink)">로그아웃</button>
       </div>
     </div>
@@ -587,6 +600,7 @@ async function inkRefresh(){
   $("#inkPopOut").hidden = !S.loggedIn;
   $("#inkAuthBtn").classList.toggle("on", S.loggedIn);
   $$(".qink").forEach(b => b.classList.toggle("loggedin", S.loggedIn));
+  if(!S.loggedIn) setManage(false);
 }
 $("#inkAuthBtn")?.addEventListener("click", ()=> $("#inkPop").classList.toggle("on"));
 document.addEventListener("click", e=>{
@@ -600,6 +614,78 @@ $("#inkLoginBtn")?.addEventListener("click", async ()=>{
   await inkRefresh();
 });
 $("#inkLogoutBtn")?.addEventListener("click", async ()=>{ if(sb){ await sb.auth.signOut(); await inkRefresh(); } });
+
+/* ═══════════════════════════════════════════════
+   정리 모드 — 과목·회차·문항 삭제
+   삭제 단추는 항상 그려두고 CSS(body.manage)로만 보였다 숨긴다.
+   로그인하지 않으면 스위치 자체를 켤 수 없고, 실제 권한은 서버(RLS)가 판단한다.
+   ═══════════════════════════════════════════════ */
+S.manage = false;
+function setManage(on){
+  S.manage = !!on && S.loggedIn;
+  document.body.classList.toggle("manage", S.manage);
+  const b = $("#manageBtn");
+  if(b) b.textContent = S.manage ? "정리 모드 끄기" : "정리 모드 켜기";
+}
+$("#manageBtn")?.addEventListener("click", ()=> setManage(!S.manage));
+
+/* 테이블 이름이 환경마다 다를 수 있어(뷰인지 원본 표인지) 후보를 차례로 시도한다 */
+async function delTry(cands, build){
+  let last = "";
+  for(const t of cands){
+    const {error} = await build(sb.from(t).delete());
+    if(!error) return t;
+    last = error.message || String(error);
+  }
+  throw new Error(last || "삭제하지 못했습니다");
+}
+const T_EXAM = ["exams","exam","exam_list"];
+const T_SUBJ = ["subjects","subject","subject_list"];
+
+/* 문항에 딸린 필기부터 지워야 외래키에 걸리지 않는다 */
+async function wipeQuestions(examId){
+  const {data:qs} = await sb.from("questions").select("id").eq("exam_id", examId);
+  const ids = (qs||[]).map(q=>q.id);
+  if(ids.length){
+    for(let i=0;i<ids.length;i+=200)
+      await sb.from("annotations").delete().in("question_id", ids.slice(i,i+200));
+  }
+  await delTry(["questions"], b => b.eq("exam_id", examId));
+  ids.forEach(id => { delete S.anno[id]; delete S.hl[id]; delete S.stars[id]; delete S.seen[id]; });
+  LS.set("hl",S.hl); LS.set("stars",S.stars); LS.set("seen",S.seen);
+  return ids.length;
+}
+async function deleteExam(examId){
+  const n = await wipeQuestions(examId);
+  await delTry(T_EXAM, b => b.eq("id", examId));
+  LS.set(`pos:${examId}`, 0);
+  return n;
+}
+async function deleteSubject(subjectId){
+  const {data:exs} = await sb.from("exam_list").select("id").eq("subject_id", subjectId);
+  let n = 0;
+  for(const e of (exs||[])) n += await deleteExam(e.id);
+  await delTry(T_SUBJ, b => b.eq("id", subjectId));
+  return n;
+}
+async function deleteQuestion(qid){
+  await sb.from("annotations").delete().eq("question_id", qid);
+  await delTry(["questions"], b => b.eq("id", qid));
+  delete S.anno[qid]; delete S.hl[qid]; delete S.stars[qid]; delete S.seen[qid];
+  LS.set("hl",S.hl); LS.set("stars",S.stars); LS.set("seen",S.seen);
+}
+/* 삭제는 되돌릴 수 없으니 한 번 더 묻는다 */
+async function confirmDelete(label, run, after){
+  if(!confirm(`${label}\n\n되돌릴 수 없습니다. 지울까요?`)) return;
+  try{
+    const n = await run();
+    alert(typeof n === "number" ? `지웠습니다. (문항 ${n}개)` : "지웠습니다.");
+    after?.();
+  }catch(err){
+    alert("지우지 못했습니다 — " + err.message +
+      "\n\n로그인 계정에 삭제 권한(RLS)이 없거나, 표 이름이 다를 수 있습니다.");
+  }
+}
 
 /* ═══════════════════════════════════════════════
    필기 — 저장/불러오기
@@ -1365,9 +1451,20 @@ async function viewSubjects(){
       <span class="bar"></span>
       <span class="tag">${esc(s.category||"기타")}</span>
       <span class="nm">${esc(s.name)}</span>
-      <span class="meta"><span>${s.exam_count}회차</span><span>${s.question_count}문항</span></span>
+      <span class="meta"><span>${s.exam_count}회차</span><span>${s.question_count}문항</span>
+        <span class="delx" data-delsubj="${s.id}" style="margin-left:auto">과목 삭제</span></span>
     </button>`).join("");
-  $$("#subjects .subj").forEach(b=>b.onclick=()=>go(`#/s/${b.dataset.id}`));
+  $$("#subjects .subj").forEach(b=>b.onclick=e=>{
+    const d = e.target.closest("[data-delsubj]");
+    if(d){
+      e.stopPropagation();
+      const s = S.subjects.find(x=>x.id===+d.dataset.delsubj);
+      return confirmDelete(`"${s?.name}" 과목을 회차·문항까지 통째로 지웁니다.`,
+        ()=>deleteSubject(+d.dataset.delsubj),
+        ()=>{ S.subjects=[]; S.exams=[]; S.exam=null; viewSubjects(); });
+    }
+    go(`#/s/${b.dataset.id}`);
+  });
 }
 
 /* ═══════════════════════════════════════════════
@@ -1401,9 +1498,28 @@ async function viewExams(subjectId){
         <span class="no">${e.session}회</span>
         <span class="ttl">${esc(e.label)}${e.note?` · ${esc(e.note)}`:""}</span>
         <span class="cnt">${pos?`${pos+1} / `:""}${e.question_count}문항</span>
+        <span class="delx wipe" data-wipe="${e.id}">문항 비우기</span>
+        <span class="delx" data-delexam="${e.id}">회차 삭제</span>
         <span class="chev">›</span>
       </button>`}).join("")}</div>`).join("");
-  $$("#exams .row").forEach(b=>b.onclick=()=>go(`#/e/${b.dataset.id}`));
+  $$("#exams .row").forEach(b=>b.onclick=e=>{
+    const w = e.target.closest("[data-wipe]"), d = e.target.closest("[data-delexam]");
+    const ex = S.exams.find(x=>x.id===+(w?.dataset.wipe || d?.dataset.delexam));
+    const name = `${S.subject?.name||""} ${ex?.label||""}`.trim();
+    if(w){
+      e.stopPropagation();
+      return confirmDelete(`"${name}" 의 문항을 전부 지웁니다. 회차 칸은 남습니다.`,
+        ()=>wipeQuestions(+w.dataset.wipe),
+        ()=>{ S.exam=null; S.questions=[]; viewExams(S.subject.id); });
+    }
+    if(d){
+      e.stopPropagation();
+      return confirmDelete(`"${name}" 회차를 문항까지 통째로 지웁니다.`,
+        ()=>deleteExam(+d.dataset.delexam),
+        ()=>{ S.exam=null; S.questions=[]; S.subjects=[]; viewExams(S.subject.id); });
+    }
+    go(`#/e/${b.dataset.id}`);
+  });
 }
 
 /* ═══════════════════════════════════════════════
@@ -1570,6 +1686,7 @@ function hydrate(i){
       <button class="qstar ${starred?"on":""}" data-id="${q.id}" aria-label="북마크">
         <svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6 .8-4.4 4.2 1.1 6.1L12 16.9 6.7 19.7l1.1-6.1L3.4 9.4l6-.8z"/></svg>
       </button>
+      <button class="delx" data-delq="${q.id}">삭제</button>
     </div>`;
 
   const content = cardHTML(q);
@@ -1584,6 +1701,13 @@ function hydrate(i){
     $(`#rail .bub[data-i="${i}"]`)?.classList.toggle("star",!!S.stars[id]);
   });
   body.querySelector(".qink")?.addEventListener("click", ()=> onInkClick(q, body, i));
+  body.querySelector("[data-delq]")?.addEventListener("click", ()=>
+    confirmDelete(`${q.number}번 문항을 지웁니다.`, ()=>deleteQuestion(q.id), ()=>{
+      S.questions = S.questions.filter(x=>x.id !== q.id);
+      if(!S.questions.length){ S.exam=null; return go(`#/s/${S.subject.id}`); }
+      build();
+      jump(Math.min(i, S.questions.length-1), false);
+    }));
 
   const zoomwrap = body.querySelector(".zoomwrap");
   const zoomstage = body.querySelector(".zoomstage");

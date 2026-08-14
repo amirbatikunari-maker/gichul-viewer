@@ -81,6 +81,17 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .nav3 a{flex:1;text-align:center;padding:7px 5px;border-radius:8px;font:600 11px/1 var(--font-d);color:color-mix(in srgb,var(--paper) 55%,transparent);text-decoration:none;white-space:nowrap}
 .nav3 a.on{background:color-mix(in srgb,var(--paper) 15%,transparent);color:var(--paper)}
 .hide{display:none}
+/* ── 로그인 잠금 화면 ── */
+.nav3 .authbtn{flex:none;padding:7px 11px;border-radius:8px;border:0;cursor:pointer;
+  background:color-mix(in srgb,var(--paper) 15%,transparent);color:var(--paper);
+  font:600 11px/1 var(--font-d);white-space:nowrap}
+.gate{max-width:430px;margin:34px auto 0}
+.gate .lock{width:44px;height:44px;margin:0 auto 14px;border-radius:13px;display:grid;place-items:center;
+  background:var(--card);border:1px solid var(--rule)}
+.gate .lock svg{width:20px;height:20px;fill:none;stroke:var(--ink-2);stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round}
+.gate h1,.gate .lead{text-align:center}
+.gate .lead{margin-bottom:18px}
 </style>
 </head>
 <body>
@@ -90,13 +101,18 @@ button:disabled{opacity:.45;cursor:not-allowed}
   <a href="./ingest.html">자동 변환</a>
   <a href="./interview.html" class="on">면접</a>
   <a href="./portfolio.html">포트폴리오</a>
+  <button class="authbtn" id="authBtn">로그인</button>
 </nav>
 
 <div class="wrap">
   <div class="msg" id="m"></div>
 
   <!-- 로그인 -->
-  <div class="card hide" id="auth">
+  <div class="gate hide" id="gate">
+    <div class="lock"><svg viewBox="0 0 24 24"><rect x="4" y="10.5" width="16" height="10" rx="2.5"/><path d="M8 10.5V7a4 4 0 018 0v3.5"/></svg></div>
+    <h1>면접</h1>
+    <div class="lead">업체별 채용공고·자소서·경력기술서를 모아 면접을 준비합니다. 로그인해야 내용이 보입니다.</div>
+    <div class="card" id="auth">
     <div class="eyebrow">로그인</div>
     <div class="grid" style="margin-bottom:12px">
       <div><label>이메일</label><input id="em" type="email" autocomplete="username"></div>
@@ -104,6 +120,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
     </div>
     <button id="login">로그인</button>
     <div class="hint">뷰어·자동 변환에서 쓰는 계정과 같습니다.</div>
+  </div>
   </div>
 
   <!-- ══ 목록 화면 ══ -->
@@ -205,16 +222,30 @@ const STATUS = { prep:"준비 중", round1:"1차 진행", round2:"2차 진행", 
 let ME = null, CASES = [], CUR = null, DOCS = [], PREP = {}, ROUND = 1, FILE = null;
 
 /* ══ 로그인 ══ */
+/* 로그인하지 않으면 잠금 화면만 보여준다.
+   화면을 감추는 건 눈가림일 뿐이고, 실제 차단은 Supabase RLS 가 한다. */
 async function boot(){
   const { data } = await sb.auth.getSession();
   ME = data.session?.user || null;
-  $("#auth").className = ME ? "card hide" : "card";
-  if(ME) loadCases(); else $("#listView").className = "hide";
+  $("#gate").className = ME ? "gate hide" : "gate";
+  $("#authBtn").textContent = ME ? "로그아웃" : "로그인";
+  $("#listView").className = "hide";
+  $("#caseView").className = "hide";
+  if(ME) loadCases();
 }
+$("#authBtn").onclick = async () => {
+  if(ME){
+    if(!confirm("로그아웃할까요?")) return;
+    await sb.auth.signOut();
+    CASES = []; CUR = null; DOCS = []; PREP = {}; hide();
+    return boot();
+  }
+  $("#em").focus();
+};
 $("#login").onclick = async () => {
   const { error } = await sb.auth.signInWithPassword({ email:$("#em").value.trim(), password:$("#pw").value });
   if(error) return say("로그인 실패 — " + error.message, "err");
-  hide(); boot();
+  $("#pw").value = ""; hide(); boot();
 };
 
 /* ══ 목록 ══ */
