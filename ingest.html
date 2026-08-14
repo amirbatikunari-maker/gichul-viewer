@@ -856,6 +856,9 @@ function applyAnswerKeyToResults(){
    PDF 이고 더는 못 나누는데(1쪽)도 실패하면, "PDF가 텍스트로 안 읽히면 사진으로" 옵션이
    켜져 있는 경우 그 한 쪽을 그림으로 다시 렌더링해서 마지막으로 한 번 더 시도한다. */
 async function runBatch(b, depth = 0, asImage = false){
+  if (FORCE_IMAGE_MODE && b.kind === "pdf") {
+    asImage = true;
+  }
   b.status = "run"; drawBatches();
   let parts;
   try{
@@ -890,10 +893,17 @@ async function runBatch(b, depth = 0, asImage = false){
     return bad(b, "0문항으로 응답했습니다", depth, asImage, "empty");
   }
 
-  const n = merge(list);
+    const n = merge(list);
   b.status = "done"; b.count = n; b.msg = (r.model || "") + (asImage ? " · 사진 변환" : "");
   log(`${b.from}–${b.to}${unit()} → ${n}문항 (${r.model||"?"}${asImage ? ", 사진 변환" : ""})`, "g");
+  
+  if (asImage && b.kind === "pdf" && !FORCE_IMAGE_MODE) {
+    log(`[자동 전환] 텍스트 인식 실패를 사진 변환으로 극복했습니다. 이후 남은 묶음은 모두 자동으로 사진 처리합니다.`, "info");
+    FORCE_IMAGE_MODE = true;
+  }
+
   drawBatches(); stats(); preview();
+
 
   if($("#autoUp").checked && n) await push(true);
   return true;
