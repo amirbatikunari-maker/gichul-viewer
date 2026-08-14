@@ -367,7 +367,7 @@ $("#theme").onclick = ()=>{
   applyTheme(t); LS.set("theme",t);
 };
 
-/* ── 아주 작은 마크다운 (LaTeX 안 건드림) ── */
+/* ── 아주 작은 마크다운 (LaTeX, 표 지원) ── */
 function md(src){
   if(!src) return "";
   const math=[]; let s=esc(src);
@@ -375,16 +375,36 @@ function md(src){
   s = s.replace(/`([^`]+)`/g,"<code>$1</code>")
        .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
        .replace(/^---$/gm,"<hr>");
+       
   s = s.split(/\n{2,}/).map(block=>{
+    /* ▼ 표(Table) 인식 기능 추가 ▼ */
+    if(block.includes('|') && block.includes('---')){
+      const lines = block.trim().split('\n');
+      if(lines.length >= 2 && /^\|?[\s\-:|]+\|?$/.test(lines[1])){
+        const parse = l => {
+          let t = l.trim();
+          if(t.startsWith('|')) t = t.slice(1);
+          if(t.endsWith('|')) t = t.slice(0,-1);
+          return t.split('|').map(x=>x.trim());
+        };
+        const head = parse(lines[0]).map(x=>`<th style="border:1px solid var(--rule);padding:8px;background:var(--paper)">${x}</th>`).join("");
+        const body = lines.slice(2).map(l=>`<tr>${parse(l).map(x=>`<td style="border:1px solid var(--rule);padding:8px">${x}</td>`).join("")}</tr>`).join("");
+        return `<div class="sheet-host"><table style="margin:12px 0">${head}${body}</table></div>`;
+      }
+    }
+    /* ▲ 표 처리 끝 ▲ */
+
     if(/^\s*[-•]\s/m.test(block) && block.split("\n").every(l=>/^\s*[-•]\s/.test(l)||!l.trim()))
       return "<ul>"+block.split("\n").filter(l=>l.trim()).map(l=>`<li>${l.replace(/^\s*[-•]\s/,"")}</li>`).join("")+"</ul>";
     if(/^\s*\d+[.)]\s/.test(block) && block.split("\n").every(l=>/^\s*\d+[.)]\s/.test(l)||!l.trim()))
       return "<ol>"+block.split("\n").filter(l=>l.trim()).map(l=>`<li>${l.replace(/^\s*\d+[.)]\s/,"")}</li>`).join("")+"</ol>";
-    if(block.startsWith("<hr>")) return block;
+    if(block.startsWith("<hr>") || block.startsWith("<div")) return block;
     return "<p>"+block.replace(/\n/g,"<br>")+"</p>";
   }).join("");
+  
   return s.replace(/\u0000(\d+)\u0000/g,(_,i)=>math[i]);
 }
+
 const tex = el=>{
   if(!window.renderMathInElement) return;
   try{ renderMathInElement(el,{delimiters:[
