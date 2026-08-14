@@ -267,11 +267,9 @@ if(!CFG.SUPABASE_URL || CFG.SUPABASE_URL.includes("xxxx")){
   showFatal("config.js 에 Supabase 정보가 없습니다.", "SUPABASE_URL 과 SUPABASE_ANON_KEY 를 채워주세요.");
 }
 const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
-// PC 환경(너비 768px 초과 및 모바일 기기가 아님)에서는 Render 서버만 단독으로 사용
-const isPC = window.innerWidth > 768 && !/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-const ENDPOINTS = isPC 
-  ? ["https://sniper-render.onrender.com"] 
-  : [CFG.WORKER_URL, CFG.WORKER_BACKUP_URL].filter(Boolean);
+// PC/모바일을 따로 나누지 않는다. 같은 변환 경로를 사용하고, 앞 서버가 죽으면
+// 다른 서버로 자동 전환한다. (기존 PC 전용 Render 고정 때문에 통신 실패가 길어질 수 있었음)
+const ENDPOINTS = [CFG.WORKER_URL, CFG.WORKER_BACKUP_URL].filter(Boolean);
 
 /* ── 서버 고르기 ──────────────────────────────────────────────
    앞 서버가 죽어 있으면 묶음마다 타임아웃(최대 90초)을 처음부터 다시 기다리게 된다.
@@ -576,7 +574,8 @@ function buildPrompt(from, to, asImage){
     ? "이 자료에는 정답만 표시돼 있고 해설은 없다. 표시된 정답을 answer 에 넣고, 해설은 네가 직접 작성해라."
     : "이 자료에는 해설이 없다. 정답을 네가 판단해서 answer 에 넣되 확신이 없으면 null 로 두고, 해설 안에 근거를 밝혀라.";
 
-    const svg = $("#svgOn").checked
+    const svgOn = !!$("#svgOn")?.checked;
+    const svg = svgOn
     ? `\n[예외] 계통도, 수전설비 단선도, 습공기선도 등 복잡한 그래픽이 반드시 필요한 문항에 한해서만 "explanation_md" 대신 "explanation_html" 에 인라인 <svg> 를 포함한 HTML 을 넣어라. 일반적인 표나 간단한 그림에는 절대 SVG를 쓰지 마라(속도 저하의 주원인). <svg> 에는 width/height 를 px 숫자로 명시하고, 화살표는 <defs><marker> 로 정의하고, SVG 안 글자는 <text> 로 쓰고 LaTeX 를 쓰지 마라. 외부 이미지·스크립트는 금지. 그 외 문항에는 explanation_html 을 넣지 마라.`
     : "";
 
@@ -661,7 +660,7 @@ async function callWorker(parts, promptText, from, to, maxTokens){
     const ac = new AbortController();
     
     // ★ 추가: 화면의 SVG 체크박스가 켜져 있는지 확인
-    const isSvgOn = $("#svgOn").checked;
+    const isSvgOn = !!$("#svgOn")?.checked;
     
     // ★ 수정: SVG가 켜져 있으면 300초(5분), 꺼져 있으면 90초로 엄청 넉넉하게 잡습니다.
     const timeoutMs = isSvgOn ? 300000 : 90000;
@@ -678,12 +677,22 @@ async function callWorker(parts, promptText, from, to, maxTokens){
         method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body),
         signal: ac.signal
       });
-      const d = await res.json();
-      if(!res.ok) return { ok:false, detail: d.detail || String(res.status) };
+      const raw = await res.text();
+      let d = null;
+      try { d = JSON.parse(raw); } catch(_) {}
+      if(!res.ok){
+        const detail = d?.detail || d?.error || d?.message || raw.slice(0,500) || `${res.status} ${res.statusText}`;
+        return { ok:false, detail:`HTTP ${res.status} — ${detail}` };
+      }
+      if(!d){
+        return { ok:false, detail:`서버가 JSON이 아닌 응답을 보냈습니다 — ${raw.slice(0,300)}` };
+      }
       if(d.usage) TOKENS += (d.usage.in||0) + (d.usage.out||0);
+      const text = d.candidates?.[0]?.content?.parts?.[0]?.text || d.text || "";
+      if(!text) return { ok:false, detail:"서버 응답은 왔지만 AI 결과 텍스트가 없습니다." };
       return {
         ok:true,
-        text: d.candidates?.[0]?.content?.parts?.[0]?.text || "",
+        text,
         truncated: d.finishReason === "MAX_TOKENS",
         model: d.usedModel
       };
