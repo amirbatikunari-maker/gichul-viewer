@@ -64,9 +64,23 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
 .pv .q{padding:7px 0;border-bottom:1px dashed var(--rule)}
 .pv .q b{color:var(--accent)}
 #app{display:none}
+.nav3{display:flex;gap:2px;padding:7px 10px;padding-top:calc(7px + env(safe-area-inset-top));
+  background:var(--ink);}
+.nav3 a{flex:1;text-align:center;padding:7px 6px;border-radius:8px;
+  font:600 11.5px/1 var(--font-d,"IBM Plex Sans KR",sans-serif);letter-spacing:.02em;
+  color:color-mix(in srgb, var(--paper) 55%, transparent);text-decoration:none;
+  transition:background .15s,color .15s;white-space:nowrap}
+.nav3 a.on{background:color-mix(in srgb, var(--paper) 15%, transparent);color:var(--paper)}
+.nav3 a:not(.on):hover{color:var(--paper)}
 </style>
 </head>
 <body>
+<nav class="nav3">
+  <a href="./index.html">뷰어</a>
+  <a href="./upload.html" class="on">업로더</a>
+  <a href="./ingest.html">PDF 변환</a>
+</nav>
+
 <div class="wrap">
   <h1>업로더</h1>
   <div class="lead">Gemini가 만든 JSON을 붙여넣으면 Supabase에 바로 올라갑니다. 뷰어는 새로고침만 하면 반영됩니다.</div>
