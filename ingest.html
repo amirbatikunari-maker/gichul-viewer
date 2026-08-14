@@ -414,6 +414,10 @@ async function takePDF(file){
     say($("#fm"), `${PAGES}쪽을 읽었습니다. 페이지 범위를 확인하고 시작하세요.`, "ok");
     $("#run").disabled = false;
     $("#runImage").disabled = false;
+    
+    // ★ 이 줄을 추가해주세요 (취소 버튼 보이게 하기)
+    $("#cancelFile").style.display = ""; 
+    
     plan();
   }catch(e){
     say($("#fm"), "PDF를 열지 못했습니다 — " + e.message + "\n암호가 걸린 파일이면 먼저 암호를 풀어주세요. 스캔 이미지들을 그대로 갖고 계시면 위쪽 \"사진 여러 장\" 탭을 대신 써보세요.", "err");
