@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#E9ECE6">
+<title>기출 해설 노트</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<style>
+/* ══════════════════════════════════════════════════════
+   답안지(OMR) × 청사진 — 디자인 토큰
+   ══════════════════════════════════════════════════════ */
+:root{
+  --paper:#E9ECE6;      /* 답안지 종이 */
+  --card:#FCFCFA;       /* 문제 카드 */
+  --ink:#10233D;        /* 본문 잉크 */
+  --ink-2:#5A6B7F;      /* 보조 */
+  --rule:#D3D8CD;       /* 괘선 */
+  --stamp:#BE2B26;      /* 정답 도장 — 오직 정답에만 */
+  --accent:#1D4ED8;     /* 조작 가능한 것 */
+  --accent-soft:#E4ECFD;
+  --veil:#C4433C;       /* 가림판 */
+  --shadow:0 1px 0 rgba(16,35,61,.05), 0 6px 20px -14px rgba(16,35,61,.5);
+  --r:14px;
+  --head:56px;
+  --rail:46px;
+  --font-d:"IBM Plex Sans KR",Pretendard,sans-serif;
+  --font-b:Pretendard,"IBM Plex Sans KR",sans-serif;
+  --font-m:"IBM Plex Mono",ui-monospace,monospace;
+}
+html[data-theme="dark"]{
+  --paper:#0E1520; --card:#161E29; --ink:#E3E9F1; --ink-2:#8A9AAE;
+  --rule:#26303D; --stamp:#FF7A6E; --accent:#7BA2FF; --accent-soft:#1B2740;
+  --veil:#8E322C;
+  --shadow:0 1px 0 rgba(0,0,0,.3), 0 8px 24px -16px #000;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--font-b);font-size:15px;line-height:1.62;
+  letter-spacing:-.01em;overscroll-behavior-y:none;
+  -webkit-font-smoothing:antialiased;
+}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+a{color:var(--accent);text-decoration:none}
+.mono{font-family:var(--font-m);font-feature-settings:"tnum"}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+
+/* ── 상단 바 ─────────────────────────────────── */
+.top{
+  position:sticky;top:0;z-index:40;height:var(--head);
+  padding:0 14px;padding-top:env(safe-area-inset-top);
+  display:flex;align-items:center;gap:10px;
+  background:color-mix(in srgb,var(--paper) 88%,transparent);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--rule);
+}
+.top h1{font:600 15px/1.2 var(--font-d);margin:0;letter-spacing:-.02em}
+.top .sub{font-size:11px;color:var(--ink-2);margin-top:1px}
+.top .grow{flex:1;min-width:0}
+.icon{width:34px;height:34px;display:grid;place-items:center;border-radius:9px;color:var(--ink-2)}
+.icon:active{background:var(--accent-soft)}
+.icon svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+
+/* ── 화면 전환 ───────────────────────────────── */
+.view{display:none;animation:in .22s ease both}
+.view.on{display:block}
+@keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.wrap{padding:18px 14px 90px;max-width:760px;margin:0 auto}
+
+/* ── 섹션 라벨: 실제 개수를 담는 괘선 ─────────── */
+.eyebrow{
+  display:flex;align-items:baseline;gap:10px;margin:26px 0 12px;
+  font:600 11px/1 var(--font-d);letter-spacing:.14em;color:var(--ink-2);
+}
+.eyebrow:first-child{margin-top:4px}
+.eyebrow::after{content:"";flex:1;height:1px;background:var(--rule)}
+.eyebrow .n{font-family:var(--font-m);letter-spacing:0}
+
+/* ── 과목 카드 ───────────────────────────────── */
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media(max-width:380px){.grid{grid-template-columns:1fr}}
+.subj{
+  position:relative;background:var(--card);border:1px solid var(--rule);
+  border-radius:var(--r);padding:14px 14px 12px;text-align:left;
+  box-shadow:var(--shadow);transition:transform .12s,border-color .12s;
+  display:flex;flex-direction:column;min-height:104px;
+}
+.subj:active{transform:scale(.98)}
+.subj .tag{font:600 10px/1 var(--font-d);letter-spacing:.08em;color:var(--ink-2)}
+.subj .nm{font:700 16px/1.3 var(--font-d);margin-top:8px;letter-spacing:-.03em;flex:1}
+.subj .meta{font-family:var(--font-m);font-size:11px;color:var(--ink-2);margin-top:10px;display:flex;gap:8px}
+.subj .bar{position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:var(--accent)}
+
+/* ── 회차 행 ─────────────────────────────────── */
+.year{font:600 13px/1 var(--font-m);color:var(--ink-2);margin:20px 0 8px;letter-spacing:.04em}
+.rows{display:flex;flex-direction:column;gap:8px}
+.row{
+  display:flex;align-items:center;gap:12px;padding:13px 14px;
+  background:var(--card);border:1px solid var(--rule);border-radius:12px;
+  text-align:left;box-shadow:var(--shadow);transition:transform .12s;
+}
+.row:active{transform:scale(.99)}
+.row .no{font:600 15px/1 var(--font-m);width:34px;flex:none}
+.row .ttl{flex:1;font-size:14px;font-weight:500}
+.row .cnt{font-family:var(--font-m);font-size:11px;color:var(--ink-2)}
+.row .chev{color:var(--ink-2);opacity:.6}
+.row .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
+
+/* ══ 문항 번호 레일 — 답안지 마킹칸 ══════════════ */
+.rail{
+  position:sticky;top:calc(var(--head) + env(safe-area-inset-top));z-index:30;
+  height:var(--rail);display:flex;align-items:center;gap:5px;
+  padding:0 12px;overflow-x:auto;scrollbar-width:none;
+  background:color-mix(in srgb,var(--paper) 92%,transparent);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--rule);
+}
+.rail::-webkit-scrollbar{display:none}
+.bub{
+  flex:none;position:relative;min-width:28px;height:28px;padding:0 6px;
+  border-radius:999px;border:1.4px solid var(--rule);
+  font:500 12px/1 var(--font-m);color:var(--ink-2);
+  display:grid;place-items:center;transition:all .16s;
+}
+.bub.seen{border-color:color-mix(in srgb,var(--ink) 30%,transparent);color:var(--ink)}
+.bub.star::after{
+  content:"";position:absolute;top:-1px;right:-1px;width:6px;height:6px;
+  border-radius:50%;background:var(--stamp);
+}
+.bub.now{background:var(--ink);border-color:var(--ink);color:var(--paper);font-weight:600}
+
+/* ── 스와이프 트랙 ───────────────────────────── */
+.track{
+  display:flex;overflow-x:auto;overflow-y:hidden;
+  scroll-snap-type:x mandatory;scrollbar-width:none;
+  height:calc(100dvh - var(--head) - var(--rail) - env(safe-area-inset-top));
+  overscroll-behavior-x:contain;
+}
+.track::-webkit-scrollbar{display:none}
+.slide{
+  flex:0 0 100%;scroll-snap-align:center;scroll-snap-stop:always;
+  overflow-y:auto;overscroll-behavior-y:contain;
+  padding:14px 14px calc(48px + env(safe-area-inset-bottom));
+}
+.sheet-body{max-width:760px;margin:0 auto}
+
+/* ── 문항 헤더 ───────────────────────────────── */
+.qhead{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.qno{font:600 13px/1 var(--font-m);color:var(--paper);background:var(--ink);
+     padding:6px 9px;border-radius:7px;letter-spacing:.02em}
+.qsum{flex:1;font-size:12px;color:var(--ink-2);font-weight:500;min-width:0;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qstar{width:32px;height:32px;display:grid;place-items:center;color:var(--ink-2)}
+.qstar svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8}
+.qstar.on{color:var(--stamp)}
+.qstar.on svg{fill:currentColor}
+
+/* ── 문제 카드 ───────────────────────────────── */
+.qcard{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
+       padding:16px;box-shadow:var(--shadow)}
+.qtext{font-size:15.5px;line-height:1.72;font-weight:500;word-break:keep-all}
+.part{font:600 10px/1 var(--font-d);letter-spacing:.1em;color:var(--ink-2);margin-bottom:9px}
+
+/* ── 보기 = OMR 마킹 ─────────────────────────── */
+.choices{margin-top:16px;display:flex;flex-direction:column;gap:2px}
+.ch{display:flex;gap:11px;align-items:flex-start;padding:9px 8px;border-radius:9px}
+.ch .b{
+  flex:none;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--rule);
+  font:500 11px/1 var(--font-m);display:grid;place-items:center;color:var(--ink-2);
+  margin-top:1px;transition:all .2s;
+}
+.ch .t{flex:1;font-size:14.5px;line-height:1.6}
+.ch.ok .b{background:var(--stamp);border-color:var(--stamp);color:#fff;font-weight:600}
+.ch.ok .t{font-weight:600}
+.ch.ok{background:color-mix(in srgb,var(--stamp) 7%,transparent)}
+.veiled .ch.ok .b{background:none;border-color:var(--rule);color:var(--ink-2);font-weight:500}
+.veiled .ch.ok .t{font-weight:400}
+.veiled .ch.ok{background:none}
+
+/* ══ 가림판 — 이 앱의 서명 동작 ═══════════════════
+   해설을 display:none 시키지 않고, 빨간 가림판이
+   내려앉는 것처럼 덮는다. 눌러서 이 문항만 살짝 들추기. */
+.answer{margin-top:14px;position:relative}
+.answer .inner{transition:opacity .26s ease,transform .26s ease,filter .26s ease}
+.veiled .answer{min-height:58px}
+.veiled .answer .inner{
+  opacity:0;transform:translateY(-8px) scale(.995);filter:blur(3px);
+  pointer-events:none;height:0;overflow:hidden;
+}
+.cover{
+  display:none;position:absolute;inset:0;height:58px;width:100%;
+  border-radius:12px;border:1px dashed color-mix(in srgb,var(--veil) 55%,transparent);
+  background:color-mix(in srgb,var(--veil) 9%,var(--card));
+  color:var(--veil);font:600 12.5px/1 var(--font-d);letter-spacing:-.01em;
+  align-items:center;justify-content:center;gap:7px;
+}
+.veiled .cover{display:flex}
+.cover svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8}
+.slide.peek .answer .inner{opacity:1;transform:none;filter:none;pointer-events:auto;height:auto;overflow:visible}
+.slide.peek .answer{min-height:0}
+.slide.peek .cover{display:none}
+.slide.peek .ch.ok .b{background:var(--stamp);border-color:var(--stamp);color:#fff;font-weight:600}
+.slide.peek .ch.ok{background:color-mix(in srgb,var(--stamp) 7%,transparent)}
+.slide.peek .ch.ok .t{font-weight:600}
+
+/* ── 해설 본문 ───────────────────────────────── */
+.exp{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
+     padding:16px;box-shadow:var(--shadow)}
+.exp-h{display:flex;align-items:center;gap:8px;font:600 11px/1 var(--font-d);
+       letter-spacing:.12em;color:var(--ink-2);margin-bottom:12px}
+.exp-h::after{content:"";flex:1;height:1px;background:var(--rule)}
+.exp-b{font-size:14.5px;line-height:1.75}
+.exp-b p{margin:0 0 10px}
+.exp-b ul,.exp-b ol{margin:0 0 10px;padding-left:20px}
+.exp-b li{margin:3px 0}
+.exp-b strong{font-weight:700;color:var(--ink)}
+.exp-b code{font-family:var(--font-m);font-size:.9em;background:var(--accent-soft);
+            padding:1px 5px;border-radius:4px}
+.exp-b hr{border:0;border-top:1px solid var(--rule);margin:14px 0}
+/* 기존 도구가 만든 통짜 시트 HTML 수용 */
+.sheet-host{overflow-x:auto}
+.sheet-host .sheet{background:transparent!important;box-shadow:none!important;
+                   border:0!important;padding:0!important;margin:0!important;
+                   max-width:100%!important;width:auto!important}
+.sheet-host img,.sheet-host svg{max-width:100%;height:auto}
+.sheet-host table{width:100%;border-collapse:collapse;font-size:13px}
+html[data-theme="dark"] .sheet-host{filter:invert(.92) hue-rotate(180deg)}
+html[data-theme="dark"] .sheet-host img{filter:invert(1) hue-rotate(180deg)}
+.katex{font-size:1.02em}
+.katex-display{overflow-x:auto;overflow-y:hidden;padding:2px 0}
+
+/* ── 하단 진행 ───────────────────────────────── */
+.foot{
+  position:fixed;left:0;right:0;bottom:0;z-index:35;height:34px;
+  padding-bottom:env(safe-area-inset-bottom);
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  background:linear-gradient(transparent,var(--paper) 45%);
+  font:500 11px/1 var(--font-m);color:var(--ink-2);pointer-events:none;
+}
+
+/* ── 상태 ────────────────────────────────────── */
+.empty{text-align:center;padding:64px 20px;color:var(--ink-2)}
+.empty .big{font:700 17px/1.4 var(--font-d);color:var(--ink);margin-bottom:8px}
+.empty code{font-family:var(--font-m);font-size:12px;background:var(--accent-soft);
+            padding:2px 6px;border-radius:5px;color:var(--ink)}
+.skel{height:104px;border-radius:var(--r);background:var(--card);
+      border:1px solid var(--rule);opacity:.6;animation:pulse 1.3s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.3}}
+.toggle{
+  display:flex;align-items:center;gap:7px;padding:7px 11px;border-radius:999px;
+  border:1.4px solid var(--rule);font:600 12px/1 var(--font-d);color:var(--ink-2);
+}
+.toggle.on{background:var(--veil);border-color:var(--veil);color:#fff}
+.toggle svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.9}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<!-- ══ 상단 ══ -->
+<header class="top">
+  <button class="icon" id="back" hidden aria-label="뒤로">
+    <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+  </button>
+  <div class="grow">
+    <h1 id="ttl">기출 해설 노트</h1>
+    <div class="sub" id="sub"></div>
+  </div>
+  <button class="toggle" id="veilBtn" hidden>
+    <svg viewBox="0 0 24 24" id="veilIcon"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+    <span id="veilTxt">해설 보임</span>
+  </button>
+  <button class="icon" id="theme" aria-label="화면 밝기 전환">
+    <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+  </button>
+</header>
+
+<!-- ══ 1. 과목 ══ -->
+<section class="view on" id="v-subjects">
+  <div class="wrap">
+    <div class="eyebrow">과목 <span class="n" id="sCount"></span></div>
+    <div class="grid" id="subjects">
+      <div class="skel"></div><div class="skel"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 2. 회차 ══ -->
+<section class="view" id="v-exams">
+  <div class="wrap" id="exams"></div>
+</section>
+
+<!-- ══ 3. 학습 ══ -->
+<section class="view" id="v-study">
+  <nav class="rail" id="rail" aria-label="문항 번호"></nav>
+  <div class="track" id="track"></div>
+  <div class="foot" id="foot"></div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script src="./config.js"></script>
+<script>
+/* ═══════════════════════════════════════════════
+   상태
+   ═══════════════════════════════════════════════ */
+const CFG = window.APP_CONFIG || {};
+const sb = (window.supabase && CFG.SUPABASE_URL && !CFG.SUPABASE_URL.includes("xxxx"))
+  ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY)
+  : null;
+
+const LS = {
+  get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k)) ?? d}catch(e){return d}},
+  set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+};
+let S = {
+  subjects:[], exams:[], questions:[], exam:null, subject:null,
+  idx:0, veil:LS.get("veil",false), stars:LS.get("stars",{}), seen:LS.get("seen",{})
+};
+
+const $  = s=>document.querySelector(s);
+const $$ = s=>[...document.querySelectorAll(s)];
+const esc = s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ── 테마 ── */
+const applyTheme = t=>{
+  document.documentElement.dataset.theme = t;
+  $("meta[name=theme-color]").content = t==="dark" ? "#0E1520" : "#E9ECE6";
+};
+applyTheme(LS.get("theme", matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light"));
+$("#theme").onclick = ()=>{
+  const t = document.documentElement.dataset.theme==="dark" ? "light":"dark";
+  applyTheme(t); LS.set("theme",t);
+};
+
+/* ── 아주 작은 마크다운 (LaTeX 안 건드림) ── */
+function md(src){
+  if(!src) return "";
+  const math=[]; let s=esc(src);
+  s = s.replace(/\$\$[\s\S]*?\$\$|\$[^$\n]+?\$/g, m=>`\u0000${math.push(m)-1}\u0000`);
+  s = s.replace(/`([^`]+)`/g,"<code>$1</code>")
+       .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
+       .replace(/^---$/gm,"<hr>");
+  s = s.split(/\n{2,}/).map(block=>{
+    if(/^\s*[-•]\s/m.test(block) && block.split("\n").every(l=>/^\s*[-•]\s/.test(l)||!l.trim()))
+      return "<ul>"+block.split("\n").filter(l=>l.trim()).map(l=>`<li>${l.replace(/^\s*[-•]\s/,"")}</li>`).join("")+"</ul>";
+    if(/^\s*\d+[.)]\s/.test(block) && block.split("\n").every(l=>/^\s*\d+[.)]\s/.test(l)||!l.trim()))
+      return "<ol>"+block.split("\n").filter(l=>l.trim()).map(l=>`<li>${l.replace(/^\s*\d+[.)]\s/,"")}</li>`).join("")+"</ol>";
+    if(block.startsWith("<hr>")) return block;
+    return "<p>"+block.replace(/\n/g,"<br>")+"</p>";
+  }).join("");
+  return s.replace(/\u0000(\d+)\u0000/g,(_,i)=>math[i]);
+}
+const tex = el=>{
+  if(!window.renderMathInElement) return;
+  try{ renderMathInElement(el,{delimiters:[
+    {left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false},
+    {left:"\\[",right:"\\]",display:true},{left:"\\(",right:"\\)",display:false}
+  ],throwOnError:false,ignoredTags:["script","noscript","style","textarea","pre","code","svg"]}); }catch(e){}
+};
+
+/* ═══════════════════════════════════════════════
+   라우팅
+   ═══════════════════════════════════════════════ */
+function go(hash){ location.hash = hash; }
+function show(id){
+  $$(".view").forEach(v=>v.classList.toggle("on", v.id===id));
+  const study = id==="v-study";
+  $("#veilBtn").hidden = !study;
+  $("#back").hidden = id==="v-subjects";
+  document.body.style.overflow = study ? "hidden" : "";
+}
+window.addEventListener("hashchange", route);
+
+async function route(){
+  const h = (location.hash||"#/").slice(1);
+  const [,a,b,c] = h.split("/");
+  if(!sb) return viewSubjects();
+  if(a==="s")      await viewExams(+b);
+  else if(a==="e") await viewStudy(+b, c?+c:null);
+  else             await viewSubjects();
+}
+$("#back").onclick = ()=>{
+  const h=(location.hash||"#/").slice(1).split("/");
+  if(h[1]==="e" && S.subject) go(`#/s/${S.subject.id}`);
+  else go("#/");
+};
+
+/* ═══════════════════════════════════════════════
+   1. 과목
+   ═══════════════════════════════════════════════ */
+async function viewSubjects(){
+  show("v-subjects");
+  $("#ttl").textContent = CFG.APP_TITLE || "기출 해설 노트";
+  $("#sub").textContent = "";
+  if(!sb) return fail($("#subjects"),
+    "Supabase 연결 정보가 아직 없습니다.",
+    "<code>config.js</code> 파일을 열어 Project URL 과 anon 키를 넣어주세요.");
+
+  if(!S.subjects.length){
+    const {data,error} = await sb.from("subject_list").select("*").order("sort_order").order("name");
+    if(error) return fail($("#subjects"),"과목을 불러오지 못했습니다.",esc(error.message));
+    S.subjects = data||[];
+  }
+  $("#sCount").textContent = S.subjects.length ? `${S.subjects.length}` : "";
+  if(!S.subjects.length) return fail($("#subjects"),
+    "아직 올린 과목이 없습니다.","업로더로 첫 회차를 올리면 여기에 나타납니다.");
+
+  $("#subjects").innerHTML = S.subjects.map(s=>`
+    <button class="subj" data-id="${s.id}" style="--accent:${esc(s.color||"#1D4ED8")}">
+      <span class="bar"></span>
+      <span class="tag">${esc(s.category||"기타")}</span>
+      <span class="nm">${esc(s.name)}</span>
+      <span class="meta"><span>${s.exam_count}회차</span><span>${s.question_count}문항</span></span>
+    </button>`).join("");
+  $$("#subjects .subj").forEach(b=>b.onclick=()=>go(`#/s/${b.dataset.id}`));
+}
+
+/* ═══════════════════════════════════════════════
+   2. 회차
+   ═══════════════════════════════════════════════ */
+async function viewExams(subjectId){
+  show("v-exams");
+  if(!S.subjects.length){
+    const {data} = await sb.from("subject_list").select("*").order("sort_order");
+    S.subjects = data||[];
+  }
+  S.subject = S.subjects.find(s=>s.id===subjectId);
+  $("#ttl").textContent = S.subject?.name || "회차";
+  $("#sub").textContent = S.subject?.category || "";
+  $("#exams").innerHTML = `<div class="skel"></div>`;
+
+  const {data,error} = await sb.from("exam_list").select("*")
+    .eq("subject_id",subjectId).order("year",{ascending:false}).order("session",{ascending:false});
+  if(error) return fail($("#exams"),"회차를 불러오지 못했습니다.",esc(error.message));
+  S.exams = data||[];
+  if(!S.exams.length) return fail($("#exams"),"이 과목에 올라온 회차가 없습니다.","업로더에서 회차를 추가해 주세요.");
+
+  const byYear = {};
+  S.exams.forEach(e=>(byYear[e.year] ||= []).push(e));
+  $("#exams").innerHTML = Object.keys(byYear).sort((a,b)=>b-a).map(y=>`
+    <div class="year">${y}</div>
+    <div class="rows">${byYear[y].map(e=>{
+      const pos = LS.get(`pos:${e.id}`,0);
+      return `<button class="row" data-id="${e.id}">
+        ${pos?'<span class="dot"></span>':''}
+        <span class="no">${e.session}회</span>
+        <span class="ttl">${esc(e.label)}${e.note?` · ${esc(e.note)}`:""}</span>
+        <span class="cnt">${pos?`${pos+1} / `:""}${e.question_count}문항</span>
+        <span class="chev">›</span>
+      </button>`}).join("")}</div>`).join("");
+  $$("#exams .row").forEach(b=>b.onclick=()=>go(`#/e/${b.dataset.id}`));
+}
+
+/* ═══════════════════════════════════════════════
+   3. 학습 뷰
+   ═══════════════════════════════════════════════ */
+async function viewStudy(examId, num){
+  show("v-study");
+  const track=$("#track"), rail=$("#rail");
+  if(S.exam?.id !== examId){
+    track.innerHTML=""; rail.innerHTML="";
+    const {data:ex} = await sb.from("exam_list").select("*").eq("id",examId).single();
+    S.exam = ex;
+    if(ex && S.subject?.id !== ex.subject_id){
+      const {data:sj} = await sb.from("subject_list").select("*").eq("id",ex.subject_id).single();
+      S.subject = sj;
+    }
+    const {data,error} = await sb.from("questions").select("*").eq("exam_id",examId).order("number");
+    if(error){ show("v-exams"); return fail($("#exams"),"문항을 불러오지 못했습니다.",esc(error.message)); }
+    S.questions = data||[];
+    if(!S.questions.length){
+      $("#track").innerHTML = `<div class="slide"><div class="sheet-body"><div class="empty"><div class="big">이 회차에 등록된 문항이 없습니다.</div><div>업로더에서 문항을 올려주세요.</div></div></div></div>`;
+      $("#ttl").textContent = S.subject?.name||""; $("#sub").textContent = S.exam?.label||"";
+      $("#foot").textContent=""; return;
+    }
+    build();
+  }
+  $("#ttl").textContent = S.subject?.name || "";
+  $("#sub").textContent = S.exam?.label || "";
+  const start = num!=null ? S.questions.findIndex(q=>q.number===num)
+                          : LS.get(`pos:${examId}`,0);
+  jump(Math.max(0, start), false);
+}
+
+function build(){
+  const track=$("#track"), rail=$("#rail");
+  rail.innerHTML = S.questions.map((q,i)=>`
+    <button class="bub" data-i="${i}">${q.number}</button>`).join("");
+  $$("#rail .bub").forEach(b=>b.onclick=()=>jump(+b.dataset.i));
+
+  track.innerHTML = S.questions.map((q,i)=>`
+    <article class="slide" data-i="${i}"><div class="sheet-body" data-h="0"></div></article>`).join("");
+  applyVeil();
+
+  const io = new IntersectionObserver(es=>{
+    es.forEach(e=>{ if(e.isIntersecting && e.intersectionRatio>.55) setActive(+e.target.dataset.i); });
+  },{root:track,threshold:[.55]});
+  $$("#track .slide").forEach(s=>io.observe(s));
+}
+
+/* 근처 문항만 실제로 그린다 (60문항 한 번에 안 그림) */
+function hydrate(i){
+  const slide = $(`#track .slide[data-i="${i}"]`); if(!slide) return;
+  const body = slide.firstElementChild;
+  if(body.dataset.h==="1") return;
+  body.dataset.h="1";
+  const q = S.questions[i];
+  const starred = !!S.stars[q.id];
+  const chs = (Array.isArray(q.choices)?q.choices:[]).map((c,k)=>`
+    <div class="ch ${q.answer===k+1?"ok":""}">
+      <span class="b">${k+1}</span><span class="t">${md(String(c)).replace(/^<p>|<\/p>$/g,"")}</span>
+    </div>`).join("");
+
+  const expInner = q.explanation_html
+    ? `<div class="sheet-host">${q.explanation_html}</div>`
+    : md(q.explanation_md || "");
+
+  body.innerHTML = `
+    <div class="qhead">
+      <span class="qno">${q.number}</span>
+      <span class="qsum">${esc(q.summary||"")}${q.correct_rate!=null?` · 정답률 ${q.correct_rate}%`:""}</span>
+      <button class="qstar ${starred?"on":""}" data-id="${q.id}" aria-label="북마크">
+        <svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6 .8-4.4 4.2 1.1 6.1L12 16.9 6.7 19.7l1.1-6.1L3.4 9.4l6-.8z"/></svg>
+      </button>
+    </div>
+    <div class="qcard">
+      ${q.subject_part?`<div class="part">${esc(q.subject_part)}</div>`:""}
+      <div class="qtext">${md(q.question_text).replace(/^<p>|<\/p>$/g,"")}</div>
+      ${chs?`<div class="choices">${chs}</div>`:""}
+    </div>
+    ${(expInner||q.answer)?`
+    <div class="answer">
+      <button class="cover" type="button">
+        <svg viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 10.6a3 3 0 004.2 4.2"/><path d="M9.4 5.2A9.6 9.6 0 0112 5c6.4 0 10 7 10 7a17 17 0 01-3.2 4M6.2 6.2A17 17 0 002 12s3.6 7 10 7a9.7 9.7 0 004.3-1"/></svg>
+        가림판 내림 — 눌러서 이 문항만 확인
+      </button>
+      <div class="inner">
+        <div class="exp">
+          <div class="exp-h">해설${q.answer?` · 정답 ${q.answer}번`:""}</div>
+          <div class="exp-b">${expInner||"<p>등록된 해설이 없습니다.</p>"}</div>
+        </div>
+      </div>
+    </div>`:""}`;
+
+  body.querySelector(".qstar")?.addEventListener("click",e=>{
+    const el=e.currentTarget, id=el.dataset.id;
+    S.stars[id] = !S.stars[id]; if(!S.stars[id]) delete S.stars[id];
+    LS.set("stars",S.stars); el.classList.toggle("on",!!S.stars[id]);
+    $(`#rail .bub[data-i="${i}"]`)?.classList.toggle("star",!!S.stars[id]);
+  });
+  body.querySelector(".cover")?.addEventListener("click",()=>slide.classList.add("peek"));
+  tex(body);
+  $(`#rail .bub[data-i="${i}"]`)?.classList.toggle("star",starred);
+}
+
+function setActive(i){
+  if(S.idx===i && $(`#rail .bub.now`)) return;
+  S.idx=i;
+  const q=S.questions[i]; if(!q) return;
+  S.seen[q.id]=1; LS.set("seen",S.seen);
+  LS.set(`pos:${S.exam.id}`,i);
+  history.replaceState(null,"",`#/e/${S.exam.id}/${q.number}`);
+
+  [i-2,i-1,i,i+1,i+2].forEach(k=>{ if(k>=0&&k<S.questions.length) hydrate(k); });
+  $$("#rail .bub").forEach((b,k)=>{
+    b.classList.toggle("now",k===i);
+    b.classList.toggle("seen",!!S.seen[S.questions[k].id]);
+  });
+  const chip=$(`#rail .bub[data-i="${i}"]`);
+  chip?.scrollIntoView({behavior:"smooth",block:"nearest",inline:"center"});
+  $("#foot").textContent = `${q.number} / ${S.questions[S.questions.length-1].number}`;
+}
+
+function jump(i,smooth=true){
+  const slide=$(`#track .slide[data-i="${i}"]`); if(!slide) return;
+  hydrate(i);
+  const track=$("#track");
+  track.scrollTo({left:i*track.clientWidth,behavior:smooth?"smooth":"auto"});
+  setActive(i);
+}
+
+/* ── 가림판 ── */
+function applyVeil(){
+  $("#track")?.classList.toggle("veiled",S.veil);
+  $$("#track .slide").forEach(s=>s.classList.remove("peek"));
+  $("#veilBtn").classList.toggle("on",S.veil);
+  $("#veilTxt").textContent = S.veil ? "해설 가림" : "해설 보임";
+  $("#veilIcon").innerHTML = S.veil
+    ? '<path d="M3 3l18 18M10.6 10.6a3 3 0 004.2 4.2"/><path d="M9.4 5.2A9.6 9.6 0 0112 5c6.4 0 10 7 10 7a17 17 0 01-3.2 4M6.2 6.2A17 17 0 002 12s3.6 7 10 7a9.7 9.7 0 004.3-1"/>'
+    : '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>';
+}
+$("#veilBtn").onclick = ()=>{ S.veil=!S.veil; LS.set("veil",S.veil); applyVeil(); };
+
+/* ── 키보드 ── */
+addEventListener("keydown",e=>{
+  if(!$("#v-study").classList.contains("on")) return;
+  if(e.key==="ArrowRight") jump(Math.min(S.idx+1,S.questions.length-1));
+  if(e.key==="ArrowLeft")  jump(Math.max(S.idx-1,0));
+  if(e.key===" "){ e.preventDefault(); $("#veilBtn").click(); }
+});
+
+function fail(el,big,sub){
+  el.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="big">${big}</div><div>${sub}</div></div>`;
+}
+route();
+
+/* 홈 화면 설치 + 오프라인 */
+if("serviceWorker" in navigator && location.protocol.startsWith("http"))
+  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+</script>
+</body>
+</html>
