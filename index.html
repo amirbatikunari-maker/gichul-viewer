@@ -610,7 +610,7 @@ function jump(i,smooth=true){
   const slide=$(`#track .slide[data-i="${i}"]`); if(!slide) return;
   hydrate(i);
   const track=$("#track");
-  track.scrollTo({left:i*track.clientWidth,behavior:smooth?"smooth":"auto"});
+  track.scrollTo({left: slide.offsetLeft, behavior: smooth ? "smooth" : "auto"}); /* 이 부분 수정 */
   setActive(i);
 }
 
