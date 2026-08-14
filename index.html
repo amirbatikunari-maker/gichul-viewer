@@ -336,6 +336,33 @@ html[data-theme="dark"] .sheet-host img{filter:invert(1) hue-rotate(180deg)}
 .katex{font-size:1.02em}
 .katex-display{overflow-x:auto;overflow-y:hidden;padding:2px 0}
 
+/* ══ 형광펜 — 드래그해서 고른 글자에 연한 노란 밑칠 ══════════
+   저장은 "그 블록 안에서 몇 번째 글자부터 몇 번째 글자까지"로 한다.
+   수식(.katex) 안은 세지 않으므로 KaTeX 가 다시 그려도 위치가 안 밀린다. */
+mark.hl{
+  background:color-mix(in srgb,#FDE047 45%,transparent);
+  color:inherit;border-radius:3px;padding:.05em 0;
+  box-decoration-break:clone;-webkit-box-decoration-break:clone;
+}
+html[data-theme="dark"] mark.hl{background:color-mix(in srgb,#FDE047 24%,transparent)}
+[data-hl]{-webkit-user-select:text;user-select:text}
+
+.hlbar{
+  position:fixed;left:0;top:0;z-index:60;display:none;gap:2px;padding:4px;
+  background:var(--card);border:1px solid var(--rule);border-radius:999px;
+  box-shadow:0 8px 26px -10px rgba(16,35,61,.5);
+}
+.hlbar.on{display:flex}
+.hlbar button{
+  display:flex;align-items:center;gap:7px;padding:9px 14px;border-radius:999px;
+  font:600 12.5px/1 var(--font-d);color:var(--ink);white-space:nowrap;
+}
+.hlbar button:active{background:var(--accent-soft)}
+.hlbar button[hidden]{display:none}
+.hlbar .sw{width:13px;height:13px;border-radius:4px;flex:none;
+           background:#FDE047;border:1px solid color-mix(in srgb,#B59A00 60%,transparent)}
+.hlbar .del{color:var(--ink-2)}
+
 /* ── 하단 진행 ───────────────────────────────── */
 .foot{
   position:fixed;left:0;right:0;bottom:0;z-index:35;height:34px;
@@ -435,6 +462,12 @@ html[data-theme="dark"] .sheet-host img{filter:invert(1) hue-rotate(180deg)}
   <div class="track" id="track"></div>
   <div class="foot" id="foot"></div>
 </section>
+
+<!-- ══ 형광펜 말풍선 — 글자를 고르면 뜬다 ══ -->
+<div class="hlbar" id="hlbar">
+  <button id="hlAdd" type="button"><span class="sw"></span>형광펜</button>
+  <button id="hlDel" class="del" type="button" hidden>지우기</button>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -979,6 +1012,199 @@ const tex = el=>{
 };
 
 /* ═══════════════════════════════════════════════
+   형광펜 — 드래그로 고른 글자에 노란 밑칠
+   ───────────────────────────────────────────────
+   저장 형식: S.hl[문항id][블록키] = [[시작글자, 끝글자], …]
+   블록키는 data-hl 값(q=문제, c0~c3=보기, x=해설)이고,
+   글자 번호는 그 블록 안의 텍스트를 처음부터 이어 세었을 때의 위치다.
+   수식(.katex)·svg 안은 아예 세지 않는다 — KaTeX 가 만드는 숨은 글자까지
+   세면 라이브러리가 바뀔 때마다 밑칠 위치가 통째로 밀리기 때문이다.
+   ═══════════════════════════════════════════════ */
+S.hl = LS.get("hl", {});
+
+const hlGet = (qid,key) => (S.hl[qid]||{})[key] || [];
+function hlSet(qid, key, ranges){
+  const bag = S.hl[qid] || (S.hl[qid] = {});
+  if(ranges.length) bag[key] = ranges; else delete bag[key];
+  if(!Object.keys(bag).length) delete S.hl[qid];
+  LS.set("hl", S.hl);
+}
+function hlMerge(list){
+  const a = list.filter(r=>r[1]>r[0]).map(r=>[r[0],r[1]]).sort((x,y)=>x[0]-y[0]);
+  const out = [];
+  for(const r of a){
+    const last = out[out.length-1];
+    if(last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
+    else out.push(r);
+  }
+  return out;
+}
+function hlSubtract(ranges, s, e){
+  const out = [];
+  for(const [a,b] of ranges){
+    if(b <= s || a >= e){ out.push([a,b]); continue; }
+    if(a < s) out.push([a,s]);
+    if(b > e) out.push([e,b]);
+  }
+  return out;
+}
+
+/* 블록 안의 텍스트 노드를 문서 순서대로, 글자 번호와 함께 모은다 */
+function hlNodes(block){
+  const out = [];
+  const skip = ".katex, .katex-display, svg, script, style";
+  const walk = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, {
+    acceptNode(n){
+      if(!n.nodeValue) return NodeFilter.FILTER_REJECT;
+      const p = n.parentElement;
+      if(!p || p.closest(skip)) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  let pos = 0;
+  for(let n = walk.nextNode(); n; n = walk.nextNode()){
+    out.push({ node:n, start:pos, end:pos + n.nodeValue.length });
+    pos += n.nodeValue.length;
+  }
+  return out;
+}
+/* 선택 지점(노드+오프셋)을 블록 안 글자 번호로 옮긴다.
+   수식 안이나 블록 밖을 가리키면 문서 순서상 가장 가까운 경계로 잘라 붙인다. */
+function hlPointAt(map, node, offset){
+  for(const t of map) if(t.node === node) return t.start + offset;
+  if(!map.length) return 0;
+  const p = document.createRange();
+  try{ p.setStart(node, offset); }catch(e){ return 0; }
+  p.collapse(true);
+  for(const t of map){
+    const tr = document.createRange();
+    tr.selectNodeContents(t.node);
+    if(p.compareBoundaryPoints(Range.START_TO_START, tr) <= 0) return t.start;
+  }
+  return map[map.length-1].end;
+}
+
+/* 저장된 글자 범위대로 <mark> 를 다시 씌운다 */
+function hlPaint(block, ranges){
+  block.querySelectorAll("mark.hl").forEach(m => {
+    const p = m.parentNode;
+    while(m.firstChild) p.insertBefore(m.firstChild, m);
+    p.removeChild(m);
+  });
+  block.normalize();
+  if(!ranges || !ranges.length) return;
+  const map = hlNodes(block);
+  /* 한 노드 안에서는 뒤쪽 조각부터 잘라야 앞쪽 글자 번호가 안 흔들린다 */
+  for(let i = map.length - 1; i >= 0; i--){
+    const t = map[i];
+    const segs = [];
+    for(const [s,e] of ranges){
+      const a = Math.max(s, t.start), b = Math.min(e, t.end);
+      if(b > a) segs.push([a - t.start, b - t.start]);
+    }
+    segs.sort((x,y)=>y[0]-x[0]);
+    for(const [a,b] of segs){
+      const node = t.node;
+      if(b < node.nodeValue.length) node.splitText(b);
+      const target = a > 0 ? node.splitText(a) : node;
+      const mk = document.createElement("mark");
+      mk.className = "hl";
+      target.parentNode.replaceChild(mk, target);
+      mk.appendChild(target);
+    }
+  }
+}
+/* 새로 그린 문항에 저장된 형광펜을 입힌다 — tex() 뒤에 부른다 */
+function hlApply(root){
+  root?.querySelectorAll("[data-hl]").forEach(b => {
+    try{ hlPaint(b, hlGet(b.dataset.qid, b.dataset.hl)); }catch(e){}
+  });
+}
+
+/* ── 말풍선 ── */
+let HLSEL = null;
+function hlHide(){ $("#hlbar")?.classList.remove("on"); HLSEL = null; }
+function hlShow(rect, canDelete, canAdd = true){
+  const bar = $("#hlbar"); if(!bar) return;
+  $("#hlAdd").hidden = !canAdd;
+  $("#hlDel").hidden = !canDelete;
+  bar.classList.add("on");
+  const w = bar.offsetWidth, h = bar.offsetHeight;
+  let x = rect.left + rect.width/2 - w/2;
+  x = Math.max(10, Math.min(innerWidth - w - 10, x));
+  /* 기본은 선택 영역 아래 — 브라우저 기본 메뉴(복사·공유)는 보통 위에 뜨므로 겹치지 않게 */
+  let y = rect.bottom + 10;
+  if(y + h > innerHeight - 12) y = Math.max(10, rect.top - h - 10);
+  bar.style.left = x + "px";
+  bar.style.top  = y + "px";
+}
+const hlEl = n => n && (n.nodeType === 1 ? n : n.parentElement);
+
+let hlTimer = 0, HLBUSY = false;
+document.addEventListener("selectionchange", ()=>{
+  clearTimeout(hlTimer);
+  hlTimer = setTimeout(()=>{ if(!HLBUSY) hlFromSelection(); }, 130);
+});
+function hlFromSelection(){
+  const sel = getSelection();
+  if(!sel || sel.isCollapsed || !sel.rangeCount) return hlHide();
+  const r = sel.getRangeAt(0);
+  const block = hlEl(r.commonAncestorContainer)?.closest("[data-hl]")
+             || hlEl(r.startContainer)?.closest("[data-hl]");
+  if(!block || !block.dataset.qid) return hlHide();
+  const map = hlNodes(block);
+  let s = hlPointAt(map, r.startContainer, r.startOffset);
+  let e = hlPointAt(map, r.endContainer, r.endOffset);
+  if(e < s) [s,e] = [e,s];
+  if(e <= s) return hlHide();
+  const qid = block.dataset.qid, key = block.dataset.hl;
+  HLSEL = { qid, key, s, e, block };
+  hlShow(r.getBoundingClientRect(), hlGet(qid,key).some(([a,b]) => a < e && b > s));
+}
+
+/* 이미 칠해둔 곳을 그냥 눌렀을 때 — 지우기만 띄운다 */
+document.addEventListener("click", e=>{
+  if(e.target.closest?.(".hlbar")) return;
+  const mk = e.target.closest?.("mark.hl");
+  if(!mk){ if(getSelection()?.isCollapsed !== false) hlHide(); return; }
+  const block = mk.closest("[data-hl]"); if(!block || !block.dataset.qid) return;
+  const inside = hlNodes(block).filter(t => mk.contains(t.node));
+  if(!inside.length) return;
+  HLSEL = { qid:block.dataset.qid, key:block.dataset.hl,
+            s:inside[0].start, e:inside[inside.length-1].end, block };
+  hlShow(mk.getBoundingClientRect(), true, false);
+});
+
+/* 말풍선을 누르는 동안에는 선택이 풀려도 말풍선을 닫지 않는다.
+   (누르는 순간 선택이 해제되면서 버튼이 사라져 클릭이 안 먹는 걸 막는다.
+    실제 동작에 필요한 값은 이미 HLSEL 에 담아뒀으므로 선택이 풀려도 상관없다.) */
+document.addEventListener("pointerdown", e=>{
+  if(!e.target.closest?.(".hlbar")) return;
+  HLBUSY = true;
+  if(e.pointerType === "mouse") e.preventDefault();   // 데스크톱은 선택을 그대로 둔 채 누를 수 있다
+}, true);
+document.addEventListener("pointerup", ()=>{ setTimeout(()=>{ HLBUSY = false; }, 350); }, true);
+addEventListener("scroll", ()=>{ if(HLSEL && !HLBUSY) hlHide(); }, true);
+addEventListener("resize", hlHide);
+
+$("#hlAdd")?.addEventListener("click", ()=>{
+  if(!HLSEL) return;
+  const {qid,key,s,e,block} = HLSEL;
+  hlSet(qid, key, hlMerge([...hlGet(qid,key), [s,e]]));
+  hlPaint(block, hlGet(qid,key));
+  getSelection()?.removeAllRanges();
+  hlHide();
+});
+$("#hlDel")?.addEventListener("click", ()=>{
+  if(!HLSEL) return;
+  const {qid,key,s,e,block} = HLSEL;
+  hlSet(qid, key, hlSubtract(hlGet(qid,key), s, e));
+  hlPaint(block, hlGet(qid,key));
+  getSelection()?.removeAllRanges();
+  hlHide();
+});
+
+/* ═══════════════════════════════════════════════
    라우팅
    ═══════════════════════════════════════════════ */
 function go(hash){ location.hash = hash; }
@@ -1123,7 +1349,7 @@ function build(){
 function cardHTML(q){
   const chs = (Array.isArray(q.choices)?q.choices:[]).map((c,k)=>`
     <div class="ch ${q.answer===k+1?"ok":""}">
-      <span class="b">${k+1}</span><span class="t">${md(String(c)).replace(/^<p>|<\/p>$/g,"")}</span>
+      <span class="b">${k+1}</span><span class="t" data-hl="c${k}" data-qid="${q.id}">${md(String(c)).replace(/^<p>|<\/p>$/g,"")}</span>
     </div>`).join("");
 
   const expInner = q.explanation_html
@@ -1133,7 +1359,7 @@ function cardHTML(q){
   return `
     <div class="qcard">
       ${q.subject_part?`<div class="part">${esc(q.subject_part)}</div>`:""}
-      <div class="qtext">${md(stripQNo(q.question_text)).replace(/^<p>|<\/p>$/g,"")}</div>
+      <div class="qtext" data-hl="q" data-qid="${q.id}">${md(stripQNo(q.question_text)).replace(/^<p>|<\/p>$/g,"")}</div>
       ${chs?`<div class="choices">${chs}</div>`:""}
     </div>
     ${(expInner||q.answer)?`
@@ -1145,7 +1371,7 @@ function cardHTML(q){
       <div class="inner">
         <div class="exp">
           <div class="exp-h">해설${q.answer?` · 정답 ${q.answer}번`:""}</div>
-          <div class="exp-b">${expInner||"<p>등록된 해설이 없습니다.</p>"}</div>
+          <div class="exp-b" data-hl="x" data-qid="${q.id}">${expInner||"<p>등록된 해설이 없습니다.</p>"}</div>
         </div>
       </div>
     </div>`:""}`;
@@ -1182,6 +1408,7 @@ function onInkClick(q, body, i){
     body.__ink = setupInkPage(q.id, wrap, page, canvas, tools,
                               editing => qinkBtn.classList.toggle("on", editing), body.__zoom);
     tex(page);
+    hlApply(page);
     requestAnimationFrame(()=> body.__ink.resize());
   }
   body.__ink.setEditing(true);
@@ -1237,10 +1464,12 @@ function hydrate(i){
     body.__ink = setupInkPage(q.id, wrap, page, canvas, tools,
                               editing => qinkBtn.classList.toggle("on", editing), body.__zoom);
     tex(page);
+    hlApply(page);
     requestAnimationFrame(()=> body.__ink.resize());
   }else{
     wireCard(zoomstage, slide);
     tex(zoomstage);
+    hlApply(zoomstage);
   }
   $(`#rail .bub[data-i="${i}"]`)?.classList.toggle("star",starred);
 }
