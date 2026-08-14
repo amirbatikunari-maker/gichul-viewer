@@ -66,60 +66,6 @@ a{color:var(--accent);text-decoration:none}
 .mono{font-family:var(--font-m);font-feature-settings:"tnum"}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
 
-/* ── 화면 모드 ───────────────────────────────── */
-.display-tools{display:flex;align-items:center;gap:5px;flex:none}
-.mode-btn{height:32px;padding:0 9px;border:1px solid var(--rule);border-radius:9px;
-  font:600 11px/1 var(--font-d);color:var(--ink-2);white-space:nowrap}
-.mode-btn.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
-#screenMode{max-width:62px}
-#orientationMode{max-width:74px}
-@media(max-width:640px){
-  .display-tools{gap:4px}
-  .mode-btn{padding:0 7px;font-size:10px}
-  #screenMode{max-width:58px}
-  #orientationMode{max-width:68px}
-  .top{gap:6px}
-}
-
-/* 투명 모드: 브라우저 위에 떠 있는 UI 자체를 최대한 가볍게 만든다.
-   웹 브라우저는 일반 페이지를 데스크톱까지 실제 투명하게 만들 수 없으므로,
-   여기서는 페이지 배경/카드의 불투명도를 낮춰 '앱 내부 투명 모드'로 동작시킨다. */
-html.app-transparent body{background:transparent}
-html.app-transparent .top,
-html.app-transparent .rail{background:rgba(233,236,230,.42);backdrop-filter:blur(8px)}
-html.app-transparent .subj,
-html.app-transparent .row,
-html.app-transparent .inkwrap,
-html.app-transparent .qcard,
-html.app-transparent .answer,
-html.app-transparent .inktools{background:rgba(252,252,250,.62);box-shadow:0 1px 0 rgba(16,35,61,.03),0 5px 18px -15px rgba(16,35,61,.35)}
-html.app-transparent .qhead{background:rgba(233,236,230,.42);backdrop-filter:blur(8px)}
-html.app-transparent .nav3{opacity:.72}
-html.app-transparent .wrap,.app-transparent .track{isolation:isolate}
-html.app-transparent[data-theme="dark"] .top,
-html.app-transparent[data-theme="dark"] .rail,
-html.app-transparent[data-theme="dark"] .qhead{background:rgba(14,21,32,.42)}
-html.app-transparent[data-theme="dark"] .subj,
-html.app-transparent[data-theme="dark"] .row,
-html.app-transparent[data-theme="dark"] .inkwrap,
-html.app-transparent[data-theme="dark"] .qcard,
-html.app-transparent[data-theme="dark"] .answer,
-html.app-transparent[data-theme="dark"] .inktools{background:rgba(22,30,41,.62)}
-
-/* F9 개인정보 보호 화면 */
-#privacyBlank{position:fixed;inset:0;z-index:99999;background:#fff;display:none}
-html.privacy-blank #privacyBlank{display:block}
-html.privacy-blank body>*{visibility:hidden!important}
-html.privacy-blank #privacyBlank{visibility:visible!important}
-
-/* 보기 방향 */
-html.orientation-landscape .wrap{max-width:1180px}
-html.orientation-landscape .sheet-body{max-width:1180px}
-html.orientation-landscape .slide{padding-left:22px;padding-right:22px}
-html.orientation-landscape .grid{grid-template-columns:repeat(3,minmax(0,1fr))}
-html.orientation-portrait .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-@media(max-width:380px){html.orientation-portrait .grid{grid-template-columns:1fr}}
-
 /* ── 상단 바 ─────────────────────────────────── */
 .top{
   position:sticky;top:0;z-index:40;height:var(--head);
@@ -472,10 +418,6 @@ html[data-theme="dark"] mark.hl{background:color-mix(in srgb,#FDE047 24%,transpa
     <svg viewBox="0 0 24 24" id="veilIcon"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
     <span id="veilTxt">해설 보임</span>
   </button>
-  <div class="display-tools" aria-label="화면 모드">
-    <button class="mode-btn" id="screenMode" type="button" aria-pressed="false">투명</button>
-    <button class="mode-btn" id="orientationMode" type="button" aria-label="화면 방향">자동</button>
-  </div>
   <button class="icon" id="theme" aria-label="화면 밝기 전환">
     <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
   </button>
@@ -522,8 +464,6 @@ html[data-theme="dark"] mark.hl{background:color-mix(in srgb,#FDE047 24%,transpa
 </section>
 
 <!-- ══ 형광펜 말풍선 — 글자를 고르면 뜬다 ══ -->
-<div id="privacyBlank" aria-hidden="true"></div>
-
 <div class="hlbar" id="hlbar">
   <button id="hlAdd" type="button"><span class="sw"></span>형광펜</button>
   <button id="hlDel" class="del" type="button" hidden>지우기</button>
@@ -555,58 +495,6 @@ let S = {
 const $  = s=>document.querySelector(s);
 const $$ = s=>[...document.querySelectorAll(s)];
 const esc = s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-
-
-/* ═══════════════════════════════════════════════
-   화면 모드: 투명 / F9 백색 보호 / 방향 자동·세로·가로
-   ═══════════════════════════════════════════════ */
-const SCREEN_MODE_KEY = "screenMode";
-const ORIENTATION_KEY = "orientationMode";
-const orientationLabels = { auto:"자동", portrait:"세로", landscape:"가로" };
-
-function applyScreenMode(){
-  const on = LS.get(SCREEN_MODE_KEY, false) === true;
-  document.documentElement.classList.toggle("app-transparent", on);
-  const btn = $("#screenMode");
-  if(btn){ btn.classList.toggle("on", on); btn.textContent = on ? "투명 ON" : "투명"; btn.setAttribute("aria-pressed", String(on)); }
-}
-function cycleOrientation(){
-  const cur = LS.get(ORIENTATION_KEY, "auto");
-  const next = cur === "auto" ? "portrait" : cur === "portrait" ? "landscape" : "auto";
-  LS.set(ORIENTATION_KEY, next);
-  applyOrientation();
-}
-async function tryLockOrientation(mode){
-  if(!screen.orientation) return;
-  try{
-    if(mode === "auto") screen.orientation.unlock();
-    else if(mode === "portrait") await screen.orientation.lock("portrait-primary");
-    else await screen.orientation.lock("landscape-primary");
-  }catch(_){ /* 일반 브라우저 탭에서는 잠금이 거부될 수 있으므로 CSS 모드만 유지 */ }
-}
-function applyOrientation(){
-  const mode = LS.get(ORIENTATION_KEY, "auto");
-  document.documentElement.classList.toggle("orientation-portrait", mode === "portrait");
-  document.documentElement.classList.toggle("orientation-landscape", mode === "landscape");
-  const btn = $("#orientationMode");
-  if(btn){ btn.textContent = orientationLabels[mode] || "자동"; btn.classList.toggle("on", mode !== "auto"); }
-  tryLockOrientation(mode);
-  if(mode === "auto") document.documentElement.dataset.autoOrientation = matchMedia("(orientation: landscape)").matches ? "landscape" : "portrait";
-}
-function togglePrivacyBlank(){
-  document.documentElement.classList.toggle("privacy-blank");
-}
-
-$("#screenMode")?.addEventListener("click",()=>{
-  LS.set(SCREEN_MODE_KEY, !LS.get(SCREEN_MODE_KEY, false));
-  applyScreenMode();
-});
-$("#orientationMode")?.addEventListener("click", cycleOrientation);
-matchMedia("(orientation: landscape)").addEventListener?.("change", ()=>{
-  if(LS.get(ORIENTATION_KEY,"auto")==="auto") applyOrientation();
-});
-applyScreenMode();
-applyOrientation();
 
 /* 본문 맨 앞에 다시 붙어 있는 문항 번호("1. ", "23) ", "(4) ", "문제 5. ")를 지운다.
    화면 왼쪽에 이미 번호 배지가 따로 있으므로 중복이고, 예전에 올린 회차에도 남아 있어서
@@ -1628,8 +1516,6 @@ $("#veilBtn").onclick = ()=>{ S.veil=!S.veil; LS.set("veil",S.veil); applyVeil()
 
 /* ── 키보드 ── */
 addEventListener("keydown",e=>{
-  /* F9: 즉시 전체 백색 보호 화면 — 어떤 화면에 있어도 작동 */
-  if(e.key === "F9") { e.preventDefault(); togglePrivacyBlank(); return; }
   if(!$("#v-study").classList.contains("on")) return;
   if(/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
 
