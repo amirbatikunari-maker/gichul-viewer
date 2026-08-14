@@ -311,7 +311,29 @@ let PDF = null, PDF_BYTES = null, PAGES = 0;
 let IMAGES = [];
 let BATCHES = [], RESULTS = {}, RUNNING = false, ABORT = false, TOKENS = 0;
 let ANSWER_KEY = {}; // {문항번호: 정답(1~4)} — 정답표를 따로 뽑았을 때 채워진다
-let FORCE_IMAGE_MODE = false; // 이미지 변환 성공 시 이후 묶음 이미지 고정
+let FORCE_IMAGE_MODE = false;
+let DB_NUMBERS = []; // ★ 추가: DB에 이미 올라간 문항 번호들
+
+// ★ 추가: Supabase(저장소)에서 이미 올라간 문항 번호 동기화
+async function fetchSavedNumbers() {
+  const scode = $("#scode").value.trim();
+  const year = +$("#year").value;
+  const sess = +$("#sess").value;
+  if(!scode || !year || !sess) return;
+  
+  try {
+    const { data: sub } = await sb.from("subject_list").select("id").eq("code", scode).maybeSingle();
+    if(!sub) return;
+    const { data: ex } = await sb.from("exam_list").select("id").eq("subject_id", sub.id).eq("year", year).eq("session", sess).maybeSingle();
+    if(!ex) return;
+    const { data: qs } = await sb.from("questions").select("number").eq("exam_id", ex.id);
+    if(qs) {
+      DB_NUMBERS = qs.map(q => q.number);
+      preview(); // 가져온 뒤 UI 바로 업데이트
+    }
+  } catch(e) { console.log("DB 동기화 중 오류:", e); }
+}
+
 
 /* ── 로그 ── */
 function log(t, k){
