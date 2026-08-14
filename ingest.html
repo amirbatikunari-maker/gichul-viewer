@@ -311,6 +311,7 @@ let PDF = null, PDF_BYTES = null, PAGES = 0;
 let IMAGES = [];
 let BATCHES = [], RESULTS = {}, RUNNING = false, ABORT = false, TOKENS = 0;
 let ANSWER_KEY = {}; // {문항번호: 정답(1~4)} — 정답표를 따로 뽑았을 때 채워진다
+let FORCE_IMAGE_MODE = false; // 이미지 변환 성공 시 이후 묶음 이미지 고정
 
 /* ── 로그 ── */
 function log(t, k){
