@@ -535,6 +535,19 @@ function resetFileState(){
   $("#runImage").disabled = true;
   log("파일 선택이 취소되었습니다.");
 }
+/* ── 묶음 계획 (무조건 1장씩 단건 처리) ── */
+function plan(){
+  const total = SRC === "pdf" ? PAGES : IMAGES.length;
+  if(!total) return;
+  const from = Math.max(1, +$("#pFrom").value || 1);
+  const to   = Math.min(total, +$("#pTo").value || total);
+  
+  BATCHES = [];
+  for(let p = from; p <= to; p++){
+    BATCHES.push({ from: p, to: p, status: "", count: 0, kind: SRC });
+  }
+  drawBatches(); stats();
+}
 $("#cancelFile").onclick = resetFileState;
 ["pFrom","pTo","chunk"].forEach(id => $("#"+id).addEventListener("change", plan));
 
