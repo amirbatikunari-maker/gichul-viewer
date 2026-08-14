@@ -951,8 +951,9 @@ async function bad(b, why, depth, wasImage, kind = "error"){
 async function go(only){
   if(SRC === "pdf" && !PDF) return;
   if(SRC === "images" && !IMAGES.length) return;
-  RUNNING = true; ABORT = false;
+  RUNNING = true; ABORT = false; FORCE_IMAGE_MODE = false;
   $("#run").disabled = $("#retry").disabled = true; $("#stop").disabled = false;
+
   wakeBackup();   // 예비 서버 깨우기를 먼저 걸어둔다(백그라운드) — 필요할 때 이미 깨어 있도록
   if(!only) await extractAnswerKey(); // 전체를 새로 돌릴 때만 정답표를 (다시) 뽑는다
   const gap = +$("#gap").value;
