@@ -80,6 +80,25 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .nav3{display:flex;gap:2px;padding:7px 8px;padding-top:calc(7px + env(safe-area-inset-top));background:var(--ink);overflow-x:auto}
 .nav3 a{flex:1;text-align:center;padding:7px 5px;border-radius:8px;font:600 11px/1 var(--font-d);color:color-mix(in srgb,var(--paper) 55%,transparent);text-decoration:none;white-space:nowrap}
 .nav3 a.on{background:color-mix(in srgb,var(--paper) 15%,transparent);color:var(--paper)}
+/* ── 말주머니 · 꿀팁 · 단계별 ── */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip{padding:7px 12px;border-radius:999px;border:1.3px solid var(--rule);background:transparent;
+  color:var(--ink-2);font:600 12px/1 var(--font-d);cursor:pointer}
+.chip.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.bub{position:relative;background:var(--paper);border:1px solid var(--rule);border-radius:14px;
+  padding:12px 14px;margin-bottom:8px;font-size:13.5px;line-height:1.6}
+.bub:last-child{margin-bottom:0}
+.bub .by{display:block;margin-top:6px;font-size:11.5px;color:var(--ink-2);font-family:var(--font-m)}
+.stage{border:1px solid var(--rule);border-radius:12px;margin-bottom:8px;overflow:hidden;background:var(--card)}
+.stage .sh{width:100%;display:flex;align-items:center;gap:9px;padding:12px 13px;background:transparent;
+  border:0;cursor:pointer;font:600 13.5px/1 var(--font-d);color:var(--ink);text-align:left}
+.stage .sh .n{width:20px;height:20px;flex:none;border-radius:50%;background:var(--accent);color:#fff;
+  display:grid;place-items:center;font:600 11px/1 var(--font-m)}
+.stage .sh .cv{margin-left:auto;color:var(--ink-2);transition:transform .18s}
+.stage.open .sh .cv{transform:rotate(180deg)}
+.stage .sb{display:none;margin:0;padding:0 15px 13px 40px;font-size:13px;color:var(--ink)}
+.stage.open .sb{display:block}
+.stage .sb li{margin:5px 0}
 .hide{display:none}
 /* ── 로그인 잠금 화면 ── */
 .nav3 .authbtn{flex:none;padding:7px 11px;border-radius:8px;border:0;cursor:pointer;
@@ -140,6 +159,33 @@ button:disabled{opacity:.45;cursor:not-allowed}
 
     <div class="eyebrow">진행 중인 건</div>
     <div class="cases" id="cases"></div>
+
+    <div class="eyebrow" style="margin-top:26px">마음 다지기</div>
+    <div class="card">
+      <label>자기암시 말주머니</label>
+      <div class="chips" id="selfChips"></div>
+      <div id="selfOut"></div>
+      <div class="bar" style="margin-top:11px"><button class="sm" id="selfRoll">한 번 더 뽑기</button></div>
+      <div class="hint">주제를 고르고 누를 때마다 1~5줄이 새로 나옵니다. 자존감이 내려앉는 날 눌러보세요.</div>
+    </div>
+
+    <div class="card">
+      <label>명언 말주머니</label>
+      <div class="chips" id="quoteChips"></div>
+      <div id="quoteOut"></div>
+      <div class="bar" style="margin-top:11px"><button class="sm" id="quoteRoll">다른 말 보기</button></div>
+    </div>
+
+    <div class="eyebrow">면접 꿀팁 주머니</div>
+    <div class="card">
+      <div class="chips" id="tipChips"></div>
+      <div id="tipOut"></div>
+      <div class="bar" style="margin-top:11px"><button class="sm" id="tipRoll">다른 팁 뽑기</button></div>
+      <div class="hint">떠도는 조언 중 실제로 먹히는 것만 모았습니다. 차수를 골라서 보세요.</div>
+    </div>
+
+    <div class="eyebrow">단계별로 생각할 것</div>
+    <div id="stages"></div>
   </div>
 
   <!-- ══ 상세 화면 ══ -->
@@ -205,7 +251,9 @@ if(typeof window.pdfjsLib !== "undefined")
 
 const $ = s => document.querySelector(s);
 const CFG = window.APP_CONFIG || {};
-const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+/* 이 탭은 들어올 때마다 로그인하게 한다 — 세션을 저장하지 않는다 */
+const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY,
+  { auth:{ persistSession:false, autoRefreshToken:false, storageKey:"sb-iv-session" } });
 const say = (t, c) => { const m = $("#m"); m.textContent = t; m.className = "msg " + (c || "on"); };
 const hide = () => { $("#m").className = "msg"; };
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -541,6 +589,234 @@ $("#gen").onclick    = () => generate(false);
 $("#genOne").onclick = () => generate(true);
 
 boot();
+
+/* ══════════════════════════════════════════════════════════
+   마음 다지기 · 꿀팁 · 단계별 점검
+   서버를 쓰지 않는다 — 로그인 상태와 무관하게 이 파일 안에서 다 돈다.
+   ══════════════════════════════════════════════════════════ */
+const SELF = {
+  용기:[
+    "두려운 건 준비가 부족해서가 아니라, 이 자리가 나에게 중요해서다.",
+    "떨리는 손으로도 문은 열 수 있다.",
+    "오늘 내 일은 완벽해지는 게 아니라 그 방에 들어가는 것이다.",
+    "최악을 이미 상상해봤고, 나는 그것도 견딜 수 있다.",
+    "물러서지 않은 사람만 다음 이야기를 갖는다.",
+    "낯선 방에 들어서는 그 3초만 버티면 된다.",
+    "겁이 난다는 건 내가 살아 있고 도전 중이라는 증거다.",
+    "말이 막히면 잠깐 멈춰도 된다. 그것도 태도다."
+  ],
+  성공:[
+    "나는 운을 기다린 게 아니라 준비를 쌓아왔다.",
+    "오늘의 30분이 몇 년치 연봉을 바꾼다.",
+    "결과가 늦는 것이지, 오지 않는 게 아니다.",
+    "내가 지나온 현장이 곧 내 이력서다.",
+    "남들이 접을 때 한 번 더 펴본 사람이 붙는다.",
+    "나는 이미 여러 번 해낸 사람이다. 이번도 그중 하나다.",
+    "준비된 사람에게 기회는 겹쳐서 온다.",
+    "될 때까지 하면 된다. 그건 내가 제일 잘하는 일이다."
+  ],
+  자신감:[
+    "내 경력은 변명이 필요 없다. 숫자와 현장이 말해준다.",
+    "아는 것은 아는 대로, 모르는 것은 모른다고 말하면 된다.",
+    "면접관도 사람이고 나도 사람이다. 대등하게 앉는다.",
+    "목소리를 반 톤 낮추고 천천히. 그게 내 무기다.",
+    "내가 쌓은 시간은 아무도 흉내 낼 수 없다.",
+    "나는 이 자리에 어울리는 사람이라서 불려왔다.",
+    "잘 보이려 하지 말고 사실대로 보여주자. 그걸로 충분하다.",
+    "모르면 배우면 된다. 나는 늘 그렇게 해왔다."
+  ],
+  성취:[
+    "나는 고장 난 것을 살려낸 사람이다.",
+    "내가 손댄 설비는 전보다 나아졌다.",
+    "아무도 남기지 않던 기록을 내가 남겼다.",
+    "시험도 현장도, 결국 내가 끝을 봤다.",
+    "어제의 나보다 오늘의 내가 더 안다.",
+    "작은 개선을 꾸준히 쌓아온 것이 지금의 나다.",
+    "나는 시작만 하는 사람이 아니라 끝맺는 사람이다."
+  ],
+  극복:[
+    "넘어진 자리는 내가 제일 잘 아는 길이 된다.",
+    "실패는 나에 대한 판결이 아니라 자료다.",
+    "그때도 버텼는데 오늘이라고 못 버틸까.",
+    "힘든 건 지나간다. 나는 남는다.",
+    "지금의 불안은 곧 끝날 감정이지 사실이 아니다.",
+    "한 번 더 숨 쉬고, 한 걸음만 더.",
+    "무너진 날에도 나는 다음 날 출근했다."
+  ],
+  긍정:[
+    "오늘 하나만 잘해도 오늘은 좋은 날이다.",
+    "안 되면 배우는 것이고 되면 얻는 것이다.",
+    "나는 나에게 조금 더 친절해도 된다.",
+    "좋은 일은 조용한 데서 준비되고 있다.",
+    "이 과정도 언젠가는 그냥 이야기가 된다.",
+    "잘 안 풀린 하루가 인생을 정하지는 않는다."
+  ],
+  행복:[
+    "잘 자고 잘 먹은 내가 가장 강하다.",
+    "오늘 웃은 순간이 하나는 있었다.",
+    "합격도 좋지만, 나는 이미 충분히 살아가고 있다.",
+    "일은 내 삶의 일부이지 전부가 아니다.",
+    "애쓴 나를 오늘은 좀 쉬게 하자.",
+    "결과와 상관없이 나는 나를 아낀다."
+  ]
+};
+
+const QUOTE = {
+  용기:[["용기는 두려움이 없는 게 아니라 두려움보다 중한 것이 있다는 판단이다","앰브로즈 레드문"],
+        ["시작이 반이다","우리 속담"],
+        ["행동이 항상 행복을 주진 않지만 행동 없는 행복은 없다","벤저민 디즈레일리"],
+        ["해보기 전에는 늘 불가능해 보인다","넬슨 만델라"]],
+  성공:[["성공은 끝이 아니고 실패는 치명적이지 않다","윈스턴 처칠"],
+        ["기회는 준비된 자에게 온다","루이 파스퇴르"],
+        ["나는 실패하지 않았다. 안 되는 방법을 찾았을 뿐","토머스 에디슨"],
+        ["천 리 길도 한 걸음부터","노자"]],
+  자신감:[["할 수 있다고 믿는 사람은 그렇게 된다","베르길리우스"],
+          ["너 자신을 알라","소크라테스"],
+          ["남과 비교하는 순간 자신을 잃는다","오래된 격언"],
+          ["자신을 믿어라, 이미 절반은 왔다","시어도어 루스벨트"]],
+  성취:[["오늘 할 일을 내일로 미루지 마라","벤저민 프랭클린"],
+        ["느려도 좋다, 멈추지만 마라","공자"],
+        ["재능은 노력을 이기지 못한다","오래된 격언"],
+        ["한 번에 하나씩, 끝까지","실무 격언"]],
+  극복:[["일곱 번 넘어지면 여덟 번 일어난다","일본 속담"],
+        ["고통은 지나가지만 아름다움은 남는다","오귀스트 르누아르"],
+        ["끝날 때까지 끝난 게 아니다","요기 베라"],
+        ["폭풍이 지나가면 나무는 더 깊이 뿌리내린다","서양 격언"]],
+  긍정:[["태도라는 작은 차이가 큰 결과를 만든다","윈스턴 처칠"],
+        ["웃으면 복이 온다","우리 속담"],
+        ["생각이 바뀌면 세상이 바뀐다","오래된 격언"],
+        ["오늘은 어제 걱정하던 내일이다","서양 격언"]],
+  행복:[["행복은 습관이다. 몸에 지녀라","엘버트 허버드"],
+        ["가진 것을 사랑하면 그것이 충분해진다","오래된 격언"],
+        ["건강이 첫째 재산이다","랠프 월도 에머슨"],
+        ["쉬는 것도 일의 일부다","실무 격언"]]
+};
+
+const TIPS = {
+  "공통":[
+    "회사 소개를 세 줄로 외워 간다 — 무슨 회사, 무슨 사업, 최근 무슨 일.",
+    "첫인사 5초가 절반이다. 문 열고 눈 맞추고 또렷하게 이름부터.",
+    "모든 답은 두괄식. 결론 한 문장 → 근거 → 사례 순서.",
+    "사례는 STAR로. 상황 → 내 역할 → 한 일 → 결과(숫자).",
+    "숫자가 있으면 무조건 넣는다. 몇 kW, 몇 대, 몇 %, 몇 개월.",
+    "모르는 건 모른다고 말하고, 어떻게 알아낼지 이어서 말한다.",
+    "이직 사유는 불평 없이. 도망이 아니라 방향으로 말한다.",
+    "마지막 질문 두 개는 반드시 준비. 조직·업무 범위·평가 기준.",
+    "30분 전 도착해서 화장실 거울 앞에서 표정을 한 번 푼다.",
+    "손은 무릎 위나 책상 위에. 팔짱과 다리 꼬기는 금물.",
+    "답이 길어지면 스스로 끊는다. 한 답변 40~60초.",
+    "끝인사는 앉은 채로 말고 일어나서. 문 닫을 때까지 면접이다."
+  ],
+  "1차 · 실무진":[
+    "설비 이름·용량·대수를 정확히. '큰 냉동기'가 아니라 '350RT 터보 2대'.",
+    "트러블 사례 3개는 외워 간다. 증상 → 원인 추적 → 조치 → 재발방지.",
+    "도면·절차서·점검표를 실제로 만들어 봤다면 그 이야기를 꺼낸다.",
+    "야간·주말 비상대응 경험은 실무진이 가장 좋아하는 소재다.",
+    "안전(LOTO·밀폐공간·활선) 관련해서는 원칙대로 답한다. 무용담 금지.",
+    "자격증은 '땄다'가 아니라 '이걸로 현장에서 뭘 했다'로 말한다.",
+    "협력업체 관리 경험 — 공사 감독, 검수, 하자 처리.",
+    "내가 직접 손으로 한 일과 지시만 한 일을 구분해서 말한다.",
+    "모르는 장비를 물으면 비슷한 원리의 장비로 연결해서 답한다.",
+    "질문은 실무적으로. 교대 형태, 인원 구성, 사용 중인 BMS."
+  ],
+  "2차 · 임원 · 인사":[
+    "'왜 우리 회사인가'에 회사 고유의 이유를 댄다. 어디에나 쓸 말은 감점.",
+    "3년 계획을 준비. 1년차 적응, 2년차 개선, 3년차 표준화 식으로.",
+    "회사 방향(증설·신사업·ESG)과 내 경력을 한 문장으로 잇는다.",
+    "갈등 사례는 이긴 이야기 말고 조율한 이야기로.",
+    "장기근속 의지는 말보다 근거로. 통근, 가족, 커리어 경로.",
+    "연봉 이야기는 먼저 꺼내지 않는다. 물으면 범위로 답한다.",
+    "임원은 내용보다 태도를 본다. 등 펴고, 천천히, 끝까지 듣고.",
+    "최근 회사 뉴스 한 줄을 알고 가면 분위기가 바뀐다.",
+    "약점을 물으면 진짜 약점 + 지금 하고 있는 보완을 같이.",
+    "마지막에 '꼭 하고 싶다'는 말을 한 번은 분명히 한다."
+  ]
+};
+
+const STAGES = [
+  ["서류 접수 전", [
+    "공고의 자격요건을 한 줄씩 내 경력과 대조해 표로 만든다.",
+    "직무기술서의 단어를 자소서·경력기술서에 그대로 쓴다.",
+    "숫자가 없는 문장은 다시 쓴다. 규모·기간·성과를 넣는다.",
+    "제출본 파일명과 최종본을 한 폴더에 남긴다. 면접 때 그대로 물어본다."
+  ]],
+  ["필기 · 인적성", [
+    "시간 배분을 먼저 정한다. 못 푸는 문제는 버리는 연습.",
+    "인적성은 일관성이 점수다. 꾸며내면 뒤 문항에서 어긋난다.",
+    "전공 필기는 기출 3회차만 돌려도 출제 범위가 보인다."
+  ]],
+  ["1차 · 실무 면접", [
+    "내 손으로 한 일 5개를 STAR로 정리해 외운다.",
+    "설비 수치(용량·대수·운전조건)를 종이 한 장에 적어 전날 훑는다.",
+    "실패·사고 사례 하나는 준비한다. 반드시 재발방지까지 붙여서.",
+    "면접관이 내 상사가 될 사람이다. 같이 일하기 편한 사람으로 보이게."
+  ]],
+  ["2차 · 임원 면접", [
+    "지원 동기를 회사 고유의 언어로 다시 쓴다.",
+    "3년 뒤 모습을 한 문장으로 준비한다.",
+    "표정·자세·속도가 내용만큼 평가된다.",
+    "회사에 대한 질문 두 개는 성장·방향에 관한 것으로."
+  ]],
+  ["처우 협상", [
+    "현재 연봉과 희망 범위를 미리 숫자로 정해둔다.",
+    "총액 말고 구성(기본급·수당·상여·교대수당)을 확인한다.",
+    "먼저 숫자를 부르지 않되, 물으면 범위로 답한다.",
+    "구두 합의는 반드시 문서(처우협의서)로 남긴다."
+  ]],
+  ["최종 대기 · 입사 전", [
+    "결과를 기다리는 동안 다른 지원을 멈추지 않는다.",
+    "연락이 늦어도 재촉 대신 한 번만 정중히 확인한다.",
+    "입사 확정 전에는 현직에 통보하지 않는다.",
+    "첫 3개월에 뭘 배울지 미리 적어두면 적응이 빠르다."
+  ]]
+];
+
+const pick = a => a[Math.floor(Math.random()*a.length)];
+function bubble(text, sub){
+  return `<div class="bub">${esc(text)}${sub?`<span class="by">— ${esc(sub)}</span>`:""}</div>`;
+}
+function chips(el, keys, onPick){
+  el.innerHTML = keys.map((k,i) => `<button class="chip${i===0?" on":""}" data-k="${k}">${k}</button>`).join("");
+  el.querySelectorAll(".chip").forEach(b => b.onclick = () => {
+    el.querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === b));
+    onPick(b.dataset.k);
+  });
+}
+
+let SELF_KEY = "용기", QUOTE_KEY = "용기", TIP_KEY = "공통";
+function rollSelf(){
+  const list = SELF[SELF_KEY] || [];
+  const n = 1 + Math.floor(Math.random()*5);              /* 1~5줄 */
+  const bag = [...list].sort(()=>Math.random()-.5).slice(0, Math.min(n, list.length));
+  $("#selfOut").innerHTML = bag.map(t => bubble(t)).join("");
+}
+function rollQuote(){
+  const [t,by] = pick(QUOTE[QUOTE_KEY] || [["",""]]);
+  $("#quoteOut").innerHTML = bubble(t, by);
+}
+function rollTip(){
+  const list = TIPS[TIP_KEY] || [];
+  const bag = [...list].sort(()=>Math.random()-.5).slice(0,3);
+  $("#tipOut").innerHTML = bag.map(t => bubble(t)).join("");
+}
+function drawStages(){
+  $("#stages").innerHTML = STAGES.map(([name, items], i) => `
+    <div class="stage${i===0?" open":""}" data-i="${i}">
+      <button class="sh"><span class="n">${i+1}</span>${esc(name)}<span class="cv">▾</span></button>
+      <ul class="sb">${items.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
+    </div>`).join("");
+  $("#stages").querySelectorAll(".stage .sh").forEach(b => b.onclick = () =>
+    b.parentElement.classList.toggle("open"));
+}
+
+chips($("#selfChips"),  Object.keys(SELF),  k => { SELF_KEY = k;  rollSelf(); });
+chips($("#quoteChips"), Object.keys(QUOTE), k => { QUOTE_KEY = k; rollQuote(); });
+chips($("#tipChips"),   Object.keys(TIPS),  k => { TIP_KEY = k;   rollTip(); });
+$("#selfRoll").onclick  = rollSelf;
+$("#quoteRoll").onclick = rollQuote;
+$("#tipRoll").onclick   = rollTip;
+rollSelf(); rollQuote(); rollTip(); drawStages();
+
 </script>
 </body>
 </html>
