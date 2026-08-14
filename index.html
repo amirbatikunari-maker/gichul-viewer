@@ -163,6 +163,45 @@ a{color:var(--accent);text-decoration:none}
 }
 .sheet-body{max-width:760px;margin:0 auto}
 
+/* ══ 화면 배치 3가지 ═══════════════════════════════════════
+   ① swipe-x (기본) : 좌우로 밀어 다음 문항. 지금까지 쓰던 방식.
+   ② swipe-y        : 위아래로 밀어 다음 문항. 한 손으로 엄지만 써서 넘길 때 편하다.
+   ③ split          : 화면을 좌우로 갈라 왼쪽엔 문제, 오른쪽엔 해설.
+                      해설이 길어도 문제를 계속 보면서 읽을 수 있다.
+                      화면이 좁으면(<900px) 의미가 없으므로 자동으로 한 단으로 돌아간다. */
+
+/* ② 세로 넘김 — 트랙을 세로로 세우고 스냅 축만 바꾼다 */
+.track.vert{
+  flex-direction:column;
+  overflow-x:hidden;overflow-y:auto;
+  scroll-snap-type:y mandatory;
+  overscroll-behavior-y:contain;overscroll-behavior-x:auto;
+}
+.track.vert .slide{
+  flex:0 0 100%;
+  height:calc(100dvh - var(--head) - var(--rail) - env(safe-area-inset-top));
+}
+
+/* ③ 좌우 2단 — 문제 카드와 해설을 나란히 */
+@media(min-width:900px){
+  .split .sheet-body{max-width:1400px}
+  .split .splitcols{
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    gap:16px;align-items:start;
+  }
+  /* 두 칸 각각이 따로 스크롤된다 — 해설을 내려도 문제는 그대로 보인다 */
+  .split .splitcols > *{
+    max-height:calc(100dvh - var(--head) - var(--rail) - var(--qhead) - 40px);
+    overflow-y:auto;overscroll-behavior:contain;
+  }
+  .split .splitcols > *::-webkit-scrollbar{width:6px}
+  .split .splitcols > *::-webkit-scrollbar-thumb{background:var(--rule);border-radius:3px}
+  /* 필기 중인 문항은 좌표계가 고정폭 가상 페이지(400px)라 2단으로 쪼개면 잉크가 어긋난다.
+     그래서 필기가 올라간 문항은 2단을 적용하지 않고 한 단 그대로 둔다. */
+  .split .inkpage .splitcols{display:block}
+  .split .inkpage .splitcols > *{max-height:none;overflow:visible}
+}
+
 /* ── 문항 헤더 ───────────────────────────────── */
 /* 슬라이드를 아래로 스크롤해도 번호·제목·필기·별표 바는 위에 계속 붙어 있는다.
    .slide 가 세로 스크롤 컨테이너이므로, 그 안에서 sticky top:0 이면 스크롤포트 맨 위에 고정된다.
@@ -418,6 +457,9 @@ html[data-theme="dark"] mark.hl{background:color-mix(in srgb,#FDE047 24%,transpa
     <svg viewBox="0 0 24 24" id="veilIcon"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
     <span id="veilTxt">해설 보임</span>
   </button>
+  <button class="icon" id="layoutBtn" hidden aria-label="화면 배치 전환" title="화면 배치 — 세로 넘김 / 가로 넘김 / 좌우 2단">
+    <svg viewBox="0 0 24 24" id="layoutIcon"></svg>
+  </button>
   <button class="icon" id="theme" aria-label="화면 밝기 전환">
     <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
   </button>
@@ -489,6 +531,7 @@ const LS = {
 let S = {
   subjects:[], exams:[], questions:[], exam:null, subject:null,
   idx:0, veil:LS.get("veil",false), stars:LS.get("stars",{}), seen:LS.get("seen",{}),
+  layout:LS.get("layout","swipe-x"),
   loggedIn:false, anno:{}   // anno[question_id] = {strokes, page_width}
 };
 
@@ -683,7 +726,10 @@ function setupZoom(zoomwrap, zoomstage){
 
     if(dragMode === null){
       if(Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-      dragMode = Math.abs(dx) > Math.abs(dy) * 1.15 ? "h" : "v";
+      /* 세로 넘김 모드에서는 가로 판정을 아예 하지 않는다 —
+         문항 넘김을 브라우저의 세로 스크롤 스냅에 통째로 맡겨야 가장 부드럽다. */
+      if(track.classList.contains("vert")) dragMode = "v";
+      else dragMode = Math.abs(dx) > Math.abs(dy) * 1.15 ? "h" : "v";
     }
     if(dragMode === "h"){
       ev.preventDefault();
@@ -1212,6 +1258,7 @@ function show(id){
   $$(".view").forEach(v=>v.classList.toggle("on", v.id===id));
   const study = id==="v-study";
   $("#veilBtn").hidden = !study;
+  $("#layoutBtn").hidden = !study;
   $("#back").hidden = id==="v-subjects";
   document.body.style.overflow = study ? "hidden" : "";
 }
@@ -1338,6 +1385,7 @@ function build(){
   track.innerHTML = S.questions.map((q,i)=>`
     <article class="slide" data-i="${i}"><div class="sheet-body" data-h="0"></div></article>`).join("");
   applyVeil();
+  applyLayout(false);
 
   const io = new IntersectionObserver(es=>{
     es.forEach(e=>{ if(e.isIntersecting && e.intersectionRatio>.55) setActive(+e.target.dataset.i); });
@@ -1357,6 +1405,7 @@ function cardHTML(q){
     : md(q.explanation_md || "");
 
   return `
+    <div class="splitcols">
     <div class="qcard">
       ${q.subject_part?`<div class="part">${esc(q.subject_part)}</div>`:""}
       <div class="qtext" data-hl="q" data-qid="${q.id}">${md(stripQNo(q.question_text)).replace(/^<p>|<\/p>$/g,"")}</div>
@@ -1374,7 +1423,8 @@ function cardHTML(q){
           <div class="exp-b" data-hl="x" data-qid="${q.id}">${expInner||"<p>등록된 해설이 없습니다.</p>"}</div>
         </div>
       </div>
-    </div>`:""}`;
+    </div>`:""}
+    </div>`;
 }
 
 function wireCard(root, slide){
@@ -1498,7 +1548,11 @@ function jump(i,smooth=true){
   const slide=$(`#track .slide[data-i="${i}"]`); if(!slide) return;
   hydrate(i);
   const track=$("#track");
-  track.scrollTo({left:i*track.clientWidth,behavior:smooth?"smooth":"auto"});
+  /* 세로 넘김 모드에서는 스크롤 축이 위아래로 바뀐다 */
+  if(track.classList.contains("vert"))
+    track.scrollTo({top:i*track.clientHeight, behavior:smooth?"smooth":"auto"});
+  else
+    track.scrollTo({left:i*track.clientWidth, behavior:smooth?"smooth":"auto"});
   setActive(i);
 }
 
@@ -1514,6 +1568,38 @@ function applyVeil(){
 }
 $("#veilBtn").onclick = ()=>{ S.veil=!S.veil; LS.set("veil",S.veil); applyVeil(); };
 
+/* ── 화면 배치 (세로 넘김 / 가로 넘김 / 좌우 2단) ──
+   세 가지를 버튼 하나로 돌려 쓴다. 고른 값은 기기에 저장돼 다음에 열 때도 그대로다. */
+const LAYOUTS = [
+  { id:"swipe-x", label:"가로 넘김",
+    icon:'<path d="M4 5h16v14H4z"/><path d="M9 12h6M13 9l3 3-3 3"/>' },
+  { id:"swipe-y", label:"세로 넘김",
+    icon:'<path d="M4 5h16v14H4z"/><path d="M12 9v6M9 13l3 3 3-3"/>' },
+  { id:"split",   label:"좌우 2단",
+    icon:'<path d="M4 5h16v14H4z"/><path d="M12 5v14"/>' },
+];
+function applyLayout(restore = true){
+  const track = $("#track"); if(!track) return;
+  const cur = LAYOUTS.find(l => l.id === S.layout) || LAYOUTS[0];
+  track.classList.toggle("vert",  cur.id === "swipe-y");
+  track.classList.toggle("split", cur.id === "split");
+  $("#layoutIcon").innerHTML = cur.icon;
+  $("#layoutBtn").title = `화면 배치 — 지금은 "${cur.label}" (눌러서 바꾸기)`;
+  /* 배치를 바꾸면 스크롤 좌표계가 달라지므로 현재 문항 위치를 다시 잡아준다.
+     (build 직후에는 아직 이동할 위치가 정해지지 않았으므로 건너뛴다) */
+  if(!restore) return;
+  requestAnimationFrame(()=>{
+    jump(S.idx, false);
+    $$("#track .slide").forEach(s => s.firstElementChild?.__ink?.resize?.());
+  });
+}
+$("#layoutBtn").onclick = ()=>{
+  const i = LAYOUTS.findIndex(l => l.id === S.layout);
+  S.layout = LAYOUTS[(i + 1) % LAYOUTS.length].id;
+  LS.set("layout", S.layout);
+  applyLayout();
+};
+
 /* ── 키보드 ── */
 addEventListener("keydown",e=>{
   if(!$("#v-study").classList.contains("on")) return;
@@ -1528,8 +1614,9 @@ addEventListener("keydown",e=>{
     if(e.key==="Escape"){ e.preventDefault(); ink.setEditing(false); return; }
   }
 
-  if(e.key==="ArrowRight") jump(Math.min(S.idx+1,S.questions.length-1));
-  if(e.key==="ArrowLeft")  jump(Math.max(S.idx-1,0));
+  if(e.key==="ArrowRight" || e.key==="PageDown") jump(Math.min(S.idx+1,S.questions.length-1));
+  if(e.key==="ArrowLeft"  || e.key==="PageUp")   jump(Math.max(S.idx-1,0));
+  if(e.key==="L" || e.key==="l"){ e.preventDefault(); $("#layoutBtn").click(); }
   if(e.key===" "){ e.preventDefault(); $("#veilBtn").click(); }
 });
 

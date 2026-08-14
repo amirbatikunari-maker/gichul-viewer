@@ -375,21 +375,28 @@ function setSource(src){
   $("#src-images").hidden = src !== "images";
   $("#autoImgRow").style.display = src === "pdf" ? "block" : "none";
   $("#runImage").style.display   = src === "pdf" ? "" : "none";  // 사진 모드에선 이미 사진이라 필요 없다
-  
   if(src === "pdf"){
     $("#fromLabel").textContent = "시작 페이지";
     $("#toLabel").textContent = "끝 페이지";
+    $("#chunkLabel").textContent = "한 번에 보낼 페이지";
+    $("#atFromLabel").textContent = "정답표 시작 페이지";
+    $("#atToLabel").textContent = "정답표 끝 페이지";
   }else{
     $("#fromLabel").textContent = "시작 번호";
     $("#toLabel").textContent = "끝 번호";
+    $("#chunkLabel").textContent = "한 번에 보낼 장수";
+    $("#atFromLabel").textContent = "정답표 시작 번호";
+    $("#atToLabel").textContent = "정답표 끝 번호";
   }
-  
   $("#fm").className = "msg";
   $("#run").disabled = src === "pdf" ? !PDF : !IMAGES.length;
   $("#runImage").disabled = src !== "pdf" || !PDF;
   if(src === "pdf" && PDF) plan(); else if(src === "images" && IMAGES.length) plan();
 }
 document.querySelectorAll(".srctab").forEach(t => t.onclick = () => setSource(t.dataset.src));
+$("#hasAnswerTable").addEventListener("change", e => {
+  $("#atRange").style.display = e.target.checked ? "grid" : "none";
+});
 
 /* ── PDF 받기 ── */
 const drop = $("#drop");
@@ -414,10 +421,6 @@ async function takePDF(file){
     say($("#fm"), `${PAGES}쪽을 읽었습니다. 페이지 범위를 확인하고 시작하세요.`, "ok");
     $("#run").disabled = false;
     $("#runImage").disabled = false;
-    
-    // ★ 이 줄을 추가해주세요 (취소 버튼 보이게 하기)
-    $("#cancelFile").style.display = ""; 
-    
     plan();
   }catch(e){
     say($("#fm"), "PDF를 열지 못했습니다 — " + e.message + "\n암호가 걸린 파일이면 먼저 암호를 풀어주세요. 스캔 이미지들을 그대로 갖고 계시면 위쪽 \"사진 여러 장\" 탭을 대신 써보세요.", "err");
@@ -483,6 +486,7 @@ async function takeImages(files){
         const c = await compressImage(f);
         added.push({ name:f.name, mime:c.mime, b64:c.b64, size:c.size, origSize:f.size });
       }catch(e){
+        // 압축 실패(예: HEIC 등 브라우저가 못 여는 형식)하면 원본 그대로라도 넣는다
         const b64 = await fileToB64(f);
         added.push({ name:f.name, mime:f.type || "image/jpeg", b64, size:f.size });
       }
@@ -495,10 +499,6 @@ async function takeImages(files){
       : 0;
     say($("#fm"), `총 ${IMAGES.length}장${savedPct>0?` (용량 약 ${savedPct}% 줄임)`:""}. 순서가 이상하면 파일명 앞에 01, 02 처럼 번호를 붙여 다시 올려주세요.`, "ok");
     $("#run").disabled = false;
-    
-    // 취소 버튼 표시
-    $("#cancelFile").style.display = "";
-    
     plan();
   }catch(e){
     say($("#fm"), "사진을 읽지 못했습니다 — " + e.message, "err");
@@ -521,31 +521,18 @@ function drawImgList(){
 }
 
 /* ── 묶음 계획 ── */
-/* ── 파일 취소 기능 ── */
-function resetFileState(){
-  PDF = null; PDF_BYTES = null; IMAGES = []; BATCHES = [];
-  $("#file").value = ""; $("#fileImg").value = "";
-  $("#fileInfo")?.remove?.();
-  $("#cancelFile").style.display = "none";
-  $("#run").disabled = true;
-  $("#runImage").disabled = true;
-  log("파일 선택이 취소되었습니다.");
-}
-/* ── 묶음 계획 (무조건 1장씩 단건 처리) ── */
 function plan(){
   const total = SRC === "pdf" ? PAGES : IMAGES.length;
   if(!total) return;
-  const from = Math.max(1, +$("#pFrom").value || 1);
-  const to   = Math.min(total, +$("#pTo").value || total);
-  
+  const from = Math.max(1, +$("#pFrom").value||1);
+  const to   = Math.min(total, +$("#pTo").value||total);
+  const size = +$("#chunk").value;
   BATCHES = [];
-  for(let p = from; p <= to; p++){
-    BATCHES.push({ from: p, to: p, status: "", count: 0, kind: SRC });
-  }
+  for(let p = from; p <= to; p += size)
+    BATCHES.push({ from:p, to:Math.min(p+size-1, to), status:"", count:0, kind:SRC });
   drawBatches(); stats();
 }
-$("#cancelFile").onclick = resetFileState;
-["pFrom","pTo"].forEach(id => $("#"+id).addEventListener("change", plan));
+["pFrom","pTo","chunk"].forEach(id => $("#"+id).addEventListener("change", plan));
 
 function unit(){ return SRC === "pdf" ? "쪽" : "번"; }
 function drawBatches(){
