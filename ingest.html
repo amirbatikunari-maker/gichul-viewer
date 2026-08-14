@@ -1024,7 +1024,14 @@ function preview(){
   $("#pv").style.display = qs.length ? "" : "none";
   const nums = qs.map(q=>q.number);
   const holes = [];
-  for(let i = 1; i <= (nums[nums.length-1]||0); i++) if(!nums.includes(i)) holes.push(i);
+  
+  // ★ 수정된 부분: 로컬(nums)과 저장소(DB_NUMBERS) 양쪽 모두를 비교해서 
+  // 진짜로 빈 구멍(어디에도 없는 번호)만 holes에 넣습니다.
+  const maxNum = Math.max(...nums, ...DB_NUMBERS, 0);
+  for(let i = 1; i <= maxNum; i++) {
+    if(!nums.includes(i) && !DB_NUMBERS.includes(i)) holes.push(i);
+  }
+
   $("#pv").innerHTML =
     (holes.length ? `<div class="q"><span class="bad">빠진 번호: ${holes.join(", ")}</span></div>` : "") +
     qs.map(q => `<div class="q"><b>${q.number}</b> ${
@@ -1034,12 +1041,14 @@ function preview(){
       q.choices.length !== 4 ? ` <span class="bad">· 보기 ${q.choices.length}개</span>` : ""}</div>`).join("");
 }
 
+
 /* ── Supabase 업로드 ── */
 async function push(quiet){
   const need = [["sname","과목명"],["scode","과목 코드"],["year","연도"],["sess","회차"]];
   for(const [id,nm] of need) if(!$("#"+id).value.trim()){
     if(!quiet) say($("#um"), nm + "을(를) 먼저 입력해 주세요.", "err");
-    return false;
+     fetchSavedNumbers(); // ★ 추가: 업로드 완료 후 DB 상태 갱신
+     return false;
   }
   const qs = Object.values(RESULTS).sort((a,b)=>a.number-b.number);
   if(!qs.length) return false;
