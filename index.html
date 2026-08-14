@@ -149,6 +149,7 @@ a{color:var(--accent);text-decoration:none}
 
 /* ── 스와이프 트랙 ───────────────────────────── */
 .track{
+  position: relative; /* 이 줄을 추가합니다 */
   display:flex;overflow-x:auto;overflow-y:hidden;
   scroll-snap-type:x mandatory;scrollbar-width:none;
   height:calc(100dvh - var(--head) - var(--rail) - env(safe-area-inset-top));
