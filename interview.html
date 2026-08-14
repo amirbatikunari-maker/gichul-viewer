@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>면접 · 기출 해설 노트</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.css">
+<style>
+:root{--paper:#E9ECE6;--card:#FCFCFA;--ink:#10233D;--ink-2:#5A6B7F;--rule:#D3D8CD;
+      --accent:#1D4ED8;--stamp:#BE2B26;--ok:#137A4B;--warn:#9A6B12;
+      --font-d:"IBM Plex Sans KR",Pretendard,sans-serif;--font-m:"IBM Plex Mono",monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,sans-serif;font-size:14px;line-height:1.65}
+.wrap{max-width:900px;margin:0 auto;padding:20px 14px 90px}
+h1{font:700 20px/1.3 var(--font-d);margin:0 0 4px;letter-spacing:-.02em}
+.lead{color:var(--ink-2);font-size:13px;margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:16px;margin-bottom:14px}
+.eyebrow{display:flex;align-items:baseline;gap:10px;font:600 11px/1 var(--font-d);letter-spacing:.14em;color:var(--ink-2);margin-bottom:14px}
+.eyebrow::after{content:"";flex:1;height:1px;background:var(--rule)}
+label{display:block;font:600 11px/1 var(--font-d);letter-spacing:.08em;color:var(--ink-2);margin-bottom:6px}
+input,select,textarea{width:100%;padding:11px 12px;border:1.4px solid var(--rule);border-radius:9px;background:var(--card);color:var(--ink);font:500 14px/1.45 Pretendard,sans-serif}
+textarea{min-height:110px;resize:vertical;font-family:var(--font-m);font-size:12.5px}
+input:focus,select:focus,textarea:focus{outline:0;border-color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+button{font:600 13px/1 var(--font-d);padding:11px 14px;border:0;border-radius:9px;background:var(--ink);color:var(--paper);cursor:pointer}
+button.ghost{background:transparent;border:1.4px solid var(--rule);color:var(--ink)}
+button.sm{font-size:12px;padding:8px 11px}
+button.danger{background:var(--stamp)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.msg{padding:11px 13px;border-radius:9px;font-size:13px;display:none;margin-bottom:12px;white-space:pre-wrap;font-family:var(--font-m)}
+.msg.on{display:block;background:#E4ECFD;color:var(--accent)}
+.msg.err{display:block;background:#FBE9E8;color:var(--stamp)}
+.msg.ok{display:block;background:#E3F3EA;color:var(--ok)}
+.hint{font-size:12px;color:var(--ink-2);margin-top:9px}
+
+/* 채용 건 카드 */
+.cases{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:11px}
+.cs{background:var(--card);border:1.4px solid var(--rule);border-radius:13px;padding:14px;cursor:pointer;text-align:left}
+.cs:active{transform:scale(.985)}
+.cs .co{font:700 15px/1.3 var(--font-d);letter-spacing:-.01em}
+.cs .ro{font-size:12.5px;color:var(--ink-2);margin-top:2px}
+.cs .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.tag{font:500 10.5px/1 var(--font-m);padding:5px 7px;border-radius:6px;background:var(--paper);color:var(--ink-2);border:1px solid var(--rule)}
+.tag.st{border-color:var(--accent);color:var(--accent)}
+.tag.on{background:#E3F3EA;border-color:#B7DEC8;color:var(--ok)}
+
+/* 라운드 선택 */
+.rounds{display:flex;gap:6px;margin-bottom:14px}
+.rd{flex:1;padding:11px 8px;border:1.4px solid var(--rule);border-radius:10px;background:var(--card);cursor:pointer;text-align:center}
+.rd .n{font:700 13px/1.3 var(--font-d)}
+.rd .d{font-size:11px;color:var(--ink-2);margin-top:2px}
+.rd.on{border-color:var(--accent);background:#E4ECFD}
+.rd.on .n{color:var(--accent)}
+
+/* 자료 목록 */
+.doc{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--rule);border-radius:10px;margin-bottom:7px;background:var(--paper)}
+.doc .t{flex:1;min-width:0}
+.doc .t b{display:block;font:600 13px/1.35 var(--font-d);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc .t span{font-size:11.5px;color:var(--ink-2)}
+
+/* 산출물 블록 */
+.blk{border:1px solid var(--rule);border-radius:12px;margin-bottom:10px;overflow:hidden;background:var(--card)}
+.blk>summary{padding:13px 14px;cursor:pointer;font:600 13.5px/1.35 var(--font-d);list-style:none;display:flex;align-items:center;gap:9px}
+.blk>summary::-webkit-details-marker{display:none}
+.blk>summary::before{content:"▸";color:var(--ink-2);font-size:12px}
+.blk[open]>summary::before{content:"▾"}
+.blk>summary .sub{font-weight:400;font-size:11.5px;color:var(--ink-2);flex:1}
+.body{padding:0 14px 14px;font-size:13.5px}
+.body h2{font:700 14px/1.4 var(--font-d);margin:16px 0 6px;padding-top:12px;border-top:1px solid var(--rule)}
+.body h3{font:600 13px/1.4 var(--font-d);margin:13px 0 4px;color:var(--accent)}
+.body ul,.body ol{padding-left:20px;margin:6px 0}
+.body li{margin:3px 0}
+.body p{margin:6px 0}
+.body strong{font-weight:600}
+.body code{font-family:var(--font-m);font-size:12px;background:var(--paper);padding:1px 5px;border-radius:4px}
+.body blockquote{margin:8px 0;padding:9px 12px;border-left:3px solid var(--accent);background:var(--paper);border-radius:0 8px 8px 0}
+
+.nav3{display:flex;gap:2px;padding:7px 8px;padding-top:calc(7px + env(safe-area-inset-top));background:var(--ink);overflow-x:auto}
+.nav3 a{flex:1;text-align:center;padding:7px 5px;border-radius:8px;font:600 11px/1 var(--font-d);color:color-mix(in srgb,var(--paper) 55%,transparent);text-decoration:none;white-space:nowrap}
+.nav3 a.on{background:color-mix(in srgb,var(--paper) 15%,transparent);color:var(--paper)}
+.hide{display:none}
+</style>
+</head>
+<body>
+<nav class="nav3">
+  <a href="./index.html">뷰어</a>
+  <a href="./upload.html">기계</a>
+  <a href="./ingest.html">자동 변환</a>
+  <a href="./interview.html" class="on">면접</a>
+  <a href="./portfolio.html">포트폴리오</a>
+</nav>
+
+<div class="wrap">
+  <div class="msg" id="m"></div>
+
+  <!-- 로그인 -->
+  <div class="card hide" id="auth">
+    <div class="eyebrow">로그인</div>
+    <div class="grid" style="margin-bottom:12px">
+      <div><label>이메일</label><input id="em" type="email" autocomplete="username"></div>
+      <div><label>비밀번호</label><input id="pw" type="password" autocomplete="current-password"></div>
+    </div>
+    <button id="login">로그인</button>
+    <div class="hint">뷰어·자동 변환에서 쓰는 계정과 같습니다.</div>
+  </div>
+
+  <!-- ══ 목록 화면 ══ -->
+  <div id="listView" class="hide">
+    <h1>면접</h1>
+    <div class="lead">업체별로 채용공고·자소서·경력기술서·포트폴리오를 모아두고,
+      그 자료를 근거로 1차(실무진)·2차(임원·인사) 면접 준비를 만듭니다.</div>
+
+    <div class="card">
+      <div class="eyebrow">새 채용 건</div>
+      <div class="grid" style="margin-bottom:11px">
+        <div><label>업체명</label><input id="nCo" placeholder="예: ○○데이터센터"></div>
+        <div><label>직무명</label><input id="nRo" placeholder="예: 기계설비 운영"></div>
+      </div>
+      <button id="add">추가</button>
+    </div>
+
+    <div class="eyebrow">진행 중인 건</div>
+    <div class="cases" id="cases"></div>
+  </div>
+
+  <!-- ══ 상세 화면 ══ -->
+  <div id="caseView" class="hide">
+    <div class="bar" style="margin-bottom:12px">
+      <button class="ghost sm" id="back">← 목록</button>
+      <button class="ghost sm" id="del" style="margin-left:auto">이 건 삭제</button>
+    </div>
+    <h1 id="cTitle">—</h1>
+    <div class="lead" id="cSub">—</div>
+
+    <!-- 자료 -->
+    <div class="card">
+      <div class="eyebrow">첨부 자료</div>
+      <div id="docs"></div>
+
+      <div class="grid" style="margin-top:14px">
+        <div><label>자료 종류</label>
+          <select id="dKind">
+            <option value="posting">채용공고</option>
+            <option value="cover">자기소개서</option>
+            <option value="career">경력기술서</option>
+            <option value="portfolio">포트폴리오</option>
+            <option value="review">기업 후기 · 현직자 글</option>
+          </select>
+        </div>
+        <div><label>제목</label><input id="dTitle" placeholder="예: 채용공고 원문"></div>
+      </div>
+      <label style="margin-top:11px">본문 (파일을 올리면 자동으로 채워집니다)</label>
+      <textarea id="dBody" placeholder="PDF·이미지를 올리거나, 공고·자소서 내용을 직접 붙여넣으세요."></textarea>
+      <div class="bar" style="margin-top:10px">
+        <input id="dFile" type="file" accept=".pdf,.txt,.md,image/*" class="hide">
+        <button class="ghost sm" id="pick">파일 선택</button>
+        <span class="hint" style="margin:0" id="fname">선택된 파일 없음</span>
+        <button class="sm" id="dSave" style="margin-left:auto">자료 저장</button>
+      </div>
+      <div class="hint">PDF는 글자를 뽑아 본문에 넣고 원본도 같이 보관합니다.
+        글자가 안 뽑히는 스캔본은 직접 붙여넣어 주세요 — AI에는 본문 텍스트만 보냅니다.</div>
+    </div>
+
+    <!-- 면접 준비 -->
+    <div class="card">
+      <div class="eyebrow">면접 준비</div>
+      <div class="rounds">
+        <div class="rd on" data-r="1"><div class="n">1차 면접</div><div class="d">실무진</div></div>
+        <div class="rd" data-r="2"><div class="n">2차 면접</div><div class="d">임원 · 인사</div></div>
+      </div>
+      <div class="bar" style="margin-bottom:14px">
+        <button id="gen">이 회차 준비 만들기</button>
+        <button class="ghost sm" id="genOne">비어 있는 것만</button>
+      </div>
+      <div id="blocks"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="./config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>
+if(typeof window.pdfjsLib !== "undefined")
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+
+const $ = s => document.querySelector(s);
+const CFG = window.APP_CONFIG || {};
+const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+const say = (t, c) => { const m = $("#m"); m.textContent = t; m.className = "msg " + (c || "on"); };
+const hide = () => { $("#m").className = "msg"; };
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* PC 에서는 Render 만, 모바일은 워커 우선 — 자동 변환 탭과 같은 규칙 */
+const isPC = window.innerWidth > 768 && !/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+const ENDPOINTS = isPC ? ["https://sniper-render.onrender.com"]
+                       : [CFG.WORKER_URL, CFG.WORKER_BACKUP_URL].filter(Boolean);
+
+const KIND = { posting:"채용공고", cover:"자기소개서", career:"경력기술서",
+               portfolio:"포트폴리오", review:"기업 후기" };
+const STATUS = { prep:"준비 중", round1:"1차 진행", round2:"2차 진행", offer:"합격", closed:"종료" };
+
+let ME = null, CASES = [], CUR = null, DOCS = [], PREP = {}, ROUND = 1, FILE = null;
+
+/* ══ 로그인 ══ */
+async function boot(){
+  const { data } = await sb.auth.getSession();
+  ME = data.session?.user || null;
+  $("#auth").className = ME ? "card hide" : "card";
+  if(ME) loadCases(); else $("#listView").className = "hide";
+}
+$("#login").onclick = async () => {
+  const { error } = await sb.auth.signInWithPassword({ email:$("#em").value.trim(), password:$("#pw").value });
+  if(error) return say("로그인 실패 — " + error.message, "err");
+  hide(); boot();
+};
+
+/* ══ 목록 ══ */
+async function loadCases(){
+  const { data, error } = await sb.from("iv_case").select("*").order("created_at", { ascending:false });
+  if(error) return say("불러오지 못했습니다 — " + error.message + "\nSQL을 먼저 실행하셨나요?", "err");
+  CASES = data || [];
+  $("#listView").className = "";
+  $("#caseView").className = "hide";
+  $("#cases").innerHTML = CASES.length
+    ? CASES.map(c => `<button class="cs" data-id="${c.id}">
+        <div class="co">${esc(c.company)}</div>
+        <div class="ro">${esc(c.role)}</div>
+        <div class="meta"><span class="tag st">${STATUS[c.status] || c.status}</span>
+          ${c.applied_on ? `<span class="tag">${c.applied_on}</span>` : ""}</div></button>`).join("")
+    : `<div class="hint">아직 없습니다. 위에서 업체명과 직무명을 넣고 추가하세요.</div>`;
+  $("#cases").querySelectorAll(".cs").forEach(b => b.onclick = () => openCase(b.dataset.id));
+}
+$("#add").onclick = async () => {
+  const company = $("#nCo").value.trim(), role = $("#nRo").value.trim();
+  if(!company || !role) return say("업체명과 직무명을 넣어주세요.", "err");
+  const { error } = await sb.from("iv_case").insert({ company, role, user_id:ME.id });
+  if(error) return say("추가하지 못했습니다 — " + error.message, "err");
+  $("#nCo").value = $("#nRo").value = ""; hide(); loadCases();
+};
+
+/* ══ 상세 ══ */
+async function openCase(id){
+  CUR = CASES.find(c => c.id === id);
+  if(!CUR) return;
+  $("#listView").className = "hide";
+  $("#caseView").className = "";
+  $("#cTitle").textContent = CUR.company;
+  $("#cSub").textContent = CUR.role + " · " + (STATUS[CUR.status] || CUR.status);
+  window.scrollTo(0, 0);
+  await Promise.all([loadDocs(), loadPrep()]);
+}
+$("#back").onclick = loadCases;
+$("#del").onclick = async () => {
+  if(!confirm(`"${CUR.company} · ${CUR.role}" 을(를) 자료·준비까지 통째로 지웁니다.`)) return;
+  await sb.from("iv_case").delete().eq("id", CUR.id);
+  loadCases();
+};
+
+async function loadDocs(){
+  const { data } = await sb.from("iv_doc").select("*").eq("case_id", CUR.id).order("created_at");
+  DOCS = data || [];
+  $("#docs").innerHTML = DOCS.length ? DOCS.map(d => `
+    <div class="doc"><div class="t">
+      <b>${esc(d.title || KIND[d.kind] || d.kind)}</b>
+      <span>${KIND[d.kind] || d.kind} · ${(d.body || "").length.toLocaleString()}자${d.file_path ? " · 원본 있음" : ""}</span>
+    </div>
+    ${d.file_path ? `<button class="ghost sm" data-open="${d.id}">원본</button>` : ""}
+    <button class="ghost sm" data-view="${d.id}">보기</button>
+    <button class="ghost sm" data-del="${d.id}">삭제</button></div>`).join("")
+    : `<div class="hint">아직 자료가 없습니다. 최소한 <b>채용공고</b>는 넣어야 준비를 만들 수 있습니다.</div>`;
+
+  $("#docs").querySelectorAll("[data-view]").forEach(b => b.onclick = () => {
+    const d = DOCS.find(x => x.id === b.dataset.view);
+    $("#dKind").value = d.kind; $("#dTitle").value = d.title || ""; $("#dBody").value = d.body || "";
+    $("#dBody").scrollIntoView({ behavior:"smooth", block:"center" });
+  });
+  $("#docs").querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    if(!confirm("이 자료를 지웁니다.")) return;
+    await sb.from("iv_doc").delete().eq("id", b.dataset.del); loadDocs();
+  });
+  $("#docs").querySelectorAll("[data-open]").forEach(b => b.onclick = async () => {
+    const d = DOCS.find(x => x.id === b.dataset.open);
+    const { data, error } = await sb.storage.from("iv-docs").createSignedUrl(d.file_path, 300);
+    if(error) return say("원본을 열지 못했습니다 — " + error.message, "err");
+    window.open(data.signedUrl, "_blank");
+  });
+}
+
+/* ── 파일 → 텍스트 ── */
+$("#pick").onclick = () => $("#dFile").click();
+$("#dFile").onchange = async e => {
+  FILE = e.target.files[0]; if(!FILE) return;
+  $("#fname").textContent = FILE.name;
+  if(/\.(txt|md)$/i.test(FILE.name)){ $("#dBody").value = await FILE.text(); return; }
+  if(/\.pdf$/i.test(FILE.name)){
+    try{
+      say("PDF에서 글자를 뽑는 중…");
+      const buf = new Uint8Array(await FILE.arrayBuffer());
+      const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+      let out = "";
+      for(let p = 1; p <= doc.numPages; p++){
+        const c = await doc.getPage(p).then(pg => pg.getTextContent());
+        out += c.items.map(i => i.str).join(" ") + "\n\n";
+      }
+      $("#dBody").value = out.trim();
+      out.trim().length < 50
+        ? say("글자가 거의 안 뽑혔습니다(스캔본으로 보입니다). 본문을 직접 붙여넣어 주세요.", "err")
+        : say(`${doc.numPages}쪽에서 ${out.trim().length.toLocaleString()}자를 뽑았습니다.`, "ok");
+    }catch(err){ say("PDF를 읽지 못했습니다 — " + err.message, "err"); }
+  }
+};
+$("#dSave").onclick = async () => {
+  const body = $("#dBody").value.trim();
+  if(!body && !FILE) return say("본문을 넣거나 파일을 선택해 주세요.", "err");
+  say("저장하는 중…");
+  let file_path = null;
+  if(FILE){
+    file_path = `${ME.id}/${CUR.id}/${Date.now()}_${FILE.name.replace(/[^\w.\-]/g, "_")}`;
+    const { error } = await sb.storage.from("iv-docs").upload(file_path, FILE);
+    if(error){ say("원본 업로드 실패 — " + error.message + "\n본문만 저장합니다.", "err"); file_path = null; }
+  }
+  const { error } = await sb.from("iv_doc").insert({
+    case_id: CUR.id, user_id: ME.id, kind: $("#dKind").value,
+    title: $("#dTitle").value.trim() || null, body, file_path
+  });
+  if(error) return say("저장 실패 — " + error.message, "err");
+  $("#dTitle").value = ""; $("#dBody").value = ""; FILE = null;
+  $("#dFile").value = ""; $("#fname").textContent = "선택된 파일 없음";
+  say("저장했습니다.", "ok"); loadDocs();
+};
+
+/* ══ 면접 준비 ══ */
+const BLOCKS = [
+  { key:"basics",  name:"공고 기본 개념 정리",
+    sub:"공고에 나온 설비·용어·업무를 바닥부터" },
+  { key:"audit",   name:"내 서류 검증 질문",
+    sub:"자소서·경력기술서·포폴을 파고드는 질문과 답" },
+  { key:"qa",      name:"예상 질문 & 베스트 답변",
+    sub:"이 회차에서 실제로 나올 질문" },
+  { key:"company", name:"기업 조언",
+    sub:"회사 성격·분위기·조심할 점" }
+];
+
+document.querySelectorAll(".rd").forEach(el => el.onclick = () => {
+  document.querySelectorAll(".rd").forEach(x => x.classList.toggle("on", x === el));
+  ROUND = +el.dataset.r; drawBlocks();
+});
+
+async function loadPrep(){
+  const { data } = await sb.from("iv_prep").select("*").eq("case_id", CUR.id);
+  PREP = {};
+  (data || []).forEach(p => { PREP[`${p.round}:${p.block}`] = p.content_md; });
+  drawBlocks();
+}
+function drawBlocks(){
+  $("#blocks").innerHTML = BLOCKS.map(b => {
+    const md = PREP[`${ROUND}:${b.key}`];
+    return `<details class="blk"${md ? "" : ""}>
+      <summary>${b.name}<span class="sub">${md ? b.sub : b.sub + " · 아직 없음"}</span></summary>
+      <div class="body">${md ? mdToHtml(md) : `<div class="hint">"이 회차 준비 만들기"를 누르면 채워집니다.</div>`}</div>
+    </details>`;
+  }).join("");
+}
+
+/* 아주 단순한 마크다운 렌더 — 제목·목록·굵게·인용 정도만 */
+function mdToHtml(md){
+  const lines = esc(md).split("\n");
+  let html = "", inUl = false, inOl = false;
+  const closeLists = () => { if(inUl){ html += "</ul>"; inUl = false; } if(inOl){ html += "</ol>"; inOl = false; } };
+  for(let raw of lines){
+    const t = raw.trim();
+    if(!t){ closeLists(); continue; }
+    if(/^#{1,2}\s/.test(t)){ closeLists(); html += `<h2>${inline(t.replace(/^#{1,2}\s/, ""))}</h2>`; continue; }
+    if(/^#{3,}\s/.test(t)){ closeLists(); html += `<h3>${inline(t.replace(/^#+\s/, ""))}</h3>`; continue; }
+    if(/^&gt;\s?/.test(t)){ closeLists(); html += `<blockquote>${inline(t.replace(/^&gt;\s?/, ""))}</blockquote>`; continue; }
+    if(/^[-*]\s/.test(t)){ if(inOl){ html += "</ol>"; inOl = false; } if(!inUl){ html += "<ul>"; inUl = true; }
+      html += `<li>${inline(t.replace(/^[-*]\s/, ""))}</li>`; continue; }
+    if(/^\d+[.)]\s/.test(t)){ if(inUl){ html += "</ul>"; inUl = false; } if(!inOl){ html += "<ol>"; inOl = true; }
+      html += `<li>${inline(t.replace(/^\d+[.)]\s/, ""))}</li>`; continue; }
+    closeLists(); html += `<p>${inline(t)}</p>`;
+  }
+  closeLists(); return html;
+}
+const inline = s => s
+  .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+  .replace(/`([^`]+)`/g, "<code>$1</code>");
+
+/* ── AI 호출 (자동 변환 탭이 쓰는 워커 그대로) ── */
+async function ask(prompt){
+  const body = { parts:[{ text: prompt }], generationConfig:{ maxOutputTokens: 8192, temperature: 0.4 } };
+  let last = "";
+  for(const base of ENDPOINTS){
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 120000);
+    try{
+      const res = await fetch(base.replace(/\/$/, "") + "/get-data", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(body), signal: ac.signal
+      });
+      const d = await res.json();
+      if(!res.ok){ last = d.detail || String(res.status); continue; }
+      return d.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    }catch(e){ last = e.name === "AbortError" ? "응답이 너무 오래 걸립니다" : e.message; }
+    finally{ clearTimeout(timer); }
+  }
+  throw new Error(last || "서버가 응답하지 않습니다");
+}
+
+function docText(kind, cap = 12000){
+  return DOCS.filter(d => d.kind === kind).map(d => (d.body || "").slice(0, cap)).join("\n\n---\n\n");
+}
+
+function buildPrompt(blockKey){
+  const posting = docText("posting");
+  const cover   = docText("cover");
+  const career  = docText("career");
+  const folio   = docText("portfolio");
+  const review  = docText("review");
+  const who = ROUND === 1
+    ? "1차 면접 · 실무진(팀장·선임)이 보는 자리다. 실제로 손으로 해봤는지, 원리를 아는지, 현장에서 판단할 수 있는지를 본다."
+    : "2차 면접 · 임원과 인사가 보는 자리다. 태도·동기·조직 적합성·성장 방향, 그리고 회사에 무엇을 남길 사람인지를 본다.";
+
+  const head =
+`너는 한국 기업 채용 면접을 오래 준비시켜 온 코치다.
+아래 자료를 근거로, ${who}
+답변은 한국어 마크다운으로 쓰고, 지어내지 마라.
+자료에 없는 사실은 절대 사실인 양 쓰지 말고, 필요하면 "자료에 없음 — 확인 필요"라고 표시해라.
+
+[채용공고]
+${posting || "(없음)"}
+
+[자기소개서]
+${cover || "(없음)"}
+
+[경력기술서]
+${career || "(없음)"}
+
+[포트폴리오]
+${folio || "(없음)"}
+
+[사용자가 모아온 기업 후기·현직자 글]
+${review || "(없음)"}
+`;
+
+  const tail = {
+basics:
+`[할 일] 이 공고를 이해하기 위한 "기본 개념"을 바닥부터 정리해라.
+- 공고에 나온 설비·시스템·용어를 뽑아 각각 ① 무엇인지 ② 왜 쓰는지 ③ 면접에서 물으면 몇 문장으로 답할지 순으로 정리
+- 이 직무가 실제로 하루/한 달 단위로 무슨 일을 하는지
+- 이 업계에서 지금 중요한 흐름(에너지·자동화·안전·법규 등) 중 공고와 맞닿은 것
+- 지원자가 모르면 바로 티 나는 "기초 구멍" 목록
+너무 넓게 가지 말고 공고에 실제로 적힌 것 위주로 깊게 파라.`,
+
+audit:
+`[할 일] 자기소개서·경력기술서·포트폴리오를 면접관 눈으로 파고드는 질문을 만들어라.
+핵심은 "진짜로 해봤는가"를 가려내는 질문이다. 다음 축으로 만들어라.
+1) 실제로 손으로 해본 것인가 — 절차·수치·장비명·트러블을 되물어 확인하는 질문
+2) 만들어보고 기획해본 적 있는가 — 설비나 업무를 새로 세우거나 표준을 만든 경험
+3) 생각해본 적 있는가 — 개선안을 떠올렸지만 실행 못 한 것, 그 이유와 대안
+4) 숫자로 말할 수 있는가 — 성과를 정량으로 되묻는 질문
+각 질문마다 ▸질문 ▸면접관이 확인하려는 것 ▸내 자료를 근거로 한 답변 뼈대(STAR)
+▸꼬리질문 2개와 그 대응을 함께 써라.
+자료에 근거가 약한 항목은 "근거 약함 — 답변 전에 사실 확인 필요"라고 분명히 표시해라. 8~10개.`,
+
+qa:
+`[할 일] 이 회차에서 실제로 나올 질문과 베스트 답변을 만들어라.
+- 질문 10~12개. 이 회차 성격에 맞는 것만 (실무진 자리에 임원용 질문을 섞지 마라)
+- 각 질문마다 ▸의도 ▸베스트 답변(내 자료의 사실만 써서 30초~1분 분량) ▸피해야 할 답변
+- 마지막에 "내가 되물을 질문" 5개 — 성의 있고 실무를 아는 티가 나는 것으로`,
+
+company:
+`[할 일] 이 회사를 지원자 입장에서 어떻게 봐야 하는지 정리해라.
+- 회사·사업의 성격과 이 직무가 조직에서 차지하는 위치
+- 지원자가 미리 알고 가면 좋은 점, 면접에서 조심할 점
+- 위에 붙여둔 후기·현직자 글이 있으면 그 내용을 근거로 삼되, 어디까지가 후기이고 어디부터가 일반론인지 구분해서 써라
+- 처우·분위기처럼 확인이 필요한 항목은 "면접에서 직접 확인할 질문"으로 바꿔 제시해라
+[중요] 너는 인터넷을 검색할 수 없다. 확실하지 않은 회사 정보를 사실처럼 단정하지 말고,
+모르는 부분은 "확인 필요"로 남겨라. 추측을 사실로 쓰면 면접에서 그대로 사고가 난다.`
+  }[blockKey];
+
+  return head + "\n" + tail;
+}
+
+async function generate(onlyEmpty){
+  if(!DOCS.some(d => d.kind === "posting"))
+    return say("채용공고부터 넣어주세요. 공고가 있어야 나머지가 근거를 갖습니다.", "err");
+  const todo = BLOCKS.filter(b => !onlyEmpty || !PREP[`${ROUND}:${b.key}`]);
+  if(!todo.length) return say("이 회차는 이미 다 채워져 있습니다.", "ok");
+
+  $("#gen").disabled = $("#genOne").disabled = true;
+  try{
+    for(const b of todo){
+      say(`${ROUND}차 · ${b.name} 만드는 중… (${todo.indexOf(b)+1}/${todo.length})`);
+      const md = await ask(buildPrompt(b.key));
+      PREP[`${ROUND}:${b.key}`] = md;
+      const { error } = await sb.from("iv_prep")
+        .upsert({ case_id:CUR.id, user_id:ME.id, round:ROUND, block:b.key, content_md:md },
+                { onConflict:"case_id,round,block" });
+      if(error) say("저장은 실패했습니다(화면에는 남습니다) — " + error.message, "err");
+      drawBlocks();
+    }
+    say("다 만들었습니다.", "ok");
+  }catch(e){ say("만들지 못했습니다 — " + e.message, "err"); }
+  finally{ $("#gen").disabled = $("#genOne").disabled = false; }
+}
+$("#gen").onclick    = () => generate(false);
+$("#genOne").onclick = () => generate(true);
+
+boot();
+</script>
+</body>
+</html>

@@ -447,10 +447,10 @@ html[data-theme="dark"] mark.hl{background:color-mix(in srgb,#FDE047 24%,transpa
 .toggle.on{background:var(--veil);border-color:var(--veil);color:#fff}
 .toggle svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.9}
 @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
-.nav3{display:flex;gap:2px;padding:7px 10px;padding-top:calc(7px + env(safe-area-inset-top));
+.nav3{display:flex;gap:2px;padding:7px 8px;overflow-x:auto;padding-top:calc(7px + env(safe-area-inset-top));
   background:var(--ink);}
-.nav3 a{flex:1;text-align:center;padding:7px 6px;border-radius:8px;
-  font:600 11.5px/1 var(--font-d,"IBM Plex Sans KR",sans-serif);letter-spacing:.02em;
+.nav3 a{flex:1;text-align:center;padding:7px 5px;border-radius:8px;
+  font:600 11px/1 var(--font-d,"IBM Plex Sans KR",sans-serif);letter-spacing:.02em;
   color:color-mix(in srgb, var(--paper) 55%, transparent);text-decoration:none;
   transition:background .15s,color .15s;white-space:nowrap}
 .nav3 a.on{background:color-mix(in srgb, var(--paper) 15%, transparent);color:var(--paper)}
@@ -460,8 +460,10 @@ html[data-theme="dark"] mark.hl{background:color-mix(in srgb,#FDE047 24%,transpa
 <body>
 <nav class="nav3">
   <a href="./index.html" class="on">뷰어</a>
-  <a href="./upload.html">업로더</a>
+  <a href="./upload.html">기계</a>
   <a href="./ingest.html">자동 변환</a>
+  <a href="./interview.html">면접</a>
+  <a href="./portfolio.html">포트폴리오</a>
 </nav>
 
 

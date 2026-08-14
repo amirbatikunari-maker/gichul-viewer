@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>포트폴리오 · 기출 해설 노트</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.css">
+<style>
+:root{--paper:#E9ECE6;--card:#FCFCFA;--ink:#10233D;--ink-2:#5A6B7F;--rule:#D3D8CD;
+      --accent:#1D4ED8;--stamp:#BE2B26;--ok:#137A4B;
+      --font-d:"IBM Plex Sans KR",Pretendard,sans-serif;--font-m:"IBM Plex Mono",monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,sans-serif;font-size:14px;line-height:1.65}
+.wrap{max-width:900px;margin:0 auto;padding:20px 14px 90px}
+h1{font:700 20px/1.3 var(--font-d);margin:0 0 4px;letter-spacing:-.02em}
+.lead{color:var(--ink-2);font-size:13px;margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:16px;margin-bottom:14px}
+.eyebrow{display:flex;align-items:baseline;gap:10px;font:600 11px/1 var(--font-d);letter-spacing:.14em;color:var(--ink-2);margin-bottom:14px}
+.eyebrow::after{content:"";flex:1;height:1px;background:var(--rule)}
+label{display:block;font:600 11px/1 var(--font-d);letter-spacing:.08em;color:var(--ink-2);margin-bottom:6px}
+input,select,textarea{width:100%;padding:11px 12px;border:1.4px solid var(--rule);border-radius:9px;background:var(--card);color:var(--ink);font:500 14px/1.45 Pretendard,sans-serif}
+textarea{min-height:150px;resize:vertical;font-family:var(--font-m);font-size:12.5px}
+input:focus,select:focus,textarea:focus{outline:0;border-color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+button{font:600 13px/1 var(--font-d);padding:11px 14px;border:0;border-radius:9px;background:var(--ink);color:var(--paper);cursor:pointer}
+button.ghost{background:transparent;border:1.4px solid var(--rule);color:var(--ink)}
+button.sm{font-size:12px;padding:8px 11px}
+button:disabled{opacity:.45;cursor:not-allowed}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.msg{padding:11px 13px;border-radius:9px;font-size:13px;display:none;margin-bottom:12px;white-space:pre-wrap;font-family:var(--font-m)}
+.msg.on{display:block;background:#E4ECFD;color:var(--accent)}
+.msg.err{display:block;background:#FBE9E8;color:var(--stamp)}
+.msg.ok{display:block;background:#E3F3EA;color:var(--ok)}
+.hint{font-size:12px;color:var(--ink-2);margin-top:9px}
+
+.items{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:11px}
+.it{background:var(--card);border:1.4px solid var(--rule);border-radius:13px;padding:14px;cursor:pointer;text-align:left}
+.it:active{transform:scale(.985)}
+.it .ti{font:700 15px/1.35 var(--font-d);letter-spacing:-.01em}
+.it .su{font-size:12.5px;color:var(--ink-2);margin-top:5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.it .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.tag{font:500 10.5px/1 var(--font-m);padding:5px 7px;border-radius:6px;background:var(--paper);color:var(--ink-2);border:1px solid var(--rule)}
+.tag.cat{border-color:var(--accent);color:var(--accent)}
+
+.body{font-size:13.5px}
+.body h2{font:700 15px/1.4 var(--font-d);margin:16px 0 6px;padding-top:12px;border-top:1px solid var(--rule)}
+.body h3{font:600 13.5px/1.4 var(--font-d);margin:13px 0 4px;color:var(--accent)}
+.body ul,.body ol{padding-left:20px;margin:6px 0}
+.body li{margin:3px 0}
+.body p{margin:7px 0}
+.body strong{font-weight:600}
+.body code{font-family:var(--font-m);font-size:12px;background:var(--paper);padding:1px 5px;border-radius:4px}
+
+.nav3{display:flex;gap:2px;padding:7px 8px;padding-top:calc(7px + env(safe-area-inset-top));background:var(--ink);overflow-x:auto}
+.nav3 a{flex:1;text-align:center;padding:7px 5px;border-radius:8px;font:600 11px/1 var(--font-d);color:color-mix(in srgb,var(--paper) 55%,transparent);text-decoration:none;white-space:nowrap}
+.nav3 a.on{background:color-mix(in srgb,var(--paper) 15%,transparent);color:var(--paper)}
+.hide{display:none}
+</style>
+</head>
+<body>
+<nav class="nav3">
+  <a href="./index.html">뷰어</a>
+  <a href="./upload.html">기계</a>
+  <a href="./ingest.html">자동 변환</a>
+  <a href="./interview.html">면접</a>
+  <a href="./portfolio.html" class="on">포트폴리오</a>
+</nav>
+
+<div class="wrap">
+  <div class="msg" id="m"></div>
+
+  <div class="card hide" id="auth">
+    <div class="eyebrow">로그인</div>
+    <div class="grid" style="margin-bottom:12px">
+      <div><label>이메일</label><input id="em" type="email" autocomplete="username"></div>
+      <div><label>비밀번호</label><input id="pw" type="password" autocomplete="current-password"></div>
+    </div>
+    <button id="login">로그인</button>
+  </div>
+
+  <!-- 목록 -->
+  <div id="listView" class="hide">
+    <h1>포트폴리오</h1>
+    <div class="lead">한 건씩 카드로 쌓아두고, 면접 전에 꺼내 봅니다.
+      상황 → 내 역할 → 한 일 → 결과(숫자) 순서로 적어두면 그대로 답변이 됩니다.</div>
+    <div class="bar" style="margin-bottom:14px"><button id="new">새 항목</button></div>
+    <div class="items" id="items"></div>
+  </div>
+
+  <!-- 상세 / 편집 -->
+  <div id="itemView" class="hide">
+    <div class="bar" style="margin-bottom:12px">
+      <button class="ghost sm" id="back">← 목록</button>
+      <button class="ghost sm" id="edit">편집</button>
+      <button class="ghost sm" id="del" style="margin-left:auto">삭제</button>
+    </div>
+    <h1 id="vTitle">—</h1>
+    <div class="lead" id="vMeta">—</div>
+    <div class="card"><div class="body" id="vBody">—</div></div>
+    <div class="bar" id="vFile"></div>
+  </div>
+
+  <!-- 편집 폼 -->
+  <div id="editView" class="hide">
+    <div class="bar" style="margin-bottom:12px"><button class="ghost sm" id="cancel">← 취소</button></div>
+    <div class="card">
+      <div class="eyebrow">항목 내용</div>
+      <div class="grid" style="margin-bottom:11px">
+        <div><label>제목</label><input id="eTitle" placeholder="예: IDC 냉동기 프리쿨링 운전 표준화"></div>
+        <div><label>분류</label><input id="eCat" placeholder="예: 운영개선"></div>
+        <div><label>기간</label><input id="ePeriod" placeholder="예: 2023.03 ~ 2023.11"></div>
+      </div>
+      <label>한 줄 요약</label>
+      <input id="eSummary" placeholder="카드에 보일 한 문장">
+      <label style="margin-top:11px">본문</label>
+      <textarea id="eBody" placeholder="## 상황&#10;...&#10;&#10;## 내 역할&#10;...&#10;&#10;## 한 일&#10;- ...&#10;&#10;## 결과&#10;- ..."></textarea>
+      <div class="bar" style="margin-top:11px">
+        <input id="eFile" type="file" class="hide">
+        <button class="ghost sm" id="pick">파일 첨부</button>
+        <span class="hint" style="margin:0" id="fname">선택된 파일 없음</span>
+        <button id="save" style="margin-left:auto">저장</button>
+      </div>
+      <div class="hint">본문은 마크다운으로 씁니다 — <code>##</code> 제목, <code>-</code> 목록, <code>**굵게**</code>.
+        아래 뼈대를 그대로 채우면 면접 답변으로 바로 씁니다.</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="./config.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const CFG = window.APP_CONFIG || {};
+const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+const say = (t, c) => { const m = $("#m"); m.textContent = t; m.className = "msg " + (c || "on"); };
+const hide = () => { $("#m").className = "msg"; };
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+const SKELETON = `## 상황\n어떤 현장에서 무엇이 문제였는지\n\n## 내 역할\n내가 맡은 범위와 권한\n\n## 한 일\n- 구체적인 행동\n- 판단 근거\n\n## 결과\n- 숫자로 말할 수 있는 성과\n- 이후 남은 것(표준·문서·설비)`;
+
+let ME = null, ITEMS = [], CUR = null, FILE = null;
+
+async function boot(){
+  const { data } = await sb.auth.getSession();
+  ME = data.session?.user || null;
+  $("#auth").className = ME ? "card hide" : "card";
+  if(ME) list();
+}
+$("#login").onclick = async () => {
+  const { error } = await sb.auth.signInWithPassword({ email:$("#em").value.trim(), password:$("#pw").value });
+  if(error) return say("로그인 실패 — " + error.message, "err");
+  hide(); boot();
+};
+
+function show(v){
+  ["listView","itemView","editView"].forEach(id => $("#"+id).className = id === v ? "" : "hide");
+  window.scrollTo(0, 0);
+}
+
+async function list(){
+  const { data, error } = await sb.from("pf_item").select("*")
+    .order("sort_order", { ascending:true }).order("created_at", { ascending:false });
+  if(error) return say("불러오지 못했습니다 — " + error.message + "\nSQL을 먼저 실행하셨나요?", "err");
+  ITEMS = data || [];
+  $("#items").innerHTML = ITEMS.length
+    ? ITEMS.map(it => `<button class="it" data-id="${it.id}">
+        <div class="ti">${esc(it.title)}</div>
+        ${it.summary ? `<div class="su">${esc(it.summary)}</div>` : ""}
+        <div class="meta">${it.category ? `<span class="tag cat">${esc(it.category)}</span>` : ""}
+          ${it.period ? `<span class="tag">${esc(it.period)}</span>` : ""}
+          ${it.file_path ? `<span class="tag">첨부</span>` : ""}</div></button>`).join("")
+    : `<div class="hint">아직 없습니다. "새 항목"으로 첫 건을 넣어보세요.</div>`;
+  $("#items").querySelectorAll(".it").forEach(b => b.onclick = () => open(b.dataset.id));
+  show("listView");
+}
+
+function open(id){
+  CUR = ITEMS.find(x => x.id === id); if(!CUR) return;
+  $("#vTitle").textContent = CUR.title;
+  $("#vMeta").textContent  = [CUR.category, CUR.period].filter(Boolean).join(" · ") || "—";
+  $("#vBody").innerHTML    = CUR.body_md ? mdToHtml(CUR.body_md) : `<div class="hint">본문이 비어 있습니다.</div>`;
+  $("#vFile").innerHTML    = CUR.file_path ? `<button class="ghost sm" id="dl">첨부 원본 열기</button>` : "";
+  if(CUR.file_path) $("#dl").onclick = async () => {
+    const { data, error } = await sb.storage.from("iv-docs").createSignedUrl(CUR.file_path, 300);
+    if(error) return say("원본을 열지 못했습니다 — " + error.message, "err");
+    window.open(data.signedUrl, "_blank");
+  };
+  show("itemView");
+}
+
+$("#back").onclick = list;
+$("#cancel").onclick = () => CUR ? open(CUR.id) : list();
+$("#new").onclick = () => {
+  CUR = null; FILE = null;
+  $("#eTitle").value = $("#eCat").value = $("#ePeriod").value = $("#eSummary").value = "";
+  $("#eBody").value = SKELETON;
+  $("#eFile").value = ""; $("#fname").textContent = "선택된 파일 없음";
+  show("editView");
+};
+$("#edit").onclick = () => {
+  FILE = null;
+  $("#eTitle").value = CUR.title || ""; $("#eCat").value = CUR.category || "";
+  $("#ePeriod").value = CUR.period || ""; $("#eSummary").value = CUR.summary || "";
+  $("#eBody").value = CUR.body_md || SKELETON;
+  $("#eFile").value = ""; $("#fname").textContent = CUR.file_path ? "기존 첨부 유지" : "선택된 파일 없음";
+  show("editView");
+};
+$("#del").onclick = async () => {
+  if(!confirm(`"${CUR.title}" 을(를) 지웁니다.`)) return;
+  await sb.from("pf_item").delete().eq("id", CUR.id);
+  CUR = null; list();
+};
+
+$("#pick").onclick = () => $("#eFile").click();
+$("#eFile").onchange = e => { FILE = e.target.files[0]; $("#fname").textContent = FILE ? FILE.name : "선택된 파일 없음"; };
+
+$("#save").onclick = async () => {
+  const title = $("#eTitle").value.trim();
+  if(!title) return say("제목은 있어야 합니다.", "err");
+  say("저장하는 중…");
+  let file_path = CUR?.file_path || null;
+  if(FILE){
+    file_path = `${ME.id}/portfolio/${Date.now()}_${FILE.name.replace(/[^\w.\-]/g, "_")}`;
+    const { error } = await sb.storage.from("iv-docs").upload(file_path, FILE);
+    if(error){ say("첨부 업로드 실패 — " + error.message + "\n본문만 저장합니다.", "err"); file_path = CUR?.file_path || null; }
+  }
+  const row = {
+    user_id: ME.id, title,
+    category: $("#eCat").value.trim() || null,
+    period:   $("#ePeriod").value.trim() || null,
+    summary:  $("#eSummary").value.trim() || null,
+    body_md:  $("#eBody").value.trim() || null,
+    file_path
+  };
+  const { error } = CUR
+    ? await sb.from("pf_item").update(row).eq("id", CUR.id)
+    : await sb.from("pf_item").insert(row);
+  if(error) return say("저장 실패 — " + error.message, "err");
+  hide(); FILE = null; await list();
+};
+
+/* 단순 마크다운 렌더 */
+function mdToHtml(md){
+  const lines = esc(md).split("\n");
+  let html = "", inUl = false, inOl = false;
+  const close = () => { if(inUl){ html += "</ul>"; inUl = false; } if(inOl){ html += "</ol>"; inOl = false; } };
+  for(const raw of lines){
+    const t = raw.trim();
+    if(!t){ close(); continue; }
+    if(/^#{1,2}\s/.test(t)){ close(); html += `<h2>${inline(t.replace(/^#{1,2}\s/, ""))}</h2>`; continue; }
+    if(/^#{3,}\s/.test(t)){ close(); html += `<h3>${inline(t.replace(/^#+\s/, ""))}</h3>`; continue; }
+    if(/^[-*]\s/.test(t)){ if(inOl){ html += "</ol>"; inOl = false; } if(!inUl){ html += "<ul>"; inUl = true; }
+      html += `<li>${inline(t.replace(/^[-*]\s/, ""))}</li>`; continue; }
+    if(/^\d+[.)]\s/.test(t)){ if(inUl){ html += "</ul>"; inUl = false; } if(!inOl){ html += "<ol>"; inOl = true; }
+      html += `<li>${inline(t.replace(/^\d+[.)]\s/, ""))}</li>`; continue; }
+    close(); html += `<p>${inline(t)}</p>`;
+  }
+  close(); return html;
+}
+const inline = s => s
+  .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+  .replace(/`([^`]+)`/g, "<code>$1</code>");
+
+boot();
+</script>
+</body>
+</html>

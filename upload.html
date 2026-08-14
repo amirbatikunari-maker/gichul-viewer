@@ -2,8 +2,6 @@
 <html lang="ko">
 <head>
 <script>
-/* ★ 낡은 서비스 워커가 이 페이지를 물고 있으면 스스로 지우고 한 번만 새로고침한다.
-   "강력 새로고침 해주세요" "Unregister 눌러주세요" 안내를 계속 반복할 필요가 없도록. */
 (function(){
   if('serviceWorker' in navigator && navigator.serviceWorker.controller && !sessionStorage.getItem('sw-cleared-v3')){
     sessionStorage.setItem('sw-cleared-v3','1');
@@ -16,279 +14,493 @@
 
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>업로더 · 기출 해설 노트</title>
+<title>기계 · 기출 해설 노트</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.css">
 <style>
 :root{--paper:#E9ECE6;--card:#FCFCFA;--ink:#10233D;--ink-2:#5A6B7F;--rule:#D3D8CD;
-      --accent:#1D4ED8;--stamp:#BE2B26;--ok:#137A4B;
+      --accent:#1D4ED8;--stamp:#BE2B26;--ok:#137A4B;--warn:#9A6B12;--snow:#5B8DB8;
       --font-d:"IBM Plex Sans KR",Pretendard,sans-serif;--font-m:"IBM Plex Mono",monospace}
 *{box-sizing:border-box}
-body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,sans-serif;
-     font-size:14px;line-height:1.6}
-.wrap{max-width:860px;margin:0 auto;padding:24px 16px 80px}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,sans-serif;font-size:14px;line-height:1.6}
+.wrap{max-width:860px;margin:0 auto;padding:20px 14px 80px}
 h1{font:700 20px/1.3 var(--font-d);margin:0 0 4px;letter-spacing:-.02em}
-.lead{color:var(--ink-2);font-size:13px;margin-bottom:22px}
-.box{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:18px;margin-bottom:14px}
-.eyebrow{display:flex;align-items:baseline;gap:10px;font:600 11px/1 var(--font-d);
-         letter-spacing:.14em;color:var(--ink-2);margin-bottom:14px}
+.lead{color:var(--ink-2);font-size:13px;margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:16px;margin-bottom:14px}
+.eyebrow{display:flex;align-items:baseline;gap:10px;font:600 11px/1 var(--font-d);letter-spacing:.14em;color:var(--ink-2);margin-bottom:14px}
 .eyebrow::after{content:"";flex:1;height:1px;background:var(--rule)}
-label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:0 0 5px}
-input,select,textarea{width:100%;padding:10px 12px;border:1.4px solid var(--rule);
-  border-radius:9px;background:var(--paper);color:var(--ink);font:inherit}
-textarea{font-family:var(--font-m);font-size:12px;line-height:1.5;min-height:180px;resize:vertical}
-input:focus,textarea:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
-button{font:600 14px/1 var(--font-d);padding:12px 18px;border:0;border-radius:10px;
-       background:var(--ink);color:var(--paper);cursor:pointer}
+label{display:block;font:600 11px/1 var(--font-d);letter-spacing:.08em;color:var(--ink-2);margin-bottom:6px}
+input,select{width:100%;padding:11px 12px;border:1.4px solid var(--rule);border-radius:9px;background:var(--card);color:var(--ink);font:500 14px/1.2 var(--font-m)}
+input:focus,select:focus{outline:0;border-color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+button{font:600 13px/1 var(--font-d);padding:11px 14px;border:0;border-radius:9px;background:var(--ink);color:var(--paper);cursor:pointer}
 button.ghost{background:transparent;border:1.4px solid var(--rule);color:var(--ink)}
+button.sm{font-size:12px;padding:8px 11px}
 button:disabled{opacity:.45;cursor:not-allowed}
-.bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center}
-.msg{margin-top:12px;padding:11px 13px;border-radius:9px;font-size:13px;white-space:pre-wrap;
-     font-family:var(--font-m);display:none}
-.msg.ok{display:block;background:#E3F3EA;color:var(--ok)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+.hits{margin-top:8px;border:1px solid var(--rule);border-radius:10px;overflow:hidden;display:none}
+.hits.on{display:block}
+.hit{padding:10px 12px;cursor:pointer;border-top:1px solid var(--rule);font-size:13px}
+.hit:first-child{border-top:0}
+.hit:active{background:var(--paper)}
+.hit b{font-weight:600}
+.hit span{color:var(--ink-2);font-size:12px}
+
+.now{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:11px;overflow:hidden}
+.cell{background:var(--card);padding:11px 12px}
+.cell .k{font:600 10.5px/1 var(--font-d);letter-spacing:.06em;color:var(--ink-2)}
+.cell .v{font:500 19px/1.25 var(--font-m);margin-top:5px;letter-spacing:-.02em}
+.cell .u{font-size:12px;color:var(--ink-2);margin-left:1px}
+.cell.hi .v{color:var(--accent)}
+.cell.rain .v{color:var(--accent)}
+.cell.snow .v{color:var(--snow)}
+
+.verdict{display:flex;align-items:center;gap:10px;padding:13px 14px;border-radius:11px;border:1.4px solid var(--rule);margin-bottom:9px;background:var(--paper)}
+.verdict .dot{width:11px;height:11px;border-radius:50%;flex:none;background:var(--ink-2)}
+.verdict .t{font:600 13px/1.35 var(--font-d)}
+.verdict .s{font-size:12px;color:var(--ink-2);margin-top:2px}
+.verdict.yes{background:#E3F3EA;border-color:#B7DEC8} .verdict.yes .dot{background:var(--ok)}
+.verdict.part{background:#FDF3DC;border-color:#EAD9A8} .verdict.part .dot{background:var(--warn)}
+.verdict.no{background:#FBE9E8;border-color:#F0C7C5} .verdict.no .dot{background:var(--stamp)}
+
+.chart{width:100%;height:auto;display:block;margin-top:4px}
+.hint{font-size:12px;color:var(--ink-2);margin-top:10px}
+.work{font-family:var(--font-m);font-size:12px;background:var(--paper);border:1px solid var(--rule);border-radius:9px;padding:11px 12px;margin-top:12px;white-space:pre-wrap;line-height:1.75}
+.msg{padding:11px 13px;border-radius:9px;font-size:13px;font-family:var(--font-m);display:none;margin-bottom:12px;white-space:pre-wrap}
+.msg.on{display:block;background:#E4ECFD;color:var(--accent)}
 .msg.err{display:block;background:#FBE9E8;color:var(--stamp)}
-.hint{font-size:12px;color:var(--ink-2);margin-top:8px}
-code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px;border-radius:4px}
-#fatal{display:none;position:sticky;top:0;z-index:99;margin:0 0 16px;padding:13px 15px;
-  background:#FBE9E8;border:1.4px solid var(--stamp);border-radius:10px;color:var(--stamp);
-  font-family:var(--font-m);font-size:12.5px;white-space:pre-wrap;line-height:1.6}
-#fatal b{display:block;font-family:var(--font-d);font-size:13px;margin-bottom:4px}
-.tabs{display:flex;gap:6px;margin-bottom:14px}
-.tab{padding:8px 14px;border-radius:999px;border:1.4px solid var(--rule);
-     font:600 12px/1 var(--font-d);background:none;color:var(--ink-2)}
-.tab.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
-.pv{border:1px solid var(--rule);border-radius:10px;padding:12px;margin-top:12px;
-    max-height:260px;overflow:auto;font-family:var(--font-m);font-size:11.5px;display:none}
-.pv.on{display:block}
-.pv .q{padding:7px 0;border-bottom:1px dashed var(--rule)}
-.pv .q b{color:var(--accent)}
-#app{display:none}
-.nav3{display:flex;gap:2px;padding:7px 10px;padding-top:calc(7px + env(safe-area-inset-top));
-  background:var(--ink);}
-.nav3 a{flex:1;text-align:center;padding:7px 6px;border-radius:8px;
-  font:600 11.5px/1 var(--font-d,"IBM Plex Sans KR",sans-serif);letter-spacing:.02em;
-  color:color-mix(in srgb, var(--paper) 55%, transparent);text-decoration:none;
-  transition:background .15s,color .15s;white-space:nowrap}
+
+.tblwrap{display:none;margin-top:12px;max-height:340px;overflow:auto;border:1px solid var(--rule);border-radius:10px}
+.tblwrap.on{display:block}
+table{width:100%;border-collapse:collapse;font-family:var(--font-m);font-size:11.5px}
+th,td{padding:7px 8px;text-align:right;white-space:nowrap;border-top:1px solid var(--rule)}
+th{position:sticky;top:0;background:var(--paper);font-weight:600;font-size:10.5px;color:var(--ink-2);border-top:0;z-index:1}
+td:first-child,th:first-child{text-align:left}
+tr.wet td{background:#EFF4FD}
+tr.snowy td{background:#EDF2F7}
+tr.nowrow td{outline:1.5px solid var(--accent);outline-offset:-1.5px}
+
+.src{font-size:11.5px;color:var(--ink-2);margin-top:22px;line-height:1.9}
+.src a{color:var(--ink-2)}
+.src b{color:var(--ink);font-weight:600}
+
+.nav3{display:flex;gap:2px;padding:7px 8px;overflow-x:auto;padding-top:calc(7px + env(safe-area-inset-top));background:var(--ink);}
+.nav3 a{flex:1;text-align:center;padding:7px 6px;border-radius:8px;font:600 11.5px/1 var(--font-d);letter-spacing:.02em;color:color-mix(in srgb, var(--paper) 55%, transparent);text-decoration:none;transition:background .15s,color .15s;white-space:nowrap}
 .nav3 a.on{background:color-mix(in srgb, var(--paper) 15%, transparent);color:var(--paper)}
-.nav3 a:not(.on):hover{color:var(--paper)}
 </style>
 </head>
 <body>
 <nav class="nav3">
   <a href="./index.html">뷰어</a>
-  <a href="./upload.html" class="on">업로더</a>
+  <a href="./upload.html" class="on">기계</a>
   <a href="./ingest.html">자동 변환</a>
+  <a href="./interview.html">면접</a>
+  <a href="./portfolio.html">포트폴리오</a>
 </nav>
 
 <div class="wrap">
-  <h1>업로더</h1>
-  <div class="lead">Gemini가 만든 JSON을 붙여넣으면 Supabase에 바로 올라갑니다. 뷰어는 새로고침만 하면 반영됩니다.</div>
-  <div id="fatal"></div>
+  <h1>기계</h1>
+  <div class="lead">그 지점의 바깥 공기를 기상청 모델로 받아 습공기 상태값·비·눈을 보여주고,
+    프리쿨링 여부와 코일 부하를 계산합니다. 계산 과정도 같이 펼쳐지니 시험 공부에도 씁니다.</div>
 
-  <!-- 로그인 -->
-  <div class="box" id="auth">
-    <div class="eyebrow">로그인</div>
-    <div class="grid">
-      <div><label>이메일</label><input id="em" type="email" autocomplete="username"></div>
-      <div><label>비밀번호</label><input id="pw" type="password" autocomplete="current-password"></div>
+  <div class="msg" id="m"></div>
+
+  <div class="card">
+    <div class="eyebrow">지점</div>
+    <label>동·읍·면 이름으로 검색</label>
+    <div class="bar">
+      <input id="q" placeholder="예: 역삼동, 정자동, 오정동, 대덕읍" style="flex:1;min-width:150px">
+      <button class="sm" id="find">찾기</button>
+      <button class="ghost sm" id="here">내 위치</button>
     </div>
-    <div class="bar"><button id="login">로그인</button></div>
-    <div class="hint">Supabase 대시보드 → Authentication → Users 에서 만든 계정 하나면 됩니다. 쓰기는 이 계정만 가능합니다.</div>
-    <div class="msg" id="am"></div>
+    <div class="hits" id="hits"></div>
+    <div class="hint" id="place">—</div>
   </div>
 
-  <div id="app">
-    <!-- 대상 -->
-    <div class="box">
-      <div class="eyebrow">어디에 넣을지</div>
-      <div class="grid">
-        <div><label>과목명</label><input id="sname" placeholder="위험물산업기사"></div>
-        <div><label>과목 코드 (영문·고유)</label><input id="scode" placeholder="danger-ind"></div>
-        <div><label>분류</label><input id="scat" placeholder="소방·안전"></div>
-        <div><label>연도</label><input id="year" type="number" placeholder="2020"></div>
-        <div><label>회차</label><input id="sess" type="number" placeholder="3"></div>
-      </div>
-      <div class="hint">같은 과목 코드 + 같은 연도/회차면 기존 문항을 번호 기준으로 덮어씁니다.</div>
+  <div class="card">
+    <div class="eyebrow">지금 바깥 공기</div>
+    <div class="now">
+      <div class="cell"><div class="k">건구온도</div><div class="v" id="vDB">—</div></div>
+      <div class="cell hi"><div class="k">습구온도</div><div class="v" id="vWB">—</div></div>
+      <div class="cell"><div class="k">노점온도</div><div class="v" id="vDP">—</div></div>
+      <div class="cell"><div class="k">체감온도</div><div class="v" id="vAP">—</div></div>
+      <div class="cell"><div class="k">상대습도</div><div class="v" id="vRH">—</div></div>
+      <div class="cell"><div class="k">절대습도</div><div class="v" id="vW">—</div></div>
+      <div class="cell"><div class="k">엔탈피</div><div class="v" id="vH">—</div></div>
+      <div class="cell"><div class="k">비체적</div><div class="v" id="vV">—</div></div>
     </div>
+    <div class="hint" id="stamp">불러오는 중…</div>
+  </div>
 
-    <!-- 입력 -->
-    <div class="box">
-      <div class="eyebrow">문항 데이터</div>
-      <div class="tabs">
-        <button class="tab on" data-t="json">JSON 붙여넣기</button>
-        <button class="tab" data-t="html">기존 HTML 시트 옮기기</button>
-      </div>
-
-      <div id="p-json">
-        <textarea id="json" placeholder='{"questions":[{"number":1,"question_text":"...","choices":["40","46","78","121"],"answer":3,"summary":"이상기체 상태방정식","explanation_md":"$PV=nRT$ 를 이용한다..."}]}'></textarea>
-        <div class="bar">
-          <button class="ghost" id="pick">JSON 파일 열기</button>
-          <input id="file" type="file" accept=".json,.txt" hidden>
-          <button class="ghost" id="check">미리보기</button>
-        </div>
-      </div>
-
-      <div id="p-html" hidden>
-        <textarea id="html" placeholder='기존 도구가 뽑아준 &lt;div class="sheet"&gt;...&lt;/div&gt; 덩어리를 통째로 붙여넣으세요.'></textarea>
-        <div class="bar"><button class="ghost" id="split">시트 쪼개기</button></div>
-        <div class="hint">시트 하나 = 문항 하나로 잘라서 1번부터 순서대로 번호를 붙입니다. 문제·보기·정답은 비어 있으니, 필요하면 JSON 탭에서 채워 넣으세요. 해설 HTML(도표·SVG 포함)은 그대로 보존됩니다.</div>
-      </div>
-
-      <div class="pv" id="pv"></div>
+  <div class="card">
+    <div class="eyebrow">비 · 눈</div>
+    <div class="now">
+      <div class="cell rain"><div class="k">지금 강수</div><div class="v" id="pNow">—</div></div>
+      <div class="cell rain"><div class="k">오늘 누적 비</div><div class="v" id="pDay">—</div></div>
+      <div class="cell snow"><div class="k">지금 눈</div><div class="v" id="sNow">—</div></div>
+      <div class="cell snow"><div class="k">오늘 누적 눈</div><div class="v" id="sDay">—</div></div>
+      <div class="cell snow"><div class="k">쌓인 눈</div><div class="v" id="sDep">—</div></div>
+      <div class="cell"><div class="k">강수 시간</div><div class="v" id="pHrs">—</div></div>
     </div>
-
-    <div class="bar">
-      <button id="up" disabled>Supabase에 올리기</button>
-      <button class="ghost" id="out">로그아웃</button>
+    <svg class="chart" id="rainC" viewBox="0 0 340 130" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="bar" style="margin-top:10px">
+      <button class="ghost sm" id="more">시간별로 자세히 보기</button>
+      <span class="hint" style="margin:0" id="sky">—</span>
     </div>
-    <div class="msg" id="um"></div>
+    <div class="tblwrap" id="tblwrap"><table id="tbl"></table></div>
+    <div class="hint">강수는 mm(1mm = 1L/m²), 눈은 cm 단위의 <b>새로 내린 양</b>, 쌓인 눈은 지면 적설 깊이입니다.
+      같은 물 1mm가 기온에 따라 대략 0.5~2cm로 쌓입니다.</div>
+  </div>
+
+  <div class="card">
+    <div class="eyebrow">프리쿨링 판정</div>
+    <div class="grid" style="margin-bottom:14px">
+      <div><label>냉수 출수온도 (℃)</label><input id="chw" type="number" step="0.5" value="20"></div>
+      <div><label>접근온도 approach (K)</label><input id="app" type="number" step="0.5" value="3"></div>
+    </div>
+    <div id="verdicts"></div>
+    <svg class="chart" id="day" viewBox="0 0 340 150" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="hint">공랭식(건식 쿨러·프리쿨링 코일)은 <b>건구온도</b>, 냉각탑을 쓰는 습식은 <b>습구온도</b>가 기준입니다.
+      외기가 <span style="font-family:var(--font-m)">출수온도 − 접근온도</span>보다 낮으면 완전,
+      <span style="font-family:var(--font-m)">출수온도</span>보다 낮으면 부분 프리쿨링으로 봅니다.</div>
+  </div>
+
+  <div class="card">
+    <div class="eyebrow">습공기선도 위 지금 위치</div>
+    <svg class="chart" id="psy" viewBox="0 0 340 240" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="hint">가로축 건구온도, 세로축 절대습도. 굵은 곡선이 포화선(상대습도 100%)입니다.
+      파란 점이 지금 바깥 공기, 회색 점이 아래에서 설정한 실내 목표 상태입니다.</div>
+  </div>
+
+  <div class="card">
+    <div class="eyebrow">냉각코일 부하 계산</div>
+    <div class="grid" style="margin-bottom:14px">
+      <div><label>도입 외기량 (m³/h)</label><input id="cmh" type="number" step="100" value="3000"></div>
+      <div><label>실내 목표 건구 (℃)</label><input id="rdb" type="number" step="0.5" value="26"></div>
+      <div><label>실내 목표 습도 (%)</label><input id="rrh" type="number" step="1" value="50"></div>
+    </div>
+    <div class="now">
+      <div class="cell hi"><div class="k">전열부하</div><div class="v" id="qT">—</div></div>
+      <div class="cell"><div class="k">현열부하</div><div class="v" id="qS">—</div></div>
+      <div class="cell"><div class="k">잠열부하</div><div class="v" id="qL">—</div></div>
+      <div class="cell"><div class="k">현열비 SHF</div><div class="v" id="qF">—</div></div>
+    </div>
+    <div class="work" id="work">—</div>
+  </div>
+
+  <div class="src">
+    <b>자료 출처</b><br>
+    · 기상 예측: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> 를 통해
+      <b>기상청(KMA) 수치예보 모델</b>을 받습니다 (<span style="font-family:var(--font-m)">models=kma_seamless</span>).
+      한반도는 기상청 국지모델의 해상도가 가장 높아 이 모델로 고정했습니다.<br>
+    · 지점 검색: <a href="https://open-meteo.com/en/docs/geocoding-api" target="_blank" rel="noopener">Open-Meteo Geocoding</a>
+      (GeoNames 기반 · 동/읍/면 단위)<br>
+    · 습공기 상태값(습구·노점·절대습도·엔탈피·비체적)은 받아온 기온·습도·기압으로 이 페이지가 직접 계산합니다.
+      포화수증기압은 Magnus 식, 습구온도는 ASHRAE 관계식을 이분법으로 역산했습니다.<br>
+    · <b>예보값이라 실측(AWS 관측)과는 차이가 납니다.</b> 공식 관측·특보는
+      <a href="https://www.weather.go.kr" target="_blank" rel="noopener">weather.go.kr</a> 을 확인하세요.
   </div>
 </div>
 
 <script>
-/* ★ 무슨 에러가 나든 화면에 바로 보여준다 — 콘솔 뒤질 필요 없게 */
-function showFatal(title, detail){
-  const el = document.getElementById("fatal");
-  if(!el) return;
-  el.style.display = "block";
-  el.innerHTML = "<b>" + title + "</b>" + detail;
-}
-window.addEventListener("error", e => showFatal("스크립트 오류", (e.message||"") + (e.filename?"\n"+e.filename+":"+e.lineno:"")));
-window.addEventListener("unhandledrejection", e => showFatal("처리 안 된 오류", String(e.reason?.message||e.reason||"")));
-</script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script src="./config.js"></script>
-<script>
-const $=s=>document.querySelector(s);
+const $ = s => document.querySelector(s);
+const say = (t, cls) => { const m = $("#m"); m.textContent = t; m.className = "msg " + (cls || "on"); };
+const hide = () => { $("#m").className = "msg"; };
 
-/* 시작하자마자 로그인 박스부터 확실히 보여준다 (CSS 기본값에 기대지 않는다) */
-$("#auth").style.display="block";
-$("#app").style.display="none";
-
-if(typeof window.supabase === "undefined"){
-  showFatal("Supabase 라이브러리를 불러오지 못했습니다.",
-    "인터넷 연결을 확인하거나, 광고 차단 확장 프로그램이 jsdelivr.net 을 막고 있는지 확인해 주세요.");
-  throw new Error("supabase-js not loaded");
+/* ══ 습공기 계산 ══
+   Pws : Magnus 식 (−40~50℃ 오차 0.1% 안쪽)
+   W   : 0.622·Pw/(P−Pw)     h : 1.006t + W(2501+1.86t)
+   twb : ASHRAE 관계식은 해석해가 없어 노점~건구 사이를 이분법으로 좁힌다 */
+const Pws = t => 610.94 * Math.exp(17.625 * t / (t + 243.04));
+const Ws  = (t, P) => 0.621945 * Pws(t) / (P * 1000 - Pws(t));
+function psy(t, rh, P){
+  const pw = rh / 100 * Pws(t);
+  const W  = 0.621945 * pw / (P * 1000 - pw);
+  const h  = 1.006 * t + W * (2501 + 1.86 * t);
+  const v  = 0.287042 * (t + 273.15) * (1 + 1.607858 * W) / P;
+  const lp = Math.log(Math.max(pw, 1) / 610.94);
+  const td = 243.04 * lp / (17.625 - lp);
+  let lo = Math.min(td, t), hi = t, twb = t;
+  for(let i = 0; i < 60; i++){
+    twb = (lo + hi) / 2;
+    const ws = Ws(twb, P);
+    const Wc = ((2501 - 2.326 * twb) * ws - 1.006 * (t - twb)) / (2501 + 1.86 * t - 4.186 * twb);
+    if(Wc > W) hi = twb; else lo = twb;
+  }
+  return { t, rh, P, W, h, v, td, twb };
 }
-const CFG = window.APP_CONFIG || {};
-if(!CFG.SUPABASE_URL || CFG.SUPABASE_URL.includes("xxxx")){
-  showFatal("config.js 에 Supabase 정보가 없습니다.", "SUPABASE_URL 과 SUPABASE_ANON_KEY 를 채워주세요.");
-}
-const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
-let payload=null;
-const say=(el,t,ok)=>{el.textContent=t;el.className="msg "+(ok?"ok":"err")};
 
-/* 로그인 */
-async function refresh(){
+const SKY = {0:"맑음",1:"대체로 맑음",2:"구름 조금",3:"흐림",45:"안개",48:"상고대 안개",
+  51:"이슬비 약",53:"이슬비",55:"이슬비 강",56:"어는 이슬비",57:"어는 이슬비 강",
+  61:"비 약",63:"비",65:"비 강",66:"어는 비",67:"어는 비 강",
+  71:"눈 약",73:"눈",75:"눈 강",77:"싸락눈",
+  80:"소나기 약",81:"소나기",82:"소나기 강",85:"소낙눈 약",86:"소낙눈 강",
+  95:"뇌우",96:"뇌우·우박",99:"뇌우·우박 강"};
+
+let NOW = null, HOURS = [], DAY = null, P_KPA = 101.325;
+let SPOT = JSON.parse(localStorage.getItem("gichul:spot") || "null")
+        || { name:"서울특별시 중구", lat:37.5665, lon:126.9780 };
+
+/* ── 지점 검색 ── */
+async function search(name){
+  if(!name.trim()) return;
+  say("지점을 찾는 중…");
   try{
-    const {data,error} = await sb.auth.getSession();
-    if(error) return showFatal("로그인 상태를 확인하지 못했습니다.", error.message);
-    const on = !!data.session;
-    $("#auth").style.display = on ? "none" : "block";
-    $("#app").style.display  = on ? "block" : "none";
-    document.getElementById("fatal").style.display = "none";
-  }catch(err){
-    showFatal("화면을 전환하는 중 오류가 났습니다.", err.message);
+    const u = "https://geocoding-api.open-meteo.com/v1/search"
+      + `?name=${encodeURIComponent(name.trim())}&count=10&language=ko&format=json`;
+    const d = await fetch(u).then(r => r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)));
+    const list = (d.results || []).filter(r => r.country_code === "KR");
+    if(!list.length){ say("그 이름으로는 못 찾았습니다. 상위 행정동이나 인접 지명으로 다시 검색해 보세요.", "err"); return; }
+    hide();
+    $("#hits").className = "hits on";
+    $("#hits").innerHTML = list.map((r, i) => {
+      const admin = [r.admin1, r.admin2, r.admin3].filter(Boolean).join(" ");
+      return `<div class="hit" data-i="${i}"><b>${r.name}</b> <span>${admin}</span></div>`;
+    }).join("");
+    $("#hits").querySelectorAll(".hit").forEach(el => el.onclick = () => {
+      const r = list[+el.dataset.i];
+      SPOT = { name:[r.admin1, r.admin2, r.admin3, r.name].filter(Boolean).join(" "), lat:r.latitude, lon:r.longitude };
+      localStorage.setItem("gichul:spot", JSON.stringify(SPOT));
+      $("#hits").className = "hits"; $("#q").value = "";
+      load();
+    });
+  }catch(e){ say("검색에 실패했습니다 — " + e.message, "err"); }
+}
+
+/* ── 예보 받기 (기상청 모델 고정) ── */
+async function load(){
+  $("#place").textContent = `${SPOT.name} · ${(+SPOT.lat).toFixed(4)}, ${(+SPOT.lon).toFixed(4)}`;
+  say("기상청 모델 자료를 받는 중…");
+  const u = "https://api.open-meteo.com/v1/forecast"
+    + `?latitude=${SPOT.lat}&longitude=${SPOT.lon}`
+    + "&models=kma_seamless"
+    + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,surface_pressure,precipitation,rain,snowfall,snow_depth,weather_code"
+    + "&hourly=temperature_2m,relative_humidity_2m,surface_pressure,precipitation,precipitation_probability,rain,snowfall,snow_depth"
+    + "&daily=precipitation_sum,rain_sum,snowfall_sum,precipitation_hours"
+    + "&forecast_days=2&timezone=Asia%2FSeoul";
+  try{
+    const d = await fetch(u).then(r => r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)));
+    const c = d.current;
+    P_KPA = (c.surface_pressure || 1013.25) / 10;
+    NOW = psy(c.temperature_2m, c.relative_humidity_2m, P_KPA);
+    Object.assign(NOW, {
+      ap:c.apparent_temperature, prcp:c.precipitation ?? 0, rain:c.rain ?? 0,
+      snow:c.snowfall ?? 0, depth:c.snow_depth ?? 0, code:c.weather_code
+    });
+    DAY = {
+      rain:d.daily.rain_sum?.[0] ?? 0, prcp:d.daily.precipitation_sum?.[0] ?? 0,
+      snow:d.daily.snowfall_sum?.[0] ?? 0, hours:d.daily.precipitation_hours?.[0] ?? 0
+    };
+    const today = new Date().toISOString().slice(0,10), nowH = new Date().getHours();
+    HOURS = d.hourly.time.map((iso, i) => {
+      const db = d.hourly.temperature_2m[i], rh = d.hourly.relative_humidity_2m[i];
+      if(db == null || rh == null) return null;
+      const p = (d.hourly.surface_pressure[i] || 1013.25) / 10;
+      return {
+        iso, hour:+iso.slice(11,13), day:iso.slice(0,10), db, rh,
+        wb: psy(db, rh, p).twb,
+        prcp: d.hourly.precipitation[i] ?? 0,
+        pop:  d.hourly.precipitation_probability?.[i] ?? null,
+        snow: d.hourly.snowfall[i] ?? 0,
+        depth:(d.hourly.snow_depth?.[i] ?? 0) * 100      /* m → cm */
+      };
+    }).filter(Boolean).slice(0, 48);
+    HOURS.forEach(h => h.isNow = (h.day === today && h.hour === nowH));
+    hide(); render();
+  }catch(e){
+    say("자료를 받지 못했습니다 — " + e.message + "\n잠시 뒤 다시 눌러보세요.", "err");
   }
 }
-$("#login").onclick=async()=>{
-  try{
-    const {error}=await sb.auth.signInWithPassword({email:$("#em").value.trim(),password:$("#pw").value});
-    if(error) return say($("#am"),"로그인 실패 — "+error.message,false);
-    await refresh();
-  }catch(err){ showFatal("로그인 요청 중 오류가 났습니다.", err.message); }
-};
-$("#out").onclick=async()=>{await sb.auth.signOut();refresh()};
 
-/* 탭 */
-document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
-  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x===t));
-  $("#p-json").hidden=t.dataset.t!=="json";
-  $("#p-html").hidden=t.dataset.t!=="html";
-});
+/* ── 그리기 ── */
+function render(){
+  const f = (x, n = 1) => (x == null ? "—" : (+x).toFixed(n));
+  $("#vDB").innerHTML = f(NOW.t) + '<span class="u">℃</span>';
+  $("#vWB").innerHTML = f(NOW.twb) + '<span class="u">℃</span>';
+  $("#vDP").innerHTML = f(NOW.td) + '<span class="u">℃</span>';
+  $("#vAP").innerHTML = f(NOW.ap) + '<span class="u">℃</span>';
+  $("#vRH").innerHTML = f(NOW.rh, 0) + '<span class="u">%</span>';
+  $("#vW").innerHTML  = f(NOW.W * 1000, 1) + '<span class="u">g/kg</span>';
+  $("#vH").innerHTML  = f(NOW.h) + '<span class="u">kJ/kg</span>';
+  $("#vV").innerHTML  = f(NOW.v, 3) + '<span class="u">m³/kg</span>';
+  $("#stamp").textContent = `기압 ${f(P_KPA)} kPa · 기상청 모델 · ${new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"})} 기준`;
 
-/* 파일 */
-$("#pick").onclick=()=>$("#file").click();
-$("#file").onchange=async e=>{
-  const f=e.target.files[0]; if(!f) return;
-  $("#json").value=await f.text(); parseJson();
-};
-$("#check").onclick=parseJson;
+  $("#pNow").innerHTML = f(NOW.prcp) + '<span class="u">mm/h</span>';
+  $("#pDay").innerHTML = f(DAY.rain) + '<span class="u">mm</span>';
+  $("#sNow").innerHTML = f(NOW.snow) + '<span class="u">cm/h</span>';
+  $("#sDay").innerHTML = f(DAY.snow) + '<span class="u">cm</span>';
+  $("#sDep").innerHTML = f(NOW.depth * 100) + '<span class="u">cm</span>';
+  $("#pHrs").innerHTML = f(DAY.hours, 0) + '<span class="u">시간</span>';
+  $("#sky").textContent = (SKY[NOW.code] || "—") + ` · 오늘 강수 합계 ${f(DAY.prcp)}mm`;
 
-/* 맨 앞에 다시 붙은 문항 번호("1. ", "23) ", "(4) ", "[12] ", "문제 5. ")를 지운다.
-   숫자 뒤에 반드시 공백이 와야만 지우므로 "1.5kg", "2단압축", "20℃" 같은 진짜 본문은 안 건드린다. */
-function stripQNo(s){
-  return String(s??"").replace(
-    /^[\s\u00A0]*(?:문제|문항)?[\s\u00A0]*(?:[[(][\s\u00A0]*\d{1,3}[\s\u00A0]*[\])]|\d{1,3}[\s\u00A0]*[.)])[\s\u00A0]+/,
-    ""
-  );
-}
-function normalize(list){
-  return list.map((q,i)=>({
-    number:+(q.number??q.no??i+1),
-    subject_part:q.subject_part||q.part||null,
-    question_text:stripQNo(stripQNo(q.question_text||q.question||q.q||"")),
-    choices:Array.isArray(q.choices)?q.choices:(q.options||[]),
-    answer:q.answer!=null?+q.answer:null,
-    summary:stripQNo(q.summary||q.title||"")||null,
-    explanation_md:q.explanation_md||q.explanation||null,
-    explanation_html:q.explanation_html||null,
-    tags:Array.isArray(q.tags)?q.tags:[],
-    correct_rate:q.correct_rate!=null?+q.correct_rate:null
-  })).sort((a,b)=>a.number-b.number);
-}
-function preview(list){
-  payload=list;
-  $("#pv").className="pv on";
-  $("#pv").innerHTML=list.map(q=>`<div class="q"><b>${q.number}번</b> ${
-    (q.question_text||"(문제 없음)").slice(0,70)}${q.answer?` — 정답 ${q.answer}`:""}${
-    (q.explanation_html||q.explanation_md)?" · 해설 ○":" · 해설 ✕"}</div>`).join("");
-  $("#up").disabled=!list.length;
-  say($("#um"),`${list.length}문항 확인. 위 정보로 올릴 준비가 됐습니다.`,true);
-}
-function parseJson(){
-  try{
-    const raw=$("#json").value.trim().replace(/^```(json)?|```$/g,"");
-    const o=JSON.parse(raw);
-    const list=Array.isArray(o)?o:(o.questions||o.items||[]);
-    if(!list.length) throw new Error("questions 배열이 비어 있습니다.");
-    preview(normalize(list));
-  }catch(e){ $("#up").disabled=true; say($("#um"),"JSON을 읽지 못했습니다 — "+e.message,false); }
+  drawRain(); freeCooling(); drawDay(); drawPsy(); coil(); drawTable();
 }
 
-/* 기존 HTML 시트 → 문항 */
-$("#split").onclick=()=>{
-  const src=$("#html").value;
-  const doc=new DOMParser().parseFromString(src,"text/html");
-  const style=doc.querySelector("style")?.outerHTML||"";
-  const sheets=[...doc.querySelectorAll(".sheet")];
-  if(!sheets.length) return say($("#um"),'<div class="sheet"> 블록을 찾지 못했습니다.',false);
-  preview(sheets.map((s,i)=>({
-    number:i+1, question_text:(s.textContent||"").trim().slice(0,120),
-    choices:[], answer:null,
-    summary:(s.querySelector("h1,h2,h3,.title,strong")?.textContent||"").trim().slice(0,40)||null,
-    explanation_html:(i===0?style:"")+s.outerHTML, explanation_md:null, tags:[], correct_rate:null
-  })));
-};
-
-/* 업로드 */
-$("#up").onclick=async()=>{
-  const need=[["sname","과목명"],["scode","과목 코드"],["year","연도"],["sess","회차"]];
-  for(const [id,nm] of need) if(!$("#"+id).value.trim()) return say($("#um"),nm+"을(를) 입력해 주세요.",false);
-  $("#up").disabled=true; say($("#um"),"올리는 중…",true);
-  const {data,error}=await sb.rpc("upsert_exam_bundle",{
-    p_subject_name:$("#sname").value.trim(),
-    p_subject_code:$("#scode").value.trim(),
-    p_category:$("#scat").value.trim()||"기타",
-    p_year:+$("#year").value, p_session:+$("#sess").value,
-    p_questions:payload
+/* ── 강수·적설 막대 ── */
+function drawRain(){
+  const H = HOURS.slice(0, 24);
+  if(!H.length) return;
+  const W = 340, Ht = 130, L = 26, R = 8, T = 12, B = 22;
+  const max = Math.max(1, ...H.map(h => Math.max(h.prcp, h.snow)));
+  const bw = (W - L - R) / H.length;
+  const y = v => T + (1 - v / max) * (Ht - T - B);
+  let g = "";
+  for(let i = 0; i <= 2; i++){
+    const v = max * i / 2;
+    g += `<line x1="${L}" y1="${y(v)}" x2="${W-R}" y2="${y(v)}" stroke="var(--rule)"/>
+          <text x="2" y="${y(v)+3.5}" font-size="8" fill="var(--ink-2)" font-family="var(--font-m)">${v.toFixed(1)}</text>`;
+  }
+  H.forEach((h, i) => {
+    const x = L + i * bw;
+    if(h.prcp > 0) g += `<rect x="${x+1}" y="${y(h.prcp)}" width="${bw-2}" height="${Ht-B-y(h.prcp)}" fill="var(--accent)" opacity=".75"/>`;
+    if(h.snow > 0) g += `<rect x="${x+1}" y="${y(h.snow)}" width="${bw-2}" height="${Ht-B-y(h.snow)}" fill="var(--snow)"/>`;
+    if(h.hour % 6 === 0) g += `<text x="${x+bw/2}" y="${Ht-7}" font-size="8" fill="var(--ink-2)" text-anchor="middle" font-family="var(--font-m)">${h.hour}</text>`;
   });
-  $("#up").disabled=false;
-  if(error) return say($("#um"),"업로드 실패 — "+error.message,false);
-  say($("#um"),`완료. ${payload.length}문항이 회차 #${data} 에 저장됐습니다. 뷰어를 새로고침하면 보입니다.`,true);
+  g += `<text x="${L+2}" y="${T+8}" font-size="8.5" fill="var(--accent)" font-family="var(--font-m)">비 mm</text>
+        <text x="${L+44}" y="${T+8}" font-size="8.5" fill="var(--snow)" font-family="var(--font-m)">눈 cm</text>`;
+  $("#rainC").innerHTML = g;
+}
+
+/* ── 시간별 표(자세히) ── */
+function drawTable(){
+  $("#tbl").innerHTML =
+    "<thead><tr><th>시각</th><th>기온</th><th>습구</th><th>습도</th><th>강수확률</th><th>비 mm</th><th>눈 cm</th><th>적설 cm</th></tr></thead><tbody>" +
+    HOURS.map(h => {
+      const cls = h.isNow ? "nowrow" : h.snow > 0 ? "snowy" : h.prcp > 0 ? "wet" : "";
+      return `<tr class="${cls}"><td>${h.day.slice(5)} ${String(h.hour).padStart(2,"0")}시</td>
+        <td>${h.db.toFixed(1)}</td><td>${h.wb.toFixed(1)}</td><td>${h.rh.toFixed(0)}%</td>
+        <td>${h.pop == null ? "—" : h.pop + "%"}</td>
+        <td>${h.prcp > 0 ? h.prcp.toFixed(1) : "·"}</td>
+        <td>${h.snow > 0 ? h.snow.toFixed(1) : "·"}</td>
+        <td>${h.depth > 0 ? h.depth.toFixed(1) : "·"}</td></tr>`;
+    }).join("") + "</tbody>";
+}
+$("#more").onclick = () => {
+  const w = $("#tblwrap");
+  w.classList.toggle("on");
+  $("#more").textContent = w.classList.contains("on") ? "표 접기" : "시간별로 자세히 보기";
 };
-refresh().catch(err => showFatal("초기화 중 오류가 났습니다.", err.message));
+
+/* ── 프리쿨링 ── */
+function freeCooling(){
+  const chw = +$("#chw").value, app = +$("#app").value, full = chw - app;
+  const rows = [
+    { name:"공랭식 (건식 쿨러 · 프리쿨링 코일)", val:NOW.t,   unit:"건구", key:"db" },
+    { name:"습식 (냉각탑)",                     val:NOW.twb, unit:"습구", key:"wb" }
+  ];
+  $("#verdicts").innerHTML = rows.map(r => {
+    const hrs = HOURS.slice(0, 24).filter(h => h[r.key] < full).length;
+    const cls = r.val < full ? "yes" : r.val < chw ? "part" : "no";
+    const txt = r.val < full ? "완전 프리쿨링 가능" : r.val < chw ? "부분 프리쿨링 (냉동기 일부 병행)" : "프리쿨링 불가";
+    return `<div class="verdict ${cls}"><span class="dot"></span><div>
+      <div class="t">${r.name} — ${txt}</div>
+      <div class="s">${r.unit}온도 ${r.val.toFixed(1)}℃ vs 기준 ${full.toFixed(1)}℃ · 앞으로 24시간 중 ${hrs}시간 완전 가능</div></div></div>`;
+  }).join("");
+}
+
+/* ── 24시간 온도 ── */
+function drawDay(){
+  const H = HOURS.slice(0, 24);
+  if(!H.length) return;
+  const W = 340, Ht = 150, L = 30, R = 8, T = 12, B = 22;
+  const thr = +$("#chw").value - +$("#app").value;
+  const temps = H.flatMap(h => [h.db, h.wb]).concat([thr]);
+  const lo = Math.floor(Math.min(...temps) - 2), hi = Math.ceil(Math.max(...temps) + 2);
+  const x = i => L + i / Math.max(H.length - 1, 1) * (W - L - R);
+  const y = v => T + (hi - v) / Math.max(hi - lo, 1) * (Ht - T - B);
+  const line = k => H.map((h, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(h[k]).toFixed(1)}`).join("");
+  let g = "";
+  for(let v = lo; v <= hi; v += Math.max(1, Math.round((hi - lo) / 4)))
+    g += `<line x1="${L}" y1="${y(v)}" x2="${W-R}" y2="${y(v)}" stroke="var(--rule)"/>
+          <text x="4" y="${y(v)+3.5}" font-size="8" fill="var(--ink-2)" font-family="var(--font-m)">${v}</text>`;
+  H.forEach((h, i) => { if(h.hour % 6 === 0)
+    g += `<text x="${x(i)}" y="${Ht-7}" font-size="8" fill="var(--ink-2)" text-anchor="middle" font-family="var(--font-m)">${h.hour}시</text>`; });
+  $("#day").innerHTML = `${g}
+    <line x1="${L}" y1="${y(thr)}" x2="${W-R}" y2="${y(thr)}" stroke="var(--ok)" stroke-width="1.4" stroke-dasharray="4 3"/>
+    <text x="${W-R}" y="${y(thr)-4}" font-size="8" fill="var(--ok)" text-anchor="end" font-family="var(--font-m)">프리쿨링 기준 ${thr.toFixed(1)}℃</text>
+    <path d="${line("db")}" fill="none" stroke="var(--stamp)" stroke-width="1.8"/>
+    <path d="${line("wb")}" fill="none" stroke="var(--accent)" stroke-width="1.8"/>
+    <text x="${L+2}" y="${T+8}" font-size="8.5" fill="var(--stamp)" font-family="var(--font-m)">건구</text>
+    <text x="${L+26}" y="${T+8}" font-size="8.5" fill="var(--accent)" font-family="var(--font-m)">습구</text>`;
+}
+
+/* ── 습공기선도 ── */
+function drawPsy(){
+  const W = 340, H = 240, L = 30, R = 44, T = 12, B = 24;
+  const tMin = -15, tMax = 42, wMax = 0.030;
+  const x = t => L + (t - tMin) / (tMax - tMin) * (W - L - R);
+  const y = w => T + (1 - w / wMax) * (H - T - B);
+  const path = rh => {
+    let d = "";
+    for(let t = tMin; t <= tMax; t += 0.5){
+      const w = Math.min(Ws(t, P_KPA) * rh / 100, wMax);
+      d += `${d ? "L" : "M"}${x(t).toFixed(1)},${y(w).toFixed(1)}`;
+      if(w >= wMax) break;
+    }
+    return d;
+  };
+  let g = "";
+  for(let t = -10; t <= 40; t += 10)
+    g += `<line x1="${x(t)}" y1="${T}" x2="${x(t)}" y2="${H-B}" stroke="var(--rule)"/>
+          <text x="${x(t)}" y="${H-8}" font-size="8" fill="var(--ink-2)" text-anchor="middle" font-family="var(--font-m)">${t}℃</text>`;
+  for(let w = 0; w <= 0.030; w += 0.010)
+    g += `<line x1="${L}" y1="${y(w)}" x2="${W-R}" y2="${y(w)}" stroke="var(--rule)"/>
+          <text x="${W-R+4}" y="${y(w)+3.5}" font-size="8" fill="var(--ink-2)" font-family="var(--font-m)">${(w*1000).toFixed(0)}g</text>`;
+  [20,40,60,80].forEach(rh => g += `<path d="${path(rh)}" fill="none" stroke="var(--rule)" stroke-dasharray="3 3"/>`);
+  const room = psy(+$("#rdb").value, +$("#rrh").value, P_KPA);
+  const pt = (s, c, l) => `<circle cx="${x(s.t)}" cy="${y(s.W)}" r="4.5" fill="${c}"/>
+    <text x="${x(s.t)+7}" y="${y(s.W)-6}" font-size="9" fill="${c}" font-family="var(--font-m)">${l}</text>`;
+  $("#psy").innerHTML = `${g}
+    <path d="${path(100)}" fill="none" stroke="var(--ink)" stroke-width="2"/>
+    <text x="${x(31)}" y="${y(Ws(31,P_KPA))-6}" font-size="8.5" fill="var(--ink)" font-family="var(--font-m)">포화선 100%</text>
+    <line x1="${x(NOW.t)}" y1="${y(NOW.W)}" x2="${x(room.t)}" y2="${y(room.W)}" stroke="var(--accent)" stroke-width="1.3" stroke-dasharray="4 3"/>
+    ${pt(room,"var(--ink-2)","실내")}${pt(NOW,"var(--accent)","외기")}`;
+}
+
+/* ── 코일 부하 ── */
+function coil(){
+  const cmh = +$("#cmh").value;
+  const room = psy(+$("#rdb").value, +$("#rrh").value, P_KPA);
+  const m = cmh / 3600 / NOW.v;
+  const qT = m * (NOW.h - room.h);
+  const qS = m * 1.006 * (NOW.t - room.t);
+  const qL = qT - qS;
+  const shf = qT !== 0 ? qS / qT : 0;
+  const f = (x, n = 2) => x.toFixed(n);
+  $("#qT").innerHTML = f(qT) + '<span class="u">kW</span>';
+  $("#qS").innerHTML = f(qS) + '<span class="u">kW</span>';
+  $("#qL").innerHTML = f(qL) + '<span class="u">kW</span>';
+  $("#qF").textContent = qT > 0 ? f(shf) : "—";
+  $("#work").textContent =
+`외기  ${f(NOW.t,1)}℃ / ${f(NOW.rh,0)}%  →  W₁ = ${f(NOW.W*1000,2)} g/kg,  h₁ = ${f(NOW.h,2)} kJ/kg
+실내  ${f(room.t,1)}℃ / ${f(room.rh,0)}%  →  W₂ = ${f(room.W*1000,2)} g/kg,  h₂ = ${f(room.h,2)} kJ/kg
+
+질량유량  m = Q / (3600·v) = ${cmh} / (3600 × ${f(NOW.v,3)}) = ${f(m,4)} kg/s
+전열부하  q  = m(h₁ − h₂) = ${f(qT)} kW
+현열부하  qs = m·Cp(t₁ − t₂) = ${f(qS)} kW
+잠열부하  qL = q − qs = ${f(qL)} kW
+현열비    SHF = qs / q = ${qT > 0 ? f(shf) : "—"}
+
+${qT <= 0 ? "※ 외기 엔탈피가 실내보다 낮습니다 — 냉방이 아니라 외기냉방이 되는 조건입니다." : ""}`;
+}
+
+/* ══ 이벤트 ══ */
+$("#find").onclick = () => search($("#q").value);
+$("#q").addEventListener("keydown", e => { if(e.key === "Enter") search($("#q").value); });
+$("#here").onclick = () => {
+  if(!navigator.geolocation) return say("이 브라우저는 위치를 알려주지 않습니다.", "err");
+  say("위치를 확인하는 중…");
+  navigator.geolocation.getCurrentPosition(
+    p => { SPOT = { name:"현재 위치", lat:+p.coords.latitude.toFixed(4), lon:+p.coords.longitude.toFixed(4) };
+           localStorage.setItem("gichul:spot", JSON.stringify(SPOT)); load(); },
+    () => say("위치를 가져오지 못했습니다. 지명으로 검색해 주세요.", "err"),
+    { timeout: 8000 });
+};
+["chw","app"].forEach(id => $("#"+id).addEventListener("input", () => { if(NOW){ freeCooling(); drawDay(); } }));
+["cmh","rdb","rrh"].forEach(id => $("#"+id).addEventListener("input", () => { if(NOW){ coil(); drawPsy(); } }));
+
+load();
 </script>
 </body>
 </html>

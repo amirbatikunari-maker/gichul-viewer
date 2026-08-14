@@ -96,10 +96,10 @@ button.sm{font:600 12px/1 var(--font-d);padding:7px 11px;border-radius:8px}
   background:#FBE9E8;border:1.4px solid var(--stamp);border-radius:10px;color:var(--stamp);
   font-family:var(--font-m);font-size:12.5px;white-space:pre-wrap;line-height:1.6}
 #fatal b{display:block;font-family:var(--font-d);font-size:13px;margin-bottom:4px}
-.nav3{display:flex;gap:2px;padding:7px 10px;padding-top:calc(7px + env(safe-area-inset-top));
+.nav3{display:flex;gap:2px;padding:7px 8px;overflow-x:auto;padding-top:calc(7px + env(safe-area-inset-top));
   background:var(--ink);}
-.nav3 a{flex:1;text-align:center;padding:7px 6px;border-radius:8px;
-  font:600 11.5px/1 var(--font-d,"IBM Plex Sans KR",sans-serif);letter-spacing:.02em;
+.nav3 a{flex:1;text-align:center;padding:7px 5px;border-radius:8px;
+  font:600 11px/1 var(--font-d,"IBM Plex Sans KR",sans-serif);letter-spacing:.02em;
   color:color-mix(in srgb, var(--paper) 55%, transparent);text-decoration:none;
   transition:background .15s,color .15s;white-space:nowrap}
 .nav3 a.on{background:color-mix(in srgb, var(--paper) 15%, transparent);color:var(--paper)}
@@ -109,8 +109,10 @@ button.sm{font:600 12px/1 var(--font-d);padding:7px 11px;border-radius:8px}
 <body>
 <nav class="nav3">
   <a href="./index.html">뷰어</a>
-  <a href="./upload.html">업로더</a>
+  <a href="./upload.html">기계</a>
   <a href="./ingest.html" class="on">자동 변환</a>
+  <a href="./interview.html">면접</a>
+  <a href="./portfolio.html">포트폴리오</a>
 </nav>
 
 <div class="wrap">
