@@ -521,17 +521,17 @@ function drawImgList(){
 }
 
 /* ── 묶음 계획 ── */
-function plan(){
-  const total = SRC === "pdf" ? PAGES : IMAGES.length;
-  if(!total) return;
-  const from = Math.max(1, +$("#pFrom").value||1);
-  const to   = Math.min(total, +$("#pTo").value||total);
-  const size = +$("#chunk").value;
-  BATCHES = [];
-  for(let p = from; p <= to; p += size)
-    BATCHES.push({ from:p, to:Math.min(p+size-1, to), status:"", count:0, kind:SRC });
-  drawBatches(); stats();
+/* ── 파일 취소 기능 ── */
+function resetFileState(){
+  PDF = null; PDF_BYTES = null; IMAGES = []; BATCHES = [];
+  $("#file").value = ""; $("#fileImg").value = "";
+  $("#fileInfo")?.remove?.();
+  $("#cancelFile").style.display = "none";
+  $("#run").disabled = true;
+  $("#runImage").disabled = true;
+  log("파일 선택이 취소되었습니다.");
 }
+$("#cancelFile").onclick = resetFileState;
 ["pFrom","pTo","chunk"].forEach(id => $("#"+id).addEventListener("change", plan));
 
 function unit(){ return SRC === "pdf" ? "쪽" : "번"; }
