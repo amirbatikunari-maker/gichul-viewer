@@ -477,20 +477,12 @@ async function takeImages(files){
   if(!files.length) return;
   say($("#fm"), `${files.length}장 읽고 줄이는 중…`, "info");
   try{
-    // 중간 생략...
-    IMAGES = IMAGES.concat(added).sort(naturalSort);
-    drawImgList();
-    $("#pFrom").value = 1; $("#pTo").value = IMAGES.length;
-    
-    say($("#fm"), `총 ${IMAGES.length}장 읽었습니다.`, "ok");
-    $("#run").disabled = false;
-    
-    // ★ 이 줄을 추가해주세요 (취소 버튼 보이게 하기)
-    $("#cancelFile").style.display = "";
-    
-    plan();
-  }catch(e){
-        // 압축 실패(예: HEIC 등 브라우저가 못 여는 형식)하면 원본 그대로라도 넣는다
+    const added = [];
+    for(const f of files){
+      try{
+        const c = await compressImage(f);
+        added.push({ name:f.name, mime:c.mime, b64:c.b64, size:c.size, origSize:f.size });
+      }catch(e){
         const b64 = await fileToB64(f);
         added.push({ name:f.name, mime:f.type || "image/jpeg", b64, size:f.size });
       }
@@ -503,6 +495,10 @@ async function takeImages(files){
       : 0;
     say($("#fm"), `총 ${IMAGES.length}장${savedPct>0?` (용량 약 ${savedPct}% 줄임)`:""}. 순서가 이상하면 파일명 앞에 01, 02 처럼 번호를 붙여 다시 올려주세요.`, "ok");
     $("#run").disabled = false;
+    
+    // 취소 버튼 표시
+    $("#cancelFile").style.display = "";
+    
     plan();
   }catch(e){
     say($("#fm"), "사진을 읽지 못했습니다 — " + e.message, "err");
