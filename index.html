@@ -275,6 +275,27 @@ a{color:var(--accent);text-decoration:none}
 .itgrow{flex:1}
 .itsave{flex:none;font:500 10.5px/1 var(--font-m);color:var(--ink-2);white-space:nowrap;margin-left:6px}
 
+/* 펜 투명도 슬라이더 — 형광펜처럼 옅게, 또는 완전히 진하게 */
+.itopa{display:flex;align-items:center;gap:6px;flex:none;
+  padding:0 8px;height:30px;border-radius:8px;border:1.4px solid var(--rule)}
+.itopa label{font:600 10.5px/1 var(--font-d);color:var(--ink-2);white-space:nowrap;margin:0}
+.itopa input[type=range]{width:74px;accent-color:var(--accent);margin:0}
+.itopa .val{font:500 10.5px/1 var(--font-m);color:var(--ink-2);width:30px;text-align:right}
+
+/* ══ F9 가림막 — 누르면 화면이 즉시 흰색으로 덮인다 ══════════
+   자리를 비울 때 어깨너머로 보이지 않게 하는 용도.
+   아무 키나 누르거나 화면을 누르면 원래대로 돌아온다. */
+#blank{
+  position:fixed;inset:0;z-index:9999;display:none;
+  background:#fff;
+}
+#blank.on{display:block}
+#blank .tip{
+  position:absolute;left:50%;bottom:22px;transform:translateX(-50%);
+  font:500 11px/1 var(--font-m);color:#D8D8D8;letter-spacing:.04em;user-select:none;
+}
+html[data-theme="dark"] #blank{background:#fff}
+
 /* ── 로그인 팝오버(필기용) ── */
 .inkauth{position:relative}
 .inkpop{display:none;position:absolute;right:0;top:calc(100% + 8px);z-index:70;width:250px;
@@ -510,6 +531,9 @@ html[data-theme="dark"] mark.hl{background:color-mix(in srgb,#FDE047 24%,transpa
   <button id="hlAdd" type="button"><span class="sw"></span>형광펜</button>
   <button id="hlDel" class="del" type="button" hidden>지우기</button>
 </div>
+
+<!-- ══ F9 가림막 — 자리 비울 때 화면을 즉시 흰색으로 덮는다 ══ -->
+<div id="blank"><div class="tip">아무 키나 누르거나 화면을 누르면 돌아옵니다</div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
@@ -779,7 +803,8 @@ function setupZoom(zoomwrap, zoomstage){
 
 function setupInkPage(qid, wrap, page, canvas, tools, onEditingChange, zoomCtl){
   const ctx = canvas.getContext("2d");
-  const state = { tool:"pen", color:PALETTE[0], hiColor:HI_PALETTE[0], editing:false, drawing:false, cur:null };
+  const state = { tool:"pen", color:PALETTE[0], hiColor:HI_PALETTE[0], editing:false, drawing:false, cur:null,
+                  opa:{ pen:1, hi:1, ul:1 } };   // 도구별 진하기(0~1) — 각각 따로 기억한다
 
   function factor(){ return wrap.clientWidth / PAGE_W; }
 
@@ -797,9 +822,13 @@ function setupInkPage(qid, wrap, page, canvas, tools, onEditingChange, zoomCtl){
   new ResizeObserver(resize).observe(page);
 
   function strokeStyle(s){
-    if(s.tool === "hi") return { alpha:0.42, w:s.w||22, cap:"square" };
-    if(s.tool === "ul") return { alpha:1, w:s.w||3, cap:"round" };
-    return { alpha:1, w:s.w||2.4, cap:"round" };
+    /* 획마다 저장된 진하기(opa, 0~1)가 있으면 그것을 쓴다.
+       예전에 저장한 획에는 이 값이 없으므로, 그때의 기본값을 그대로 적용해 그림이 바뀌지 않게 한다. */
+    const base = s.tool === "hi" ? 0.42 : 1;
+    const alpha = (s.opa != null ? s.opa : 1) * base;
+    if(s.tool === "hi") return { alpha, w:s.w||22, cap:"square" };
+    if(s.tool === "ul") return { alpha, w:s.w||3,  cap:"round" };
+    return { alpha, w:s.w||2.4, cap:"round" };
   }
   function redraw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -867,7 +896,8 @@ function setupInkPage(qid, wrap, page, canvas, tools, onEditingChange, zoomCtl){
     if(state.tool === "er"){ state.drawing = true; eraseNear(...toVirtual(ev).slice(0,2)); return; }
     state.drawing = true;
     const col = state.tool === "hi" ? state.hiColor : state.color;
-    state.cur = { tool: state.tool, color: col, w: strokeStyle({tool:state.tool}).w, pts:[toVirtual(ev)] };
+    state.cur = { tool: state.tool, color: col, w: strokeStyle({tool:state.tool}).w,
+                  opa: state.opa[state.tool] ?? 1, pts:[toVirtual(ev)] };
     armHold();
   });
   canvas.addEventListener("pointermove", ev=>{
@@ -926,9 +956,29 @@ function setupInkPage(qid, wrap, page, canvas, tools, onEditingChange, zoomCtl){
     clearHold();
     if(state.drawing){ state.drawing = false; state.cur = null; straight = false; redraw(); }
     syncPointer();
+    syncOpa();
   }
   tools.querySelectorAll("[data-tool]").forEach(b=>{
     b.onclick = ()=> setTool(b.dataset.tool);
+  });
+
+  /* 진하기 슬라이더 — 도구별로 값을 따로 기억하고, 도구를 바꾸면 그 도구의 값을 다시 보여준다.
+     이미 그린 획은 건드리지 않는다(획마다 그릴 때의 진하기가 저장돼 있다). */
+  const opaEl = tools.querySelector("[data-opa]");
+  const opaVal = tools.querySelector("[data-opaval]");
+  function syncOpa(){
+    if(!opaEl) return;
+    const t = (state.tool === "er") ? "pen" : state.tool;   // 지우개엔 진하기가 없다
+    const v = Math.round((state.opa[t] ?? 1) * 100);
+    opaEl.value = v;
+    if(opaVal) opaVal.textContent = v + "%";
+    opaEl.disabled = state.tool === "er";
+    tools.querySelector(".itopa")?.style.setProperty("opacity", state.tool === "er" ? ".45" : "1");
+  }
+  opaEl?.addEventListener("input", ()=>{
+    const t = (state.tool === "er") ? "pen" : state.tool;
+    state.opa[t] = (+opaEl.value) / 100;
+    if(opaVal) opaVal.textContent = opaEl.value + "%";
   });
   tools.querySelectorAll("[data-color]").forEach(b=>{
     b.style.background = b.dataset.color;
@@ -946,15 +996,19 @@ function setupInkPage(qid, wrap, page, canvas, tools, onEditingChange, zoomCtl){
   };
   tools.querySelector("[data-close]").onclick = ()=> setEditing(false);
 
-  function setEditing(on){
+  /* silent=true 면 바깥에 알리지 않는다.
+     처음 만들 때의 setEditing(false) 까지 바깥에 전해지면, "필기가 없으면 원래 카드로 되돌리기"가
+     곧바로 발동해서 방금 만든 필기 페이지를 도로 부숴버린다. 초기화는 조용히 지나가야 한다. */
+  function setEditing(on, silent){
     state.editing = on && S.loggedIn;
     tools.style.display = state.editing ? "flex" : "none";
     wrap.closest(".slide")?.classList.toggle("ink-editing", state.editing);
     if(!state.editing) zoomCtl?.setPan(false);
     syncPointer();
-    onEditingChange?.(state.editing);
+    if(!silent) onEditingChange?.(state.editing);
   }
-  setEditing(false);
+  setEditing(false, true);
+  syncOpa();
   resize();
 
   return { setEditing, setTool, redraw, resize, get editing(){ return state.editing; } };
@@ -976,6 +1030,12 @@ function inkToolsHTML(){
       ${PALETTE.map((c,i)=>`<button class="itcolor ${i===0?'on':''}" data-color="${c}" data-kind="pen"></button>`).join("")}
       <span class="itsep"></span>
       ${HI_PALETTE.map((c,i)=>`<button class="itcolor ${i===0?'on':''}" data-color="${c}" data-kind="hi"></button>`).join("")}
+      <span class="itsep"></span>
+      <span class="itopa" title="지금 고른 도구의 진하기">
+        <label>진하기</label>
+        <input type="range" data-opa min="10" max="100" step="5" value="100">
+        <span class="val" data-opaval>100%</span>
+      </span>
       <span class="itsep"></span>
       <button class="itbtn" data-undo>되돌리기</button>
       <button class="itbtn" data-clear>전체지우기</button>
@@ -1436,7 +1496,11 @@ function onInkClick(q, body, i){
   if(!S.loggedIn){ $("#inkPop").classList.add("on"); return; }
   const qinkBtn = body.querySelector(".qink");
   /* 이미 필기 중이면 같은 버튼으로 빠져나온다 — 도구모음의 "닫기"를 못 찾아도 갇히지 않게 */
-  if(body.__ink && body.__ink.editing){ body.__ink.setEditing(false); return; }
+  if(body.__ink && body.__ink.editing){
+    body.__ink.setEditing(false);
+    maybeRestoreCard(q, body, i);
+    return;
+  }
   if(!body.__ink){
     const oldZoomwrap = body.querySelector(".zoomwrap");
     const inner = oldZoomwrap.querySelector(".qcard").outerHTML +
@@ -1456,12 +1520,31 @@ function onInkClick(q, body, i){
     wireCard(page, body.closest(".slide"));
     body.__zoom = setupZoom(zoomwrap, zoomstage);
     body.__ink = setupInkPage(q.id, wrap, page, canvas, tools,
-                              editing => qinkBtn.classList.toggle("on", editing), body.__zoom);
+                              editing => {
+                                body.__inkEditing = editing;
+                                qinkBtn.classList.toggle("on", editing);
+                                /* 도구모음의 "닫기"로 빠져나온 경우에도 원래 카드로 되돌린다 */
+                                if(!editing) setTimeout(()=> maybeRestoreCard(q, body, i), 0);
+                              }, body.__zoom);
     tex(page);
     hlApply(page);
-    requestAnimationFrame(()=> body.__ink.resize());
+    requestAnimationFrame(()=> body.__ink?.resize?.());
   }
   body.__ink.setEditing(true);
+}
+
+/* 필기를 닫았는데 그린 획이 하나도 없으면, 문항을 원래의 반응형 카드로 되돌린다.
+   필기 모드는 잉크와 글자를 맞추려고 고정폭(400px) 가상 페이지를 쓰는데, 이 구조가 그대로
+   남아 있으면 넓은 화면에서 한 단으로 굳어 좌우 2단 배치가 먹지 않기 때문이다.
+   획이 하나라도 있으면 좌표를 지켜야 하므로 가상 페이지를 유지한다. */
+function maybeRestoreCard(q, body, i){
+  if(body.__ink?.editing) return;             // 아직 필기 중이면 손대지 않는다
+  const strokes = S.anno[q.id]?.strokes;
+  if(strokes && strokes.length) return;      // 필기가 있으면 그대로 둔다
+  if(!body.querySelector(".inkpage")) return; // 이미 일반 카드면 할 일 없음
+  delete body.__ink; delete body.__zoom; body.__inkEditing = false;
+  body.dataset.h = "0";
+  hydrate(i);
 }
 
 /* 근처 문항만 실제로 그린다 (60문항 한 번에 안 그림) */
@@ -1512,10 +1595,15 @@ function hydrate(i){
     const qinkBtn = body.querySelector(".qink");
     wireCard(page, slide);
     body.__ink = setupInkPage(q.id, wrap, page, canvas, tools,
-                              editing => qinkBtn.classList.toggle("on", editing), body.__zoom);
+                              editing => {
+                                body.__inkEditing = editing;
+                                qinkBtn.classList.toggle("on", editing);
+                                /* 도구모음의 "닫기"로 빠져나온 경우에도 원래 카드로 되돌린다 */
+                                if(!editing) setTimeout(()=> maybeRestoreCard(q, body, i), 0);
+                              }, body.__zoom);
     tex(page);
     hlApply(page);
-    requestAnimationFrame(()=> body.__ink.resize());
+    requestAnimationFrame(()=> body.__ink?.resize?.());
   }else{
     wireCard(zoomstage, slide);
     tex(zoomstage);
@@ -1599,6 +1687,23 @@ $("#layoutBtn").onclick = ()=>{
   LS.set("layout", S.layout);
   applyLayout();
 };
+
+/* ── F9 가림막 ──
+   화면 전체를 흰색으로 덮는다. 어느 화면에서든(과목·회차·문항) 동작하고,
+   덮인 동안에는 어떤 조작도 아래로 통과하지 않는다.
+   아무 키·클릭·터치로 해제. 자리를 비울 때 어깨너머 시선을 막는 용도. */
+const blankEl = $("#blank");
+function setBlank(on){
+  blankEl.classList.toggle("on", on);
+  if(on) blankEl.focus?.();
+}
+const blankOn = () => blankEl.classList.contains("on");
+addEventListener("keydown", e=>{
+  if(e.key === "F9"){ e.preventDefault(); setBlank(!blankOn()); return; }
+  if(blankOn()){ e.preventDefault(); e.stopPropagation(); setBlank(false); }
+}, true);   // capture 단계 — 다른 단축키보다 먼저 가로챈다
+["pointerdown","wheel","touchstart"].forEach(ev =>
+  blankEl.addEventListener(ev, e=>{ e.preventDefault(); setBlank(false); }, {passive:false}));
 
 /* ── 키보드 ── */
 addEventListener("keydown",e=>{

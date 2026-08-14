@@ -186,6 +186,13 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
         <option value="answer">정답만 표시돼 있음</option>
       </select>
 
+      <div class="check" style="margin-top:14px"><input type="checkbox" id="hasAnswerTable">
+        <span>정답이 문제와 따로, 표로 몰려 있어요(보통 맨 뒷장) <span style="color:var(--ink-2)">— 예: "1 2 3 4 … / ②④①④…" 처럼 번호·정답이 줄지어 있는 표. 위치를 알려주시면 따로 뽑아서 문항 번호에 맞춰 붙여넣습니다</span></span></div>
+      <div class="grid" id="atRange" style="display:none;margin-top:10px">
+        <div><label id="atFromLabel">정답표 시작 페이지</label><input id="atFrom" type="number" min="1"></div>
+        <div><label id="atToLabel">정답표 끝 페이지</label><input id="atTo" type="number" min="1"></div>
+      </div>
+
       <div class="check" style="margin-top:14px"><input type="checkbox" id="autoUp" checked>
         <span>묶음이 끝날 때마다 곧바로 Supabase에 올리기 <span style="color:var(--ink-2)">— 도중에 창이 닫혀도 그때까지 한 건 남습니다</span></span></div>
       
@@ -378,15 +385,15 @@ function setSource(src){
   if(src === "pdf"){
     $("#fromLabel").textContent = "시작 페이지";
     $("#toLabel").textContent = "끝 페이지";
-    $("#chunkLabel").textContent = "한 번에 보낼 페이지";
-    $("#atFromLabel").textContent = "정답표 시작 페이지";
-    $("#atToLabel").textContent = "정답표 끝 페이지";
+    if($("#chunkLabel")) $("#chunkLabel").textContent = "한 번에 보낼 페이지";
+    if($("#atFromLabel")) $("#atFromLabel").textContent = "정답표 시작 페이지";
+    if($("#atToLabel")) $("#atToLabel").textContent = "정답표 끝 페이지";
   }else{
     $("#fromLabel").textContent = "시작 번호";
     $("#toLabel").textContent = "끝 번호";
-    $("#chunkLabel").textContent = "한 번에 보낼 장수";
-    $("#atFromLabel").textContent = "정답표 시작 번호";
-    $("#atToLabel").textContent = "정답표 끝 번호";
+    if($("#chunkLabel")) $("#chunkLabel").textContent = "한 번에 보낼 장수";
+    if($("#atFromLabel")) $("#atFromLabel").textContent = "정답표 시작 번호";
+    if($("#atToLabel")) $("#atToLabel").textContent = "정답표 끝 번호";
   }
   $("#fm").className = "msg";
   $("#run").disabled = src === "pdf" ? !PDF : !IMAGES.length;
@@ -394,8 +401,8 @@ function setSource(src){
   if(src === "pdf" && PDF) plan(); else if(src === "images" && IMAGES.length) plan();
 }
 document.querySelectorAll(".srctab").forEach(t => t.onclick = () => setSource(t.dataset.src));
-$("#hasAnswerTable").addEventListener("change", e => {
-  $("#atRange").style.display = e.target.checked ? "grid" : "none";
+$("#hasAnswerTable")?.addEventListener("change", e => {
+  const r = $("#atRange"); if(r) r.style.display = e.target.checked ? "grid" : "none";
 });
 
 /* ── PDF 받기 ── */
@@ -526,13 +533,13 @@ function plan(){
   if(!total) return;
   const from = Math.max(1, +$("#pFrom").value||1);
   const to   = Math.min(total, +$("#pTo").value||total);
-  const size = +$("#chunk").value;
+  const size = +($("#chunk")?.value || 1);   // 선택칸을 없앴으므로 기본은 1장(쪽)씩
   BATCHES = [];
   for(let p = from; p <= to; p += size)
     BATCHES.push({ from:p, to:Math.min(p+size-1, to), status:"", count:0, kind:SRC });
   drawBatches(); stats();
 }
-["pFrom","pTo","chunk"].forEach(id => $("#"+id).addEventListener("change", plan));
+["pFrom","pTo","chunk"].forEach(id => $("#"+id)?.addEventListener("change", plan));
 
 function unit(){ return SRC === "pdf" ? "쪽" : "번"; }
 function drawBatches(){
@@ -563,7 +570,7 @@ function buildPrompt(from, to, asImage){
     ? "이 자료에는 정답만 표시돼 있고 해설은 없다. 표시된 정답을 answer 에 넣고, 해설은 네가 직접 작성해라."
     : "이 자료에는 해설이 없다. 정답을 네가 판단해서 answer 에 넣되 확신이 없으면 null 로 두고, 해설 안에 근거를 밝혀라.";
 
-    const svg = $("#svgOn").checked
+    const svg = $("#svgOn")?.checked
     ? `\n[예외] 계통도, 수전설비 단선도, 습공기선도 등 복잡한 그래픽이 반드시 필요한 문항에 한해서만 "explanation_md" 대신 "explanation_html" 에 인라인 <svg> 를 포함한 HTML 을 넣어라. 일반적인 표나 간단한 그림에는 절대 SVG를 쓰지 마라(속도 저하의 주원인). <svg> 에는 width/height 를 px 숫자로 명시하고, 화살표는 <defs><marker> 로 정의하고, SVG 안 글자는 <text> 로 쓰고 LaTeX 를 쓰지 마라. 외부 이미지·스크립트는 금지. 그 외 문항에는 explanation_html 을 넣지 마라.`
     : "";
 
@@ -648,7 +655,7 @@ async function callWorker(parts, promptText, from, to, maxTokens){
     const ac = new AbortController();
     
     // ★ 추가: 화면의 SVG 체크박스가 켜져 있는지 확인
-    const isSvgOn = $("#svgOn").checked;
+    const isSvgOn = !!$("#svgOn")?.checked;
     
     // ★ 수정: SVG가 켜져 있으면 300초(5분), 꺼져 있으면 90초로 엄청 넉넉하게 잡습니다.
     const timeoutMs = isSvgOn ? 300000 : 90000;
@@ -846,7 +853,7 @@ function merge(list){
    맨 뒷장 같은 데 몰려있는 "1 2 3 4 / ②④①④" 식 정답표를 별도로 한 번 읽어서
    ANSWER_KEY 에 채워두고, 이미 모아둔 문항에도 즉시 소급 적용한다. */
 async function extractAnswerKey(){
-  if(!$("#hasAnswerTable").checked) return;
+  if(!$("#hasAnswerTable")?.checked) return;
   const from = +$("#atFrom").value, to = +$("#atTo").value;
   if(!from || !to){ log("정답표 페이지 범위를 입력해 주세요.", "e"); return; }
   log(`정답표(${from}–${to}${unit()}) 따로 뽑는 중…`);
@@ -987,7 +994,7 @@ async function go(only, forceImage){
 
   if(FORCE_IMAGE_MODE){
     log("이미지 변환 모드 — 각 쪽을 사진(JPEG)으로 바꿔서 보냅니다.", "info");
-    if(+$("#chunk").value > 3)
+    if(+($("#chunk")?.value || 1) > 3)
       log("사진은 용량이 큽니다. 전송이 자꾸 끊기면 \"한 번에 보낼 페이지\"를 2~3쪽으로 줄여보세요.", "info");
   }else{
     log("PDF 그대로 보냅니다. 0문항으로 나오는 쪽이 많으면 \"이미지로 변환해 추출\"을 써보세요.", "info");
