@@ -149,7 +149,6 @@ a{color:var(--accent);text-decoration:none}
 
 /* ── 스와이프 트랙 ───────────────────────────── */
 .track{
-  position: relative; /* 이 줄을 추가합니다 */
   display:flex;overflow-x:auto;overflow-y:hidden;
   scroll-snap-type:x mandatory;scrollbar-width:none;
   height:calc(100dvh - var(--head) - var(--rail) - env(safe-area-inset-top));
@@ -163,55 +162,60 @@ a{color:var(--accent);text-decoration:none}
 }
 .sheet-body{max-width:760px;margin:0 auto}
 
-
-/* ══ 레이아웃 전환 (자동 / 가로 / 세로) ══════════════
-   가로 스크롤은 .q-layout 안쪽에서만 일어나게 한다.
-   .track 의 스크롤 스냅을 건드리면 문항 넘기기(스와이프)가 죽는다. */
-.q-layout{display:flex;flex-direction:column;gap:14px}
-.q-layout .answer{margin-top:0}
-.q-layout > .qcard,.q-layout > .answer{min-width:0}
-
-/* [1] 자동 — 화면이 넓으면 좌우, 좁으면 위아래 */
-@media (min-width:900px){
-  body[data-layout="auto"] .sheet-body{max-width:1240px}
-  body[data-layout="auto"] .q-layout{flex-direction:row;align-items:flex-start}
-  body[data-layout="auto"] .q-layout > .qcard{flex:0 0 44%;position:sticky;top:0}
-  body[data-layout="auto"] .q-layout > .answer{flex:1}
-}
-
-/* [2] 세로 — 무조건 위아래 */
-body[data-layout="col"] .sheet-body{max-width:760px}
-body[data-layout="col"] .q-layout{flex-direction:column}
-
-/* [3] 가로 — 좁아도 좌우로 쪼갠다. 폭이 모자라면 이 안에서만 가로 스크롤 */
-body[data-layout="row"] .sheet-body{max-width:1240px}
-body[data-layout="row"] .q-layout{
-  flex-direction:row;align-items:flex-start;
-  overflow-x:auto;overscroll-behavior-x:contain;
-  -webkit-overflow-scrolling:touch;padding-bottom:6px;
-}
-body[data-layout="row"] .q-layout > .qcard{flex:0 0 min(48%,420px);min-width:290px}
-body[data-layout="row"] .q-layout > .answer{flex:0 0 min(60%,620px);min-width:300px}
-@media (min-width:900px){
-  body[data-layout="row"] .q-layout{overflow-x:visible}
-  body[data-layout="row"] .q-layout > .qcard{flex:0 0 44%;position:sticky;top:0}
-  body[data-layout="row"] .q-layout > .answer{flex:1}
-}
-
-/* 가림판이 내려와 있으면 해설 칸이 비어 폭만 차지한다 → 그때는 위아래로 */
-.veiled .q-layout{flex-direction:column !important;overflow-x:visible !important}
-.veiled .q-layout > .qcard{flex:1 1 auto !important;position:static !important}
-.veiled .q-layout > .answer{flex:1 1 auto !important}
-.slide.peek .q-layout{flex-direction:inherit}
-
-/* 상단 버튼이 셋이면 좁은 화면에서 넘친다 → 글자 줄이기 */
-@media (max-width:420px){
-  .toggle span{font-size:11px}
-  #layoutTxt{display:none}
-}
-
 /* ── 문항 헤더 ───────────────────────────────── */
 .qhead{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+
+/* ══ 필기 ═══════════════════════════════════════════════ */
+.qink{width:32px;height:32px;flex:none;display:grid;place-items:center;border-radius:9px;color:var(--ink-2)}
+.qink svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.qink.has{color:var(--accent)}
+.qink.on{background:var(--accent);color:#fff}
+
+/* 고정폭 가상 페이지: 여기 안에서는 절대 다시 줄바꿈되지 않는다.
+   폭이 바뀌면(회전 등) 이 블록 통째로 scale() 되므로 글자와 잉크가 항상 같이 움직인다 */
+.inkwrap{position:relative;overflow:hidden;border-radius:var(--r);box-shadow:var(--shadow);
+         background:var(--card);border:1px solid var(--rule)}
+
+/* ══ 두 손가락 핀치 확대 ═══════════════════════════════════
+   zoomstage 를 CSS zoom 으로 키운다(transform 이 아니라 zoom).
+   zoom 은 실제 레이아웃 크기를 바꾸므로, 안쪽의 필기 캔버스가
+   쓰는 auto-fit 배율(factor = 부모폭/400) 도 자동으로 같이 커진다 —
+   그래서 확대해도 글자와 잉크가 같은 비율로 같이 커진다. */
+.zoomwrap{position:relative;overflow:hidden;touch-action:pan-y}
+.zoomstage{transform-origin:0 0;will-change:transform}
+.zoomreset{display:none;position:absolute;top:8px;right:8px;z-index:25;
+  padding:6px 11px;border-radius:999px;background:var(--ink);color:var(--paper);
+  font:600 11px/1 var(--font-m);box-shadow:var(--shadow);letter-spacing:.02em}
+.zoomwrap.zoomed .zoomreset{display:block}
+.inkpage{width:400px;transform-origin:top left;position:relative;padding:16px}
+.inkpage .qhead{padding:0}
+.inkcanvas{position:absolute;inset:0;width:400px;touch-action:none;transform-origin:top left}
+.inkcanvas.edit{cursor:crosshair}
+
+.inktools{display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:8px 10px;
+  border-bottom:1px solid var(--rule);background:color-mix(in srgb,var(--card) 92%,var(--paper))}
+.itbtn{flex:none;height:30px;padding:0 9px;border-radius:8px;border:1.4px solid var(--rule);
+  font:600 11.5px/1 var(--font-d);color:var(--ink-2);display:flex;align-items:center;gap:5px}
+.itbtn.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.itbtn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.itsep{width:1px;align-self:stretch;background:var(--rule);margin:0 2px}
+.itcolor{width:22px;height:22px;border-radius:50%;border:2px solid transparent;flex:none}
+.itcolor.on{border-color:var(--ink)}
+.itgrow{flex:1}
+.itsave{font:500 10.5px/1 var(--font-m);color:var(--ink-2);white-space:nowrap}
+
+/* ── 로그인 팝오버(필기용) ── */
+.inkauth{position:relative}
+.inkpop{display:none;position:absolute;right:0;top:calc(100% + 8px);z-index:70;width:250px;
+  background:var(--card);border:1px solid var(--rule);border-radius:12px;box-shadow:var(--shadow);padding:14px}
+.inkpop.on{display:block}
+.inkpop input{width:100%;padding:9px 10px;border:1.4px solid var(--rule);border-radius:8px;
+  background:var(--paper);color:var(--ink);font:inherit;font-size:13px;margin-bottom:7px}
+.inkpop button{width:100%;padding:9px;border:0;border-radius:8px;background:var(--ink);
+  color:var(--paper);font:600 13px/1 var(--font-d)}
+.inkpop .hint{font-size:11px;color:var(--ink-2);margin-top:8px;line-height:1.5}
+.inkpop .err{font-size:11.5px;color:var(--stamp);margin-top:6px}
+
 .qno{font:600 13px/1 var(--font-m);color:var(--paper);background:var(--ink);
      padding:6px 9px;border-radius:7px;letter-spacing:.02em}
 .qsum{flex:1;font-size:12px;color:var(--ink-2);font-weight:500;min-width:0;
@@ -333,7 +337,7 @@ html[data-theme="dark"] .sheet-host img{filter:invert(1) hue-rotate(180deg)}
 <nav class="nav3">
   <a href="./index.html" class="on">뷰어</a>
   <a href="./upload.html">업로더</a>
-  <a href="./ingest.html">PDF 변환</a>
+  <a href="./ingest.html">자동 변환</a>
 </nav>
 
 
@@ -350,13 +354,27 @@ html[data-theme="dark"] .sheet-host img{filter:invert(1) hue-rotate(180deg)}
     <svg viewBox="0 0 24 24" id="veilIcon"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
     <span id="veilTxt">해설 보임</span>
   </button>
-  <button class="toggle" id="layoutBtn" hidden aria-label="화면 배치 전환">
-    <svg viewBox="0 0 24 24" id="layoutIcon"></svg>
-    <span id="layoutTxt">자동</span>
-  </button>
   <button class="icon" id="theme" aria-label="화면 밝기 전환">
     <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
   </button>
+  <div class="inkauth">
+    <button class="icon" id="inkAuthBtn" aria-label="필기 로그인">
+      <svg viewBox="0 0 24 24"><path d="M12 12a4.5 4.5 0 100-9 4.5 4.5 0 000 9z"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+    </button>
+    <div class="inkpop" id="inkPop">
+      <div id="inkPopIn">
+        <input id="inkEm" type="email" placeholder="이메일" autocomplete="username">
+        <input id="inkPw" type="password" placeholder="비밀번호" autocomplete="current-password">
+        <button id="inkLoginBtn">로그인</button>
+        <div class="hint">로그인하면 문항에 펜·형광펜·밑줄로 필기할 수 있습니다.</div>
+        <div class="err" id="inkErr"></div>
+      </div>
+      <div id="inkPopOut" hidden>
+        <div class="hint" style="margin-top:0">필기 가능한 상태입니다.</div>
+        <button id="inkLogoutBtn" style="margin-top:8px;background:transparent;border:1.4px solid var(--rule);color:var(--ink)">로그아웃</button>
+      </div>
+    </div>
+  </div>
 </header>
 
 <!-- ══ 1. 과목 ══ -->
@@ -400,12 +418,365 @@ const LS = {
 };
 let S = {
   subjects:[], exams:[], questions:[], exam:null, subject:null,
-  idx:0, veil:LS.get("veil",false), stars:LS.get("stars",{}), seen:LS.get("seen",{})
+  idx:0, veil:LS.get("veil",false), stars:LS.get("stars",{}), seen:LS.get("seen",{}),
+  loggedIn:false, anno:{}   // anno[question_id] = {strokes, page_width}
 };
 
 const $  = s=>document.querySelector(s);
 const $$ = s=>[...document.querySelectorAll(s)];
 const esc = s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ═══════════════════════════════════════════════
+   필기 — 로그인
+   ═══════════════════════════════════════════════ */
+async function inkRefresh(){
+  if(!sb) return;
+  const {data} = await sb.auth.getSession();
+  S.loggedIn = !!data.session;
+  $("#inkPopIn").hidden = S.loggedIn;
+  $("#inkPopOut").hidden = !S.loggedIn;
+  $("#inkAuthBtn").classList.toggle("on", S.loggedIn);
+  $$(".qink").forEach(b => b.classList.toggle("loggedin", S.loggedIn));
+}
+$("#inkAuthBtn")?.addEventListener("click", ()=> $("#inkPop").classList.toggle("on"));
+document.addEventListener("click", e=>{
+  if(!e.target.closest(".inkauth")) $("#inkPop")?.classList.remove("on");
+});
+$("#inkLoginBtn")?.addEventListener("click", async ()=>{
+  if(!sb) return;
+  const {error} = await sb.auth.signInWithPassword({email:$("#inkEm").value.trim(), password:$("#inkPw").value});
+  if(error){ $("#inkErr").textContent = "로그인 실패 — " + error.message; return; }
+  $("#inkErr").textContent = "";
+  await inkRefresh();
+});
+$("#inkLogoutBtn")?.addEventListener("click", async ()=>{ if(sb){ await sb.auth.signOut(); await inkRefresh(); } });
+
+/* ═══════════════════════════════════════════════
+   필기 — 저장/불러오기
+   문항이 로드될 때 이 회차의 필기를 한 번에 가져온다 (문항마다 따로 요청하지 않음)
+   ═══════════════════════════════════════════════ */
+async function loadAnnotations(questionIds){
+  if(!sb || !questionIds.length) return;
+  const {data} = await sb.from("annotations").select("question_id,strokes,page_width").in("question_id", questionIds);
+  (data||[]).forEach(r => S.anno[r.question_id] = {strokes:r.strokes||[], page_width:r.page_width||400});
+}
+const saveTimers = {};
+function saveAnnotation(qid){
+  clearTimeout(saveTimers[qid]);
+  saveTimers[qid] = setTimeout(async ()=>{
+    if(!sb) return;
+    const a = S.anno[qid]; if(!a) return;
+    const el = document.querySelector(`.inkpage[data-qid="${qid}"] .itsave`);
+    if(el) el.textContent = "저장 중…";
+    const {error} = await sb.from("annotations").upsert(
+      { question_id: qid, strokes: a.strokes, page_width: a.page_width },
+      { onConflict: "question_id" }
+    );
+    if(el) el.textContent = error ? "저장 실패" : "저장됨";
+  }, 700);
+}
+
+/* ═══════════════════════════════════════════════
+   필기 — 그리기 엔진
+   좌표는 항상 "가상 페이지(400px 고정폭)" 안의 픽셀 단위로 저장한다.
+   화면 폭이 바뀌면 이 페이지 전체를 scale() 로 키우고 줄일 뿐,
+   글자는 절대 다시 줄바꿈되지 않으므로 잉크가 글자와 어긋나지 않는다.
+   ═══════════════════════════════════════════════ */
+const PAGE_W = 400;
+const PALETTE = ["#E0342B","#1D4ED8","#10233D","#0EA05A"];
+const HI_PALETTE = ["#FDE047","#86EFAC","#93C5FD","#FCA5A5"];
+
+/* ── 두 손가락 핀치 확대/축소 (문항+해설 영역 공통, 필기 있든 없든) ──
+   여기서는 브라우저의 zoom 속성을 쓰지 않는다. zoom 은 실제 레이아웃 크기까지
+   바꿔서 필기가 쓰는 auto-fit 배율 계산과 두 번 겹쳐 계산될 위험이 있다.
+   대신 순수 transform: translate() scale() 만 쓴다 — 이건 화면에 그려지는
+   방식만 바꿀 뿐 실제 크기(clientWidth 등)는 안 바꾸므로, 안쪽의 필기 auto-fit
+   로직과 서로 간섭하지 않는다. (getBoundingClientRect 는 이 변환들을 전부
+   합쳐서 알려주므로, 펜 좌표 계산은 확대 배율에 관계없이 항상 정확하다.)
+
+   손가락 개수로 완전히 딱 나눈다 — 예외 없음:
+   · 손가락 둘 → 오직 확대/축소만.
+   · 손가락 하나 → 오직 좌우 넘기기만. 확대된 상태여도 마찬가지.
+     (확대해서 화면 밖으로 나간 부분을 보고 싶으면 손가락 둘로 다시 위치를 잡아 핀치하거나,
+      더블탭/리셋 버튼으로 1배로 돌아온 뒤 다시 필요한 곳을 확대하면 된다) */
+function setupZoom(zoomwrap, zoomstage){
+  const pts = new Map();
+  let zoom = 1, tx = 0, ty = 0;
+  let startDist = 0, startZoom = 1, startMid = {x:0,y:0}, startTx = 0, startTy = 0;
+  let lastTap = 0, dragStart = null;
+  const resetBtn = zoomwrap.querySelector(".zoomreset");
+
+  function apply(){
+    zoomstage.style.transform = `translate(${tx}px,${ty}px) scale(${zoom})`;
+    zoomwrap.classList.toggle("zoomed", zoom > 1.02);
+  }
+  function clamp(){
+    const ww = zoomwrap.clientWidth, wh = zoomwrap.clientHeight;
+    const sw = zoomstage.offsetWidth * zoom, sh = zoomstage.offsetHeight * zoom;
+    const minTx = Math.min(0, ww - sw), maxTx = Math.max(0, ww - sw);
+    const minTy = Math.min(0, wh - sh), maxTy = Math.max(0, wh - sh);
+    tx = sw <= ww ? (ww - sw) / 2 : Math.min(maxTx, Math.max(minTx, tx));
+    ty = sh <= wh ? Math.min(0, ty) : Math.min(maxTy, Math.max(minTy, ty));
+  }
+  function zoomAt(nz, ax, ay){
+    nz = Math.min(3, Math.max(1, nz));
+    const rect = zoomwrap.getBoundingClientRect();
+    const px = (ax - rect.left - tx) / zoom;
+    const py = (ay - rect.top  - ty) / zoom;
+    zoom = nz;
+    tx = ax - rect.left - px*zoom;
+    ty = ay - rect.top  - py*zoom;
+    clamp(); apply();
+  }
+  function resetZoom(){ zoom = 1; tx = 0; ty = 0; apply(); zoomwrap.classList.remove("zoomed"); }
+
+  const track = $("#track");
+  zoomwrap.addEventListener("pointerdown", ev=>{
+    pts.set(ev.pointerId, {x:ev.clientX, y:ev.clientY});
+    if(pts.size === 1){ dragStart = {x:ev.clientX, y:ev.clientY, t:Date.now(), scrollLeft:track.scrollLeft}; }
+    if(pts.size === 2){
+      dragStart = null; // 둘째 손가락이 닿으면 스와이프 판정은 취소하고 오직 핀치로만 다룬다
+      const [a,b] = [...pts.values()];
+      startDist = Math.hypot(a.x-b.x, a.y-b.y) || 1;
+      startZoom = zoom; startTx = tx; startTy = ty;
+      startMid = {x:(a.x+b.x)/2, y:(a.y+b.y)/2};
+    }
+  });
+  let dragMode = null; // null(방향 판정 전) | "h"(좌우 넘기기) | "v"(세로는 손 안 댐)
+
+  zoomwrap.addEventListener("pointermove", ev=>{
+    if(!pts.has(ev.pointerId)) return;
+    pts.set(ev.pointerId, {x:ev.clientX, y:ev.clientY});
+
+    if(pts.size === 2){
+      ev.preventDefault();
+      const [a,b] = [...pts.values()];
+      const dist = Math.hypot(a.x-b.x, a.y-b.y);
+      const mid = {x:(a.x+b.x)/2, y:(a.y+b.y)/2};
+      const rect = zoomwrap.getBoundingClientRect();
+      const nz = Math.min(3, Math.max(1, startZoom * (dist/startDist)));
+      const px = (startMid.x - rect.left - startTx) / startZoom;
+      const py = (startMid.y - rect.top  - startTy) / startZoom;
+      zoom = nz;
+      tx = mid.x - rect.left - px*zoom;
+      ty = mid.y - rect.top  - py*zoom;
+      clamp(); apply();
+      return;
+    }
+
+    /* 손가락 하나: 처음 8px 정도 움직일 때까지는 방향을 정하지 않는다(성급하게 가로로 단정 안 함).
+       가로로 판정되면 그때부터 손가락을 실시간으로 따라 화면을 옮긴다 — 네이티브 스크롤처럼 */
+    if(!dragStart) return;
+    const dx = ev.clientX - dragStart.x, dy = ev.clientY - dragStart.y;
+    if(dragMode === null){
+      if(Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      dragMode = Math.abs(dx) > Math.abs(dy) * 1.15 ? "h" : "v";
+    }
+    if(dragMode === "h"){
+      ev.preventDefault();
+      track.scrollLeft = dragStart.scrollLeft - dx;
+    }
+    /* dragMode === "v" 면 아무것도 안 하고 그대로 둔다 — 세로 스크롤은 늘 네이티브가 처리 */
+  }, {passive:false});
+
+  function release(ev){
+    pts.delete(ev.pointerId);
+    if(pts.size) return; // 아직 손가락이 남아있으면 아무 판정도 하지 않는다
+
+    if(dragMode === "h" && dragStart){
+      /* 놓을 때 속도까지 봐서, 살짝만 밀어도 빠르게 밀었으면 넘어가지도록 */
+      const dx = ev.clientX - dragStart.x;
+      const dt = Math.max(1, Date.now() - dragStart.t);
+      const vx = dx / dt;
+      const w = track.clientWidth || 1;
+      let target = S.idx;
+      if(Math.abs(dx) > w*0.18 || Math.abs(vx) > 0.35){
+        target = dx < 0 ? Math.min(S.idx+1, S.questions.length-1) : Math.max(S.idx-1, 0);
+      }
+      jump(target); // 가장 가까운 문항으로 부드럽게 스냅 (안 넘어가도 제자리로 스냅됨)
+    }
+    dragStart = null; dragMode = null;
+
+    const now = Date.now();
+    if(now - lastTap < 320){ zoom>1.02 ? resetZoom() : zoomAt(2, ev.clientX, ev.clientY); }
+    lastTap = now;
+  }
+  zoomwrap.addEventListener("pointerup", release);
+  zoomwrap.addEventListener("pointercancel", ()=>{ pts.clear(); dragStart = null; dragMode = null; });
+  resetBtn?.addEventListener("click", e=>{ e.stopPropagation(); resetZoom(); });
+  new ResizeObserver(()=>{ if(zoom>1){ clamp(); apply(); } }).observe(zoomwrap);
+}
+
+
+function setupInkPage(qid, wrap, page, canvas, tools, onEditingChange){
+  const ctx = canvas.getContext("2d");
+  const state = { tool:"pen", color:PALETTE[0], hiColor:HI_PALETTE[0], editing:false, drawing:false, cur:null };
+
+  function factor(){ return wrap.clientWidth / PAGE_W; }
+
+  function resize(){
+    const f = factor();
+    const h = page.scrollHeight;
+    page.style.transform = `scale(${f})`;
+    canvas.style.transform = `scale(${f})`;
+    canvas.width = PAGE_W; canvas.height = h;
+    canvas.style.width = PAGE_W + "px"; canvas.style.height = h + "px";
+    wrap.style.height = Math.round(h * f) + "px";
+    redraw();
+  }
+  new ResizeObserver(resize).observe(wrap);
+  new ResizeObserver(resize).observe(page);
+
+  function strokeStyle(s){
+    if(s.tool === "hi") return { alpha:0.42, w:s.w||22, cap:"square" };
+    if(s.tool === "ul") return { alpha:1, w:s.w||3, cap:"round" };
+    return { alpha:1, w:s.w||2.4, cap:"round" };
+  }
+  function redraw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const strokes = (S.anno[qid]?.strokes)||[];
+    for(const s of strokes) paintStroke(s);
+  }
+  function paintStroke(s){
+    if(!s.pts || s.pts.length < 2) return;
+    const st = strokeStyle(s);
+    ctx.globalAlpha = st.alpha;
+    ctx.strokeStyle = s.color;
+    ctx.lineJoin = "round"; ctx.lineCap = st.cap;
+    ctx.beginPath();
+    ctx.moveTo(s.pts[0][0], s.pts[0][1]);
+    for(let i=1;i<s.pts.length;i++){
+      const p = s.pts[i];
+      ctx.lineWidth = st.w * (s.tool==="pen" ? (p[2]!=null ? 0.6+p[2]*1.2 : 1) : 1);
+      ctx.lineTo(p[0], p[1]);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  function toVirtual(ev){
+    const r = canvas.getBoundingClientRect();
+    const f = factor();
+    return [ (ev.clientX - r.left)/f, (ev.clientY - r.top)/f, ev.pressure || 0.5 ];
+  }
+  function ensureAnno(){
+    if(!S.anno[qid]) S.anno[qid] = { strokes:[], page_width:PAGE_W };
+    return S.anno[qid];
+  }
+  function eraseNear(vx, vy){
+    const a = ensureAnno();
+    const R = 14;
+    const before = a.strokes.length;
+    a.strokes = a.strokes.filter(s => !(s.pts||[]).some(p => Math.hypot(p[0]-vx, p[1]-vy) < R));
+    if(a.strokes.length !== before){ redraw(); saveAnnotation(qid); }
+  }
+
+  canvas.addEventListener("pointerdown", ev=>{
+    if(!state.editing) return;
+    ev.preventDefault();
+    canvas.setPointerCapture(ev.pointerId);
+    if(state.tool === "er"){ state.drawing = true; eraseNear(...toVirtual(ev).slice(0,2)); return; }
+    state.drawing = true;
+    const col = state.tool === "hi" ? state.hiColor : state.color;
+    state.cur = { tool: state.tool, color: col, w: strokeStyle({tool:state.tool}).w, pts:[toVirtual(ev)] };
+  });
+  canvas.addEventListener("pointermove", ev=>{
+    if(!state.editing || !state.drawing) return;
+    if(state.tool === "er"){ eraseNear(...toVirtual(ev).slice(0,2)); return; }
+    const v = toVirtual(ev);
+    state.cur.pts.push(v);
+    paintStroke(state.cur); // 진행 중인 획을 즉시 눈에 보이게
+  });
+  function finish(){
+    if(!state.drawing) return;
+    state.drawing = false;
+    if(state.tool === "er"){ return; }
+    if(state.cur && state.cur.pts.length >= 2){
+      if(state.tool === "ul"){
+        const pts = state.cur.pts;
+        const y = pts.reduce((s,p)=>s+p[1],0)/pts.length;
+        state.cur.pts = [[pts[0][0], y],[pts[pts.length-1][0], y]];
+      }
+      ensureAnno().strokes.push(state.cur);
+      redraw();
+      saveAnnotation(qid);
+    }
+    state.cur = null;
+  }
+  canvas.addEventListener("pointerup", finish);
+  canvas.addEventListener("pointercancel", finish);
+  canvas.addEventListener("pointerleave", ()=>{ if(state.tool!=="er") finish(); });
+
+  /* 도구모음 */
+  tools.querySelectorAll("[data-tool]").forEach(b=>{
+    b.onclick = ()=>{
+      state.tool = b.dataset.tool;
+      tools.querySelectorAll("[data-tool]").forEach(x=>x.classList.toggle("on", x===b));
+    };
+  });
+  tools.querySelectorAll("[data-color]").forEach(b=>{
+    b.style.background = b.dataset.color;
+    b.onclick = ()=>{
+      if(b.dataset.kind === "hi") state.hiColor = b.dataset.color; else state.color = b.dataset.color;
+      tools.querySelectorAll(`[data-kind="${b.dataset.kind}"]`).forEach(x=>x.classList.toggle("on", x===b));
+    };
+  });
+  tools.querySelector("[data-undo]").onclick = ()=>{
+    const a = ensureAnno(); a.strokes.pop(); redraw(); saveAnnotation(qid);
+  };
+  tools.querySelector("[data-clear]").onclick = ()=>{
+    if(!confirm("이 문항의 필기를 전부 지울까요?")) return;
+    ensureAnno().strokes = []; redraw(); saveAnnotation(qid);
+  };
+  tools.querySelector("[data-close]").onclick = ()=> setEditing(false);
+
+  function setEditing(on){
+    state.editing = on && S.loggedIn;
+    canvas.classList.toggle("edit", state.editing);
+    canvas.style.pointerEvents = state.editing ? "auto" : "none";
+    tools.style.display = state.editing ? "flex" : "none";
+    wrap.closest(".slide")?.classList.toggle("ink-editing", state.editing);
+    onEditingChange?.(state.editing);
+  }
+  setEditing(false);
+  resize();
+
+  return { setEditing, redraw, resize };
+}
+
+/* 문항 하나를 "가상 페이지"로 그린다 — 필기가 있거나, 로그인 후 필기 버튼을 눌렀을 때 쓴다 */
+function inkToolsHTML(){
+  return `
+  <div class="inktools" style="display:none">
+    <button class="itbtn on" data-tool="pen"><svg viewBox="0 0 24 24"><path d="M3 21l3-1 11-11-2-2L4 18z"/><path d="M14 7l3 3"/></svg>펜</button>
+    <button class="itbtn" data-tool="hi"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="6"/></svg>형광펜</button>
+    <button class="itbtn" data-tool="ul"><svg viewBox="0 0 24 24"><path d="M5 19h14M7 5v9a5 5 0 0010 0V5"/></svg>밑줄</button>
+    <button class="itbtn" data-tool="er"><svg viewBox="0 0 24 24"><path d="M18 13l-7 7H5l-2-2 11-11z"/></svg>지우개</button>
+    <span class="itsep"></span>
+    ${PALETTE.map((c,i)=>`<button class="itcolor ${i===0?'on':''}" data-color="${c}" data-kind="pen"></button>`).join("")}
+    <span class="itsep"></span>
+    ${HI_PALETTE.map((c,i)=>`<button class="itcolor ${i===0?'on':''}" data-color="${c}" data-kind="hi"></button>`).join("")}
+    <span class="itsep"></span>
+    <button class="itbtn" data-undo>되돌리기</button>
+    <button class="itbtn" data-clear>전체지우기</button>
+    <div class="itgrow"></div>
+    <span class="itsave"></span>
+    <button class="itbtn" data-close>닫기</button>
+  </div>`;
+}
+function inkPageHTML(q, innerHTML){
+  return `
+  <div class="inkwrap">
+    <div class="inkpage" data-qid="${q.id}">
+      ${innerHTML}
+    </div>
+    <canvas class="inkcanvas"></canvas>
+  </div>`;
+}
+/* 문항+해설 영역을 핀치 확대 가능한 컨테이너로 감싼다. 필기 있든 없든 공통으로 쓴다 */
+function wrapZoom(html){
+  return `<div class="zoomwrap"><div class="zoomstage">${html}</div><button class="zoomreset" type="button">1×</button></div>`;
+}
+
 
 /* ── 테마 ── */
 const applyTheme = t=>{
@@ -418,7 +789,7 @@ $("#theme").onclick = ()=>{
   applyTheme(t); LS.set("theme",t);
 };
 
-/* ── 아주 작은 마크다운 (LaTeX, 표 지원) ── */
+/* ── 아주 작은 마크다운 (LaTeX 안 건드림) ── */
 function md(src){
   if(!src) return "";
   const math=[]; let s=esc(src);
@@ -426,36 +797,16 @@ function md(src){
   s = s.replace(/`([^`]+)`/g,"<code>$1</code>")
        .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
        .replace(/^---$/gm,"<hr>");
-       
   s = s.split(/\n{2,}/).map(block=>{
-    /* ▼ 표(Table) 인식 기능 추가 ▼ */
-    if(block.includes('|') && block.includes('---')){
-      const lines = block.trim().split('\n');
-      if(lines.length >= 2 && /^\|?[\s\-:|]+\|?$/.test(lines[1])){
-        const parse = l => {
-          let t = l.trim();
-          if(t.startsWith('|')) t = t.slice(1);
-          if(t.endsWith('|')) t = t.slice(0,-1);
-          return t.split('|').map(x=>x.trim());
-        };
-        const head = parse(lines[0]).map(x=>`<th style="border:1px solid var(--rule);padding:8px;background:var(--paper)">${x}</th>`).join("");
-        const body = lines.slice(2).map(l=>`<tr>${parse(l).map(x=>`<td style="border:1px solid var(--rule);padding:8px">${x}</td>`).join("")}</tr>`).join("");
-        return `<div class="sheet-host"><table style="margin:12px 0">${head}${body}</table></div>`;
-      }
-    }
-    /* ▲ 표 처리 끝 ▲ */
-
     if(/^\s*[-•]\s/m.test(block) && block.split("\n").every(l=>/^\s*[-•]\s/.test(l)||!l.trim()))
       return "<ul>"+block.split("\n").filter(l=>l.trim()).map(l=>`<li>${l.replace(/^\s*[-•]\s/,"")}</li>`).join("")+"</ul>";
     if(/^\s*\d+[.)]\s/.test(block) && block.split("\n").every(l=>/^\s*\d+[.)]\s/.test(l)||!l.trim()))
       return "<ol>"+block.split("\n").filter(l=>l.trim()).map(l=>`<li>${l.replace(/^\s*\d+[.)]\s/,"")}</li>`).join("")+"</ol>";
-    if(block.startsWith("<hr>") || block.startsWith("<div")) return block;
+    if(block.startsWith("<hr>")) return block;
     return "<p>"+block.replace(/\n/g,"<br>")+"</p>";
   }).join("");
-  
   return s.replace(/\u0000(\d+)\u0000/g,(_,i)=>math[i]);
 }
-
 const tex = el=>{
   if(!window.renderMathInElement) return;
   try{ renderMathInElement(el,{delimiters:[
@@ -472,39 +823,9 @@ function show(id){
   $$(".view").forEach(v=>v.classList.toggle("on", v.id===id));
   const study = id==="v-study";
   $("#veilBtn").hidden = !study;
-  $("#layoutBtn").hidden = !study;
   $("#back").hidden = id==="v-subjects";
   document.body.style.overflow = study ? "hidden" : "";
 }
-
-/* ── 화면 배치 전환 ─────────────────────────────
-   자동 → 가로 → 세로 순으로 돈다. 선택은 기억한다. */
-const LAYOUTS = ["auto","row","col"];
-const LAYOUT_INFO = {
-  auto:{txt:"자동", svg:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18" stroke-dasharray="2.5 2.5"/>'},
-  row :{txt:"가로", svg:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>'},
-  col :{txt:"세로", svg:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18"/>'}
-};
-let layoutMode = LS.get("layout","auto");
-if(!LAYOUTS.includes(layoutMode)) layoutMode = "auto";
-
-function applyLayout(){
-  document.body.dataset.layout = layoutMode;
-  const info = LAYOUT_INFO[layoutMode];
-  const t = $("#layoutTxt"), ic = $("#layoutIcon");
-  if(t) t.textContent = info.txt;
-  if(ic) ic.innerHTML = info.svg;
-  const b = $("#layoutBtn");
-  if(b) b.title = "화면 배치 — " + info.txt;
-}
-
-$("#layoutBtn")?.addEventListener("click", () => {
-  layoutMode = LAYOUTS[(LAYOUTS.indexOf(layoutMode)+1) % LAYOUTS.length];
-  LS.set("layout", layoutMode);
-  applyLayout();
-});
-applyLayout();
-
 window.addEventListener("hashchange", route);
 
 async function route(){
@@ -609,6 +930,7 @@ async function viewStudy(examId, num){
       $("#ttl").textContent = S.subject?.name||""; $("#sub").textContent = S.exam?.label||"";
       $("#foot").textContent=""; return;
     }
+    await loadAnnotations(S.questions.map(q=>q.id));
     build();
   }
   $("#ttl").textContent = S.subject?.name || "";
@@ -634,14 +956,8 @@ function build(){
   $$("#track .slide").forEach(s=>io.observe(s));
 }
 
-/* 근처 문항만 실제로 그린다 (60문항 한 번에 안 그림) */
-function hydrate(i){
-  const slide = $(`#track .slide[data-i="${i}"]`); if(!slide) return;
-  const body = slide.firstElementChild;
-  if(body.dataset.h==="1") return;
-  body.dataset.h="1";
-  const q = S.questions[i];
-  const starred = !!S.stars[q.id];
+/* 문항 화면(qhead 뒤에 오는 카드+해설)의 HTML. 필기 없는 문항은 이 그대로가 최종 렌더링이다 */
+function cardHTML(q){
   const chs = (Array.isArray(q.choices)?q.choices:[]).map((c,k)=>`
     <div class="ch ${q.answer===k+1?"ok":""}">
       <span class="b">${k+1}</span><span class="t">${md(String(c)).replace(/^<p>|<\/p>$/g,"")}</span>
@@ -651,18 +967,10 @@ function hydrate(i){
     ? `<div class="sheet-host">${q.explanation_html}</div>`
     : md(q.explanation_md || "");
 
-  body.innerHTML = `
-    <div class="qhead">
-      <span class="qno">${q.number}</span>
-      <span class="qsum">${esc(q.summary||"")}${q.correct_rate!=null?` · 정답률 ${q.correct_rate}%`:""}</span>
-      <button class="qstar ${starred?"on":""}" data-id="${q.id}" aria-label="북마크">
-        <svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6 .8-4.4 4.2 1.1 6.1L12 16.9 6.7 19.7l1.1-6.1L3.4 9.4l6-.8z"/></svg>
-      </button>
-    </div>
-    <div class="q-layout">
+  return `
     <div class="qcard">
       ${q.subject_part?`<div class="part">${esc(q.subject_part)}</div>`:""}
-      <div class="qtext">${md((q.question_text||"").replace(/^\s*\d+\.\s*/, "")).replace(/^<p>|<\/p>$/g,"")}</div>
+      <div class="qtext">${md(q.question_text).replace(/^<p>|<\/p>$/g,"")}</div>
       ${chs?`<div class="choices">${chs}</div>`:""}
     </div>
     ${(expInner||q.answer)?`
@@ -677,8 +985,69 @@ function hydrate(i){
           <div class="exp-b">${expInner||"<p>등록된 해설이 없습니다.</p>"}</div>
         </div>
       </div>
-    </div>`:""}
+    </div>`:""}`;
+}
+
+function wireCard(root, slide){
+  root.querySelector(".cover")?.addEventListener("click",()=>slide.classList.add("peek"));
+}
+
+/* 필기 모드로 들어가기 — 처음이면 그 자리에서 qcard/answer 를 가상 페이지로 바꿔 끼운다 */
+function onInkClick(q, body, i){
+  if(!S.loggedIn){ $("#inkPop").classList.add("on"); return; }
+  const qinkBtn = body.querySelector(".qink");
+  if(!body.__ink){
+    const oldZoomwrap = body.querySelector(".zoomwrap");
+    const inner = oldZoomwrap.querySelector(".qcard").outerHTML +
+                  (oldZoomwrap.querySelector(".answer")?.outerHTML || "");
+    const tmp = document.createElement("div");
+    tmp.innerHTML = inkToolsHTML() + wrapZoom(inkPageHTML(q, inner));
+    const head = body.querySelector(".qhead");
+    [...tmp.children].reverse().forEach(el => head.after(el));
+    oldZoomwrap.remove();
+
+    const zoomwrap = body.querySelector(".zoomwrap");
+    const zoomstage = body.querySelector(".zoomstage");
+    const wrap = body.querySelector(".inkwrap");
+    const page = body.querySelector(".inkpage");
+    const canvas = body.querySelector(".inkcanvas");
+    const tools = body.querySelector(".inktools");
+    wireCard(page, body.closest(".slide"));
+    setupZoom(zoomwrap, zoomstage);
+    body.__ink = setupInkPage(q.id, wrap, page, canvas, tools, editing => qinkBtn.classList.toggle("on", editing));
+    tex(page);
+    requestAnimationFrame(()=> body.__ink.resize());
+  }
+  body.__ink.setEditing(true);
+}
+
+/* 근처 문항만 실제로 그린다 (60문항 한 번에 안 그림) */
+function hydrate(i){
+  const slide = $(`#track .slide[data-i="${i}"]`); if(!slide) return;
+  const body = slide.firstElementChild;
+  if(body.dataset.h==="1") return;
+  body.dataset.h="1";
+  const q = S.questions[i];
+  const starred = !!S.stars[q.id];
+  const anno = S.anno[q.id];
+  const hasInk = !!(anno && anno.strokes && anno.strokes.length);
+
+  const headHTML = `
+    <div class="qhead">
+      <span class="qno">${q.number}</span>
+      <span class="qsum">${esc(q.summary||"")}${q.correct_rate!=null?` · 정답률 ${q.correct_rate}%`:""}</span>
+      <button class="qink ${hasInk?"has":""}" aria-label="필기">
+        <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+      </button>
+      <button class="qstar ${starred?"on":""}" data-id="${q.id}" aria-label="북마크">
+        <svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6 .8-4.4 4.2 1.1 6.1L12 16.9 6.7 19.7l1.1-6.1L3.4 9.4l6-.8z"/></svg>
+      </button>
     </div>`;
+
+  const content = cardHTML(q);
+  body.innerHTML = headHTML + (hasInk
+    ? inkToolsHTML() + wrapZoom(inkPageHTML(q, content))
+    : wrapZoom(content));
 
   body.querySelector(".qstar")?.addEventListener("click",e=>{
     const el=e.currentTarget, id=el.dataset.id;
@@ -686,10 +1055,30 @@ function hydrate(i){
     LS.set("stars",S.stars); el.classList.toggle("on",!!S.stars[id]);
     $(`#rail .bub[data-i="${i}"]`)?.classList.toggle("star",!!S.stars[id]);
   });
-  body.querySelector(".cover")?.addEventListener("click",()=>slide.classList.add("peek"));
-  tex(body);
+  body.querySelector(".qink")?.addEventListener("click", ()=> onInkClick(q, body, i));
+
+  const zoomwrap = body.querySelector(".zoomwrap");
+  const zoomstage = body.querySelector(".zoomstage");
+  setupZoom(zoomwrap, zoomstage);
+
+  if(hasInk){
+    const wrap = body.querySelector(".inkwrap");
+    const page = body.querySelector(".inkpage");
+    const canvas = body.querySelector(".inkcanvas");
+    const tools = body.querySelector(".inktools");
+    const qinkBtn = body.querySelector(".qink");
+    wireCard(page, slide);
+    body.__ink = setupInkPage(q.id, wrap, page, canvas, tools, editing => qinkBtn.classList.toggle("on", editing));
+    tex(page);
+    requestAnimationFrame(()=> body.__ink.resize());
+  }else{
+    wireCard(zoomstage, slide);
+    tex(zoomstage);
+  }
   $(`#rail .bub[data-i="${i}"]`)?.classList.toggle("star",starred);
 }
+
+
 
 function setActive(i){
   if(S.idx===i && $(`#rail .bub.now`)) return;
@@ -713,7 +1102,7 @@ function jump(i,smooth=true){
   const slide=$(`#track .slide[data-i="${i}"]`); if(!slide) return;
   hydrate(i);
   const track=$("#track");
-  track.scrollTo({left: slide.offsetLeft, behavior: smooth ? "smooth" : "auto"}); /* 이 부분 수정 */
+  track.scrollTo({left:i*track.clientWidth,behavior:smooth?"smooth":"auto"});
   setActive(i);
 }
 
@@ -740,6 +1129,7 @@ addEventListener("keydown",e=>{
 function fail(el,big,sub){
   el.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="big">${big}</div><div>${sub}</div></div>`;
 }
+inkRefresh();
 route();
 
 /* 홈 화면 설치 + 오프라인 */
