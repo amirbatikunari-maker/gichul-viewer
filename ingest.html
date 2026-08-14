@@ -368,6 +368,7 @@ function save(){ try{ localStorage.setItem(slot(), JSON.stringify(RESULTS)); }ca
 function load(){
   try{ RESULTS = JSON.parse(localStorage.getItem(slot())||"{}"); }catch(e){ RESULTS = {}; }
   stats(); preview();
+  fetchSavedNumbers(); // ★ 추가: 데이터를 불러올 때 DB도 같이 체크
 }
 ["scode","year","sess"].forEach(id => $("#"+id).addEventListener("change", load));
 $("#reset").onclick = () => {
