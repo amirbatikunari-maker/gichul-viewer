@@ -202,8 +202,7 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
         <span>묶음이 끝날 때마다 곧바로 Supabase에 올리기 <span style="color:var(--ink-2)">— 도중에 창이 닫혀도 그때까지 한 건 남습니다</span></span></div>
       <div class="check"><input type="checkbox" id="svgOn">
         <span>계통도·블록선도가 필요한 문항은 SVG 그림까지 그리게 하기 <span style="color:var(--ink-2)">— 그림 코드까지 써야 해서 시간이 더 걸립니다. 회로도·계통도가 실제로 나오는 과목에서만 켜세요</span></span></div>
-      <div class="check" id="autoImgRow"><input type="checkbox" id="autoImg" checked>
-        <span>PDF가 텍스트로 안 읽히면 그 쪽만 사진으로 바꿔서 다시 시도 <span style="color:var(--ink-2)">— 스캔본이거나 깨진 PDF에서 도움이 됩니다. 시간은 더 걸립니다</span></span></div>
+      <div class="hint" id="autoImgRow">PDF는 두 가지 방식으로 돌립니다. <b>변환 시작</b>은 PDF를 그대로 잘라 보내고, <b>이미지로 변환해 추출</b>은 각 쪽을 사진(JPEG)으로 바꿔 보냅니다. 스캔본이거나 글자가 안 읽혀 0문항으로 나오면 두 번째를 쓰세요 — 시간은 더 걸립니다.</div>
     </div>
 
 
@@ -212,9 +211,9 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
       <div class="eyebrow">3 · 돌리기</div>
       <div class="bar">
         <button id="run" disabled>변환 시작</button>
+        <button class="ghost" id="runImage" disabled>이미지로 변환해 추출</button>
         <button class="ghost" id="stop" disabled>중지</button>
         <button class="ghost" id="retry" disabled>실패한 묶음만 다시</button>
-        <button class="ghost" id="reAnswerKey">정답표만 다시 뽑기</button>
         <button class="ghost" id="reset">기록 지우기</button>
       </div>
       <div class="prog"><i id="pi"></i></div>
@@ -383,7 +382,8 @@ function setSource(src){
   document.querySelectorAll(".srctab").forEach(t => t.classList.toggle("on", t.dataset.src === src));
   $("#src-pdf").hidden = src !== "pdf";
   $("#src-images").hidden = src !== "images";
-  $("#autoImgRow").style.display = src === "pdf" ? "flex" : "none";
+  $("#autoImgRow").style.display = src === "pdf" ? "block" : "none";
+  $("#runImage").style.display   = src === "pdf" ? "" : "none";  // 사진 모드에선 이미 사진이라 필요 없다
   if(src === "pdf"){
     $("#fromLabel").textContent = "시작 페이지";
     $("#toLabel").textContent = "끝 페이지";
@@ -399,6 +399,7 @@ function setSource(src){
   }
   $("#fm").className = "msg";
   $("#run").disabled = src === "pdf" ? !PDF : !IMAGES.length;
+  $("#runImage").disabled = src !== "pdf" || !PDF;
   if(src === "pdf" && PDF) plan(); else if(src === "images" && IMAGES.length) plan();
 }
 document.querySelectorAll(".srctab").forEach(t => t.onclick = () => setSource(t.dataset.src));
@@ -428,6 +429,7 @@ async function takePDF(file){
     drop.innerHTML = `<b>${file.name}</b>${PAGES}쪽 · ${(file.size/1048576).toFixed(1)}MB`;
     say($("#fm"), `${PAGES}쪽을 읽었습니다. 페이지 범위를 확인하고 시작하세요.`, "ok");
     $("#run").disabled = false;
+    $("#runImage").disabled = false;
     plan();
   }catch(e){
     say($("#fm"), "PDF를 열지 못했습니다 — " + e.message + "\n암호가 걸린 파일이면 먼저 암호를 풀어주세요. 스캔 이미지들을 그대로 갖고 계시면 위쪽 \"사진 여러 장\" 탭을 대신 써보세요.", "err");
@@ -858,7 +860,10 @@ async function extractAnswerKey(){
   if(!from || !to){ log("정답표 페이지 범위를 입력해 주세요.", "e"); return; }
   log(`정답표(${from}–${to}${unit()}) 따로 뽑는 중…`);
   try{
-    const parts = SRC === "pdf" ? await slicePDF(from, to) : imagesToParts(from, to);
+    /* 본문과 같은 방식으로 보낸다 — 이미지 모드면 정답표 쪽도 사진으로 바꿔서 */
+    const parts = SRC !== "pdf" ? imagesToParts(from, to)
+                : FORCE_IMAGE_MODE ? await renderPDFPagesAsImages(from, to)
+                : await slicePDF(from, to);
     const r = await askAnswerKey(parts, from, to);
     const clean = r.text.trim().replace(/^```(json)?/,"").replace(/```$/,"");
     const o = JSON.parse(clean);
@@ -927,13 +932,9 @@ async function runBatch(b, depth = 0, asImage = false){
   }
 
     const n = merge(list);
-  b.status = "done"; b.count = n; b.msg = (r.model || "") + (asImage ? " · 사진 변환" : "");
+  b.status = "done"; b.count = n; b.mode = asImage ? "img" : "pdf";
+  b.msg = (r.model || "") + (asImage ? " · 사진 변환" : "");
   log(`${b.from}–${b.to}${unit()} → ${n}문항 (${r.model||"?"}${asImage ? ", 사진 변환" : ""})`, "g");
-  
-  if (asImage && b.kind === "pdf" && !FORCE_IMAGE_MODE) {
-    log(`[자동 전환] 텍스트 인식 실패를 사진 변환으로 극복했습니다. 이후 남은 묶음은 모두 자동으로 사진 처리합니다.`, "info");
-    FORCE_IMAGE_MODE = true;
-  }
 
   drawBatches(); stats(); preview();
 
@@ -945,26 +946,17 @@ async function runBatch(b, depth = 0, asImage = false){
 /* ── 실패했을 때 다음 수를 고른다 ──
    원인마다 처방이 다르다. 예전에는 뭐가 됐든 "반으로 쪼개기"부터 했는데,
    텍스트가 안 읽히는 PDF 는 쪼개봐야 결과가 똑같아서 시간만 몇 배로 버렸다.
-     · 0문항 / JSON 깨짐  → PDF 텍스트가 안 읽히는 것 → 쪼개지 말고 곧바로 사진으로
-     · 사진으로도 0문항   → 진짜 문제가 없는 페이지(표지·목차) → 조용히 건너뛰기
+     · 0문항              → 문제가 없는 페이지로 보고 건너뛴다(스캔본이면 이미지 모드로 다시 돌리면 된다)
      · 응답이 잘림        → 내용이 많은 것 → 반으로 쪼개기
      · 통신 오류·타임아웃 → 쪼개서 가볍게 만들어 재시도 */
-const IMG_MAX_PAGES = 3;   // 사진은 용량이 크니 한 번에 이 쪽수까지만 보낸다
 async function bad(b, why, depth, wasImage, kind = "error"){
-  const canImage = b.kind === "pdf" && !wasImage && $("#autoImg").checked
-                   && typeof window.pdfjsLib !== "undefined";
-  const pages = b.to - b.from + 1;
-
-    // 조건에서 (kind === "empty" || kind === "parse") 를 삭제했습니다. 
-  // 타임아웃이든 뭐든 실패하면 무조건 사진 변환부터 시도합니다.
-  if(canImage && pages <= IMG_MAX_PAGES){
-    log(`${b.from}–${b.to}${unit()} ${why}. 쪼개지 않고 바로 사진으로 바꿔 시도합니다.`, "e");
-    return runBatch(b, depth, true);
-  }
-
-  if(kind === "empty" && (wasImage || !canImage)){
-    b.status = "skip"; b.msg = "문제 없는 페이지";
-    log(`${b.from}–${b.to}${unit()} 문제가 없는 페이지로 보고 건너뜁니다.`);
+  /* 사진 변환은 더 이상 자동으로 끼어들지 않는다.
+     "변환 시작" = PDF 그대로, "이미지로 변환해 추출" = 쪽마다 사진으로.
+     둘 중 무엇을 쓸지는 사람이 고른다. */
+  if(kind === "empty"){
+    b.status = "skip"; b.mode = wasImage ? "img" : "pdf"; b.msg = "문제 없는 페이지";
+    log(`${b.from}–${b.to}${unit()} 문제가 없는 페이지로 보고 건너뜁니다.`
+      + (wasImage || b.kind !== "pdf" ? "" : ` 스캔본이라 글자가 안 읽힌 것일 수도 있습니다 — "이미지로 변환해 추출"을 눌러보세요.`));
     drawBatches(); stats();
     return true;
   }
@@ -980,12 +972,6 @@ async function bad(b, why, depth, wasImage, kind = "error"){
     return b.status === "done";
   }
 
-  /* 마지막 수단: 한 쪽짜리인데 아직 사진을 안 써봤으면 사진으로 */
-  if(canImage){
-    log(`${b.from}–${b.to}${unit()} ${why}. 마지막으로 사진으로 바꿔 시도합니다.`, "e");
-    return runBatch(b, depth, true);
-  }
-
   b.status = "fail"; b.msg = why;
   log(`${b.from}–${b.to}${unit()} 실패 — ${why}`, "e");
   drawBatches(); stats();
@@ -993,11 +979,28 @@ async function bad(b, why, depth, wasImage, kind = "error"){
 }
 
 /* ── 전체 실행 ── */
-async function go(only){
+async function go(only, forceImage){
   if(SRC === "pdf" && !PDF) return;
   if(SRC === "images" && !IMAGES.length) return;
-  RUNNING = true; ABORT = false; FORCE_IMAGE_MODE = false;
-  $("#run").disabled = $("#retry").disabled = true; $("#stop").disabled = false;
+
+  /* 이미지 모드는 PDF 를 넣었을 때만 뜻이 있다 — 사진 여러 장은 이미 사진이다 */
+  FORCE_IMAGE_MODE = !!forceImage && SRC === "pdf";
+  if(FORCE_IMAGE_MODE && typeof window.pdfjsLib === "undefined"){
+    say($("#um"), "PDF를 이미지로 바꾸는 라이브러리를 불러오지 못했습니다. 새로고침하거나 광고 차단을 확인해 주세요.", "err");
+    return;
+  }
+
+  RUNNING = true; ABORT = false;
+  $("#run").disabled = $("#retry").disabled = $("#runImage").disabled = true;
+  $("#stop").disabled = false;
+
+  if(FORCE_IMAGE_MODE){
+    log("이미지 변환 모드 — 각 쪽을 사진(JPEG)으로 바꿔서 보냅니다.", "info");
+    if(+$("#chunk").value > 3)
+      log("사진은 용량이 큽니다. 전송이 자꾸 끊기면 \"한 번에 보낼 페이지\"를 2~3쪽으로 줄여보세요.", "info");
+  }else{
+    log("PDF 그대로 보냅니다. 0문항으로 나오는 쪽이 많으면 \"이미지로 변환해 추출\"을 써보세요.", "info");
+  }
 
   wakeBackup();   // 예비 서버 깨우기를 먼저 걸어둔다(백그라운드) — 필요할 때 이미 깨어 있도록
   if(!only) await extractAnswerKey(); // 전체를 새로 돌릴 때만 정답표를 (다시) 뽑는다
@@ -1005,9 +1008,12 @@ async function go(only){
   const list = only ? BATCHES.filter(b => b.status === "fail") : BATCHES;
   log(`시작 — 묶음 ${list.length}개`);
 
+  /* 이미 끝난 묶음은 건너뛴다. 다만 "0문항이라 건너뛴" 묶음은 방식을 바꿔 다시 누른 것이라면
+     한 번 더 돌린다 — PDF 그대로는 안 읽히던 스캔 쪽을 이미지로 다시 잡으려는 게 이 버튼의 목적이다. */
+  const MODE = FORCE_IMAGE_MODE ? "img" : "pdf";
   for(const b of list){
     if(ABORT){ log("중지했습니다."); break; }
-    if(!only && (b.status === "done" || b.status === "skip")) continue;
+    if(!only && (b.status === "done" || (b.status === "skip" && b.mode === MODE))) continue;
     b.status = ""; b.count = 0;
     await runBatch(b);
     if(b !== list[list.length-1]) await new Promise(r => setTimeout(r, gap));
@@ -1015,20 +1021,17 @@ async function go(only){
 
   RUNNING = false;
   $("#run").disabled = false; $("#stop").disabled = true;
+  $("#runImage").disabled = SRC !== "pdf" || !PDF;
   stats();
   const f = BATCHES.filter(b=>b.status==="fail").length;
   say($("#um"), f
     ? `끝났습니다. 문항 ${Object.keys(RESULTS).length}개. 실패한 묶음이 ${f}개 있으니 "실패한 묶음만 다시"를 눌러보세요.`
     : `끝났습니다. 문항 ${Object.keys(RESULTS).length}개를 모았습니다.`, f ? "err" : "ok");
 }
-$("#run").onclick   = () => go(false);
-$("#retry").onclick = () => go(true);
-$("#stop").onclick  = () => { ABORT = true; $("#stop").disabled = true; };
-$("#reAnswerKey").onclick = async () => {
-  $("#reAnswerKey").disabled = true;
-  await extractAnswerKey();
-  $("#reAnswerKey").disabled = false;
-};
+$("#run").onclick      = () => go(false, false);  // PDF 그대로 추출
+$("#runImage").onclick = () => go(false, true);   // PDF를 이미지로 바꿔서 추출
+$("#retry").onclick    = () => go(true, FORCE_IMAGE_MODE); // 직전에 쓰던 방식 그대로 다시
+$("#stop").onclick     = () => { ABORT = true; $("#stop").disabled = true; };
 
 /* ── 미리보기 ── */
 function preview(){
