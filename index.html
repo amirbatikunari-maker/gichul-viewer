@@ -163,6 +163,53 @@ a{color:var(--accent);text-decoration:none}
 }
 .sheet-body{max-width:760px;margin:0 auto}
 
+
+/* ══ 레이아웃 전환 (자동 / 가로 / 세로) ══════════════
+   가로 스크롤은 .q-layout 안쪽에서만 일어나게 한다.
+   .track 의 스크롤 스냅을 건드리면 문항 넘기기(스와이프)가 죽는다. */
+.q-layout{display:flex;flex-direction:column;gap:14px}
+.q-layout .answer{margin-top:0}
+.q-layout > .qcard,.q-layout > .answer{min-width:0}
+
+/* [1] 자동 — 화면이 넓으면 좌우, 좁으면 위아래 */
+@media (min-width:900px){
+  body[data-layout="auto"] .sheet-body{max-width:1240px}
+  body[data-layout="auto"] .q-layout{flex-direction:row;align-items:flex-start}
+  body[data-layout="auto"] .q-layout > .qcard{flex:0 0 44%;position:sticky;top:0}
+  body[data-layout="auto"] .q-layout > .answer{flex:1}
+}
+
+/* [2] 세로 — 무조건 위아래 */
+body[data-layout="col"] .sheet-body{max-width:760px}
+body[data-layout="col"] .q-layout{flex-direction:column}
+
+/* [3] 가로 — 좁아도 좌우로 쪼갠다. 폭이 모자라면 이 안에서만 가로 스크롤 */
+body[data-layout="row"] .sheet-body{max-width:1240px}
+body[data-layout="row"] .q-layout{
+  flex-direction:row;align-items:flex-start;
+  overflow-x:auto;overscroll-behavior-x:contain;
+  -webkit-overflow-scrolling:touch;padding-bottom:6px;
+}
+body[data-layout="row"] .q-layout > .qcard{flex:0 0 min(48%,420px);min-width:290px}
+body[data-layout="row"] .q-layout > .answer{flex:0 0 min(60%,620px);min-width:300px}
+@media (min-width:900px){
+  body[data-layout="row"] .q-layout{overflow-x:visible}
+  body[data-layout="row"] .q-layout > .qcard{flex:0 0 44%;position:sticky;top:0}
+  body[data-layout="row"] .q-layout > .answer{flex:1}
+}
+
+/* 가림판이 내려와 있으면 해설 칸이 비어 폭만 차지한다 → 그때는 위아래로 */
+.veiled .q-layout{flex-direction:column !important;overflow-x:visible !important}
+.veiled .q-layout > .qcard{flex:1 1 auto !important;position:static !important}
+.veiled .q-layout > .answer{flex:1 1 auto !important}
+.slide.peek .q-layout{flex-direction:inherit}
+
+/* 상단 버튼이 셋이면 좁은 화면에서 넘친다 → 글자 줄이기 */
+@media (max-width:420px){
+  .toggle span{font-size:11px}
+  #layoutTxt{display:none}
+}
+
 /* ── 문항 헤더 ───────────────────────────────── */
 .qhead{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .qno{font:600 13px/1 var(--font-m);color:var(--paper);background:var(--ink);
@@ -303,6 +350,10 @@ html[data-theme="dark"] .sheet-host img{filter:invert(1) hue-rotate(180deg)}
     <svg viewBox="0 0 24 24" id="veilIcon"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
     <span id="veilTxt">해설 보임</span>
   </button>
+  <button class="toggle" id="layoutBtn" hidden aria-label="화면 배치 전환">
+    <svg viewBox="0 0 24 24" id="layoutIcon"></svg>
+    <span id="layoutTxt">자동</span>
+  </button>
   <button class="icon" id="theme" aria-label="화면 밝기 전환">
     <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
   </button>
@@ -421,9 +472,39 @@ function show(id){
   $$(".view").forEach(v=>v.classList.toggle("on", v.id===id));
   const study = id==="v-study";
   $("#veilBtn").hidden = !study;
+  $("#layoutBtn").hidden = !study;
   $("#back").hidden = id==="v-subjects";
   document.body.style.overflow = study ? "hidden" : "";
 }
+
+/* ── 화면 배치 전환 ─────────────────────────────
+   자동 → 가로 → 세로 순으로 돈다. 선택은 기억한다. */
+const LAYOUTS = ["auto","row","col"];
+const LAYOUT_INFO = {
+  auto:{txt:"자동", svg:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18" stroke-dasharray="2.5 2.5"/>'},
+  row :{txt:"가로", svg:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>'},
+  col :{txt:"세로", svg:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 12h18"/>'}
+};
+let layoutMode = LS.get("layout","auto");
+if(!LAYOUTS.includes(layoutMode)) layoutMode = "auto";
+
+function applyLayout(){
+  document.body.dataset.layout = layoutMode;
+  const info = LAYOUT_INFO[layoutMode];
+  const t = $("#layoutTxt"), ic = $("#layoutIcon");
+  if(t) t.textContent = info.txt;
+  if(ic) ic.innerHTML = info.svg;
+  const b = $("#layoutBtn");
+  if(b) b.title = "화면 배치 — " + info.txt;
+}
+
+$("#layoutBtn")?.addEventListener("click", () => {
+  layoutMode = LAYOUTS[(LAYOUTS.indexOf(layoutMode)+1) % LAYOUTS.length];
+  LS.set("layout", layoutMode);
+  applyLayout();
+});
+applyLayout();
+
 window.addEventListener("hashchange", route);
 
 async function route(){
@@ -578,6 +659,7 @@ function hydrate(i){
         <svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6 .8-4.4 4.2 1.1 6.1L12 16.9 6.7 19.7l1.1-6.1L3.4 9.4l6-.8z"/></svg>
       </button>
     </div>
+    <div class="q-layout">
     <div class="qcard">
       ${q.subject_part?`<div class="part">${esc(q.subject_part)}</div>`:""}
       <div class="qtext">${md((q.question_text||"").replace(/^\s*\d+\.\s*/, "")).replace(/^<p>|<\/p>$/g,"")}</div>
@@ -595,7 +677,8 @@ function hydrate(i){
           <div class="exp-b">${expInner||"<p>등록된 해설이 없습니다.</p>"}</div>
         </div>
       </div>
-    </div>`:""}`;
+    </div>`:""}
+    </div>`;
 
   body.querySelector(".qstar")?.addEventListener("click",e=>{
     const el=e.currentTarget, id=el.dataset.id;
