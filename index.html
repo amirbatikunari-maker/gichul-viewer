@@ -294,6 +294,11 @@ a{color:var(--accent);text-decoration:none}
                    max-width:100%!important;width:auto!important}
 .sheet-host img,.sheet-host svg{max-width:100%;height:auto}
 .sheet-host table{width:100%;border-collapse:collapse;font-size:13px}
+.mdtable{overflow-x:auto;margin:10px 0;-webkit-overflow-scrolling:touch}
+.mdtable table{border-collapse:collapse;width:100%;font-size:13.5px}
+.mdtable th,.mdtable td{border:1px solid var(--rule);padding:6px 9px;text-align:left;white-space:nowrap}
+.mdtable th{background:var(--accent-soft);font-weight:600;color:var(--ink)}
+.mdtable td:first-child{white-space:normal;font-weight:500}
 html[data-theme="dark"] .sheet-host{filter:invert(.92) hue-rotate(180deg)}
 html[data-theme="dark"] .sheet-host img{filter:invert(1) hue-rotate(180deg)}
 .katex{font-size:1.02em}
@@ -790,6 +795,24 @@ $("#theme").onclick = ()=>{
 };
 
 /* ── 아주 작은 마크다운 (LaTeX 안 건드림) ── */
+/* GFM 스타일 파이프 표(| a | b |\n|---|---|\n| 1 | 2 |) 를 인식해서 <table> 로 바꾼다.
+   표가 아니면 null 을 돌려주므로, 호출하는 쪽에서 표가 아닌 다른 처리로 넘어간다. */
+function tryTable(block){
+  const lines = block.split("\n").filter(l => l.trim());
+  if(lines.length < 2) return null;
+  const isRow = l => /^\s*\|/.test(l);
+  if(!isRow(lines[0])) return null;
+  if(!/^\s*\|?[\s:|-]+\|?\s*$/.test(lines[1]) || !/-{2,}/.test(lines[1])) return null;
+  const splitRow = l => l.trim().replace(/^\|/,"").replace(/\|$/,"").split("|").map(c=>c.trim());
+  const header = splitRow(lines[0]);
+  const rows = lines.slice(2).filter(isRow).map(splitRow);
+  if(!rows.length) return null;
+  let html = '<div class="mdtable"><table><thead><tr>' +
+    header.map(h=>`<th>${h}</th>`).join("") + "</tr></thead><tbody>";
+  for(const r of rows) html += "<tr>" + r.map(c=>`<td>${c}</td>`).join("") + "</tr>";
+  html += "</tbody></table></div>";
+  return html;
+}
 function md(src){
   if(!src) return "";
   const math=[]; let s=esc(src);
@@ -798,6 +821,8 @@ function md(src){
        .replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>")
        .replace(/^---$/gm,"<hr>");
   s = s.split(/\n{2,}/).map(block=>{
+    const table = tryTable(block);
+    if(table) return table;
     if(/^\s*[-•]\s/m.test(block) && block.split("\n").every(l=>/^\s*[-•]\s/.test(l)||!l.trim()))
       return "<ul>"+block.split("\n").filter(l=>l.trim()).map(l=>`<li>${l.replace(/^\s*[-•]\s/,"")}</li>`).join("")+"</ul>";
     if(/^\s*\d+[.)]\s/.test(block) && block.split("\n").every(l=>/^\s*\d+[.)]\s/.test(l)||!l.trim()))
