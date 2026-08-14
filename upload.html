@@ -78,7 +78,7 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
 <nav class="nav3">
   <a href="./index.html">뷰어</a>
   <a href="./upload.html" class="on">업로더</a>
-  <a href="./ingest.html">PDF 변환</a>
+  <a href="./ingest.html">자동 변환</a>
 </nav>
 
 <div class="wrap">
@@ -175,9 +175,7 @@ const CFG = window.APP_CONFIG || {};
 if(!CFG.SUPABASE_URL || CFG.SUPABASE_URL.includes("xxxx")){
   showFatal("config.js 에 Supabase 정보가 없습니다.", "SUPABASE_URL 과 SUPABASE_ANON_KEY 를 채워주세요.");
 }
-const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, {
-  auth: { persistSession: false }
-});
+const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
 let payload=null;
 const say=(el,t,ok)=>{el.textContent=t;el.className="msg "+(ok?"ok":"err")};
 
