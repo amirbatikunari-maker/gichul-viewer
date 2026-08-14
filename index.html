@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -42,6 +43,8 @@
   --r:14px;
   --head:56px;
   --rail:46px;
+  --qhead:52px;   /* 문항 헤더(번호·제목·필기·별표) 고정 바 높이 */
+  --ittool:47px;  /* 필기 도구모음 고정 바 높이 */
   --font-d:"IBM Plex Sans KR",Pretendard,sans-serif;
   --font-b:Pretendard,"IBM Plex Sans KR",sans-serif;
   --font-m:"IBM Plex Mono",ui-monospace,monospace;
@@ -163,7 +166,18 @@ a{color:var(--accent);text-decoration:none}
 .sheet-body{max-width:760px;margin:0 auto}
 
 /* ── 문항 헤더 ───────────────────────────────── */
-.qhead{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+/* 슬라이드를 아래로 스크롤해도 번호·제목·필기·별표 바는 위에 계속 붙어 있는다.
+   .slide 가 세로 스크롤 컨테이너이므로, 그 안에서 sticky top:0 이면 스크롤포트 맨 위에 고정된다.
+   좌우 -14px 은 .slide 의 좌우 여백을 상쇄해 바가 화면 폭을 꽉 채우게 만든다(뒤 내용이 옆으로 비쳐 보이지 않게). */
+.qhead{
+  position:sticky;top:0;z-index:28;
+  display:flex;align-items:center;gap:10px;
+  height:var(--qhead);flex:none;
+  margin:-14px -14px 10px;padding:0 14px;
+  background:color-mix(in srgb,var(--paper) 93%,transparent);
+  backdrop-filter:blur(12px) saturate(1.2);
+  border-bottom:1px solid var(--rule);
+}
 
 /* ══ 필기 ═══════════════════════════════════════════════ */
 .qink{width:32px;height:32px;flex:none;display:grid;place-items:center;border-radius:9px;color:var(--ink-2)}
@@ -191,9 +205,24 @@ a{color:var(--accent);text-decoration:none}
 .inkpage .qhead{padding:0}
 .inkcanvas{position:absolute;inset:0;width:400px;touch-action:none;transform-origin:top left}
 .inkcanvas.edit{cursor:crosshair}
+/* 이동(손) 모드: 캔버스가 터치를 안 받고 그대로 통과시키므로 평소처럼 스크롤·스와이프·핀치가 된다.
+   확대돼 있을 때는 한 손가락 드래그로 화면을 끌어서 옮긴다(포토샵 손도구와 같은 감각). */
+.zoomwrap.panmode{cursor:grab}
+.zoomwrap.panmode:active{cursor:grabbing}
 
-.inktools{display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:8px 10px;
-  border-bottom:1px solid var(--rule);background:color-mix(in srgb,var(--card) 92%,var(--paper))}
+/* 도구모음도 문항 헤더 바로 밑에 고정 — 아래쪽 해설을 필기하는 중에도 도구를 바꿀 수 있다.
+   여러 줄로 접히면 화면을 너무 많이 먹으므로 한 줄로 두고 가로로 밀어서 쓴다.
+   저장상태·닫기는 밀려나지 않게 오른쪽에 고정한다. */
+.inktools{position:sticky;top:var(--qhead);z-index:27;
+  display:flex;align-items:center;gap:6px;height:var(--ittool);
+  margin:0 -14px 0;padding:0 12px;
+  border-bottom:1px solid var(--rule);
+  background:color-mix(in srgb,var(--card) 94%,var(--paper));
+  backdrop-filter:blur(10px)}
+.itscroll{flex:1;min-width:0;display:flex;align-items:center;gap:5px;
+  overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+  padding:8px 0;mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 18px),transparent 100%)}
+.itscroll::-webkit-scrollbar{display:none}
 .itbtn{flex:none;height:30px;padding:0 9px;border-radius:8px;border:1.4px solid var(--rule);
   font:600 11.5px/1 var(--font-d);color:var(--ink-2);display:flex;align-items:center;gap:5px}
 .itbtn.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
@@ -202,7 +231,7 @@ a{color:var(--accent);text-decoration:none}
 .itcolor{width:22px;height:22px;border-radius:50%;border:2px solid transparent;flex:none}
 .itcolor.on{border-color:var(--ink)}
 .itgrow{flex:1}
-.itsave{font:500 10.5px/1 var(--font-m);color:var(--ink-2);white-space:nowrap}
+.itsave{flex:none;font:500 10.5px/1 var(--font-m);color:var(--ink-2);white-space:nowrap;margin-left:6px}
 
 /* ── 로그인 팝오버(필기용) ── */
 .inkauth{position:relative}
@@ -431,6 +460,17 @@ const $  = s=>document.querySelector(s);
 const $$ = s=>[...document.querySelectorAll(s)];
 const esc = s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
+/* 본문 맨 앞에 다시 붙어 있는 문항 번호("1. ", "23) ", "(4) ", "문제 5. ")를 지운다.
+   화면 왼쪽에 이미 번호 배지가 따로 있으므로 중복이고, 예전에 올린 회차에도 남아 있어서
+   저장된 값을 고치지 않고 화면에 그릴 때 걸러낸다.
+   숫자 뒤에 반드시 공백이 와야만 지우므로 "1.5kg", "2단압축", "20℃" 같은 진짜 본문은 건드리지 않는다. */
+function stripQNo(s){
+  return String(s??"").replace(
+    /^[\s\u00A0]*(?:문제|문항)?[\s\u00A0]*(?:[[(][\s\u00A0]*\d{1,3}[\s\u00A0]*[\])]|\d{1,3}[\s\u00A0]*[.)])[\s\u00A0]+/,
+    ""
+  );
+}
+
 /* ═══════════════════════════════════════════════
    필기 — 로그인
    ═══════════════════════════════════════════════ */
@@ -471,7 +511,8 @@ function saveAnnotation(qid){
   saveTimers[qid] = setTimeout(async ()=>{
     if(!sb) return;
     const a = S.anno[qid]; if(!a) return;
-    const el = document.querySelector(`.inkpage[data-qid="${qid}"] .itsave`);
+    const el = document.querySelector(`.inkpage[data-qid="${qid}"]`)
+                 ?.closest(".sheet-body")?.querySelector(".itsave");
     if(el) el.textContent = "저장 중…";
     const {error} = await sb.from("annotations").upsert(
       { question_id: qid, strokes: a.strokes, page_width: a.page_width },
@@ -509,11 +550,19 @@ function setupZoom(zoomwrap, zoomstage){
   let zoom = 1, tx = 0, ty = 0;
   let startDist = 0, startZoom = 1, startMid = {x:0,y:0}, startTx = 0, startTy = 0;
   let lastTap = 0, dragStart = null;
+  let panMode = false;   /* 이동(손) 도구가 켜졌을 때 true */
   const resetBtn = zoomwrap.querySelector(".zoomreset");
 
+  /* 손도구로 직접 끌어 옮기는 상황(이동 도구 + 확대 상태)에서만 브라우저의 기본 스크롤을 끈다.
+     그 외에는 pan-y 로 둬서 세로 스크롤은 늘 네이티브가 매끄럽게 처리하게 한다.
+     (둘 다 켜져 있으면 한 번 끌 때 화면이 두 배로 움직인다) */
+  function syncTouch(){
+    zoomwrap.style.touchAction = (panMode && zoom > 1.02) ? "none" : "pan-y";
+  }
   function apply(){
     zoomstage.style.transform = `translate(${tx}px,${ty}px) scale(${zoom})`;
     zoomwrap.classList.toggle("zoomed", zoom > 1.02);
+    syncTouch();
   }
   function clamp(){
     const ww = zoomwrap.clientWidth, wh = zoomwrap.clientHeight;
@@ -536,9 +585,16 @@ function setupZoom(zoomwrap, zoomstage){
   function resetZoom(){ zoom = 1; tx = 0; ty = 0; apply(); zoomwrap.classList.remove("zoomed"); }
 
   const track = $("#track");
+  /* 필기 캔버스 위에서 시작한 한 손가락 동작은 "그리는 중"이므로 넘기기·끌기로 해석하면 안 된다.
+     (가로로 밑줄을 긋다가 다음 문제로 넘어가 버리는 것을 막는다.)
+     두 손가락 핀치는 그대로 살려둔다 — 필기 중에도 확대는 되어야 하니까. */
+  const onInkCanvas = ev => !!ev.target?.classList?.contains?.("inkcanvas");
   zoomwrap.addEventListener("pointerdown", ev=>{
     pts.set(ev.pointerId, {x:ev.clientX, y:ev.clientY});
-    if(pts.size === 1){ dragStart = {x:ev.clientX, y:ev.clientY, t:Date.now(), scrollLeft:track.scrollLeft}; }
+    if(pts.size === 1){
+      dragStart = onInkCanvas(ev) ? null
+        : {x:ev.clientX, y:ev.clientY, t:Date.now(), scrollLeft:track.scrollLeft, tx0:tx, ty0:ty};
+    }
     if(pts.size === 2){
       dragStart = null; // 둘째 손가락이 닿으면 스와이프 판정은 취소하고 오직 핀치로만 다룬다
       const [a,b] = [...pts.values()];
@@ -573,6 +629,22 @@ function setupZoom(zoomwrap, zoomstage){
        가로로 판정되면 그때부터 손가락을 실시간으로 따라 화면을 옮긴다 — 네이티브 스크롤처럼 */
     if(!dragStart) return;
     const dx = ev.clientX - dragStart.x, dy = ev.clientY - dragStart.y;
+
+    /* 이동(손) 도구 + 확대 상태 → 한 손가락 드래그로 화면을 끌어 옮긴다.
+       확대돼 있지 않으면 옮길 곳이 없으므로 평소대로(세로 스크롤 / 좌우 넘기기) 둔다. */
+    if(panMode && zoom > 1.02){
+      if(dragMode === null){
+        if(Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
+        dragMode = "pan";
+      }
+      if(dragMode === "pan"){
+        ev.preventDefault();
+        tx = dragStart.tx0 + dx; ty = dragStart.ty0 + dy;
+        clamp(); apply();
+        return;
+      }
+    }
+
     if(dragMode === null){
       if(Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
       dragMode = Math.abs(dx) > Math.abs(dy) * 1.15 ? "h" : "v";
@@ -600,8 +672,12 @@ function setupZoom(zoomwrap, zoomstage){
       }
       jump(target); // 가장 가까운 문항으로 부드럽게 스냅 (안 넘어가도 제자리로 스냅됨)
     }
+    const moved = dragStart ? Math.hypot(ev.clientX - dragStart.x, ev.clientY - dragStart.y) : 0;
+    const wasDrag = dragMode !== null;
     dragStart = null; dragMode = null;
 
+    /* 끌어서 옮긴 동작은 탭으로 세지 않는다 — 안 그러면 두 번 끌었을 때 더블탭으로 오인된다 */
+    if(wasDrag || moved > 10){ lastTap = 0; return; }
     const now = Date.now();
     if(now - lastTap < 320){ zoom>1.02 ? resetZoom() : zoomAt(2, ev.clientX, ev.clientY); }
     lastTap = now;
@@ -610,10 +686,16 @@ function setupZoom(zoomwrap, zoomstage){
   zoomwrap.addEventListener("pointercancel", ()=>{ pts.clear(); dragStart = null; dragMode = null; });
   resetBtn?.addEventListener("click", e=>{ e.stopPropagation(); resetZoom(); });
   new ResizeObserver(()=>{ if(zoom>1){ clamp(); apply(); } }).observe(zoomwrap);
+
+  return {
+    setPan(on){ panMode = !!on; zoomwrap.classList.toggle("panmode", panMode); syncTouch(); },
+    reset: resetZoom,
+    get zoom(){ return zoom; }
+  };
 }
 
 
-function setupInkPage(qid, wrap, page, canvas, tools, onEditingChange){
+function setupInkPage(qid, wrap, page, canvas, tools, onEditingChange, zoomCtl){
   const ctx = canvas.getContext("2d");
   const state = { tool:"pen", color:PALETTE[0], hiColor:HI_PALETTE[0], editing:false, drawing:false, cur:null };
 
@@ -711,12 +793,25 @@ function setupInkPage(qid, wrap, page, canvas, tools, onEditingChange){
   canvas.addEventListener("pointercancel", finish);
   canvas.addEventListener("pointerleave", ()=>{ if(state.tool!=="er") finish(); });
 
-  /* 도구모음 */
+  /* ── 도구 전환 ──
+     "move"(이동) 는 그리는 도구가 아니라 손도구다. 이때는 캔버스가 아예 터치를 안 받게 해서
+     (pointer-events:none) 필기 모드에 들어와 있어도 평소처럼 세로 스크롤·좌우 넘기기·핀치 확대가
+     그대로 되고, 확대돼 있으면 한 손가락으로 화면을 끌어 옮길 수 있다. */
+  function syncPointer(){
+    const drawing = state.editing && state.tool !== "move";
+    canvas.style.pointerEvents = drawing ? "auto" : "none";
+    canvas.classList.toggle("edit", drawing);
+    zoomCtl?.setPan(state.editing && state.tool === "move");
+  }
+  function setTool(name){
+    if(!name) return;
+    state.tool = name;
+    tools.querySelectorAll("[data-tool]").forEach(x=>x.classList.toggle("on", x.dataset.tool===name));
+    if(state.drawing){ state.drawing = false; state.cur = null; }
+    syncPointer();
+  }
   tools.querySelectorAll("[data-tool]").forEach(b=>{
-    b.onclick = ()=>{
-      state.tool = b.dataset.tool;
-      tools.querySelectorAll("[data-tool]").forEach(x=>x.classList.toggle("on", x===b));
-    };
+    b.onclick = ()=> setTool(b.dataset.tool);
   });
   tools.querySelectorAll("[data-color]").forEach(b=>{
     b.style.background = b.dataset.color;
@@ -736,34 +831,37 @@ function setupInkPage(qid, wrap, page, canvas, tools, onEditingChange){
 
   function setEditing(on){
     state.editing = on && S.loggedIn;
-    canvas.classList.toggle("edit", state.editing);
-    canvas.style.pointerEvents = state.editing ? "auto" : "none";
     tools.style.display = state.editing ? "flex" : "none";
     wrap.closest(".slide")?.classList.toggle("ink-editing", state.editing);
+    if(!state.editing) zoomCtl?.setPan(false);
+    syncPointer();
     onEditingChange?.(state.editing);
   }
   setEditing(false);
   resize();
 
-  return { setEditing, redraw, resize };
+  return { setEditing, setTool, redraw, resize, get editing(){ return state.editing; } };
 }
 
 /* 문항 하나를 "가상 페이지"로 그린다 — 필기가 있거나, 로그인 후 필기 버튼을 눌렀을 때 쓴다 */
 function inkToolsHTML(){
   return `
   <div class="inktools" style="display:none">
-    <button class="itbtn on" data-tool="pen"><svg viewBox="0 0 24 24"><path d="M3 21l3-1 11-11-2-2L4 18z"/><path d="M14 7l3 3"/></svg>펜</button>
-    <button class="itbtn" data-tool="hi"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="6"/></svg>형광펜</button>
-    <button class="itbtn" data-tool="ul"><svg viewBox="0 0 24 24"><path d="M5 19h14M7 5v9a5 5 0 0010 0V5"/></svg>밑줄</button>
-    <button class="itbtn" data-tool="er"><svg viewBox="0 0 24 24"><path d="M18 13l-7 7H5l-2-2 11-11z"/></svg>지우개</button>
-    <span class="itsep"></span>
-    ${PALETTE.map((c,i)=>`<button class="itcolor ${i===0?'on':''}" data-color="${c}" data-kind="pen"></button>`).join("")}
-    <span class="itsep"></span>
-    ${HI_PALETTE.map((c,i)=>`<button class="itcolor ${i===0?'on':''}" data-color="${c}" data-kind="hi"></button>`).join("")}
-    <span class="itsep"></span>
-    <button class="itbtn" data-undo>되돌리기</button>
-    <button class="itbtn" data-clear>전체지우기</button>
-    <div class="itgrow"></div>
+    <div class="itscroll">
+      <button class="itbtn" data-tool="move" title="이동 (V) — 필기 대신 화면을 끌어서 움직입니다"><svg viewBox="0 0 24 24"><path d="M5 3l0 14 3.2-3.1 2.4 5.1 2.6-1.2-2.3-5H15z"/></svg>이동</button>
+      <span class="itsep"></span>
+      <button class="itbtn on" data-tool="pen"><svg viewBox="0 0 24 24"><path d="M3 21l3-1 11-11-2-2L4 18z"/><path d="M14 7l3 3"/></svg>펜</button>
+      <button class="itbtn" data-tool="hi"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="6"/></svg>형광펜</button>
+      <button class="itbtn" data-tool="ul"><svg viewBox="0 0 24 24"><path d="M5 19h14M7 5v9a5 5 0 0010 0V5"/></svg>밑줄</button>
+      <button class="itbtn" data-tool="er"><svg viewBox="0 0 24 24"><path d="M18 13l-7 7H5l-2-2 11-11z"/></svg>지우개</button>
+      <span class="itsep"></span>
+      ${PALETTE.map((c,i)=>`<button class="itcolor ${i===0?'on':''}" data-color="${c}" data-kind="pen"></button>`).join("")}
+      <span class="itsep"></span>
+      ${HI_PALETTE.map((c,i)=>`<button class="itcolor ${i===0?'on':''}" data-color="${c}" data-kind="hi"></button>`).join("")}
+      <span class="itsep"></span>
+      <button class="itbtn" data-undo>되돌리기</button>
+      <button class="itbtn" data-clear>전체지우기</button>
+    </div>
     <span class="itsave"></span>
     <button class="itbtn" data-close>닫기</button>
   </div>`;
@@ -995,7 +1093,7 @@ function cardHTML(q){
   return `
     <div class="qcard">
       ${q.subject_part?`<div class="part">${esc(q.subject_part)}</div>`:""}
-      <div class="qtext">${md(q.question_text).replace(/^<p>|<\/p>$/g,"")}</div>
+      <div class="qtext">${md(stripQNo(q.question_text)).replace(/^<p>|<\/p>$/g,"")}</div>
       ${chs?`<div class="choices">${chs}</div>`:""}
     </div>
     ${(expInner||q.answer)?`
@@ -1021,6 +1119,8 @@ function wireCard(root, slide){
 function onInkClick(q, body, i){
   if(!S.loggedIn){ $("#inkPop").classList.add("on"); return; }
   const qinkBtn = body.querySelector(".qink");
+  /* 이미 필기 중이면 같은 버튼으로 빠져나온다 — 도구모음의 "닫기"를 못 찾아도 갇히지 않게 */
+  if(body.__ink && body.__ink.editing){ body.__ink.setEditing(false); return; }
   if(!body.__ink){
     const oldZoomwrap = body.querySelector(".zoomwrap");
     const inner = oldZoomwrap.querySelector(".qcard").outerHTML +
@@ -1038,8 +1138,9 @@ function onInkClick(q, body, i){
     const canvas = body.querySelector(".inkcanvas");
     const tools = body.querySelector(".inktools");
     wireCard(page, body.closest(".slide"));
-    setupZoom(zoomwrap, zoomstage);
-    body.__ink = setupInkPage(q.id, wrap, page, canvas, tools, editing => qinkBtn.classList.toggle("on", editing));
+    body.__zoom = setupZoom(zoomwrap, zoomstage);
+    body.__ink = setupInkPage(q.id, wrap, page, canvas, tools,
+                              editing => qinkBtn.classList.toggle("on", editing), body.__zoom);
     tex(page);
     requestAnimationFrame(()=> body.__ink.resize());
   }
@@ -1060,7 +1161,7 @@ function hydrate(i){
   const headHTML = `
     <div class="qhead">
       <span class="qno">${q.number}</span>
-      <span class="qsum">${esc(q.summary||"")}${q.correct_rate!=null?` · 정답률 ${q.correct_rate}%`:""}</span>
+      <span class="qsum">${esc(stripQNo(q.summary||""))}${q.correct_rate!=null?` · 정답률 ${q.correct_rate}%`:""}</span>
       <button class="qink ${hasInk?"has":""}" aria-label="필기">
         <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
       </button>
@@ -1084,7 +1185,7 @@ function hydrate(i){
 
   const zoomwrap = body.querySelector(".zoomwrap");
   const zoomstage = body.querySelector(".zoomstage");
-  setupZoom(zoomwrap, zoomstage);
+  body.__zoom = setupZoom(zoomwrap, zoomstage);
 
   if(hasInk){
     const wrap = body.querySelector(".inkwrap");
@@ -1093,7 +1194,8 @@ function hydrate(i){
     const tools = body.querySelector(".inktools");
     const qinkBtn = body.querySelector(".qink");
     wireCard(page, slide);
-    body.__ink = setupInkPage(q.id, wrap, page, canvas, tools, editing => qinkBtn.classList.toggle("on", editing));
+    body.__ink = setupInkPage(q.id, wrap, page, canvas, tools,
+                              editing => qinkBtn.classList.toggle("on", editing), body.__zoom);
     tex(page);
     requestAnimationFrame(()=> body.__ink.resize());
   }else{
@@ -1146,6 +1248,17 @@ $("#veilBtn").onclick = ()=>{ S.veil=!S.veil; LS.set("veil",S.veil); applyVeil()
 /* ── 키보드 ── */
 addEventListener("keydown",e=>{
   if(!$("#v-study").classList.contains("on")) return;
+  if(/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+
+  /* 필기 중이면 포토샵처럼 알파벳 한 글자로 도구를 바꾼다 (V=이동, P=펜, H=형광펜, U=밑줄, E=지우개) */
+  const ink = $(`#track .slide[data-i="${S.idx}"] .sheet-body`)?.__ink;
+  if(ink?.editing && !e.ctrlKey && !e.metaKey){
+    const map = {v:"move", p:"pen", h:"hi", u:"ul", e:"er"};
+    const t = map[e.key.toLowerCase()];
+    if(t){ e.preventDefault(); ink.setTool(t); return; }
+    if(e.key==="Escape"){ e.preventDefault(); ink.setEditing(false); return; }
+  }
+
   if(e.key==="ArrowRight") jump(Math.min(S.idx+1,S.questions.length-1));
   if(e.key==="ArrowLeft")  jump(Math.max(S.idx-1,0));
   if(e.key===" "){ e.preventDefault(); $("#veilBtn").click(); }
