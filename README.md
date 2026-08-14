@@ -1,1 +1,0 @@
-# gichul-viewer
