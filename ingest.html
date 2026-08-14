@@ -375,28 +375,21 @@ function setSource(src){
   $("#src-images").hidden = src !== "images";
   $("#autoImgRow").style.display = src === "pdf" ? "block" : "none";
   $("#runImage").style.display   = src === "pdf" ? "" : "none";  // 사진 모드에선 이미 사진이라 필요 없다
+  
   if(src === "pdf"){
     $("#fromLabel").textContent = "시작 페이지";
     $("#toLabel").textContent = "끝 페이지";
-    $("#chunkLabel").textContent = "한 번에 보낼 페이지";
-    $("#atFromLabel").textContent = "정답표 시작 페이지";
-    $("#atToLabel").textContent = "정답표 끝 페이지";
   }else{
     $("#fromLabel").textContent = "시작 번호";
     $("#toLabel").textContent = "끝 번호";
-    $("#chunkLabel").textContent = "한 번에 보낼 장수";
-    $("#atFromLabel").textContent = "정답표 시작 번호";
-    $("#atToLabel").textContent = "정답표 끝 번호";
   }
+  
   $("#fm").className = "msg";
   $("#run").disabled = src === "pdf" ? !PDF : !IMAGES.length;
   $("#runImage").disabled = src !== "pdf" || !PDF;
   if(src === "pdf" && PDF) plan(); else if(src === "images" && IMAGES.length) plan();
 }
 document.querySelectorAll(".srctab").forEach(t => t.onclick = () => setSource(t.dataset.src));
-$("#hasAnswerTable").addEventListener("change", e => {
-  $("#atRange").style.display = e.target.checked ? "grid" : "none";
-});
 
 /* ── PDF 받기 ── */
 const drop = $("#drop");
