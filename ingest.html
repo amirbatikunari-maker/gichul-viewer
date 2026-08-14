@@ -1,6 +1,19 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<script>
+/* ★ 낡은 서비스 워커가 이 페이지를 물고 있으면 스스로 지우고 한 번만 새로고침한다.
+   "강력 새로고침 해주세요" "Unregister 눌러주세요" 안내를 계속 반복할 필요가 없도록. */
+(function(){
+  if('serviceWorker' in navigator && navigator.serviceWorker.controller && !sessionStorage.getItem('sw-cleared-v3')){
+    sessionStorage.setItem('sw-cleared-v3','1');
+    navigator.serviceWorker.getRegistrations().then(function(regs){
+      return Promise.all(regs.map(function(r){ return r.unregister(); }));
+    }).then(function(){ location.reload(); });
+  }
+})();
+</script>
+
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PDF 자동 변환 · 기출 해설 노트</title>
