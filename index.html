@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -44,7 +43,6 @@
   --head:56px;
   --rail:46px;
   --qhead:52px;   /* 문항 헤더(번호·제목·필기·별표) 고정 바 높이 */
-  --ittool:47px;  /* 필기 도구모음 고정 바 높이 */
   --font-d:"IBM Plex Sans KR",Pretendard,sans-serif;
   --font-b:Pretendard,"IBM Plex Sans KR",sans-serif;
   --font-m:"IBM Plex Mono",ui-monospace,monospace;
@@ -161,21 +159,23 @@ a{color:var(--accent);text-decoration:none}
 .slide{
   flex:0 0 100%;scroll-snap-align:center;scroll-snap-stop:always;
   overflow-y:auto;overscroll-behavior-y:contain;
-  padding:14px 14px calc(48px + env(safe-area-inset-bottom));
+  padding:0 14px calc(48px + env(safe-area-inset-bottom));
 }
 .sheet-body{max-width:760px;margin:0 auto}
 
 /* ── 문항 헤더 ───────────────────────────────── */
 /* 슬라이드를 아래로 스크롤해도 번호·제목·필기·별표 바는 위에 계속 붙어 있는다.
    .slide 가 세로 스크롤 컨테이너이므로, 그 안에서 sticky top:0 이면 스크롤포트 맨 위에 고정된다.
-   좌우 -14px 은 .slide 의 좌우 여백을 상쇄해 바가 화면 폭을 꽉 채우게 만든다(뒤 내용이 옆으로 비쳐 보이지 않게). */
+   ★ 위 여백을 마이너스 마진으로 상쇄하면 안 된다 — sticky 는 "마진 박스"를 기준으로 붙기 때문에
+     그만큼 바가 아래로 밀리고 그 틈으로 카드 윗부분(2과목 …)이 비쳐 보인다.
+     그래서 .slide 의 위 여백 자체를 0 으로 두고, 이 바가 첫 요소로서 여백 역할까지 겸한다.
+   좌우 -14px 은 .slide 의 좌우 여백만 상쇄해 바가 화면 폭을 꽉 채우게 만든다. */
 .qhead{
   position:sticky;top:0;z-index:28;
   display:flex;align-items:center;gap:10px;
   height:var(--qhead);flex:none;
-  margin:-14px -14px 10px;padding:0 14px;
-  background:color-mix(in srgb,var(--paper) 93%,transparent);
-  backdrop-filter:blur(12px) saturate(1.2);
+  margin:0 -14px 10px;padding:0 14px;
+  background:var(--paper);
   border-bottom:1px solid var(--rule);
 }
 
@@ -211,18 +211,21 @@ a{color:var(--accent);text-decoration:none}
 .zoomwrap.panmode:active{cursor:grabbing}
 
 /* 도구모음도 문항 헤더 바로 밑에 고정 — 아래쪽 해설을 필기하는 중에도 도구를 바꿀 수 있다.
-   여러 줄로 접히면 화면을 너무 많이 먹으므로 한 줄로 두고 가로로 밀어서 쓴다.
-   저장상태·닫기는 밀려나지 않게 오른쪽에 고정한다. */
+   모바일 세로 화면에서는 두 줄(윗줄 = 도구, 아랫줄 = 색·되돌리기·닫기)로 나눠 버튼이 안 잘리게 한다.
+   가로로 눕히거나 화면이 넓으면 한 줄로 합친다. */
 .inktools{position:sticky;top:var(--qhead);z-index:27;
-  display:flex;align-items:center;gap:6px;height:var(--ittool);
-  margin:0 -14px 0;padding:0 12px;
+  display:flex;flex-direction:column;gap:6px;
+  margin:0 -14px 0;padding:8px 14px;
   border-bottom:1px solid var(--rule);
-  background:color-mix(in srgb,var(--card) 94%,var(--paper));
-  backdrop-filter:blur(10px)}
-.itscroll{flex:1;min-width:0;display:flex;align-items:center;gap:5px;
-  overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;
-  padding:8px 0;mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 18px),transparent 100%)}
-.itscroll::-webkit-scrollbar{display:none}
+  background:color-mix(in srgb,var(--card) 96%,var(--paper))}
+.itrow{display:flex;align-items:center;gap:5px;min-width:0;
+  overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.itrow::-webkit-scrollbar{display:none}
+@media(min-width:640px){
+  .inktools{flex-direction:row;align-items:center;gap:8px}
+  .itrow{flex:0 1 auto}
+  .itrow.tools{flex:none}
+}
 .itbtn{flex:none;height:30px;padding:0 9px;border-radius:8px;border:1.4px solid var(--rule);
   font:600 11.5px/1 var(--font-d);color:var(--ink-2);display:flex;align-items:center;gap:5px}
 .itbtn.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
@@ -757,25 +760,59 @@ function setupInkPage(qid, wrap, page, canvas, tools, onEditingChange, zoomCtl){
     if(a.strokes.length !== before){ redraw(); saveAnnotation(qid); }
   }
 
+  /* ── 그은 채로 1초 멈추면 직선으로 펴주기 ──────────────────────
+     손을 떼지 않고 제자리에 약 1초 있으면, 지금까지 그은 획을 "시작점 → 지금 위치" 직선으로 바꾼다.
+     그 뒤로는 손가락을 따라 끝점만 움직이므로, 자를 대고 긋는 것처럼 각도를 맞춘 뒤 떼면 된다.
+     (펜·형광펜에만 적용. 밑줄은 원래 직선이고, 지우개는 해당 없음) */
+  const HOLD_MS = 900, HOLD_MOVE = 2.5;
+  let holdTimer = null, straight = false;
+  function clearHold(){ clearTimeout(holdTimer); holdTimer = null; }
+  function armHold(){
+    clearHold();
+    if(state.tool !== "pen" && state.tool !== "hi") return;
+    holdTimer = setTimeout(()=>{
+      if(!state.drawing || !state.cur || state.cur.pts.length < 2) return;
+      const pts = state.cur.pts;
+      state.cur.pts = [pts[0], pts[pts.length-1]];
+      straight = true;
+      redraw(); paintStroke(state.cur);
+      try{ navigator.vibrate?.(12); }catch(e){}   /* 직선으로 바뀐 순간을 손끝으로 알려준다 */
+    }, HOLD_MS);
+  }
+
   canvas.addEventListener("pointerdown", ev=>{
     if(!state.editing) return;
     ev.preventDefault();
     canvas.setPointerCapture(ev.pointerId);
+    straight = false; clearHold();
     if(state.tool === "er"){ state.drawing = true; eraseNear(...toVirtual(ev).slice(0,2)); return; }
     state.drawing = true;
     const col = state.tool === "hi" ? state.hiColor : state.color;
     state.cur = { tool: state.tool, color: col, w: strokeStyle({tool:state.tool}).w, pts:[toVirtual(ev)] };
+    armHold();
   });
   canvas.addEventListener("pointermove", ev=>{
     if(!state.editing || !state.drawing) return;
     if(state.tool === "er"){ eraseNear(...toVirtual(ev).slice(0,2)); return; }
     const v = toVirtual(ev);
+
+    if(straight){
+      /* 이미 직선으로 바뀐 뒤 — 끝점만 따라간다. 잔상이 남지 않게 전체를 다시 그린다 */
+      state.cur.pts[1] = v;
+      redraw(); paintStroke(state.cur);
+      return;
+    }
+    const last = state.cur.pts[state.cur.pts.length-1];
     state.cur.pts.push(v);
     paintStroke(state.cur); // 진행 중인 획을 즉시 눈에 보이게
+    /* 실제로 움직였을 때만 대기 시간을 리셋한다 — 손을 멈추면 그때부터 1초를 센다 */
+    if(Math.hypot(v[0]-last[0], v[1]-last[1]) > HOLD_MOVE) armHold();
   });
   function finish(){
+    clearHold();
     if(!state.drawing) return;
     state.drawing = false;
+    straight = false;
     if(state.tool === "er"){ return; }
     if(state.cur && state.cur.pts.length >= 2){
       if(state.tool === "ul"){
@@ -807,7 +844,8 @@ function setupInkPage(qid, wrap, page, canvas, tools, onEditingChange, zoomCtl){
     if(!name) return;
     state.tool = name;
     tools.querySelectorAll("[data-tool]").forEach(x=>x.classList.toggle("on", x.dataset.tool===name));
-    if(state.drawing){ state.drawing = false; state.cur = null; }
+    clearHold();
+    if(state.drawing){ state.drawing = false; state.cur = null; straight = false; redraw(); }
     syncPointer();
   }
   tools.querySelectorAll("[data-tool]").forEach(b=>{
@@ -847,23 +885,25 @@ function setupInkPage(qid, wrap, page, canvas, tools, onEditingChange, zoomCtl){
 function inkToolsHTML(){
   return `
   <div class="inktools" style="display:none">
-    <div class="itscroll">
+    <div class="itrow tools">
       <button class="itbtn" data-tool="move" title="이동 (V) — 필기 대신 화면을 끌어서 움직입니다"><svg viewBox="0 0 24 24"><path d="M5 3l0 14 3.2-3.1 2.4 5.1 2.6-1.2-2.3-5H15z"/></svg>이동</button>
       <span class="itsep"></span>
       <button class="itbtn on" data-tool="pen"><svg viewBox="0 0 24 24"><path d="M3 21l3-1 11-11-2-2L4 18z"/><path d="M14 7l3 3"/></svg>펜</button>
       <button class="itbtn" data-tool="hi"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="6"/></svg>형광펜</button>
       <button class="itbtn" data-tool="ul"><svg viewBox="0 0 24 24"><path d="M5 19h14M7 5v9a5 5 0 0010 0V5"/></svg>밑줄</button>
       <button class="itbtn" data-tool="er"><svg viewBox="0 0 24 24"><path d="M18 13l-7 7H5l-2-2 11-11z"/></svg>지우개</button>
-      <span class="itsep"></span>
+    </div>
+    <div class="itrow">
       ${PALETTE.map((c,i)=>`<button class="itcolor ${i===0?'on':''}" data-color="${c}" data-kind="pen"></button>`).join("")}
       <span class="itsep"></span>
       ${HI_PALETTE.map((c,i)=>`<button class="itcolor ${i===0?'on':''}" data-color="${c}" data-kind="hi"></button>`).join("")}
       <span class="itsep"></span>
       <button class="itbtn" data-undo>되돌리기</button>
       <button class="itbtn" data-clear>전체지우기</button>
+      <div class="itgrow"></div>
+      <span class="itsave"></span>
+      <button class="itbtn" data-close>닫기</button>
     </div>
-    <span class="itsave"></span>
-    <button class="itbtn" data-close>닫기</button>
   </div>`;
 }
 function inkPageHTML(q, innerHTML){
