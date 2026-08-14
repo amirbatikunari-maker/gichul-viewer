@@ -545,7 +545,7 @@ function plan(){
   drawBatches(); stats();
 }
 $("#cancelFile").onclick = resetFileState;
-["pFrom","pTo","chunk"].forEach(id => $("#"+id).addEventListener("change", plan));
+["pFrom","pTo"].forEach(id => $("#"+id).addEventListener("change", plan));
 
 function unit(){ return SRC === "pdf" ? "쪽" : "번"; }
 function drawBatches(){
