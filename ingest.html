@@ -137,12 +137,14 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
       </div>
     </div>
 
-    <!-- 2. 자료 -->
+<!-- 2. 자료 -->
     <div class="box">
       <div class="eyebrow">2 · 자료 넣기</div>
       <div class="srctabs">
         <button class="srctab on" data-src="pdf" type="button">PDF 한 개</button>
         <button class="srctab" data-src="images" type="button">사진 여러 장</button>
+        <!-- ★ 잘못 올렸을 때 언제든 누를 수 있는 파일 취소 버튼 -->
+        <button id="cancelFile" class="ghost" type="button" style="margin-left:auto; display:none; color:var(--bad); border-color:var(--bad)">파일 취소</button>
       </div>
 
       <div id="src-pdf">
@@ -164,17 +166,10 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
 
       <div class="msg" id="fm"></div>
 
+      <!-- 간소화된 설정 영역: 무조건 1장(페이지)씩 단건 처리 -->
       <div class="grid" style="margin-top:14px">
         <div><label id="fromLabel">시작 페이지</label><input id="pFrom" type="number" min="1" value="1"></div>
         <div><label id="toLabel">끝 페이지</label><input id="pTo" type="number" min="1"></div>
-        <div><label id="chunkLabel">한 번에 보낼 페이지</label>
-          <select id="chunk">
-            <option value="2">2쪽 (가장 안전)</option>
-            <option value="3" selected>3쪽 (권장)</option>
-            <option value="4">4쪽</option>
-            <option value="6">6쪽 (빠름·잘릴 위험)</option>
-          </select>
-        </div>
         <div><label>호출 간격</label>
           <select id="gap">
             <option value="1500">1.5초</option>
@@ -191,18 +186,10 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
         <option value="answer">정답만 표시돼 있음</option>
       </select>
 
-      <div class="check"><input type="checkbox" id="hasAnswerTable">
-        <span>정답이 문제와 따로, 표로 몰려 있어요(보통 맨 뒷장) <span style="color:var(--ink-2)">— 예: "1 2 3 4 … / ②④①④…" 처럼 번호·정답이 줄지어 있는 표. 위치를 알려주시면 따로 뽑아서 문항 번호에 맞춰 붙여넣습니다</span></span></div>
-      <div class="grid" id="atRange" style="display:none;margin-top:10px">
-        <div><label id="atFromLabel">정답표 시작 페이지</label><input id="atFrom" type="number" min="1"></div>
-        <div><label id="atToLabel">정답표 끝 페이지</label><input id="atTo" type="number" min="1"></div>
-      </div>
-
-      <div class="check"><input type="checkbox" id="autoUp" checked>
+      <div class="check" style="margin-top:14px"><input type="checkbox" id="autoUp" checked>
         <span>묶음이 끝날 때마다 곧바로 Supabase에 올리기 <span style="color:var(--ink-2)">— 도중에 창이 닫혀도 그때까지 한 건 남습니다</span></span></div>
-      <div class="check"><input type="checkbox" id="svgOn">
-        <span>계통도·블록선도가 필요한 문항은 SVG 그림까지 그리게 하기 <span style="color:var(--ink-2)">— 그림 코드까지 써야 해서 시간이 더 걸립니다. 회로도·계통도가 실제로 나오는 과목에서만 켜세요</span></span></div>
-      <div class="hint" id="autoImgRow">PDF는 두 가지 방식으로 돌립니다. <b>변환 시작</b>은 PDF를 그대로 잘라 보내고, <b>이미지로 변환해 추출</b>은 각 쪽을 사진(JPEG)으로 바꿔 보냅니다. 스캔본이거나 글자가 안 읽혀 0문항으로 나오면 두 번째를 쓰세요 — 시간은 더 걸립니다.</div>
+      
+      <div class="hint" id="autoImgRow"><b>PDF 그대로 변환</b>은 텍스트를 바로 읽고, <b>사진으로 변환</b>은 각 쪽을 고해상도 이미지(JPEG)로 바꿔서 읽습니다.</div>
     </div>
 
 
