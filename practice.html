@@ -64,6 +64,47 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
 .log{font:400 11px/1.7 var(--font-m);background:var(--paper);border:1px solid var(--rule);
   border-radius:9px;padding:10px;max-height:190px;overflow:auto;white-space:pre-wrap;margin-top:10px}
 
+.pz-stage{position:relative}
+.mk{position:absolute;border:2px solid var(--stamp);border-radius:4px;background:rgba(190,43,38,.10);
+  padding:0;cursor:pointer;z-index:3}
+.mk i{position:absolute;left:-1px;top:-1px;transform:translate(-45%,-45%);
+  width:17px;height:17px;border-radius:50%;background:var(--stamp);color:#fff;
+  font:700 10px/17px var(--font-d);text-align:center;font-style:normal}
+.selbox{position:absolute;border:2px dashed var(--accent);background:rgba(29,78,216,.10);
+  border-radius:4px;pointer-events:none;z-index:4}
+.pcard.picking .pz-stage{outline:2px dashed var(--accent);outline-offset:2px}
+.zb.pick.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.marknotes{display:grid;gap:8px}
+.marknotes:empty{display:none}
+.mknote{border:1px solid var(--rule);border-radius:10px;overflow:hidden;background:var(--paper)}
+.mknote.flash{outline:2px solid var(--accent);outline-offset:1px}
+.mkh{display:flex;align-items:center;gap:8px;padding:8px 11px;border-bottom:1px solid var(--rule)}
+.mkh b{width:19px;height:19px;border-radius:50%;background:var(--stamp);color:#fff;
+  font:700 11px/19px var(--font-d);text-align:center}
+.mkh span{flex:1;font:600 11.5px/1 var(--font-d);color:var(--ink-2)}
+.mkb{padding:10px 12px;font-size:13.5px;line-height:1.7}
+.mkb p{margin:5px 0} .mkb ul{margin:5px 0;padding-left:19px} .mkb li{margin:3px 0}
+.mkb h4{font:700 13px/1.4 var(--font-d);margin:9px 0 4px}
+.easybox{margin-top:10px;padding:11px 13px;border-radius:10px;font-size:13.5px;line-height:1.75;
+  background:color-mix(in srgb,var(--accent) 6%,transparent);border:1px solid color-mix(in srgb,var(--accent) 22%,transparent)}
+.easybox p{margin:5px 0} .easybox ul{margin:5px 0;padding-left:19px}
+.easybox h4{font:700 13.5px/1.4 var(--font-d);margin:10px 0 4px;color:var(--accent)}
+.wait{font-size:12.5px;color:var(--ink-2)}
+
+.hide{display:none !important}
+.peekhead{font-size:12px;color:var(--ink-2);margin:12px 0 8px;line-height:1.6}
+.peekwrap{display:grid;gap:12px}
+.peekcard{border:1px solid var(--rule);border-radius:12px;overflow:hidden;background:var(--card)}
+.peektag{padding:8px 12px;border-bottom:1px solid var(--rule);font:500 12px/1.4 var(--font-m);color:var(--ink-2)}
+.peektag b{color:var(--ink)}
+.warn2{display:inline-block;margin-left:6px;padding:2px 6px;border-radius:5px;
+  background:color-mix(in srgb,var(--stamp) 12%,transparent);color:var(--stamp);font:600 10.5px/1.5 var(--font-d)}
+.peekimgs{display:grid;grid-template-columns:1fr;gap:10px;padding:10px}
+@media(min-width:720px){ .peekimgs{grid-template-columns:1fr 1fr} }
+.peekimgs figure{margin:0}
+.peekimgs figcaption{font:600 10.5px/1 var(--font-d);color:var(--ink-2);margin-bottom:5px}
+.peekimgs img{width:100%;height:auto;display:block;border:1px solid var(--rule);border-radius:8px;background:#fff}
+
 /* ── 문제 목록 ── */
 .filters{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
 .filters select,.filters input{width:auto;min-width:110px;padding:8px 10px;font-size:12.5px}
@@ -141,6 +182,13 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
         <select id="fSess"><option value="">모든 회차</option></select>
         <input id="fQ" type="text" placeholder="본문에서 찾기">
         <button class="chip" id="fAns" type="button">답안 모두 가리기</button>
+        <button class="chip" id="fRand" type="button" title="지금 조건 안에서 무작위로 뽑습니다">🎲 랜덤</button>
+        <select id="fRandN" title="한 번에 뽑을 문항 수">
+          <option value="10">10문항</option>
+          <option value="20" selected>20문항</option>
+          <option value="30">30문항</option>
+          <option value="50">50문항</option>
+        </select>
       </div>
       <div id="list"><div class="empty">과목을 고르세요.</div></div>
     </div>
@@ -188,6 +236,27 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
         </div>
       </div>
 
+      <div class="grid" style="margin-top:10px">
+        <div>
+          <label>문제 머리글 모양</label>
+          <select id="impHdr">
+            <option value="문제" selected>문제 01 · 문제 1</option>
+            <option value="번호">1. · 01. · 1)</option>
+            <option value="Q">Q1 · Q 1 · [1]</option>
+            <option value="자유">직접 적기</option>
+          </select>
+          <input id="impHdrCustom" class="hide" placeholder="예: 기출  →  «기출 03» 을 머리글로 봅니다" style="margin-top:7px">
+        </div>
+        <div>
+          <label>이 PDF 는 무엇인가요</label>
+          <select id="impMode">
+            <option value="qa" selected>문제 + 답안 (한 파일에 같이)</option>
+            <option value="q">문제만 (답안 없음)</option>
+            <option value="a">답안만 (이미 올린 문제에 붙이기)</option>
+          </select>
+        </div>
+      </div>
+
       <div class="drop" id="drop" style="margin-top:12px">
         <b>기출 PDF 를 끌어다 놓기</b>
         눌러서 고르셔도 됩니다 · 여러 개를 한 번에 넣어도 됩니다
@@ -197,10 +266,13 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
       <div class="prog"><i id="bar"></i></div>
       <div class="bar">
         <button id="run" type="button" disabled>훑어보기</button>
+        <button class="ghost" id="peek" type="button" disabled>잘린 모습 보기</button>
         <button class="ghost" id="save" type="button" disabled>Supabase 에 올리기</button>
+        <button class="ghost" id="fillGap" type="button" disabled>빠진 문제만 채우기</button>
         <button class="ghost" id="stop" type="button" disabled>중지</button>
       </div>
       <div class="msg" id="im"></div>
+      <div id="peekBox"></div>
       <div class="log" id="log" hidden></div>
 
       <div class="hint">
@@ -211,7 +283,9 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
         그래서 그 자리를 통째로 잘라 그림으로 넣고, 글은 검색용으로만 따로 뽑아 둡니다.<br>
         <b>답안은 따로 자릅니다.</b> <code>답안작성</code> 표시를 찾아 그 앞뒤로 나눠,
         문제만 먼저 보고 풀 수 있게 합니다.<br>
-        <b>같은 문제를 다시 올리면</b> 덮어씁니다(연도·회차·번호 기준). 중복이 쌓이지 않습니다.
+        <b>같은 문제를 다시 올리면</b> 덮어씁니다(연도·회차·번호 기준). 중복이 쌓이지 않습니다.<br>
+      <b>빠진 문제만 채우기</b> 는 Supabase 에 실제로 뭐가 들어 있는지 물어본 뒤 <b>없는 것만</b> 올립니다.
+      실패했거나 중간에 중지해서 빠진 것을 한 번에 메웁니다. 새로고침한 뒤에도 됩니다.
       </div>
     </div>
   </div>
@@ -327,7 +401,7 @@ $("#subDel").onclick = async () => {
 /* ═══════════════════════════════════════════════
    목록 그리기
    ═══════════════════════════════════════════════ */
-let ROWS = [], HIDE_ALL = true;
+let ROWS = [], HIDE_ALL = true, RAND = null;
 
 async function loadList(){
   const sid = +$("#fSub").value;
@@ -356,6 +430,8 @@ async function loadList(){
   $("#fYear").innerHTML = `<option value="">모든 연도</option>` + years.map(y => `<option>${y}</option>`).join("");
   const sess = [...new Set(ROWS.map(r => r.session))].sort();
   $("#fSess").innerHTML = `<option value="">모든 회차</option>` + sess.map(s => `<option value="${s}">제${s}회</option>`).join("");
+  /* 표시(막히는 곳)는 화면에 그리기 전에 같이 받아 둔다 — 없으면 넘어간다 */
+  try{ await loadMarks(ROWS.map(r => r.id)); }catch(e){ MARKS = {}; }
   drawList();
 }
 
@@ -366,12 +442,28 @@ function drawList(){
   if(s) rows = rows.filter(r => String(r.session) === s);
   if(q) rows = rows.filter(r => (r.q_text || "").includes(q) || (r.a_text || "").includes(q));
 
+  /* 랜덤은 지금 걸린 조건 안에서만 뽑는다 — 연도를 좁혀 두면 그 안에서, 안 좁혔으면 전체에서.
+     뽑은 목록은 다시 누르기 전까지 그대로라, 풀다가 화면을 건드려도 순서가 안 흐트러진다. */
+  if(RAND){
+    rows = RAND.map(id => rows.find(r => r.id === id)).filter(Boolean);
+    if(!rows.length){ RAND = null; return drawList(); }
+  }
+
   if(!rows.length){
     $("#list").innerHTML = `<div class="empty">${ROWS.length ? "조건에 맞는 문제가 없습니다." : "아직 올린 실기 문제가 없습니다. 아래에서 PDF 를 넣어 주세요."}</div>`;
     return;
   }
 
-  $("#list").innerHTML = rows.slice(0, 200).map(r => `
+  $("#list").innerHTML = rows.slice(0, 200).map(r => {
+    const rot = r.rotate ? `transform:rotate(${r.rotate}deg)` : "";
+    const marks = MARKS[r.id] || [];
+    const dots = t => marks.filter(m => (m.target || "q") === t).map((m, k) =>
+      `<button class="mk" type="button" data-mk="${m.id}"
+         style="left:${(m.x*100).toFixed(2)}%;top:${(m.y*100).toFixed(2)}%;width:${(m.w*100).toFixed(2)}%;height:${(m.h*100).toFixed(2)}%"
+         title="${esc((m.note_md || m.memo || "").slice(0, 60))}"><i>${k+1}</i></button>`).join("");
+    const img = (u, alt, t) => `<div class="pz" data-pz><div class="pz-stage" data-mkhost="${t}" data-qid="${r.id}">
+        <img src="${esc(u)}" loading="lazy" alt="${esc(alt)}" style="${rot}">${dots(t)}</div></div>`;
+    return `
     <div class="pcard" data-id="${r.id}">
       <div class="phead">
         <span class="pno">${r.no}</span>
@@ -379,14 +471,126 @@ function drawList(){
         ${r.points ? `<span class="ppt">${r.points}점</span>` : ""}
       </div>
       <div class="pbody">
-        ${r.q_url ? `<div class="pz" data-pz><div class="pz-stage"><img src="${esc(r.q_url)}" loading="lazy" alt="문제 ${r.no}"></div></div>` : `<div class="empty">문제 그림이 없습니다.</div>`}
+        ${r.q_url ? img(r.q_url, `문제 ${r.no}`, "q") : `<div class="empty">문제 그림이 없습니다.</div>`}
         ${r.a_url ? `<div class="ans ${HIDE_ALL ? "hide" : ""}" data-ans>
             <button class="ansbtn ${HIDE_ALL ? "" : "on"}" type="button" data-toggle>${HIDE_ALL ? "답안 보기" : "답안 가리기"}</button>
-            <div class="pz" data-pz style="margin-top:9px"><div class="pz-stage"><img src="${esc(r.a_url)}" loading="lazy" alt="답안"></div></div>
+            <div style="margin-top:9px">${img(r.a_url, "답안", "a")}</div>
           </div>` : ""}
+        <div class="marknotes" data-notes="${r.id}">${marks.map((m, k) => `
+          <div class="mknote" data-note="${m.id}">
+            <div class="mkh"><b>${k+1}</b><span>${(m.target||"q")==="a"?"답안":"문제"} 부분</span>
+              <button class="zb" type="button" data-mkredo="${m.id}">다시 설명</button>
+              <button class="zb" type="button" data-mkdel="${m.id}">지우기</button></div>
+            <div class="mkb">${m.note_md ? mdLite(m.note_md) : `<span class="wait">아직 설명이 없습니다.</span>`}</div>
+          </div>`).join("")}</div>
+        ${r.easy_md ? `<div class="easybox">${mdLite(r.easy_md)}</div>` : ""}
+        <div class="ptools" style="margin-top:10px;border-top:1px solid var(--rule);padding-top:10px">
+          <button class="zb pick" type="button" data-pick="${r.id}">✎ 막히는 곳 표시</button>
+          <button class="zb" type="button" data-easy="${r.id}">${r.easy_md ? "쉬운 해설 다시" : "쉬운 해설"}</button>
+          ${r.easy_md ? `<button class="zb" type="button" data-easydel="${r.id}">해설 지우기</button>` : ""}
+          <button class="zb" type="button" data-rot="${r.id}" title="90° 씩 돌립니다">↻ 회전${r.rotate ? " " + r.rotate + "°" : ""}</button>
+          <button class="zb" type="button" data-swap="${r.id}" title="문제와 답안이 뒤바뀌었을 때">문제 ↔ 답안</button>
+          <button class="zb" type="button" data-qdel="${r.id}">삭제</button>
+        </div>
       </div>
-    </div>`).join("")
+    </div>`; }).join("")
     + (rows.length > 200 ? `<div class="empty">${rows.length}개 중 200개만 보이고 있습니다. 연도나 회차로 좁혀 보세요.</div>` : "");
+
+  /* ── 막히는 곳 표시 ── */
+  $$("#list [data-pick]").forEach(b => b.onclick = () => startPick(b.dataset.pick, b));
+
+  $$("#list .mk").forEach(b => b.onclick = e => {
+    e.preventDefault(); e.stopPropagation();
+    const el = $(`#list [data-note="${b.dataset.mk}"]`);
+    if(!el) return;
+    el.scrollIntoView({ behavior:"smooth", block:"center" });
+    el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1200);
+  });
+
+  $$("#list [data-mkdel]").forEach(b => b.onclick = async () => {
+    if(!confirm("이 표시와 설명을 지웁니다.")) return;
+    const { error } = await sb.from("practical_marks").delete().eq("id", b.dataset.mkdel);
+    if(error) return log("지우지 못했습니다 — " + error.message);
+    await loadMarks(ROWS.map(r => r.id)); drawList();
+  });
+
+  $$("#list [data-mkredo]").forEach(b => b.onclick = async () => {
+    const id = b.dataset.mkredo;
+    let m = null;
+    for(const k in MARKS){ const f = MARKS[k].find(x => String(x.id) === id); if(f){ m = f; break; } }
+    if(!m) return;
+    const box = $(`#list [data-note="${id}"] .mkb`);
+    box.innerHTML = `<span class="wait">그 부분만 다시 읽어 설명하는 중…</span>`;
+    try{
+      const md = await markExplain(m.practical_id, m.target || "q", m, id);
+      m.note_md = md; box.innerHTML = mdLite(md);
+    }catch(e){ box.innerHTML = `<span class="wait">설명하지 못했습니다 — ${esc(e.message || e)}</span>`; }
+  });
+
+  /* ── 문제 전체를 쉬운 말로 ── */
+  $$("#list [data-easy]").forEach(b => b.onclick = async () => {
+    const r = ROWS.find(x => String(x.id) === b.dataset.easy);
+    if(!r?.q_url) return log("문제 그림이 없습니다.");
+    const card = b.closest(".pcard");
+    let box = card.querySelector(".easybox");
+    if(!box){ box = document.createElement("div"); box.className = "easybox";
+              card.querySelector(".ptools").before(box); }
+    box.innerHTML = `<span class="wait">비전공자 눈높이로 다시 쓰는 중… 20~40초쯤 걸립니다.</span>`;
+    try{
+      const blob = await fetch(r.q_url).then(x => x.blob());
+      const md = await askAI(`실기 시험 문제 그림이다. 전공자가 아닌 사람이 이해할 수 있게 다시 써라.
+
+[문제 글(참고용, 불완전할 수 있음)]
+${(r.q_text || "").slice(0, 1500) || "(없음)"}
+
+[할 일]
+1. **무엇을 묻는 문제인가** — 한두 줄로.
+2. **알아야 할 것** — 이 문제를 풀려면 먼저 알아야 하는 개념을 쉬운 말로.
+3. **푸는 순서** — 번호를 매겨 단계별로. 각 단계에서 무엇을 왜 하는지 같이.
+4. **자주 틀리는 곳** — 한두 가지.
+${EASY_RULE}`, blob, 3000);
+      const up = await sb.from("practicals").update({ easy_md: md }).eq("id", r.id);
+      if(up.error) throw new Error(/easy_md|schema cache/i.test(up.error.message)
+        ? "easy_md 칸이 없습니다 — supabase-실기.sql 을 다시 돌려 주세요." : up.error.message);
+      r.easy_md = md; box.innerHTML = mdLite(md);
+    }catch(e){ box.innerHTML = `<span class="wait">쓰지 못했습니다 — ${esc(e.message || e)}</span>`; }
+  });
+
+  $$("#list [data-easydel]").forEach(b => b.onclick = async () => {
+    const r = ROWS.find(x => String(x.id) === b.dataset.easydel);
+    if(!confirm("쉬운 해설을 지웁니다.")) return;
+    await sb.from("practicals").update({ easy_md: null }).eq("id", r.id);
+    r.easy_md = null; drawList();
+  });
+
+  $$("#list [data-rot]").forEach(b => b.onclick = async () => {
+    const r = ROWS.find(x => String(x.id) === b.dataset.rot);
+    const next = ((r.rotate || 0) + 180) % 360;      /* 뒤집힌 쪽을 되돌리는 게 대부분이라 180° 씩 */
+    const up = await sb.from("practicals").update({ rotate: next }).eq("id", r.id);
+    if(up.error) return alert(/rotate|schema cache/i.test(up.error.message)
+      ? "rotate 칸이 아직 없습니다 — supabase-실기.sql 을 다시 한 번 돌려 주세요."
+      : up.error.message);
+    r.rotate = next; drawList();
+  });
+
+  $$("#list [data-swap]").forEach(b => b.onclick = async () => {
+    const r = ROWS.find(x => String(x.id) === b.dataset.swap);
+    const up = await sb.from("practicals").update({
+      q_url:r.a_url, a_url:r.q_url, q_text:r.a_text, a_text:r.q_text }).eq("id", r.id);
+    if(up.error) return alert(up.error.message);
+    [r.q_url, r.a_url] = [r.a_url, r.q_url];
+    [r.q_text, r.a_text] = [r.a_text, r.q_text];
+    drawList();
+  });
+
+  $$("#list [data-qdel]").forEach(b => b.onclick = async () => {
+    const r = ROWS.find(x => String(x.id) === b.dataset.qdel);
+    if(!confirm(`${r.year}년 제${r.session}회 ${r.no}번을 지웁니다.`)) return;
+    const del = await sb.from("practicals").delete().eq("id", r.id);
+    if(del.error) return alert(del.error.message);
+    ROWS = ROWS.filter(x => x.id !== r.id);
+    drawList();
+  });
 
   $$("#list [data-toggle]").forEach(b => b.onclick = () => {
     const box = b.closest("[data-ans]");
@@ -398,8 +602,26 @@ function drawList(){
   $$("#list .pbody > [data-pz]").forEach(attachZoom);
 }
 
-["#fYear","#fSess"].forEach(k => $(k).onchange = drawList);
-$("#fQ").oninput = () => { clearTimeout(window._t); window._t = setTimeout(drawList, 250); };
+["#fYear","#fSess"].forEach(k => $(k).onchange = () => { RAND = null; paintRand(); drawList(); });
+$("#fQ").oninput = () => { clearTimeout(window._t); window._t = setTimeout(() => { RAND = null; paintRand(); drawList(); }, 250); };
+
+function paintRand(){
+  $("#fRand").classList.toggle("on", !!RAND);
+  $("#fRand").textContent = RAND ? `🎲 랜덤 해제 (${RAND.length})` : "🎲 랜덤";
+}
+$("#fRand").onclick = () => {
+  if(RAND){ RAND = null; paintRand(); return drawList(); }
+  const y = $("#fYear").value, s = $("#fSess").value;
+  let pool = ROWS;
+  if(y) pool = pool.filter(r => String(r.year) === y);
+  if(s) pool = pool.filter(r => String(r.session) === s);
+  if(!pool.length) return;
+  RAND = [...pool].sort(() => Math.random() - .5).slice(0, +$("#fRandN").value).map(r => r.id);
+  HIDE_ALL = true;                                  /* 랜덤은 풀어 보는 용도라 답안을 가린 채로 시작한다 */
+  $("#fAns").classList.add("on"); $("#fAns").textContent = "답안 모두 가리기";
+  paintRand(); drawList();
+};
+$("#fRandN").onchange = () => { if(RAND) $("#fRand").onclick(); };
 $("#fSub").onchange = async () => {
   await loadList();
   /* 과목이 바뀌면 자료함의 연도·회차 목록도 새 과목 것으로 갈아 끼운다 */
@@ -415,6 +637,83 @@ $("#fAns").onclick = () => {
   drawList();
 };
 $("#fAns").classList.add("on");
+
+/* ── 네모로 집기 ──
+   그림 위에서 끌어 네모를 만든다. 좌표는 그림 크기로 나눈 0~1 비율로 저장하므로
+   확대 배율이나 화면 폭이 달라져도 같은 자리에 남는다. */
+function startPick(id, btn){
+  if(PICKING){ endPick(); return; }
+  const card = btn.closest(".pcard");
+  const hosts = [...card.querySelectorAll("[data-mkhost]")];
+  if(!hosts.length) return log("집을 그림이 없습니다.");
+  PICKING = { id, card, hosts, btn };
+  btn.classList.add("on"); btn.textContent = "✎ 그만두기";
+  card.classList.add("picking");
+  log("막히는 곳을 네모로 끌어서 집어 주세요.");
+
+  hosts.forEach(host => {
+    host.style.cursor = "crosshair";
+    host.__pick = ev => {
+      if(ev.button != null && ev.button !== 0) return;
+      ev.preventDefault(); ev.stopPropagation();
+      const img = host.querySelector("img");
+      const box = img.getBoundingClientRect();
+      const sx = (ev.clientX - box.left) / box.width, sy = (ev.clientY - box.top) / box.height;
+      const sel = document.createElement("div");
+      sel.className = "selbox"; host.appendChild(sel);
+
+      const move = e2 => {
+        const x1 = Math.min(Math.max((e2.clientX - box.left) / box.width, 0), 1);
+        const y1 = Math.min(Math.max((e2.clientY - box.top) / box.height, 0), 1);
+        const r = { x:Math.min(sx,x1), y:Math.min(sy,y1), w:Math.abs(x1-sx), h:Math.abs(y1-sy) };
+        sel.style.cssText = `left:${r.x*100}%;top:${r.y*100}%;width:${r.w*100}%;height:${r.h*100}%`;
+        sel.__r = r;
+      };
+      const up = async () => {
+        host.removeEventListener("pointermove", move);
+        host.removeEventListener("pointerup", up);
+        const r = sel.__r; sel.remove();
+        if(!r || r.w < 0.02 || r.h < 0.01){ log("너무 작습니다. 조금 더 크게 끌어 주세요."); return; }
+        await addMark(id, host.dataset.mkhost, r);
+      };
+      host.addEventListener("pointermove", move);
+      host.addEventListener("pointerup", up, { once:true });
+    };
+    host.addEventListener("pointerdown", host.__pick);
+  });
+}
+
+function endPick(){
+  if(!PICKING) return;
+  PICKING.hosts.forEach(h => { h.style.cursor = ""; if(h.__pick) h.removeEventListener("pointerdown", h.__pick); });
+  PICKING.card.classList.remove("picking");
+  PICKING.btn.classList.remove("on"); PICKING.btn.textContent = "✎ 막히는 곳 표시";
+  PICKING = null;
+}
+
+async function addMark(id, target, rect){
+  endPick();
+  const ins = await sb.from("practical_marks").insert({
+    practical_id: +id, target, x: rect.x, y: rect.y, w: rect.w, h: rect.h
+  }).select("*").single();
+  if(ins.error) return log(/practical_marks|schema cache/i.test(ins.error.message)
+    ? "supabase-실기.sql 을 다시 돌려 주세요 (practical_marks 표가 없습니다)."
+    : "표시하지 못했습니다 — " + ins.error.message);
+  (MARKS[+id] ||= []).push(ins.data);
+  drawList();
+  /* 표시부터 화면에 남기고, 설명은 뒤이어 채운다 — 실패해도 표시는 남는다 */
+  const box = $(`#list [data-note="${ins.data.id}"] .mkb`);
+  if(box) box.innerHTML = `<span class="wait">그 부분만 읽어 설명하는 중…</span>`;
+  try{
+    const md = await markExplain(id, target, rect, ins.data.id);
+    ins.data.note_md = md;
+    const b2 = $(`#list [data-note="${ins.data.id}"] .mkb`);
+    if(b2) b2.innerHTML = mdLite(md);
+  }catch(e){
+    const b2 = $(`#list [data-note="${ins.data.id}"] .mkb`);
+    if(b2) b2.innerHTML = `<span class="wait">설명하지 못했습니다 — ${esc(e.message || e)}. «다시 설명» 을 눌러 보세요.</span>`;
+  }
+}
 
 /* ── 두 손가락으로 넓히고 끌기 ── */
 function attachZoom(wrap){
@@ -493,7 +792,38 @@ function attachZoom(wrap){
    머리글 "문제 NN  출제년도 : ..." 은 예외 없이 규칙적이라 AI 없이 잡힌다.
    한 문제는 그 머리글부터 다음 머리글 직전까지이고, 쪽을 넘길 수도 있다.
    ═══════════════════════════════════════════════ */
-const HDR   = /^문제\s*(\d{1,3})\b/;
+/* 머리글 모양은 교재마다 다르다. «문제 03» 만 알던 예전 방식은
+   «3.» 이나 «Q3» 로 시작하는 단답형 PDF 를 한 문제도 못 잡았다. */
+const HDR_SET = {
+  "문제": /^문제\s*(\d{1,3})\b/,
+  "번호": /^(\d{1,3})\s*[.)]\s*(?!\d)/,        /* 1. · 01) — 뒤에 숫자가 또 오면 소수점이니 제외 */
+  "Q":    /^(?:Q\s*|\[\s*)(\d{1,3})\s*\]?/i
+};
+function hdrRe(){
+  const k = $("#impHdr")?.value || "문제";
+  if(k !== "자유") return HDR_SET[k] || HDR_SET["문제"];
+  const w = ($("#impHdrCustom")?.value || "").trim();
+  if(!w) return HDR_SET["문제"];
+  return new RegExp("^" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*(\\d{1,3})\\b");
+}
+let HDR = HDR_SET["문제"], IMPORT_MODE = "qa";
+let FAILS = [];
+
+/* 서버가 JSON 대신 오류 페이지(<!DOCTYPE html …)를 돌려주면 원래 메시지가
+   "Unexpected token '<'" 로만 보인다. 무슨 일인지 알 수 없어서 풀어 준다. */
+function niceErr(e){
+  const m = String(e?.message || e || "");
+  if(/Unexpected token '<'|<!DOCTYPE/i.test(m))
+    return "서버가 오류 페이지를 돌려줬습니다 (그림이 너무 크거나 잠시 막힌 것일 수 있습니다)";
+  if(/payload|too large|413/i.test(m)) return "그림 용량이 한도를 넘었습니다";
+  if(/timeout|aborted|network|Failed to fetch/i.test(m)) return "연결이 끊겼습니다";
+  if(/duplicate key|conflict/i.test(m)) return "같은 번호가 이미 있습니다";
+  return m || "알 수 없는 오류";
+}
+document.addEventListener("DOMContentLoaded", () => {
+  const sel = document.getElementById("impHdr"), cus = document.getElementById("impHdrCustom");
+  if(sel && cus) sel.addEventListener("change", () => cus.classList.toggle("hide", sel.value !== "자유"));
+});
 const ASKED = /출제년도\s*[:：]\s*([0-9.\s]*)/;
 const POINT = /점수\s*[:：]\s*(\d+)\s*점/;
 const ROUND = /(\d{4})\s*년\s*제?\s*(\d)\s*회/;
@@ -543,6 +873,9 @@ $("#run").onclick = async () => {
   STOP = false; PARSED = []; DUPES = [];
   $("#run").disabled = true; $("#stop").disabled = false; $("#save").disabled = true;
   logEl.textContent = "";
+  HDR = hdrRe();
+  const MODE = IMPORT_MODE = $("#impMode")?.value || "qa";
+  log(`머리글 «${$("#impHdr").value === "자유" ? $("#impHdrCustom").value.trim() : $("#impHdr").options[$("#impHdr").selectedIndex].text}» · ${ {qa:"문제+답안", q:"문제만", a:"답안만"}[MODE] }`);
   try{
     for(const f of PICKED){
       if(STOP) break;
@@ -550,18 +883,48 @@ $("#run").onclick = async () => {
       const buf = await f.arrayBuffer();
       const doc = await pdfjsLib.getDocument({ data: buf }).promise;
       log(`${f.name} · ${doc.numPages}쪽`);
-      const found = await scanDoc(doc, f.name);
+      const found = await scanDoc(doc, f.name, MODE);
       PARSED.push({ file:f, doc, items:found });
       log(`${f.name} → 문제 ${found.length}개`);
     }
     const total = PARSED.reduce((a, p) => a + p.items.length, 0);
     const rounds = new Set(PARSED.flatMap(p => p.items.map(i => `${i.year}-${i.session}`)));
     DUPES.forEach(d => log("겹침 — " + d));
+
+    /* ── 잘 잘렸는지 스스로 검사한다 ──
+       "스캔이 제대로 됐나" 를 눈으로 다 넘겨 보며 확인할 수는 없다.
+       그래서 수상한 것만 골라서 알려 준다. */
+    const all = PARSED.flatMap(p => p.items);
+    const spans = all.filter(i => i.end && i.end.page > i.start.page);          // 쪽을 넘어간 문제
+    const noAns = all.filter(i => !i.ansAt);                                    // 답안 표시를 못 찾음
+    const thin  = all.filter(i => (i.text || "").replace(/\s/g, "").length < 12); // 글이 거의 없음
+    const byRound = new Map();
+    all.forEach(i => { const k = `${i.year}년 제${i.session}회`; byRound.set(k, (byRound.get(k) || 0) + 1); });
+    const counts = [...byRound.values()];
+    const mid = counts.slice().sort((a,b) => a-b)[Math.floor(counts.length/2)] || 0;
+    const odd = [...byRound.entries()].filter(([, n]) => mid && Math.abs(n - mid) > Math.max(3, mid * 0.25));
+
+    log("── 잘린 상태 점검 ──");
+    log(`쪽을 넘어간 문제 ${spans.length}개 (2쪽짜리는 여기 잡힙니다)`);
+    log(`답안 표시를 못 찾은 문제 ${noAns.length}개`);
+    log(`글이 거의 없는 문제 ${thin.length}개 (도면만 있는 문제면 정상)`);
+    if(spans.length) log("  쪽 넘김 예: " + spans.slice(0, 8).map(i => `${i.year}-${i.session} ${i.no}번(${i.start.page}→${i.end.page}쪽)`).join(", "));
+    if(noAns.length) log("  답안 없음 예: " + noAns.slice(0, 8).map(i => `${i.year}-${i.session} ${i.no}번`).join(", "));
+    [...byRound.entries()].forEach(([k, n]) => log(`  ${k} — ${n}문항`));
+    if(odd.length) log("⚠ 문항 수가 다른 회차와 크게 다릅니다: " + odd.map(([k, n]) => `${k}(${n})`).join(", "));
+
+    const warn =
+      (spans.length ? `\n· 쪽을 넘어간 문제 ${spans.length}개는 두 쪽을 이어 붙여 한 장으로 만듭니다. 올린 뒤 그 문제들만 눈으로 확인해 보세요.` : "")
+      + (noAns.length ? `\n· 답안 표시("답안작성")를 못 찾은 문제가 ${noAns.length}개입니다. 문제만 저장되고 답안 칸은 비어 있게 됩니다.` : "")
+      + (odd.length ? `\n· ${odd.map(([k, n]) => k + " " + n + "문항").join(", ")} — 다른 회차와 문항 수가 많이 다릅니다. 잘못 잘렸을 수 있습니다.` : "");
     say($("#im"),
       `문제 ${total}개 · 회차 ${rounds.size}개를 찾았습니다.`
       + (DUPES.length ? `\n\n같은 회차가 ${DUPES.length}번 겹칩니다. 원본 PDF 에 그 회차가 두 번 들어 있다는 뜻이라,\n올릴 때 뒤엣것이 앞엣것을 덮어씁니다. 내용이 같으면 문제되지 않습니다. 자세한 건 아래 기록을 보세요.` : "")
+      + warn
       + `\n\n"Supabase 에 올리기" 를 누르면 그림을 만들어 올립니다. 시간이 꽤 걸립니다.`, "ok");
     $("#save").disabled = !total;
+    $("#peek").disabled = !total;
+    $("#fillGap").disabled = !total;
   }catch(e){
     say($("#im"), "읽지 못했습니다 — " + e.message, "err");
   }finally{
@@ -574,7 +937,7 @@ $("#run").onclick = async () => {
    그래서 회차 경계가 짝수 쪽에서 시작하면 앞 회차로 잘못 딸려 들어간다.
    문제 번호가 되돌아가는 지점이 곧 회차가 바뀌는 지점이므로(실제 PDF 세 개 모두에서 정확했다),
    번호 리셋으로 먼저 묶고, 묶음 안에서 가장 많이 본 회차를 그 묶음의 회차로 삼는다. */
-async function scanDoc(doc, name){
+async function scanDoc(doc, name, MODE = 'qa'){
   const items = [];
   let cur = null, seen = null;
 
@@ -585,18 +948,25 @@ async function scanDoc(doc, name){
     const vp = page.getViewport({ scale:1 });
     const tc = await page.getTextContent();
 
-    /* 줄 단위로 묶는다 — y 가 4pt 안쪽이면 같은 줄로 본다.
+    /* 글자 좌표를 화면 좌표로 바꿔서 쓴다.
+       PDF 안의 좌표는 아래가 0 이고, 게다가 쪽마다 회전값(/Rotate)이 따로 붙을 수 있다.
+       실제로 이 교재의 어떤 쪽은 혼자 180° 돌아가 있는데, 그걸 모르고 "높이 - y" 로만
+       뒤집으면 그 쪽만 위아래가 거꾸로 잡혀 문제와 답안이 반대로 잘린다.
+       convertToViewportPoint 는 회전까지 반영해 주므로 어떤 쪽이든 위가 위가 된다. */
+    const topOf = it => vp.convertToViewportPoint(it.transform[4], it.transform[5])[1];
+
+    /* 줄 단위로 묶는다 — 위에서부터의 거리가 4pt 안쪽이면 같은 줄로 본다.
        "문제 03" 과 "‣점수 : 7점" 은 같은 줄이지만 좌우로 멀리 떨어져 있어
-       딱 맞는 y 로만 묶으면 배점을 놓친다. */
+       딱 맞는 좌표로만 묶으면 배점을 놓친다. */
     const keys = [], lines = new Map();
     for(const it of tc.items){
       if(!it.str.trim()) continue;
-      const y = it.transform[5];
+      const y = topOf(it);
       let k = keys.find(v => Math.abs(v - y) < 4);
       if(k === undefined){ keys.push(y); k = y; }
       lines.set(k, (lines.get(k) || "") + it.str);
     }
-    const sorted = [...lines.entries()].map(([y, txt]) => ({ y, txt })).sort((a,b) => b.y - a.y);
+    const sorted = [...lines.entries()].map(([y, txt]) => ({ y, txt })).sort((a,b) => a.y - b.y);
     const pageText = sorted.map(l => l.txt).join("\n");
 
     const rm = pageText.match(ROUND);
@@ -604,7 +974,7 @@ async function scanDoc(doc, name){
 
     for(const L of sorted){
       const t = L.txt.replace(/\s+/g, " ").trim();
-      const top = vp.height - L.y;                    /* 위에서부터의 거리로 바꾼다 */
+      const top = L.y;                                /* 이미 위에서부터의 거리다 */
       if(top < 60) continue;                          /* 머리글·워터마크 줄은 건너뛴다 */
 
       const h = t.match(HDR);
@@ -620,7 +990,8 @@ async function scanDoc(doc, name){
         items.push(cur);
         continue;
       }
-      if(cur && !cur.ansAt && /답안\s*작성/.test(t)) cur.ansAt = { page:p, top:top - 8 };
+      /* «답안만» / «문제만» PDF 는 답안 경계가 없다. 그럴 땐 통째로 한 장으로 둔다. */
+      if(MODE === "qa" && cur && !cur.ansAt && /답안\s*작성/.test(t)) cur.ansAt = { page:p, top:top - 8 };
       if(cur) cur.text += t + "\n";
     }
     if(cur && !cur.end) cur.lastPage = p;
@@ -660,61 +1031,285 @@ async function scanDoc(doc, name){
 }
 
 /* ═══════════════════════════════════════════════
+   막히는 곳 표시 · 쉬운 해설
+
+   실기는 문항마다 그림 크기가 제각각이라, 필기 쪽처럼 "가상 페이지 좌표"를 쓰면
+   문항마다 좌표계를 새로 잡아야 한다. 그래서 아예 다른 기준을 쓴다 —
+   ★ 그림 자체를 0~1 로 본 비율 좌표.
+     확대하든, 화면 폭이 바뀌든, 나중에 더 큰 해상도로 다시 뜨든 같은 자리에 붙는다.
+
+   그리고 필기(자유 곡선)보다 이쪽이 낫다고 봤다.
+   손으로 그은 선은 나중에 다시 봐도 "내가 왜 여기 표시했더라" 가 되는데,
+   네모로 집으면 그 자리에 대한 설명·메모가 같이 붙어 남는다.
+   ═══════════════════════════════════════════════ */
+const ENDPOINTS = [CFG.WORKER_URL, CFG.WORKER_BACKUP_URL].filter(Boolean);
+let MARKS = {};        // practical_id → 표시 목록
+let PICKING = null;    // 지금 네모를 그리는 중인 카드
+
+async function askAI(prompt, blob, maxTokens = 2200){
+  const parts = [];
+  if(blob){
+    const b64 = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result).split(",")[1]);
+      r.onerror = () => rej(new Error("그림을 읽지 못했습니다"));
+      r.readAsDataURL(blob);
+    });
+    parts.push({ inline_data:{ mime_type: blob.type || "image/jpeg", data: b64 } });
+  }
+  parts.push({ text: prompt });
+  const body = { contents:[{ role:"user", parts }],
+                 generationConfig:{ maxOutputTokens:maxTokens, temperature:0.3 } };
+  let last = "";
+  for(const base of ENDPOINTS){
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), 120000);
+    try{
+      const res = await fetch(base.replace(/\/$/,"") + "/get-data", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(body), signal: ac.signal });
+      const d = await res.json();
+      if(!res.ok){ last = d.detail || String(res.status); continue; }
+      return d.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    }catch(e){ last = e.name === "AbortError" ? "응답이 너무 오래 걸립니다" : e.message; }
+    finally{ clearTimeout(t); }
+  }
+  throw new Error(last || "서버가 응답하지 않습니다");
+}
+
+/* 아주 단순한 마크다운 — 굵게·목록·제목만 */
+function mdLite(t){
+  const lines = esc(String(t || "")).split("\n");
+  let out = "", ul = false;
+  const close = () => { if(ul){ out += "</ul>"; ul = false; } };
+  for(const raw of lines){
+    const x = raw.trim();
+    if(!x){ close(); continue; }
+    if(/^#{1,6}\s/.test(x)){ close(); out += `<h4>${inl(x.replace(/^#+\s/,""))}</h4>`; continue; }
+    if(/^[-*]\s/.test(x)){ if(!ul){ out += "<ul>"; ul = true; } out += `<li>${inl(x.replace(/^[-*]\s/,""))}</li>`; continue; }
+    close(); out += `<p>${inl(x)}</p>`;
+  }
+  close(); return out;
+}
+const inl = x => x.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+                  .replace(/\$\$?([^$\n]+?)\$\$?/g, "$1");
+
+/* ── 그림에서 네모 부분만 잘라 낸다 (비율 좌표 → 실제 픽셀) ── */
+async function cropRect(url, rect){
+  const blob = await fetch(url).then(r => r.blob());
+  const bmp = await createImageBitmap(blob);
+  const x = Math.max(0, Math.round(rect.x * bmp.width));
+  const y = Math.max(0, Math.round(rect.y * bmp.height));
+  const w = Math.min(bmp.width - x,  Math.round(rect.w * bmp.width));
+  const h = Math.min(bmp.height - y, Math.round(rect.h * bmp.height));
+  const cv = document.createElement("canvas");
+  /* 너무 작게 집으면 글자가 뭉개져 못 읽는다 — 최소 2배로 키워 보낸다 */
+  const up = Math.min(3, Math.max(1, 700 / Math.max(w, 1)));
+  cv.width = Math.round(w * up); cv.height = Math.round(h * up);
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.drawImage(bmp, x, y, w, h, 0, 0, cv.width, cv.height);
+  bmp.close?.();
+  return await new Promise(res => cv.toBlob(res, "image/jpeg", 0.9));
+}
+
+const EASY_RULE = `
+[말투]
+- 전공자가 아닌 사람에게 설명한다고 생각해라. 용어가 나오면 그 자리에서 한 줄로 풀어 준다.
+- 공식을 던지지 말고, 왜 그 식이 나오는지부터 말해라.
+- LaTeX 를 쓰지 마라. $ 로 감싸지 마라. 아래첨자는 I₁ 처럼 유니코드로, 곱셈은 × 로 쓴다.
+- 마크다운은 **굵게** 와 - 목록만 쓴다.
+- 지어내지 마라. 그림에서 안 보이는 값은 "그림에 안 나와 있음" 이라고 적어라.`;
+
+async function markExplain(id, target, rect, markId){
+  const r = ROWS.find(x => String(x.id) === String(id));
+  const url = target === "a" ? r.a_url : r.q_url;
+  const blob = await cropRect(url, rect);
+  const prompt = `실기 시험 문제의 한 부분을 오려 낸 그림이다. 이 부분에서 막혔다고 한다.
+
+[문제 전체 글(참고용, 불완전할 수 있음)]
+${(r.q_text || "").slice(0, 1200) || "(없음)"}
+
+[할 일]
+1. 오려 낸 부분이 무엇을 말하는지 한 줄로 짚어라.
+2. 여기서 막히는 이유로 흔한 것 한두 가지를 말하고, 그걸 풀어 준다.
+3. 이 부분을 넘어가려면 무엇을 알아야 하는지 짧게 정리한다.
+${EASY_RULE}
+길게 쓰지 마라. 대여섯 줄이면 충분하다.`;
+  const md = await askAI(prompt, blob);
+  const up = await sb.from("practical_marks").update({ note_md: md }).eq("id", markId);
+  if(up.error) throw up.error;
+  return md;
+}
+
+async function loadMarks(ids){
+  if(!ids.length) return;
+  const { data } = await sb.from("practical_marks").select("*").in("practical_id", ids).order("id");
+  MARKS = {};
+  (data || []).forEach(m => { (MARKS[m.practical_id] ||= []).push(m); });
+}
+
+/* ═══════════════════════════════════════════════
    그림 만들어 올리기
    ═══════════════════════════════════════════════ */
+/* ── 올리기 전에 잘린 모습 보기 ──
+   "2쪽짜리 문제가 제대로 이어졌나" 는 숫자로는 확인이 안 된다.
+   실제로 자른 그림을 그대로 그려서 눈으로 보게 한다. 아무것도 올리지 않는다.
+   쪽을 넘어간 문제를 먼저 보여 준다 — 확인이 필요한 건 그것들이니까. */
+$("#peek").onclick = async () => {
+  const box = $("#peekBox");
+  const all = PARSED.flatMap(P => P.items.map(it => ({ P, it })));
+  if(!all.length) return;
+
+  const spans = all.filter(x => x.it.end && x.it.end.page > x.it.start.page);
+  const rest  = all.filter(x => !(x.it.end && x.it.end.page > x.it.start.page));
+  const pick  = [...spans.slice(0, 6), ...rest.slice(0, 4)];
+
+  box.innerHTML = `<div class="peekhead">쪽을 넘어간 문제 ${spans.length}개 중 ${Math.min(spans.length,6)}개와
+    한 쪽짜리 ${Math.min(rest.length,4)}개를 골라 그려 봅니다. 올리지는 않습니다.</div>
+    <div class="peekwrap" id="peekWrap"><div class="empty">그리는 중…</div></div>`;
+  const wrap = $("#peekWrap"); wrap.innerHTML = "";
+
+  for(const { P, it } of pick){
+    if(STOP) break;
+    const span = it.end && it.end.page > it.start.page;
+    const card = document.createElement("div");
+    card.className = "peekcard";
+    card.innerHTML = `<div class="peektag">${it.year}-${it.session} <b>${it.no}번</b>
+      · ${it.start.page}${span ? `→${it.end.page}` : ""}쪽 ${span ? `<span class="warn2">쪽 넘김</span>` : ""}
+      ${it.ansAt ? "" : `<span class="warn2">답안 없음</span>`}</div>
+      <div class="peekimgs"><div class="empty">…</div></div>`;
+    wrap.appendChild(card);
+    try{
+      const q = await crop(P.doc, it.start, it.ansAt || it.end, 1.2);
+      const a = it.ansAt ? await crop(P.doc, it.ansAt, it.end, 1.2) : null;
+      card.querySelector(".peekimgs").innerHTML =
+        `<figure><figcaption>문제</figcaption><img src="${URL.createObjectURL(q)}" alt="문제"></figure>`
+        + (a ? `<figure><figcaption>답안</figcaption><img src="${URL.createObjectURL(a)}" alt="답안"></figure>` : "");
+    }catch(e){
+      card.querySelector(".peekimgs").innerHTML = `<div class="empty">그리지 못했습니다 — ${esc(e.message || e)}</div>`;
+    }
+    await new Promise(r => setTimeout(r));
+  }
+  if(!wrap.children.length) wrap.innerHTML = `<div class="empty">그릴 문제가 없습니다.</div>`;
+};
+
+/* ── 실제로 올리는 몸통 ──
+   "전부 올리기" 와 "빠진 것만 채우기" 가 같은 코드를 쓰도록 떼어냈다. */
+async function uploadItems(list, sid, scale, MODE, label){
+  const total = list.length;
+  let done = 0, ok = 0, bad = 0;
+  FAILS = [];
+  STOP = false;
+  $("#save").disabled = $("#fillGap").disabled = true; $("#stop").disabled = false;
+
+  try{
+    for(const { P, it } of list){
+      if(STOP) break;
+      try{
+        const base = `prac/${sid}/${it.year}_${it.session}_${String(it.no).padStart(2,"0")}`;
+        const whole = cleanText(it.text);
+
+        if(MODE === "a"){
+          const img = await crop(P.doc, it.start, it.end, scale);
+          const aUrl = await put(`${base}_a.jpg`, img);
+          const up = await sb.from("practicals").update({ a_url:aUrl, a_text:whole })
+            .eq("subject_id", sid).eq("year", it.year).eq("session", it.session).eq("no", it.no).select("id");
+          if(up.error) throw up.error;
+          if(!up.data?.length){
+            bad++; FAILS.push({ P, it, why:"붙일 문제가 없습니다(문제부터 올려 주세요)" });
+            done++; continue;
+          }
+          ok++;
+        }else{
+          const qImg = await crop(P.doc, it.start, it.ansAt || it.end, scale);
+          const aImg = it.ansAt ? await crop(P.doc, it.ansAt, it.end, scale) : null;
+          const qUrl = await put(`${base}_q.jpg`, qImg);
+          const aUrl = aImg ? await put(`${base}_a.jpg`, aImg) : null;
+          const cut = whole.search(/답안\s*작성/);
+          const row = {
+            subject_id:sid, year:it.year, session:it.session, no:it.no,
+            points:it.points, asked:it.asked || null, q_url:qUrl,
+            q_text: cut > 0 ? whole.slice(0, cut) : whole,
+            source:it.source, page_from:it.start.page, page_to:it.end.page
+          };
+          if(MODE !== "q" || aUrl){ row.a_url = aUrl; row.a_text = cut > 0 ? whole.slice(cut) : null; }
+          const r = await sb.from("practicals").upsert(row, { onConflict:"subject_id,year,session,no" });
+          if(r.error) throw r.error;
+          ok++;
+        }
+      }catch(e){
+        bad++;
+        const why = niceErr(e);
+        FAILS.push({ P, it, why });
+        log(`${it.year}-${it.session} ${it.no}번 실패 — ${why}`);
+      }
+      done++;
+      $("#bar").style.width = (done / total * 100) + "%";
+      if(done % 5 === 0){
+        say($("#im"), `${label} ${done}/${total} · 올림 ${ok} · 실패 ${bad}`, "info");
+        await new Promise(r => setTimeout(r));
+      }
+    }
+
+    /* 실패가 로그에 파묻히지 않게, 어느 문제가 왜 실패했는지 그대로 적는다 */
+    const lines = FAILS.map(f => `· ${f.it.year}년 제${f.it.session}회 ${f.it.no}번 — ${f.why}`).join("\n");
+    say($("#im"),
+      (STOP ? `중지했습니다. ${ok}개 올렸습니다.` : `${label} 끝 — ${ok}개 올림, ${bad}개 실패.`)
+      + (bad ? `\n\n[실패한 문제]\n${lines}\n\n"빠진 문제만 채우기" 를 누르면 이것들만 다시 시도합니다.` : ""),
+      bad ? "err" : "ok");
+    await loadList();
+  }catch(e){
+    say($("#im"), "올리다 멈췄습니다 — " + niceErr(e), "err");
+  }finally{
+    $("#save").disabled = false; $("#fillGap").disabled = false; $("#stop").disabled = true;
+  }
+}
+
 $("#save").onclick = async () => {
   const sid = +$("#impSub").value;
   if(!sid) return say($("#im"), "넣을 과목을 고르세요.", "err");
-  const scale = +$("#impScale").value;
-  STOP = false;
-  $("#save").disabled = true; $("#stop").disabled = false;
-
-  const total = PARSED.reduce((a,p) => a + p.items.length, 0);
-  let done = 0, ok = 0, bad = 0;
-
-  try{
-    for(const P of PARSED){
-      for(const it of P.items){
-        if(STOP) break;
-        try{
-          const qImg = await crop(P.doc, it.start, it.ansAt || it.end, scale);
-          const aImg = it.ansAt ? await crop(P.doc, it.ansAt, it.end, scale) : null;
-          const base = `prac/${sid}/${it.year}_${it.session}_${String(it.no).padStart(2,"0")}`;
-          const qUrl = await put(`${base}_q.jpg`, qImg);
-          const aUrl = aImg ? await put(`${base}_a.jpg`, aImg) : null;
-
-          const whole = cleanText(it.text);
-          const cut = whole.search(/답안\s*작성/);
-          const r = await sb.from("practicals").upsert({
-            subject_id:sid, year:it.year, session:it.session, no:it.no,
-            points:it.points, asked:it.asked || null,
-            q_url:qUrl, a_url:aUrl,
-            q_text: cut > 0 ? whole.slice(0, cut) : whole,
-            a_text: cut > 0 ? whole.slice(cut) : null,
-            source:it.source, page_from:it.start.page, page_to:it.end.page
-          }, { onConflict:"subject_id,year,session,no" });
-          if(r.error) throw r.error;
-          ok++;
-        }catch(e){
-          bad++; log(`${it.year}-${it.session} ${it.no}번 실패 — ${e.message || e}`);
-        }
-        done++;
-        $("#bar").style.width = (done / total * 100) + "%";
-        if(done % 5 === 0){
-          say($("#im"), `${done}/${total} · 올림 ${ok} · 실패 ${bad}`, "info");
-          await new Promise(r => setTimeout(r));
-        }
-      }
-      if(STOP) break;
-    }
-    say($("#im"), STOP ? `중지했습니다. ${ok}개 올렸습니다.` : `끝났습니다 — ${ok}개 올림, ${bad}개 실패.`, bad ? "err" : "ok");
-    await loadList();
-  }catch(e){
-    say($("#im"), "올리다 멈췄습니다 — " + e.message, "err");
-  }finally{
-    $("#save").disabled = false; $("#stop").disabled = true;
-  }
+  const all = PARSED.flatMap(P => P.items.map(it => ({ P, it })));
+  await uploadItems(all, sid, +$("#impScale").value, IMPORT_MODE, "올리기");
 };
+
+/* ── 빠진 문제만 채우기 ──
+   실패 목록은 새로고침하면 사라진다. 그래서 기억에 기대지 않고
+   Supabase 에 실제로 뭐가 들어 있는지 물어본 뒤, 없는 것만 올린다.
+   지난번에 실패한 것도, 중간에 중지한 것도 이 한 번으로 다 메워진다. */
+$("#fillGap").onclick = async () => {
+  const sid = +$("#impSub").value;
+  if(!sid) return say($("#im"), "넣을 과목을 고르세요.", "err");
+  if(!PARSED.length) return say($("#im"), "먼저 훑어보기를 눌러 주세요.", "err");
+
+  say($("#im"), "이미 올라간 문제를 확인하는 중…", "info");
+  const have = new Set();
+  for(let from = 0; from < 40000; from += 1000){
+    const { data, error } = await sb.from("practicals")
+      .select("year,session,no,q_url,a_url").eq("subject_id", sid).range(from, from + 999);
+    if(error) return say($("#im"), "확인하지 못했습니다 — " + niceErr(error), "err");
+    (data || []).forEach(r => {
+      /* 답안만 올리는 모드면 답안이 있어야 "있는 것", 아니면 문제 그림이 있어야 한다 */
+      const okRow = IMPORT_MODE === "a" ? !!r.a_url : !!r.q_url;
+      if(okRow) have.add(`${r.year}-${r.session}-${r.no}`);
+    });
+    if(!data || data.length < 1000) break;
+  }
+
+  const missing = PARSED.flatMap(P => P.items.map(it => ({ P, it })))
+    .filter(({ it }) => !have.has(`${it.year}-${it.session}-${it.no}`));
+
+  if(!missing.length)
+    return say($("#im"), `빠진 문제가 없습니다. 훑어본 ${PARSED.reduce((a,p)=>a+p.items.length,0)}개가 모두 올라가 있습니다.`, "ok");
+
+  const preview = missing.slice(0, 12).map(({it}) => `${it.year}-${it.session} ${it.no}번`).join(", ");
+  log(`빠진 문제 ${missing.length}개: ${preview}${missing.length > 12 ? " …" : ""}`);
+
+  /* 용량 때문에 튕긴 경우가 많아, 다시 넣을 때는 조금 작게 만들어 성공률을 올린다 */
+  const scale = Math.max(1.2, +$("#impScale").value * 0.75);
+  await uploadItems(missing, sid, scale, IMPORT_MODE, `빠진 ${missing.length}개 채우기`);
+};
+
 
 /* 시작 지점부터 끝 지점까지를 하나의 그림으로 잘라 붙인다. 쪽을 넘어가도 이어 붙인다. */
 async function crop(doc, from, to, scale){
@@ -750,9 +1345,30 @@ async function crop(doc, from, to, scale){
   return await new Promise(r => out.toBlob(r, "image/jpeg", 0.82));
 }
 
+/* 그림을 폭 기준으로 줄인다 (실패한 것을 다시 올릴 때 씀) */
+async function shrink(blob, ratio = 0.7){
+  const bmp = await createImageBitmap(blob);
+  const cv = document.createElement("canvas");
+  cv.width = Math.max(200, Math.round(bmp.width * ratio));
+  cv.height = Math.max(120, Math.round(bmp.height * ratio));
+  const g = cv.getContext("2d");
+  g.fillStyle = "#fff"; g.fillRect(0, 0, cv.width, cv.height);
+  g.drawImage(bmp, 0, 0, cv.width, cv.height);
+  bmp.close?.();
+  return await new Promise(r => cv.toBlob(r, "image/jpeg", 0.78));
+}
+
 async function put(path, blob){
-  const up = await sb.storage.from("qfig").upload(path, blob, { contentType:"image/jpeg", upsert:true });
-  if(up.error) throw up.error;
+  let up = await sb.storage.from("qfig").upload(path, blob, { contentType:"image/jpeg", upsert:true });
+  if(up.error){
+    /* 용량 때문에 튕긴 경우가 대부분이라, 한 번은 줄여서 다시 시도한다 */
+    const m = String(up.error.message || "");
+    if(/payload|too large|413|Unexpected token '<'|<!DOCTYPE/i.test(m) && blob.size > 300000){
+      const small = await shrink(blob, 0.65);
+      up = await sb.storage.from("qfig").upload(path, small, { contentType:"image/jpeg", upsert:true });
+    }
+    if(up.error) throw up.error;
+  }
   return sb.storage.from("qfig").getPublicUrl(path).data.publicUrl;
 }
 
@@ -880,10 +1496,11 @@ async function putFiles(files){
   if(!sid) return say($("#am2"), "과목을 먼저 고르세요.", "err");
   if(!files.length) return;
   const scope = aScope();
+  const fails = [];
   const big = files.filter(f => f.size > A_MAX);
-  if(big.length) say($("#am2"), `${big.length}개는 45MB를 넘어 건너뜁니다 — ${big.map(f=>f.name).join(", ")}`, "err");
+  big.forEach(f => fails.push(`${f.name} — 45MB를 넘습니다 (${sizeText(f.size)})`));
   const list = files.filter(f => f.size <= A_MAX);
-  if(!list.length) return;
+  if(!list.length) return say($("#am2"), "올리지 못했습니다.\n" + fails.join("\n"), "err");
 
   let done = 0, ok = 0;
   for(const f of list){
@@ -891,20 +1508,26 @@ async function putFiles(files){
       const safe = f.name.replace(/[^\w.\-가-힣]+/g, "_").slice(-80);
       const path = `prac/${sid}/files/${Date.now()}_${Math.random().toString(36).slice(2,7)}_${safe}`;
       const up = await sb.storage.from("qfig").upload(path, f, { contentType: f.type || "application/octet-stream", upsert:true });
-      if(up.error) throw up.error;
+      if(up.error) throw new Error("보관함 — " + (up.error.message || up.error));
       const url = sb.storage.from("qfig").getPublicUrl(path).data.publicUrl;
       const ins = await sb.from("practical_files").insert({
         subject_id:sid, year:scope.year, session:scope.session, no:scope.no,
         name:f.name, kind:kindOf(f), url, path, bytes:f.size });
-      if(ins.error) throw ins.error;
+      if(ins.error) throw new Error("표 — " + (ins.error.message || ins.error));
       ok++;
     }catch(e){
-      say($("#am2"), `"${f.name}" 실패 — ${e.message || e}`, "err");
+      /* 실패 이유를 모아 뒀다가 끝에 한꺼번에 보여 준다.
+         예전에는 바로 아래 진행률 줄이 곧장 덮어써서, 왜 안 올라갔는지 알 길이 없었다. */
+      fails.push(`${f.name} — ${e.message || e}`);
     }
     done++;
     $("#aBar").style.width = (done / list.length * 100) + "%";
-    say($("#am2"), `${done}/${list.length} · 올림 ${ok}`, done === list.length ? "ok" : "info");
+    if(done < list.length) say($("#am2"), `${done}/${list.length} 올리는 중… (성공 ${ok})`, "info");
   }
+  say($("#am2"),
+    fails.length ? `${ok}개 올렸고 ${fails.length}개 실패했습니다.\n\n${fails.join("\n")}`
+                 : `${ok}개를 모두 올렸습니다.`,
+    fails.length ? "err" : "ok");
   $("#aFile").value = "";
   loadFiles();
 }
