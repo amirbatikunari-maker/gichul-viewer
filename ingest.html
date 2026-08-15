@@ -290,7 +290,12 @@ const CFG = window.APP_CONFIG || {};
 if(!CFG.SUPABASE_URL || CFG.SUPABASE_URL.includes("xxxx")){
   showFatal("config.js 에 Supabase 정보가 없습니다.", "SUPABASE_URL 과 SUPABASE_ANON_KEY 를 채워주세요.");
 }
-const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+/* 이 화면은 회차를 통째로 갈아엎을 수 있는 곳이라 세션을 남기지 않는다.
+   persistSession:false + storage:sessionStorage → 탭을 닫으면 로그인이 풀려서
+   다음에 들어올 때 반드시 다시 로그인해야 한다. (뷰어·면접 탭 로그인은 그대로 유지된다) */
+const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, {
+  auth: { persistSession: false, autoRefreshToken: true, detectSessionInUrl: false, storageKey: "sb-ingest-temp" }
+});
 // PC 환경(너비 768px 초과 및 모바일 기기가 아님)에서는 Render 서버만 단독으로 사용
 const isPC = window.innerWidth > 768 && !/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 const ENDPOINTS = isPC 
@@ -363,10 +368,20 @@ async function refresh(){
     if(error) return showFatal("로그인 상태를 확인하지 못했습니다.", error.message);
     $("#auth").style.display = data.session ? "none" : "block";
     $("#app").style.display  = data.session ? "block" : "none";
+    if(data.session) mountLogout();
     document.getElementById("fatal").style.display = "none";
   }catch(err){
     showFatal("화면을 전환하는 중 오류가 났습니다.", err.message);
   }
+}
+/* 자리 비울 때 바로 잠글 수 있게 로그아웃 버튼을 붙인다 */
+function mountLogout(){
+  if(document.getElementById("logout")) return;
+  const b = document.createElement("button");
+  b.id = "logout"; b.className = "ghost sm"; b.textContent = "로그아웃";
+  b.style.cssText = "position:fixed;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:50";
+  b.onclick = async () => { await sb.auth.signOut(); location.reload(); };
+  document.body.appendChild(b);
 }
 $("#login").onclick = async () => {
   try{

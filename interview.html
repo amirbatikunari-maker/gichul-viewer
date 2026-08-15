@@ -77,6 +77,13 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .body code{font-family:var(--font-m);font-size:12px;background:var(--paper);padding:1px 5px;border-radius:4px}
 .body blockquote{margin:8px 0;padding:9px 12px;border-left:3px solid var(--accent);background:var(--paper);border-radius:0 8px 8px 0}
 
+.pouch{background:var(--card);border:1px solid var(--rule);border-radius:14px;margin-bottom:11px;overflow:hidden}
+.pouch>summary{padding:14px 16px;cursor:pointer;font:600 13.5px/1.35 var(--font-d);list-style:none;display:flex;align-items:center;gap:9px}
+.pouch>summary::-webkit-details-marker{display:none}
+.pouch>summary::before{content:"▸";color:var(--ink-2);font-size:12px}
+.pouch[open]>summary::before{content:"▾"}
+.pouch>summary .sub{font-weight:400;font-size:11.5px;color:var(--ink-2);flex:1}
+.pbody{padding:0 16px 16px}
 .nav3{display:flex;gap:2px;padding:7px 8px;padding-top:calc(7px + env(safe-area-inset-top));background:var(--ink);overflow-x:auto}
 .nav3 a{flex:1;text-align:center;padding:7px 5px;border-radius:8px;font:600 11px/1 var(--font-d);color:color-mix(in srgb,var(--paper) 55%,transparent);text-decoration:none;white-space:nowrap}
 .nav3 a.on{background:color-mix(in srgb,var(--paper) 15%,transparent);color:var(--paper)}
@@ -161,28 +168,33 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <div class="cases" id="cases"></div>
 
     <div class="eyebrow" style="margin-top:26px">마음 다지기</div>
-    <div class="card">
-      <label>자기암시 말주머니</label>
-      <div class="chips" id="selfChips"></div>
-      <div id="selfOut"></div>
-      <div class="bar" style="margin-top:11px"><button class="sm" id="selfRoll">한 번 더 뽑기</button></div>
-      <div class="hint">주제를 고르고 누를 때마다 1~5줄이 새로 나옵니다. 자존감이 내려앉는 날 눌러보세요.</div>
-    </div>
 
-    <div class="card">
-      <label>명언 말주머니</label>
-      <div class="chips" id="quoteChips"></div>
-      <div id="quoteOut"></div>
-      <div class="bar" style="margin-top:11px"><button class="sm" id="quoteRoll">다른 말 보기</button></div>
-    </div>
+    <details class="pouch" open>
+      <summary>자기암시 말주머니<span class="sub">5줄 · 자존감이 내려앉는 날</span></summary>
+      <div class="pbody">
+        <div class="chips" id="selfChips"></div>
+        <div id="selfOut"></div>
+        <div class="bar" style="margin-top:11px"><button class="sm" id="selfRoll">다시 5줄 뽑기</button></div>
+      </div>
+    </details>
 
-    <div class="eyebrow">면접 꿀팁 주머니</div>
-    <div class="card">
-      <div class="chips" id="tipChips"></div>
-      <div id="tipOut"></div>
-      <div class="bar" style="margin-top:11px"><button class="sm" id="tipRoll">다른 팁 뽑기</button></div>
-      <div class="hint">떠도는 조언 중 실제로 먹히는 것만 모았습니다. 차수를 골라서 보세요.</div>
-    </div>
+    <details class="pouch">
+      <summary>명언 말주머니<span class="sub">5줄</span></summary>
+      <div class="pbody">
+        <div class="chips" id="quoteChips"></div>
+        <div id="quoteOut"></div>
+        <div class="bar" style="margin-top:11px"><button class="sm" id="quoteRoll">다시 5줄 뽑기</button></div>
+      </div>
+    </details>
+
+    <details class="pouch">
+      <summary>면접 꿀팁 주머니<span class="sub">5줄 · 차수를 골라서</span></summary>
+      <div class="pbody">
+        <div class="chips" id="tipChips"></div>
+        <div id="tipOut"></div>
+        <div class="bar" style="margin-top:11px"><button class="sm" id="tipRoll">다시 5줄 뽑기</button></div>
+      </div>
+    </details>
 
     <div class="eyebrow">단계별로 생각할 것</div>
     <div id="stages"></div>
@@ -784,20 +796,22 @@ function chips(el, keys, onPick){
 }
 
 let SELF_KEY = "용기", QUOTE_KEY = "용기", TIP_KEY = "공통";
+
+/* 뽑는 개수를 5줄로 고정한다. 예전에는 1~5줄이 무작위라
+   눌러도 한 줄만 나오는 날이 있어서 뽑은 보람이 없었다.
+   대신 세 주머니를 전부 접었다 펼 수 있게 해서 화면을 안 먹게 했다. */
+const BAG_N = 5;
+const five = list => [...list].sort(() => Math.random() - .5).slice(0, Math.min(BAG_N, list.length));
+
 function rollSelf(){
-  const list = SELF[SELF_KEY] || [];
-  const n = 1 + Math.floor(Math.random()*5);              /* 1~5줄 */
-  const bag = [...list].sort(()=>Math.random()-.5).slice(0, Math.min(n, list.length));
-  $("#selfOut").innerHTML = bag.map(t => bubble(t)).join("");
+  $("#selfOut").innerHTML = five(SELF[SELF_KEY] || []).map(t => bubble(t)).join("");
 }
 function rollQuote(){
-  const [t,by] = pick(QUOTE[QUOTE_KEY] || [["",""]]);
-  $("#quoteOut").innerHTML = bubble(t, by);
+  /* 명언은 [문구, 말한이] 짝이라 따로 처리한다 */
+  $("#quoteOut").innerHTML = five(QUOTE[QUOTE_KEY] || []).map(([t, by]) => bubble(t, by)).join("");
 }
 function rollTip(){
-  const list = TIPS[TIP_KEY] || [];
-  const bag = [...list].sort(()=>Math.random()-.5).slice(0,3);
-  $("#tipOut").innerHTML = bag.map(t => bubble(t)).join("");
+  $("#tipOut").innerHTML = five(TIPS[TIP_KEY] || []).map(t => bubble(t)).join("");
 }
 function drawStages(){
   $("#stages").innerHTML = STAGES.map(([name, items], i) => `

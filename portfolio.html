@@ -52,6 +52,12 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .body strong{font-weight:600}
 .body code{font-family:var(--font-m);font-size:12px;background:var(--paper);padding:1px 5px;border-radius:4px}
 
+.tag.lnk{border-color:var(--accent);color:var(--accent)}
+.linkbtn{display:inline-block;font:600 13px/1 var(--font-d);padding:11px 14px;border-radius:9px;
+  background:var(--accent);color:#fff;text-decoration:none}
+.sharebox{font-family:var(--font-m);font-size:11.5px;word-break:break-all;background:var(--paper);
+  border:1px solid var(--rule);border-radius:9px;padding:10px 12px;margin-top:9px}
+.ro{font-size:12px;color:var(--ink-2);text-align:center;margin-top:26px;padding-top:14px;border-top:1px solid var(--rule)}
 .nav3{display:flex;gap:2px;padding:7px 8px;padding-top:calc(7px + env(safe-area-inset-top));background:var(--ink);overflow-x:auto}
 .nav3 a{flex:1;text-align:center;padding:7px 5px;border-radius:8px;font:600 11px/1 var(--font-d);color:color-mix(in srgb,var(--paper) 55%,transparent);text-decoration:none;white-space:nowrap}
 .nav3 a.on{background:color-mix(in srgb,var(--paper) 15%,transparent);color:var(--paper)}
@@ -101,7 +107,11 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <h1>포트폴리오</h1>
     <div class="lead">한 건씩 카드로 쌓아두고, 면접 전에 꺼내 봅니다.
       상황 → 내 역할 → 한 일 → 결과(숫자) 순서로 적어두면 그대로 답변이 됩니다.</div>
-    <div class="bar" style="margin-bottom:14px"><button id="new">새 항목</button></div>
+    <div class="bar" style="margin-bottom:14px">
+      <button id="new">새 항목</button>
+      <button class="ghost sm" id="share">공유 링크</button>
+    </div>
+    <div id="shareOut"></div>
     <div class="items" id="items"></div>
   </div>
 
@@ -130,6 +140,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
       </div>
       <label>한 줄 요약</label>
       <input id="eSummary" placeholder="카드에 보일 한 문장">
+      <label style="margin-top:11px">바깥 링크 (노션 · 드라이브 등)</label>
+      <input id="eLink" type="url" placeholder="https://www.notion.so/... 붙여넣기">
       <label style="margin-top:11px">본문</label>
       <textarea id="eBody" placeholder="## 상황&#10;...&#10;&#10;## 내 역할&#10;...&#10;&#10;## 한 일&#10;- ...&#10;&#10;## 결과&#10;- ..."></textarea>
       <div class="bar" style="margin-top:11px">
@@ -160,9 +172,28 @@ const SKELETON = `## 상황\n어떤 현장에서 무엇이 문제였는지\n\n##
 
 let ME = null, ITEMS = [], CUR = null, FILE = null;
 
+/* ── 별도 링크로 들어온 손님 ──
+   ?share=<토큰> 이 붙어 있으면 로그인 없이 읽기 전용으로 열린다.
+   위 탭을 눌러 그냥 들어오면(토큰 없음) 아래 잠금 화면에서 막힌다. */
+const SHARE = new URLSearchParams(location.search).get("share");
+const RO = !!SHARE;
+
+async function bootShared(){
+  $("#gate").className = "gate hide";
+  document.querySelector(".nav3")?.remove();      // 다른 탭으로 새 나가지 않게 탭바를 없앤다
+  ["new","edit","del"].forEach(id => document.getElementById(id)?.remove());
+  const { data, error } = await sb.rpc("pf_shared", { p_token: SHARE });
+  if(error){ say("링크가 유효하지 않거나 만료됐습니다 — " + error.message, "err"); return; }
+  ITEMS = data || [];
+  drawList();
+  document.querySelector(".wrap").insertAdjacentHTML("beforeend",
+    `<div class="ro">읽기 전용으로 공유된 포트폴리오입니다.</div>`);
+}
+
 /* 로그인하지 않으면 잠금 화면만 보여준다.
    화면을 감추는 건 눈가림일 뿐이고, 실제 차단은 Supabase RLS 가 한다. */
 async function boot(){
+  if(RO) return bootShared();
   const { data } = await sb.auth.getSession();
   ME = data.session?.user || null;
   $("#gate").className = ME ? "gate hide" : "gate";
@@ -195,12 +226,16 @@ async function list(){
     .order("sort_order", { ascending:true }).order("created_at", { ascending:false });
   if(error) return say("불러오지 못했습니다 — " + error.message + "\nSQL을 먼저 실행하셨나요?", "err");
   ITEMS = data || [];
+  drawList();
+}
+function drawList(){
   $("#items").innerHTML = ITEMS.length
     ? ITEMS.map(it => `<button class="it" data-id="${it.id}">
         <div class="ti">${esc(it.title)}</div>
         ${it.summary ? `<div class="su">${esc(it.summary)}</div>` : ""}
         <div class="meta">${it.category ? `<span class="tag cat">${esc(it.category)}</span>` : ""}
           ${it.period ? `<span class="tag">${esc(it.period)}</span>` : ""}
+          ${it.link_url ? `<span class="tag lnk">링크</span>` : ""}
           ${it.file_path ? `<span class="tag">첨부</span>` : ""}</div></button>`).join("")
     : `<div class="hint">아직 없습니다. "새 항목"으로 첫 건을 넣어보세요.</div>`;
   $("#items").querySelectorAll(".it").forEach(b => b.onclick = () => open(b.dataset.id));
@@ -212,7 +247,9 @@ function open(id){
   $("#vTitle").textContent = CUR.title;
   $("#vMeta").textContent  = [CUR.category, CUR.period].filter(Boolean).join(" · ") || "—";
   $("#vBody").innerHTML    = CUR.body_md ? mdToHtml(CUR.body_md) : `<div class="hint">본문이 비어 있습니다.</div>`;
-  $("#vFile").innerHTML    = CUR.file_path ? `<button class="ghost sm" id="dl">첨부 원본 열기</button>` : "";
+  $("#vFile").innerHTML =
+      (CUR.link_url  ? `<a class="linkbtn" href="${esc(CUR.link_url)}" target="_blank" rel="noopener">바깥 링크 열기 ↗</a>` : "")
+    + (CUR.file_path ? `<button class="ghost sm" id="dl">첨부 원본 열기</button>` : "");
   if(CUR.file_path) $("#dl").onclick = async () => {
     const { data, error } = await sb.storage.from("iv-docs").createSignedUrl(CUR.file_path, 300);
     if(error) return say("원본을 열지 못했습니다 — " + error.message, "err");
@@ -221,12 +258,37 @@ function open(id){
   show("itemView");
 }
 
+/* 로그인 없이 볼 수 있는 별도 링크를 만든다.
+   토큰이 있어야만 열리고, 첨부 원본 파일은 공유에서 제외된다(비공개 유지). */
+$("#share").onclick = async () => {
+  const { data: rows } = await sb.from("pf_share").select("token").limit(1);
+  let token = rows?.[0]?.token;
+  if(!token){
+    const { data, error } = await sb.from("pf_share")
+      .insert({ user_id: ME.id, label: "portfolio" }).select("token").single();
+    if(error) return say("링크를 만들지 못했습니다 — " + error.message + "\n추가 SQL을 실행하셨나요?", "err");
+    token = data.token;
+  }
+  const url = location.origin + location.pathname + "?share=" + token;
+  $("#shareOut").innerHTML = `<div class="sharebox">${esc(url)}</div>
+    <div class="bar" style="margin-top:8px">
+      <button class="ghost sm" id="copyShare">복사</button>
+      <button class="ghost sm" id="killShare">링크 끊기</button></div>`;
+  $("#copyShare").onclick = () => navigator.clipboard.writeText(url)
+    .then(() => say("복사했습니다.", "ok"), () => say("복사에 실패했습니다. 주소를 길게 눌러 복사해 주세요.", "err"));
+  $("#killShare").onclick = async () => {
+    if(!confirm("이 링크를 무효로 만듭니다. 받은 사람은 더 못 봅니다.")) return;
+    await sb.from("pf_share").delete().eq("token", token);
+    $("#shareOut").innerHTML = ""; say("링크를 끊었습니다.", "ok");
+  };
+};
+
 $("#back").onclick = list;
 $("#cancel").onclick = () => CUR ? open(CUR.id) : list();
 $("#new").onclick = () => {
   CUR = null; FILE = null;
   $("#eTitle").value = $("#eCat").value = $("#ePeriod").value = $("#eSummary").value = "";
-  $("#eBody").value = SKELETON;
+  $("#eBody").value = SKELETON; $("#eLink").value = "";
   $("#eFile").value = ""; $("#fname").textContent = "선택된 파일 없음";
   show("editView");
 };
@@ -234,7 +296,7 @@ $("#edit").onclick = () => {
   FILE = null;
   $("#eTitle").value = CUR.title || ""; $("#eCat").value = CUR.category || "";
   $("#ePeriod").value = CUR.period || ""; $("#eSummary").value = CUR.summary || "";
-  $("#eBody").value = CUR.body_md || SKELETON;
+  $("#eBody").value = CUR.body_md || SKELETON; $("#eLink").value = CUR.link_url || "";
   $("#eFile").value = ""; $("#fname").textContent = CUR.file_path ? "기존 첨부 유지" : "선택된 파일 없음";
   show("editView");
 };
@@ -263,6 +325,7 @@ $("#save").onclick = async () => {
     period:   $("#ePeriod").value.trim() || null,
     summary:  $("#eSummary").value.trim() || null,
     body_md:  $("#eBody").value.trim() || null,
+    link_url: $("#eLink").value.trim() || null,
     file_path
   };
   const { error } = CUR
