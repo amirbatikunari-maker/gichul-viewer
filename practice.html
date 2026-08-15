@@ -134,6 +134,9 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
       <div class="eyebrow">1 · 문제 보기 <button class="ghost" id="logoutBtn" type="button" style="padding:6px 10px;font-size:11px">로그아웃</button></div>
       <div class="filters">
         <select id="fSub"></select>
+        <button class="chip" id="subAdd" type="button" title="실기 과목 새로 만들기">+ 과목</button>
+        <button class="chip" id="subRen" type="button" title="과목 이름 고치기">이름</button>
+        <button class="chip" id="subDel" type="button" title="과목 지우기">삭제</button>
         <select id="fYear"><option value="">모든 연도</option></select>
         <select id="fSess"><option value="">모든 회차</option></select>
         <input id="fQ" type="text" placeholder="본문에서 찾기">
@@ -144,7 +147,7 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
 
     <!-- 3 · 자료함 --------------------------------------------- -->
     <div class="box">
-      <div class="eyebrow">3 · 자료함</div>
+      <div class="eyebrow">2 · 자료함</div>
       <div class="filters">
         <select id="aYear"><option value="">연도 전체</option></select>
         <select id="aSess"><option value="">회차 전체</option></select>
@@ -169,7 +172,7 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
 
     <!-- 4 · 가져오기 ------------------------------------------------ -->
     <div class="box">
-      <div class="eyebrow">4 · PDF 에서 문제 가져오기</div>
+      <div class="eyebrow">3 · PDF 에서 문제 가져오기</div>
       <div class="grid">
         <div>
           <label>어느 과목에 넣을까요</label>
@@ -256,18 +259,70 @@ $("#loginBtn").onclick = async () => {
 $("#logoutBtn").onclick = async () => { await sb.auth.signOut(); gate(); };
 
 /* ═══════════════════════════════════════════════
-   과목 목록
+   실기 과목 — 필기 과목과 따로 관리한다
+   "공조냉동 필기"와 "공조냉동 실기"는 범위도 형식도 다르고, 실기만 있는 종목도 있다.
+   같은 목록을 쓰면 필기에만 있는 과목이 실기 칸에 뜨고 반대도 마찬가지라 헷갈린다.
    ═══════════════════════════════════════════════ */
 let SUBJECTS = [];
 async function loadSubjects(){
-  const { data } = await sb.from("subject_list").select("*").order("sort_order");
+  const { data, error } = await sb.from("practical_subjects").select("*")
+    .order("sort_order").order("id");
+  if(error){
+    const miss = /practical_subjects|schema cache/i.test(error.message || "");
+    $("#fSub").innerHTML = `<option value="">${miss ? "과목 표 없음" : "불러오기 실패"}</option>`;
+    $("#impSub").innerHTML = $("#fSub").innerHTML;
+    say($("#im"), miss
+      ? "실기 과목 표가 아직 없습니다 — supabase-실기.sql 을 다시 한 번 돌려 주세요."
+      : "과목을 불러오지 못했습니다 — " + error.message, "err");
+    return;
+  }
   SUBJECTS = data || [];
   const opt = SUBJECTS.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join("");
-  $("#fSub").innerHTML = opt || `<option value="">과목 없음</option>`;
-  $("#impSub").innerHTML = opt || `<option value="">과목 없음</option>`;
+  $("#fSub").innerHTML   = opt || `<option value="">과목을 먼저 만드세요</option>`;
+  $("#impSub").innerHTML = opt || `<option value="">과목을 먼저 만드세요</option>`;
   const keep = localStorage.getItem("prac:sub");
   if(keep && SUBJECTS.some(s => String(s.id) === keep)){ $("#fSub").value = keep; $("#impSub").value = keep; }
+  const has = !!SUBJECTS.length;
+  $("#subRen").disabled = !has; $("#subDel").disabled = !has;
+  if(!has) $("#list").innerHTML = `<div class="empty">실기 과목이 아직 없습니다. <b>+ 과목</b> 을 눌러
+    "전기기사 실기" 처럼 이름을 지어 주세요.</div>`;
 }
+
+$("#subAdd").onclick = async () => {
+  const name = prompt("실기 과목 이름 (예: 전기기사 실기)", "");
+  if(name === null) return;
+  if(!name.trim()) return;
+  const r = await sb.from("practical_subjects")
+    .insert({ name:name.trim(), sort_order:(SUBJECTS.at(-1)?.sort_order ?? 0) + 1 }).select().single();
+  if(r.error) return say($("#im"), "만들지 못했습니다 — " + r.error.message, "err");
+  await loadSubjects();
+  $("#fSub").value = r.data.id; $("#impSub").value = r.data.id;
+  localStorage.setItem("prac:sub", String(r.data.id));
+  await loadList(); paintScope(); await loadFiles();
+};
+
+$("#subRen").onclick = async () => {
+  const id = +$("#fSub").value; if(!id) return;
+  const cur = SUBJECTS.find(s => s.id === id);
+  const name = prompt("과목 이름", cur?.name || "");
+  if(name === null || !name.trim()) return;
+  const r = await sb.from("practical_subjects").update({ name:name.trim() }).eq("id", id);
+  if(r.error) return say($("#im"), "바꾸지 못했습니다 — " + r.error.message, "err");
+  await loadSubjects();
+};
+
+$("#subDel").onclick = async () => {
+  const id = +$("#fSub").value; if(!id) return;
+  const cur = SUBJECTS.find(s => s.id === id);
+  const { count } = await sb.from("practicals").select("id", { count:"exact", head:true }).eq("subject_id", id);
+  if(count) return say($("#im"),
+    `"${cur?.name}" 에 문제 ${count}개가 들어 있어 지울 수 없습니다.\n문제를 먼저 정리하거나 이름만 바꿔 쓰세요.`, "err");
+  if(!confirm(`"${cur?.name}" 과목을 지웁니다.`)) return;
+  const r = await sb.from("practical_subjects").delete().eq("id", id);
+  if(r.error) return say($("#im"), "지우지 못했습니다 — " + r.error.message, "err");
+  localStorage.removeItem("prac:sub");
+  await loadSubjects(); await loadList(); await loadFiles();
+};
 
 /* ═══════════════════════════════════════════════
    목록 그리기
@@ -464,7 +519,21 @@ function take(files){
   if(!PICKED.length) return say($("#im"), "PDF 만 넣을 수 있습니다.", "err");
   drop.innerHTML = `<b>${PICKED.length}개 파일</b>${PICKED.map(f => f.name).join(" · ")}`;
   $("#run").disabled = false;
-  say($("#im"), "훑어보기를 누르면 문제 단위로 잘라 미리 세어 봅니다. 아직 아무것도 올리지 않습니다.", "info");
+
+  /* 파일 이름에 과목 이름이 들어 있으면 과목을 미리 맞춰 둔다.
+     "전기기사실기_기출25_20.pdf" 처럼 띄어쓰기가 제각각이라 공백을 지우고 견준다.
+     확실할 때만 손대고, 애매하면 건드리지 않는다 — 엉뚱한 과목에 968문제가 들어가면 되돌리기 어렵다. */
+  const flat = s => String(s).replace(/[\s_\-]+/g, "");
+  const names = PICKED.map(f => flat(f.name));
+  const hit = SUBJECTS.filter(s => names.some(n => n.includes(flat(s.name))));
+  let note = "";
+  if(hit.length === 1){
+    $("#impSub").value = hit[0].id;
+    note = `\n파일 이름에서 "${hit[0].name}" 을 찾아 과목을 맞춰 두었습니다.`;
+  }else if(hit.length > 1){
+    note = `\n파일 이름에 과목이 여럿(${hit.map(s => s.name).join(", ")}) 걸려 자동으로 못 정했습니다. 아래에서 골라 주세요.`;
+  }
+  say($("#im"), "훑어보기를 누르면 문제 단위로 잘라 미리 세어 봅니다. 아직 아무것도 올리지 않습니다." + note, "info");
 }
 
 $("#stop").onclick = () => { STOP = true; log("중지 요청"); };
