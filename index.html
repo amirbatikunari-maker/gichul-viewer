@@ -130,6 +130,41 @@ a{color:var(--accent);text-decoration:none}
 .mixb .c{display:block;font:500 10.5px/1 var(--font-m);opacity:.75;margin-top:5px}
 .mixnote{font-size:11.5px;color:var(--ink-2);line-height:1.7;margin:0 0 16px}
 .mixnote b{color:var(--ink);font-weight:600}
+
+/* ── 시험 정보 · 출제경향 ── */
+.infob{width:100%;padding:11px 13px;border-radius:11px;border:1.5px solid var(--rule);
+  background:var(--card);color:var(--ink);font:600 12.5px/1 var(--font-d);cursor:pointer;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;margin:4px 0 8px}
+.infob .arw{color:var(--ink-2);font:500 11px/1 var(--font-m);transition:transform .15s}
+.infob.on{border-color:var(--accent);color:var(--accent)}
+.infob.on .arw{transform:rotate(180deg);color:var(--accent)}
+.infopanel{display:none;margin:0 0 14px;padding:14px;border-radius:12px;
+  background:var(--card);border:1px solid var(--rule)}
+.infopanel.on{display:block}
+.infopanel h4{font:600 12px/1 var(--font-d);letter-spacing:.06em;color:var(--ink-2);
+  margin:0 0 9px;padding-bottom:7px;border-bottom:1px solid var(--rule)}
+.infopanel section + section{margin-top:18px}
+.infopanel p{margin:0 0 8px;font-size:12px;line-height:1.75;color:var(--ink-2)}
+.infopanel p b{color:var(--ink);font-weight:600}
+.era{display:flex;gap:10px;padding:9px 0;border-top:1px solid var(--rule);font-size:12px}
+.era:first-of-type{border-top:0}
+.era .lab{flex:none;width:104px;font:600 11.5px/1.5 var(--font-m);color:var(--ink)}
+.era .txt{flex:1;color:var(--ink-2);line-height:1.6}
+.era.now .lab{color:var(--accent)}
+.flag{display:inline-block;font:600 10px/1 var(--font-d);padding:3px 6px;border-radius:5px;
+  background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);margin-left:5px}
+.gapline{font:400 11.5px/1.7 var(--font-m);color:var(--ink-2)}
+.gapline b{color:var(--ink);font-weight:600}
+.gapline .miss{color:var(--stamp)}
+.topics{display:flex;flex-wrap:wrap;gap:6px}
+.topic{font:500 11.5px/1 var(--font-d);padding:7px 9px;border-radius:8px;
+  background:var(--paper);border:1px solid var(--rule);color:var(--ink)}
+.topic i{font-style:normal;color:var(--ink-2);font-family:var(--font-m);font-size:10.5px;margin-left:5px}
+.barrow{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11.5px}
+.barrow .nm{flex:none;width:118px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.barrow .tr{flex:1;height:7px;border-radius:4px;background:var(--paper);overflow:hidden}
+.barrow .fl{height:100%;background:var(--accent);border-radius:4px}
+.barrow .vv{flex:none;font:500 10.5px/1 var(--font-m);color:var(--ink-2);width:44px;text-align:right}
 .year{font:600 13px/1 var(--font-m);color:var(--ink-2);margin:20px 0 8px;letter-spacing:.04em}
 .rows{display:flex;flex-direction:column;gap:8px}
 .row{
@@ -1666,7 +1701,11 @@ async function viewExams(subjectId){
 
   const byYear = {};
   S.exams.forEach(e=>(byYear[e.year] ||= []).push(e));
-  const mixBar = `<div class="mixbar">
+  const mixBar = `<button class="infob" id="infoBtn" type="button">
+      <span>시험 정보 · 출제경향</span><span class="arw">▾</span>
+    </button>
+    <div class="infopanel" id="infoPanel"></div>
+    <div class="mixbar">
     <button class="mixb rnd" data-mode="random">🎲 랜덤<span class="c" data-c="random"></span></button>
     <button class="mixb g" data-mode="gold">금<span class="c" data-c="gold"></span></button>
     <button class="mixb s" data-mode="silver">은<span class="c" data-c="silver"></span></button>
@@ -1688,6 +1727,14 @@ async function viewExams(subjectId){
         <span class="chev">›</span>
       </button>`}).join("")}</div>`).join("");
   $$("#exams .mixb").forEach(b=>b.onclick=()=>go(`#/mix/${subjectId}/${b.dataset.mode}`));
+  /* 시험 정보는 누를 때 처음 한 번만 계산한다 — 회차 목록이 뜨는 속도를 늦추지 않게 */
+  const ib = $("#infoBtn"), ip = $("#infoPanel");
+  let infoBuilt = false;
+  if(ib) ib.onclick = () => {
+    const on = ip.classList.toggle("on");
+    ib.classList.toggle("on", on);
+    if(on && !infoBuilt){ infoBuilt = true; buildExamInfo(subjectId, ip); }
+  };
   /* 각 등급에 몇 문항이 들어갔는지, 어떤 기준인지 목록 위에 바로 보여준다 */
   mixIndex(subjectId, true).then(ix => {
     if(!$("#mixnote")) return;
@@ -1722,6 +1769,169 @@ async function viewExams(subjectId){
     }
     go(`#/e/${b.dataset.id}`);
   });
+}
+
+/* ═══════════════════════════════════════════════
+   시험 정보 · 출제경향
+   시험 제도가 바뀐 시점 같은 건 어딘가에 적어 두면 과목이 늘 때마다 손으로 고쳐야 하고,
+   틀린 채로 남으면 오히려 해가 된다. 그래서 아무것도 적어 두지 않고
+   올려둔 회차의 과목 구성이 어디서 갈라지는지를 그때그때 읽어 낸다.
+   ═══════════════════════════════════════════════ */
+
+/* "3과목 : 시운전 및 안전관리" → {i:3, name:"시운전 및 안전관리"} */
+function partOf(s){
+  const t = String(s ?? "").trim();
+  if(!t) return null;
+  const m = t.match(/^(\d{1,2})\s*과목\s*[:·.\-]?\s*(.*)$/);
+  return m ? { i:+m[1], name:(m[2] || `${m[1]}과목`).trim() } : { i:99, name:t };
+}
+
+/* 가진 번호에서 빠진 구간만 짧게 — [1,2,3,5,9] , 10 → "4, 6~8, 10" */
+function missingRanges(nums, max){
+  const set = new Set(nums), out = [];
+  let s = null;
+  for(let n = 1; n <= max; n++){
+    if(!set.has(n)){ if(s === null) s = n; }
+    else if(s !== null){ out.push(s === n-1 ? `${s}` : `${s}~${n-1}`); s = null; }
+  }
+  if(s !== null) out.push(s === max ? `${s}` : `${s}~${max}`);
+  return out;
+}
+
+async function buildExamInfo(subjectId, box){
+  box.innerHTML = `<p>회차를 훑는 중…</p>`;
+
+  const {data:exams, error:e1} = await sb.from("exam_list")
+    .select("id,label,year,session,question_count").eq("subject_id", subjectId);
+  if(e1 || !exams?.length) return void (box.innerHTML = `<p>회차를 읽지 못했습니다.</p>`);
+
+  const {data:qs, error:e2} = await sb.from("questions")
+    .select("exam_id,number,subject_part").in("exam_id", exams.map(e => e.id));
+  if(e2) return void (box.innerHTML = `<p>문항을 읽지 못했습니다 — ${esc(e2.message)}</p>`);
+
+  /* ── 회차별로 모으기 ── */
+  const byExam = new Map();
+  exams.forEach(e => byExam.set(e.id, { ...e, nums:[], parts:new Map(), rows:0 }));
+  (qs || []).forEach(q => {
+    const b = byExam.get(q.exam_id);
+    if(!b) return;
+    b.rows++;
+    if(q.number != null) b.nums.push(+q.number);
+    const p = partOf(q.subject_part);
+    if(p) b.parts.set(p.i, p.name);
+  });
+  byExam.forEach(b => {
+    b.uniq  = new Set(b.nums).size;
+    b.maxNo = b.nums.length ? Math.max(...b.nums) : 0;
+    b.dup   = b.rows - b.uniq;
+  });
+
+  /* ── 과목 구성이 같은 연도끼리 묶는다. 갈라지는 지점이 곧 제도가 바뀐 해다 ── */
+  const sig = b => [...b.parts.keys()].sort((x,y) => x-y).map(i => `${i}:${b.parts.get(i)}`).join(" / ");
+  const chrono = [...byExam.values()].sort((a,b) => (a.year - b.year) || (a.session - b.session));
+  const eras = [];
+  chrono.forEach(b => {
+    const s = sig(b);
+    if(!s) return;                       /* 과목 정보가 없는 회차는 판단에서 뺀다 */
+    const last = eras[eras.length - 1];
+    if(last && last.sig === s){ last.to = b; last.ex.push(b); }
+    else eras.push({ sig:s, from:b, to:b, ex:[b], parts:b.parts });
+  });
+
+  const newest = eras[eras.length - 1] || null;
+  const eraCeil = e => Math.max(...e.ex.map(b => b.maxNo), 0);
+
+  const eraHTML = [...eras].reverse().map(e => {
+    const names = [...e.parts.keys()].sort((x,y) => x-y).map(i => esc(e.parts.get(i)));
+    const span = e.from.year === e.to.year ? `${e.from.year}년` : `${e.from.year} ~ ${e.to.year}년`;
+    return `<div class="era ${e === newest ? "now" : ""}">
+      <div class="lab">${span}${e === newest ? `<span class="flag">지금 형식</span>` : ""}</div>
+      <div class="txt"><b>${names.length}과목</b> · 번호는 <b>${eraCeil(e)}번</b>까지 확인됩니다<br>${names.join(" / ")}</div>
+    </div>`;
+  }).join("");
+
+  const changed = eras.length > 1
+    ? `<p><b>형식이 바뀐 해 — ${eras[eras.length-1].from.year}년.</b>
+        그 이전 회차는 과목 구성 자체가 달라서 지금 시험과 그대로 맞물리지 않습니다.
+        내용을 복습하는 데는 여전히 쓸모가 있지만, <b>과목별 비중과 문항 수는 다릅니다.</b>
+        범위를 지금 시험에 맞추고 싶다면 ${eras[eras.length-1].from.year}년 이후 회차만 보시면 됩니다.</p>`
+    : `<p>올려둔 회차 안에서는 과목 구성이 바뀐 적이 없습니다.</p>`;
+
+  /* ── 빠진 번호 · 겹친 번호 ── */
+  const ceilOf = b => {
+    const e = eras.find(x => x.ex.includes(b));
+    return Math.max(b.maxNo, e ? eraCeil(e) : 0);
+  };
+  const flawed = chrono.filter(b => b.rows).map(b => {
+    const miss = missingRanges(b.nums, ceilOf(b));
+    return { b, miss };
+  }).filter(x => x.miss.length || x.b.dup > 0).reverse();
+
+  const gapHTML = flawed.length
+    ? flawed.map(({b, miss}) => `<div class="gapline"><b>${esc(b.label)}</b> — ${b.uniq}/${ceilOf(b)}번
+        ${miss.length ? `· 빠짐 <span class="miss">${miss.join(", ")}</span>` : ""}
+        ${b.dup > 0 ? `· 겹침 <span class="miss">${b.dup}개</span>` : ""}</div>`).join("")
+    : `<p>빠지거나 겹친 번호가 없습니다.</p>`;
+
+  /* ── 출제경향 — 지금 형식 회차만 본다 ── */
+  let trendHTML = `<p>지금 형식의 회차가 아직 없습니다.</p>`;
+  if(newest){
+    const eraIds = new Set(newest.ex.map(b => b.id));
+    const cnt = new Map();
+    (qs || []).forEach(q => {
+      if(!eraIds.has(q.exam_id)) return;
+      const p = partOf(q.subject_part);
+      if(p) cnt.set(p.i, (cnt.get(p.i) || 0) + 1);
+    });
+    const tot = [...cnt.values()].reduce((a, b) => a + b, 0) || 1;
+    const bars = [...cnt.keys()].sort((x,y) => x-y).map(i => {
+      const v = cnt.get(i), pc = v / tot * 100;
+      return `<div class="barrow">
+        <span class="nm">${esc(newest.parts.get(i) || i + "과목")}</span>
+        <span class="tr"><span class="fl" style="width:${pc.toFixed(1)}%"></span></span>
+        <span class="vv">${v}문항</span>
+      </div>`;
+    }).join("");
+
+    /* 주제 묶음은 섞어보기가 이미 만들어 둔 것을 그대로 쓴다 — 같은 기준이어야 헷갈리지 않는다 */
+    const ix = S._mix?.[subjectId];
+    let chips = `<p>주제를 세려면 목록을 한 번 더 불러와야 합니다. 회차 목록으로 나갔다 들어와 주세요.</p>`;
+    if(ix?.rows?.length){
+      const g = new Map();
+      ix.rows.forEach(r => {
+        if(!eraIds.has(r.exam_id) || !r._key) return;
+        const o = g.get(r._gid) || g.set(r._gid, { key:r._key, ex:new Set(), n:0 }).get(r._gid);
+        o.ex.add(r.exam_id); o.n++;
+      });
+      const top = [...g.values()].filter(o => o.ex.size >= 2)
+        .sort((a, b) => b.ex.size - a.ex.size || b.n - a.n).slice(0, 14);
+      chips = top.length
+        ? `<div class="topics">${top.map(o =>
+            `<span class="topic">${esc(o.key)}<i>${o.ex.size}회차 · ${o.n}문항</i></span>`).join("")}</div>
+           <p style="margin-top:9px">여러 회차에 되풀이해 나온 주제를 <b>회차 수</b> 순으로 세웠습니다.
+             주제어는 그 묶음에서 가장 특징적인 낱말이라 어색해 보일 수 있는데, 묶음 자체는 문항끼리 실제로
+             겹치는 낱말로 만들어집니다. 섞어보기의 금·은·동과 같은 기준입니다.</p>`
+        : `<p>아직 되풀이해 나온 주제를 잡을 만큼 회차가 모이지 않았습니다.</p>`;
+    }
+    trendHTML = bars + `<div style="height:12px"></div>` + chips;
+  }
+
+  box.innerHTML = `
+    <section>
+      <h4>시험 형식</h4>
+      ${eraHTML || `<p>과목 정보가 있는 회차가 없습니다.</p>`}
+      ${changed}
+    </section>
+    <section>
+      <h4>회차 점검</h4>
+      ${gapHTML}
+      <p style="margin-top:9px">빠진 번호는 아직 안 올라온 문항입니다. 자동 변환에서 그 쪽수만 다시 돌리면 채워집니다.
+        겹침은 같은 번호가 두 번 들어간 것이라, 정리 모드에서 지워 주셔야 합니다.</p>
+    </section>
+    <section>
+      <h4>출제경향 · 지금 형식 기준</h4>
+      ${trendHTML}
+    </section>`;
 }
 
 /* ═══════════════════════════════════════════════
@@ -2108,9 +2318,16 @@ function wireFigSize(root){
     const r = await sb.from("questions").update({ figure_width: v }).eq("id", q.id);
     if(r.error){
       save.disabled = false;
-      return toast(/figure_width/.test(r.error.message)
-        ? "figure_width 칸이 아직 없습니다 — supabase-그림크기-제목.sql 을 먼저 돌리세요."
-        : "크기를 저장하지 못했습니다 — " + r.error.message);
+      /* 칸을 방금 만들었는데도 이 오류가 나는 일이 흔하다. Supabase 의 API 계층이
+         표 구조를 따로 외워두고 있어서, 칸을 추가해도 바로 알아채지 못한다.
+         이때는 SQL 을 다시 돌릴 게 아니라 그 기억을 새로 고쳐줘야 한다. */
+      const m = r.error.message || String(r.error);
+      const cache = r.error.code === "PGRST204" || /schema cache/i.test(m);
+      return toast(cache
+        ? "Supabase API 가 아직 figure_width 칸을 모릅니다 — SQL Editor 에서 notify pgrst, 'reload schema'; 를 한 번 돌리세요."
+        : /figure_width/.test(m)
+          ? "figure_width 칸이 없습니다 — supabase-그림크기-제목.sql 의 1번을 돌리세요. (" + m + ")"
+          : "크기를 저장하지 못했습니다 — " + m);
     }
     q.figure_width = v;
     toast(`그림 크기를 ${v}% 로 저장했습니다.`);
