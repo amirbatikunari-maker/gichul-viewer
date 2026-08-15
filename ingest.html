@@ -165,7 +165,7 @@ button.sm{font:600 12px/1 var(--font-d);padding:7px 11px;border-radius:8px}
       <div id="src-images" hidden>
         <div class="drop" id="dropImg">
           <b>사진 여러 장을 한꺼번에 끌어다 놓기</b>
-          문제지를 순서대로 찍은 사진들. 눌러서 고르셔도 됩니다
+          문제지를 순서대로 찍은 사진들. 눌러서 고르거나, 캡처한 이미지를 <b>Ctrl+V</b> 로 붙여넣어도 됩니다
         </div>
         <input id="fileImg" type="file" accept="image/*" multiple hidden>
         <div class="imglist" id="imglist"></div>
@@ -203,6 +203,17 @@ button.sm{font:600 12px/1 var(--font-d);padding:7px 11px;border-radius:8px}
       <div class="check" style="margin-top:14px"><input type="checkbox" id="autoUp" checked>
         <span>묶음이 끝날 때마다 곧바로 Supabase에 올리기 <span style="color:var(--ink-2)">— 도중에 창이 닫혀도 그때까지 한 건 남습니다</span></span></div>
       
+      <label style="margin-top:14px">해설에 도식(선도·계통도) 넣기</label>
+      <select id="svgMode">
+        <option value="off">넣지 않음 — 글로만 (가장 빠름)</option>
+        <option value="auto" selected>필요한 문항만 — 묶음당 최대 2개 (권장)</option>
+        <option value="many">넉넉하게 — 묶음당 최대 5개 (느림)</option>
+      </select>
+      <div class="hint" style="margin-top:6px">
+        p-h선도·습공기선도·2단압축 계통도처럼 <b>그림 없이는 설명이 안 되는 문항</b>에만 그립니다.
+        단순 계산·암기·법규 문항에는 안 그립니다 — 그게 느려지는 주범이었습니다.
+      </div>
+
       <div class="hint" id="autoImgRow"><b>PDF 그대로 변환</b>은 텍스트를 바로 읽고, <b>사진으로 변환</b>은 각 쪽을 고해상도 이미지(JPEG)로 바꿔서 읽습니다.</div>
     </div>
 
@@ -222,6 +233,7 @@ button.sm{font:600 12px/1 var(--font-d);padding:7px 11px;border-radius:8px}
         <span>묶음 <b id="stB">0 / 0</b></span>
         <span>문항 <b id="stQ">0</b></span>
         <span>해설 있음 <b id="stE">0</b></span>
+        <span>그림 <b id="stFig">0</b></span>
         <span>실패 <b id="stF">0</b></span>
         <span>토큰 <b id="stT">0</b></span>
       </div>
@@ -479,6 +491,30 @@ dropImg.onclick = () => $("#fileImg").click();
 dropImg.addEventListener("drop", ev => { takeImages([...ev.dataTransfer.files].filter(f => f.type.startsWith("image/"))); });
 $("#fileImg").onchange = e => takeImages([...e.target.files]);
 
+/* ── 클립보드 붙여넣기 ──
+   캡처 도구로 오린 화면을 파일로 저장했다가 다시 고르는 게 번거로워서,
+   Ctrl+V 로 바로 넣을 수 있게 한다. 여러 장을 한 번에 붙여도 순서대로 들어간다.
+   붙여넣은 이미지는 이름이 없으므로 붙인 순서대로 번호를 매겨 정렬이 흐트러지지 않게 한다. */
+let PASTE_N = 0;
+addEventListener("paste", async e => {
+  if(/^(INPUT|TEXTAREA)$/.test(e.target?.tagName)) return;
+  const items = [...(e.clipboardData?.items || [])].filter(i => i.type.startsWith("image/"));
+  if(!items.length) return;
+  e.preventDefault();
+  if(SRC !== "images"){
+    say($("#fm"), "사진 모드에서만 붙여넣을 수 있습니다. 위에서 \"사진 여러 장\"을 골라 주세요.", "err");
+    return;
+  }
+  const files = items.map(it => {
+    const f = it.getAsFile();
+    if(!f) return null;
+    const stamp = String(++PASTE_N).padStart(3, "0");
+    const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg");
+    return new File([f], `붙여넣기_${stamp}.${ext}`, { type:f.type });
+  }).filter(Boolean);
+  if(files.length) takeImages(files);
+});
+
 function fileToB64(file){
   return new Promise((res, rej) => {
     const r = new FileReader();
@@ -667,6 +703,8 @@ function stats(){
   $("#stB").textContent = `${done} / ${BATCHES.length}`;
   $("#stQ").textContent = qs.length;
   $("#stE").textContent = qs.filter(q=>q.explanation_md||q.explanation_html).length;
+  const figN = qs.filter(q=>q.figure_url).length;
+  const figEl = document.getElementById("stFig"); if(figEl) figEl.textContent = figN;
   $("#stF").textContent = fail;
   $("#stT").textContent = TOKENS.toLocaleString();
   $("#pi").style.width = BATCHES.length ? (done+fail)/BATCHES.length*100 + "%" : "0";
@@ -684,9 +722,26 @@ function buildPrompt(from, to, asImage, tail){
     ? "이 자료에는 정답만 표시돼 있고 해설은 없다. 표시된 정답을 answer 에 넣고, 해설은 네가 직접 작성해라."
     : "이 자료에는 해설이 없다. 정답을 네가 판단해서 answer 에 넣되 확신이 없으면 null 로 두고, 해설 안에 근거를 밝혀라.";
 
-    const svg = $("#svgOn")?.checked
-    ? `\n[예외] 계통도, 수전설비 단선도, 습공기선도 등 복잡한 그래픽이 반드시 필요한 문항에 한해서만 "explanation_md" 대신 "explanation_html" 에 인라인 <svg> 를 포함한 HTML 을 넣어라. 일반적인 표나 간단한 그림에는 절대 SVG를 쓰지 마라(속도 저하의 주원인). <svg> 에는 width/height 를 px 숫자로 명시하고, 화살표는 <defs><marker> 로 정의하고, SVG 안 글자는 <text> 로 쓰고 LaTeX 를 쓰지 마라. 외부 이미지·스크립트는 금지. 그 외 문항에는 explanation_html 을 넣지 마라.`
-    : "";
+    const svgMode = $("#svgMode")?.value || "auto";
+    const svgCap = svgMode === "many" ? 5 : 2;
+    const svg = svgMode === "off" ? "" : `
+
+[해설 도식 — 아래에 해당하는 문항에만]
+- 기본은 글과 수식으로만 설명한다. 그림은 "글로는 도저히 설명이 안 되는 문항"에만 넣는다.
+- 그리는 문항은 "explanation_md" 대신 "explanation_html" 에 인라인 <svg> 를 포함한 HTML 을 넣어라.
+  (두 항목을 같이 넣지 말고, 안 그리는 문항에는 explanation_html 을 아예 넣지 마라)
+- 그릴 만한 경우는 이런 것들뿐이다:
+  · 냉동사이클을 p-h(몰리에르) 선도 위에서 따라가야 하는 문항 — 압축·응축·팽창·증발 네 점
+  · 습공기선도 위의 상태변화 경로 — 가열·냉각·가습·감습·혼합
+  · 장치 계통도가 있어야 이해되는 문항 — 2단압축, 2단팽창, 캐스케이드, 열회수, 덕트·배관 계통
+  · T-s 선도, 블록선도, 플로우차트 자체가 답의 근거인 문항
+- 안 그리는 경우(대부분): 공식에 값만 대입하는 계산, 용어·정의, 법규 수치, 단순 비교·암기.
+- 이 응답 전체에서 그림은 최대 ${svgCap}개까지만. 애매하면 그리지 마라.
+- 선도는 정확한 좌표를 재현하려 하지 말고 개형(스케치)에 상태점 번호와 화살표를 얹어라.
+  가로·세로축 이름과 단위는 <text> 로 반드시 적어라.
+- <svg> 규칙: width/height 를 px 숫자로 명시(width 340 이하), 화살표는 <defs><marker>,
+  글자는 <text> 로만 쓰고 LaTeX 금지, 외부 이미지·스크립트·CSS 금지.
+  선은 stroke="currentColor" 를 써서 어두운 배경에서도 보이게 하라.`;
 
   const label = SRC === "pdf" ? `${from}쪽부터 ${to}쪽까지` : `${from}번째부터 ${to}번째까지`;
   const kind = asImage ? "사진으로 찍은" : (SRC === "pdf" ? "PDF" : "사진으로 찍은");
@@ -713,6 +768,19 @@ ${src}
   빠뜨리는 것이 훨씬 큰 잘못이다.
 - 뽑기 전에 스스로 확인해라: 맡은 범위에 찍힌 번호를 순서대로 훑어서, 빠진 번호가 없는지 세어봐라.
 - 목차·표지·광고·수험 안내처럼 문제가 아닌 페이지는 무시해라.
+
+[문제 안의 그림·표·선도]
+- 문제를 푸는 데 그림(계통도·선도·회로도·장치도)이나 표가 꼭 필요한 문항이 있다.
+  그런 문항은 글자만 옮기면 풀 수 없게 되므로, 그림이 있는 자리를 알려줘라.
+- 그 문항에만 "figure" 항목을 넣어라. 그림이 없는 문항에는 절대 넣지 마라.
+  "figure": { "page": 쪽번호, "box": [x0, y0, x1, y1], "note": "그림 설명 한 줄" }
+  · page 는 이 묶음에서 몇 번째 쪽인지가 아니라 자료에 적힌 실제 쪽 번호다.
+  · box 는 그 쪽을 가로·세로 각각 0~1 로 봤을 때 그림이 차지하는 네모다.
+    왼쪽 위가 (0,0), 오른쪽 아래가 (1,1) 이다. 넉넉하게 잡아라 — 좁게 자르면 그림이 잘린다.
+  · 보기 ①②③④ 글자는 box 에 넣지 마라. 그림·표 부분만 감싼다.
+  · note 는 "냉동사이클 p-h선도", "벽체 열전도율 표" 처럼 무엇을 그린 것인지 한 줄로.
+- 표가 글자로 옮겨 적을 만큼 단순하면 figure 대신 question_text 안에 그대로 적어라.
+  줄이 복잡하거나 그림이 섞이면 figure 로 잡아라.
 
 [출력 형식]
 - JSON 하나만 출력한다. 최상위는 {"questions":[ … ]} 이다.
@@ -784,7 +852,7 @@ async function callWorker(parts, promptText, from, to, maxTokens){
     const ac = new AbortController();
     
     // ★ 추가: 화면의 SVG 체크박스가 켜져 있는지 확인
-    const isSvgOn = !!$("#svgOn")?.checked;
+    const isSvgOn = ($("#svgMode")?.value || "auto") !== "off";
     
     // ★ 수정: SVG가 켜져 있으면 300초(5분), 꺼져 있으면 2분 30초로 엄청 넉넉하게 잡습니다.
     const timeoutMs = isSvgOn ? 300000 : 150000;
@@ -926,6 +994,121 @@ async function renderPDFPagesAsImages(from, to){
   return parts;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   문제 속 그림 오려내기
+
+   AI 가 알려준 네모는 대충이다(모델이 좌표를 정밀하게 못 짚는다).
+   그래서 넉넉히 여유를 준 뒤, 잘라낸 조각 안에서 흰 여백을 픽셀로 훑어 잘라낸다.
+   → 대충 잡아도 결과는 그림에 딱 맞게 붙는다.
+
+   부하 관리
+     · 그림이 있다고 표시된 문항에만 돈다 (보통 80문항 중 5~15개)
+     · 같은 쪽은 한 번만 렌더링해서 캐시로 돌려쓴다
+     · 폭 900px·JPEG 0.82 로 줄여 한 장에 30~80KB
+     · 렌더 배율 2.0 고정, 캐시는 최대 3쪽만 들고 있다가 버린다
+   ═══════════════════════════════════════════════════════════════ */
+const PAGE_CACHE = new Map();          // 쪽번호 → canvas
+async function pageCanvas(pageNo){
+  if(PAGE_CACHE.has(pageNo)) return PAGE_CACHE.get(pageNo);
+  if(typeof window.pdfjsLib === "undefined" || !PDF_BYTES) throw new Error("PDF 없음");
+  const doc = await pdfjsLib.getDocument({ data: PDF_BYTES.slice() }).promise;
+  const page = await doc.getPage(pageNo);
+  const viewport = page.getViewport({ scale: 2.0 });
+  const cv = document.createElement("canvas");
+  cv.width = Math.ceil(viewport.width); cv.height = Math.ceil(viewport.height);
+  await page.render({ canvasContext: cv.getContext("2d"), viewport }).promise;
+  if(PAGE_CACHE.size >= 3) PAGE_CACHE.delete(PAGE_CACHE.keys().next().value);
+  PAGE_CACHE.set(pageNo, cv);
+  return cv;
+}
+const dropPageCache = () => PAGE_CACHE.clear();
+
+/* 흰 여백을 걷어내 그림에 딱 맞게 좁힌다 */
+function trimWhite(cv, pad = 6){
+  const w = cv.width, h = cv.height;
+  const d = cv.getContext("2d").getImageData(0, 0, w, h).data;
+  const INK = 236;                                  // 이보다 어두우면 내용이 있다고 본다
+  let x0 = w, y0 = h, x1 = 0, y1 = 0;
+  for(let y = 0; y < h; y++){
+    for(let x = 0; x < w; x++){
+      const i = (y*w + x) * 4;
+      if(d[i] < INK || d[i+1] < INK || d[i+2] < INK){
+        if(x < x0) x0 = x; if(x > x1) x1 = x;
+        if(y < y0) y0 = y; if(y > y1) y1 = y;
+      }
+    }
+  }
+  if(x1 <= x0 || y1 <= y0) return null;             // 통째로 백지 → 그림 없음
+  x0 = Math.max(0, x0-pad); y0 = Math.max(0, y0-pad);
+  x1 = Math.min(w-1, x1+pad); y1 = Math.min(h-1, y1+pad);
+  const out = document.createElement("canvas");
+  out.width = x1-x0+1; out.height = y1-y0+1;
+  out.getContext("2d").drawImage(cv, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+  return out;
+}
+
+/* AI 가 준 네모 → 실제 그림 조각(Blob) */
+async function cropFigure(fig){
+  const page = +fig.page;
+  if(!page || !Array.isArray(fig.box) || fig.box.length !== 4) return null;
+  let [x0, y0, x1, y1] = fig.box.map(Number);
+  if(![x0,y0,x1,y1].every(v => isFinite(v))) return null;
+  if(x1 < x0) [x0,x1] = [x1,x0];
+  if(y1 < y0) [y0,y1] = [y1,y0];
+  /* 넉넉히 여유 — 좁게 잡아 온 경우가 훨씬 많다 */
+  const PADX = 0.04, PADY = 0.03;
+  x0 = Math.max(0, x0-PADX); y0 = Math.max(0, y0-PADY);
+  x1 = Math.min(1, x1+PADX); y1 = Math.min(1, y1+PADY);
+  if(x1-x0 < 0.05 || y1-y0 < 0.02) return null;
+
+  const src = await pageCanvas(page);
+  const cx = Math.floor(x0*src.width),  cy = Math.floor(y0*src.height);
+  const cw = Math.ceil((x1-x0)*src.width), ch = Math.ceil((y1-y0)*src.height);
+  const rough = document.createElement("canvas");
+  rough.width = cw; rough.height = ch;
+  rough.getContext("2d").drawImage(src, cx, cy, cw, ch, 0, 0, cw, ch);
+
+  const tight = trimWhite(rough) || rough;
+  /* 폭 900px 로 제한해 용량을 잡는다 */
+  let out = tight;
+  if(tight.width > 900){
+    out = document.createElement("canvas");
+    out.width = 900; out.height = Math.round(tight.height * 900 / tight.width);
+    out.getContext("2d").drawImage(tight, 0, 0, out.width, out.height);
+  }
+  if(out.width < 40 || out.height < 24) return null;     // 너무 작으면 그림이 아니다
+  return await new Promise(res => out.toBlob(res, "image/jpeg", 0.82));
+}
+
+/* 오려낸 그림을 저장소에 올리고 주소를 돌려준다 */
+async function uploadFigure(blob, qnum){
+  const path = `${$("#scode").value.trim()}/${$("#year").value}-${$("#sess").value}/q${qnum}_${Date.now()}.jpg`;
+  const { error } = await sb.storage.from("qfig").upload(path, blob, { contentType:"image/jpeg", upsert:true });
+  if(error) throw error;
+  return sb.storage.from("qfig").getPublicUrl(path).data.publicUrl;
+}
+
+/* 이 묶음에서 그림이 있다고 표시된 문항만 처리한다 */
+async function attachFigures(list){
+  if(SRC !== "pdf") return 0;                      // 사진 업로드 모드는 원본 쪽 좌표가 없다
+  const targets = list.filter(q => q.figure && q.figure.page);
+  if(!targets.length) return 0;
+  let done = 0;
+  for(const q of targets){
+    try{
+      const blob = await cropFigure(q.figure);
+      if(!blob) continue;
+      q.figure_url  = await uploadFigure(blob, q.number);
+      q.figure_note = q.figure.note || null;
+      done++;
+    }catch(e){
+      log(`${q.number}번 그림을 붙이지 못했습니다 — ${e.message}`, "e");
+    }
+  }
+  if(done) log(`${done}개 문항에 그림을 붙였습니다.`, "g");
+  return done;
+}
+
 /* ── 사진 여러 장 중 index 범위(1-based)를 parts 로 ── */
 function imagesToParts(from, to){
   return IMAGES.slice(from-1, to).map(im => ({ mime: im.mime, b64: im.b64 }));
@@ -959,6 +1142,8 @@ function merge(list){
       summary: raw.summary || null,
       explanation_md: raw.explanation_md || null,
       explanation_html: raw.explanation_html || null,
+      figure_url: raw.figure_url || null,
+      figure_note: raw.figure_note || null,
       tags: Array.isArray(raw.tags) ? raw.tags : [],
       correct_rate: raw.correct_rate != null ? +raw.correct_rate : null
     };
@@ -1078,6 +1263,7 @@ async function runBatch(b, depth = 0, asImage = false){
     return bad(b, "0문항으로 응답했습니다", depth, asImage, "empty");
   }
 
+    await attachFigures(list);      /* 글자만 옮기면 못 푸는 문항의 그림을 오려 붙인다 */
     const n = merge(list);
   /* 이 묶음이 실제로 어느 번호대를 담당했는지 기록해 둔다 —
      나중에 빠진 번호가 생겼을 때 어느 쪽을 다시 돌려야 하는지 찾는 데 쓴다. */
@@ -1182,6 +1368,7 @@ async function go(only, forceImage){
   RUNNING = false;
   $("#run").disabled = false; $("#stop").disabled = true;
   $("#runImage").disabled = SRC !== "pdf" || !PDF;
+  dropPageCache();      /* 쪽 이미지 캐시는 메모리를 크게 먹으므로 다 돌면 버린다 */
   stats();
   const f = BATCHES.filter(b=>b.status==="fail").length;
   const miss = missingNumbers();
@@ -1240,6 +1427,20 @@ async function push(quiet){
     p_questions: qs
   });
   if(error){ log("업로드 실패 — " + error.message, "e"); if(!quiet) say($("#um"), "업로드 실패 — " + error.message, "err"); return false; }
+
+  /* 그림 주소는 회차 저장 함수(upsert_exam_bundle)가 모르는 항목이라 따로 붙인다.
+     함수를 고치는 것보다 안전하고, 그림이 있는 문항만 도니 몇 건에 그친다. */
+  const figs = qs.filter(q => q.figure_url);
+  if(figs.length){
+    let ok = 0;
+    for(const q of figs){
+      const r = await sb.from("questions")
+        .update({ figure_url:q.figure_url, figure_note:q.figure_note || null })
+        .eq("exam_id", data).eq("number", q.number);
+      if(!r.error) ok++;
+    }
+    log(`그림 ${ok}/${figs.length}개를 문항에 연결했습니다.`, ok === figs.length ? "g" : "e");
+  }
   if(!quiet) say($("#um"), `${qs.length}문항을 회차 #${data} 에 저장했습니다. 뷰어를 새로고침하면 보입니다.`, "ok");
   else log(`저장 완료 — 누적 ${qs.length}문항`, "g");
   return true;

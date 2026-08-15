@@ -445,6 +445,24 @@ mark.hl{
 html[data-theme="dark"] mark.hl{background:color-mix(in srgb,#FDE047 24%,transparent)}
 /* 취소선 — 틀린 보기·지워야 할 조건에 빨간 중간줄 */
 mark.hlm{background:transparent;color:inherit}
+
+/* 문제에 딸린 그림 — 원본 PDF에서 오려낸 조각 */
+.qfig{margin:12px 0 0;padding:0}
+.qfig img{display:block;width:100%;max-width:520px;height:auto;margin:0 auto;
+  border:1px solid var(--rule);border-radius:10px;background:#fff}
+#toast{position:fixed;left:50%;bottom:calc(56px + env(safe-area-inset-bottom));transform:translateX(-50%);
+  z-index:80;padding:11px 16px;border-radius:999px;background:var(--ink);color:var(--paper);
+  font:600 12.5px/1 var(--font-d);opacity:0;pointer-events:none;transition:opacity .18s;max-width:90vw;text-align:center}
+#toast.on{opacity:.96}
+.figbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:9px}
+.figbtn{font:600 11.5px/1 var(--font-d);padding:8px 11px;border-radius:8px;
+  border:1.3px solid var(--rule);background:var(--card);color:var(--ink-2);cursor:pointer}
+.figbtn:active{transform:scale(.96)}
+.figbtn.del{color:var(--stamp);border-color:color-mix(in srgb,var(--stamp) 35%,transparent)}
+.fighint{font-size:11px;color:var(--ink-2)}
+.fighint b{color:var(--ink);font-weight:600}
+.qfig figcaption{font-size:11.5px;color:var(--ink-2);text-align:center;margin-top:5px}
+html[data-theme="dark"] .qfig img{background:#F7F8FA}
 mark.st{
   text-decoration:line-through;
   text-decoration-color:var(--stamp);
@@ -1935,6 +1953,15 @@ function cardHTML(q){
     <div class="qcard">
       ${q.subject_part?`<div class="part">${esc(q.subject_part)}</div>`:""}
       <div class="qtext" data-hl="q" data-qid="${q.id}">${md(stripQNo(q.question_text)).replace(/^<p>|<\/p>$/g,"")}</div>
+      ${q.figure_url?`<figure class="qfig">
+        <img src="${esc(q.figure_url)}" alt="${esc(q.figure_note||"문제 그림")}" loading="lazy" decoding="async">
+        ${q.figure_note?`<figcaption>${esc(q.figure_note)}</figcaption>`:""}
+      </figure>`:""}
+      ${S.loggedIn?`<div class="figbar">
+        <button class="figbtn" data-figadd="${q.id}" type="button">${q.figure_url?"그림 바꾸기":"+ 그림 추가"}</button>
+        ${q.figure_url?`<button class="figbtn del" data-figdel="${q.id}" type="button">그림 삭제</button>`:""}
+        <span class="fighint">파일을 고르거나, 이미지를 복사해 두고 <b>Ctrl+V</b></span>
+      </div>`:""}
       ${chs?`<div class="choices">${chs}</div>`:""}
     </div>
     ${(expInner||q.answer)?`
@@ -1955,6 +1982,110 @@ function cardHTML(q){
 
 function wireCard(root, slide){
   root.querySelector(".cover")?.addEventListener("click",()=>slide.classList.add("peek"));
+  root.querySelector("[data-figadd]")?.addEventListener("click", e => figPick(e.currentTarget.dataset.figadd));
+  root.querySelector("[data-figdel]")?.addEventListener("click", e => figRemove(e.currentTarget.dataset.figdel));
+}
+
+/* ═══════════════════════════════════════════════
+   문제 그림 직접 붙이기
+   자동 변환이 놓친 그림을 여기서 바로 채운다.
+   파일을 고르거나, 캡처해서 복사해 둔 이미지를 Ctrl+V 로 붙이면 된다.
+   ═══════════════════════════════════════════════ */
+const FIG_MAX_W = 1000;
+
+/* 어떤 이미지든 폭 1000px·JPEG 로 줄여서 올린다 — 원본 그대로 올리면 몇 MB 씩 쌓인다 */
+async function figShrink(file){
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, FIG_MAX_W / bmp.width);
+  const cv = document.createElement("canvas");
+  cv.width = Math.round(bmp.width * scale);
+  cv.height = Math.round(bmp.height * scale);
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height);   // 투명 배경(PNG)은 흰색으로
+  ctx.drawImage(bmp, 0, 0, cv.width, cv.height);
+  bmp.close?.();
+  return await new Promise(r => cv.toBlob(r, "image/jpeg", 0.85));
+}
+
+async function figAttach(qid, file){
+  const q = S.questions.find(x => String(x.id) === String(qid));
+  if(!q) return;
+  if(!file || !/^image\//.test(file.type)) return toast("이미지 파일만 붙일 수 있습니다.");
+  toast("그림을 올리는 중…");
+  try{
+    const blob = await figShrink(file);
+    const path = `manual/${q.exam_id || "x"}/q${q.number}_${Date.now()}.jpg`;
+    const up = await sb.storage.from("qfig").upload(path, blob, { contentType:"image/jpeg", upsert:true });
+    if(up.error) throw up.error;
+    const url = sb.storage.from("qfig").getPublicUrl(path).data.publicUrl;
+    const r = await sb.from("questions").update({ figure_url:url }).eq("id", q.id);
+    if(r.error) throw r.error;
+    q.figure_url = url;
+    redrawCard(q.id);
+    toast("그림을 붙였습니다.");
+  }catch(e){ toast("붙이지 못했습니다 — " + e.message); }
+}
+
+async function figRemove(qid){
+  const q = S.questions.find(x => String(x.id) === String(qid));
+  if(!q || !confirm("이 문항의 그림을 지웁니다.")) return;
+  const r = await sb.from("questions").update({ figure_url:null, figure_note:null }).eq("id", q.id);
+  if(r.error) return toast("지우지 못했습니다 — " + r.error.message);
+  q.figure_url = null; q.figure_note = null;
+  redrawCard(q.id);
+  toast("지웠습니다.");
+}
+
+/* 그 문항 슬라이드만 다시 그린다 — 전체를 다시 만들면 스크롤 위치가 튄다 */
+function redrawCard(qid){
+  const i = S.questions.findIndex(x => String(x.id) === String(qid));
+  if(i < 0) return;
+  const body = document.querySelector(`#track .slide[data-i="${i}"] .sheet-body`);
+  if(!body) return;
+  body.dataset.h = "0";          /* hydrate 가 "이미 그렸다"고 판단하는 표시를 지운다 */
+  body.__ink = null; body.__zoom = null;
+  hydrate(i);
+}
+
+let FIG_INPUT = null;
+function figPick(qid){
+  if(!FIG_INPUT){
+    FIG_INPUT = document.createElement("input");
+    FIG_INPUT.type = "file"; FIG_INPUT.accept = "image/*"; FIG_INPUT.style.display = "none";
+    document.body.appendChild(FIG_INPUT);
+  }
+  FIG_INPUT.value = "";
+  FIG_INPUT.onchange = e => { const f = e.target.files[0]; if(f) figAttach(qid, f); };
+  FIG_INPUT.click();
+}
+
+/* 붙여넣기 — 지금 보고 있는 문항에 붙는다 */
+addEventListener("paste", e => {
+  if(!S.loggedIn || !$("#v-study").classList.contains("on")) return;
+  if(/^(INPUT|TEXTAREA)$/.test(e.target?.tagName)) return;
+  const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith("image/"));
+  if(!item) return;
+  const q = S.questions[S.idx];
+  if(!q) return;
+  e.preventDefault();
+  const file = item.getAsFile();
+  if(!file) return;
+  if(q.figure_url && !confirm(`${q.number}번에 이미 그림이 있습니다. 바꿀까요?`)) return;
+  figAttach(q.id, file);
+});
+
+let TOAST_T = 0;
+function toast(msg){
+  let el = document.getElementById("toast");
+  if(!el){
+    el = document.createElement("div");
+    el.id = "toast";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.classList.add("on");
+  clearTimeout(TOAST_T);
+  TOAST_T = setTimeout(() => el.classList.remove("on"), 2200);
 }
 
 /* 필기 모드로 들어가기 — 처음이면 그 자리에서 qcard/answer 를 가상 페이지로 바꿔 끼운다 */
