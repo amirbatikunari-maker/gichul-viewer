@@ -446,9 +446,10 @@ html[data-theme="dark"] mark.hl{background:color-mix(in srgb,#FDE047 24%,transpa
 /* 취소선 — 틀린 보기·지워야 할 조건에 빨간 중간줄 */
 mark.hlm{background:transparent;color:inherit}
 
-/* 문제에 딸린 그림 — 원본 PDF에서 오려낸 조각 */
+/* 문제에 딸린 그림 — 원본 PDF에서 오려낸 조각
+   --figw 는 저장된 크기(%)다. 값이 없으면 예전처럼 100%로 편다. */
 .qfig{margin:12px 0 0;padding:0}
-.qfig img{display:block;width:100%;max-width:520px;height:auto;margin:0 auto;
+.qfig img{display:block;width:var(--figw,100%);max-width:520px;height:auto;margin:0 auto;
   border:1px solid var(--rule);border-radius:10px;background:#fff}
 #toast{position:fixed;left:50%;bottom:calc(56px + env(safe-area-inset-bottom));transform:translateX(-50%);
   z-index:80;padding:11px 16px;border-radius:999px;background:var(--ink);color:var(--paper);
@@ -461,6 +462,38 @@ mark.hlm{background:transparent;color:inherit}
 .figbtn.del{color:var(--stamp);border-color:color-mix(in srgb,var(--stamp) 35%,transparent)}
 .fighint{font-size:11px;color:var(--ink-2)}
 .fighint b{color:var(--ink);font-weight:600}
+
+/* ── Ctrl+V 를 받는 칸 ──────────────────────────────────
+   붙여넣기는 "지금 초점이 어디 있는가"로 갈린다. 그래서 눌러서 초점을 줄 수 있는
+   칸을 따로 두고, 그 칸이 초점을 쥐고 있는 동안에는 그 문항으로 그림이 간다.
+   화면을 넘기지 않고도 원하는 문항을 정확히 겨눌 수 있다. */
+.pastebox{flex:1;min-width:160px;font:500 11px/1.45 var(--font-d);color:var(--ink-2);
+  border:1.3px dashed var(--rule);border-radius:8px;padding:7px 10px;text-align:center;
+  background:transparent;cursor:text;transition:border-color .15s,color .15s,background .15s}
+.pastebox b{color:var(--ink);font-weight:700}
+.pastebox:focus{outline:0;border-style:solid;border-color:var(--accent);color:var(--accent);
+  background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.pastebox:focus b{color:var(--accent)}
+.pastebox.over{border-style:solid;border-color:var(--accent);
+  background:color-mix(in srgb,var(--accent) 12%,transparent)}
+
+/* ── 그림 크기 ── */
+.figsize{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.figsize .figlbl{font:600 11px/1 var(--font-d);color:var(--ink-2)}
+.figsize input[type=range]{width:104px;accent-color:var(--accent);cursor:pointer;padding:0;margin:0;
+  touch-action:none}   /* 가로 드래그를 슬라이더가 온전히 받도록 */
+.figpct{font:500 11px/1 var(--font-m);color:var(--ink-2);min-width:34px;text-align:right}
+.figbtn:disabled{opacity:.4;cursor:default}
+.figbtn.save:not(:disabled){border-color:var(--accent);color:var(--accent)}
+
+/* ── 문제 제목 고쳐 쓰기 ── */
+.qedit{width:28px;height:28px;flex:none;display:grid;place-items:center;border-radius:8px;
+  color:var(--ink-2);background:transparent;border:0;cursor:pointer}
+.qedit svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round}
+.qedit:active{transform:scale(.92)}
+.qsumin{flex:1;min-width:0;font:500 12px/1.3 var(--font-d);color:var(--ink);
+  background:var(--card);border:1.3px solid var(--accent);border-radius:7px;padding:6px 8px;outline:0}
 .qfig figcaption{font-size:11.5px;color:var(--ink-2);text-align:center;margin-top:5px}
 html[data-theme="dark"] .qfig img{background:#F7F8FA}
 mark.st{
@@ -654,6 +687,7 @@ function stripQNo(s){
    ═══════════════════════════════════════════════ */
 async function inkRefresh(){
   if(!sb) return;
+  const was = S.loggedIn;
   const {data} = await sb.auth.getSession();
   S.loggedIn = !!data.session;
   $("#inkPopIn").hidden = S.loggedIn;
@@ -661,6 +695,18 @@ async function inkRefresh(){
   $("#inkAuthBtn").classList.toggle("on", S.loggedIn);
   $$(".qink").forEach(b => b.classList.toggle("loggedin", S.loggedIn));
   if(!S.loggedIn) setManage(false);
+  /* 고치기 단추들은 로그인 여부를 보고 그릴지 말지를 정한다. 그래서 로그인 상태가
+     바뀌면 이미 그려둔 문항을 다시 그려야 단추가 나타나거나 사라진다.
+     필기 중인 문항은 건드리지 않는다 — 다시 그리면 그리던 획이 날아간다. */
+  if(was !== S.loggedIn) redrawOpenCards();
+}
+
+function redrawOpenCards(){
+  $$("#track .slide .sheet-body").forEach(body => {
+    if(body.dataset.h !== "1" || body.__ink?.editing) return;
+    body.dataset.h = "0"; body.__ink = null; body.__zoom = null;
+    hydrate(+body.parentElement.dataset.i);
+  });
 }
 $("#inkAuthBtn")?.addEventListener("click", ()=> $("#inkPop").classList.toggle("on"));
 document.addEventListener("click", e=>{
@@ -840,10 +886,13 @@ function setupZoom(zoomwrap, zoomstage){
      (가로로 밑줄을 긋다가 다음 문제로 넘어가 버리는 것을 막는다.)
      두 손가락 핀치는 그대로 살려둔다 — 필기 중에도 확대는 되어야 하니까. */
   const onInkCanvas = ev => !!ev.target?.classList?.contains?.("inkcanvas");
+  /* 슬라이더나 단추 위에서 시작한 드래그도 마찬가지다. 그림 크기를 가로로 끄는 동작이
+     "다음 문항으로 넘기기"로 읽히면 슬라이더를 아예 못 쓴다. */
+  const onControl = ev => !!ev.target?.closest?.("input,button,select,textarea,[data-pasteq]");
   zoomwrap.addEventListener("pointerdown", ev=>{
     pts.set(ev.pointerId, {x:ev.clientX, y:ev.clientY});
     if(pts.size === 1){
-      dragStart = onInkCanvas(ev) ? null
+      dragStart = (onInkCanvas(ev) || onControl(ev)) ? null
         : {x:ev.clientX, y:ev.clientY, t:Date.now(), scrollLeft:track.scrollLeft, tx0:tx, ty0:ty};
     }
     if(pts.size === 2){
@@ -1937,6 +1986,9 @@ function build(){
   $$("#track .slide").forEach(s=>io.observe(s));
 }
 
+/* 저장된 그림 크기(%). 없거나 이상하면 예전 그대로 100% */
+const figW = q => Math.min(100, Math.max(20, +q?.figure_width || 100));
+
 /* 문항 화면(qhead 뒤에 오는 카드+해설)의 HTML. 필기 없는 문항은 이 그대로가 최종 렌더링이다 */
 function cardHTML(q){
   const chs = (Array.isArray(q.choices)?q.choices:[]).map((c,k)=>`
@@ -1953,14 +2005,21 @@ function cardHTML(q){
     <div class="qcard">
       ${q.subject_part?`<div class="part">${esc(q.subject_part)}</div>`:""}
       <div class="qtext" data-hl="q" data-qid="${q.id}">${md(stripQNo(q.question_text)).replace(/^<p>|<\/p>$/g,"")}</div>
-      ${q.figure_url?`<figure class="qfig">
+      ${q.figure_url?`<figure class="qfig" style="--figw:${figW(q)}%">
         <img src="${esc(q.figure_url)}" alt="${esc(q.figure_note||"문제 그림")}" loading="lazy" decoding="async">
         ${q.figure_note?`<figcaption>${esc(q.figure_note)}</figcaption>`:""}
       </figure>`:""}
       ${S.loggedIn?`<div class="figbar">
         <button class="figbtn" data-figadd="${q.id}" type="button">${q.figure_url?"그림 바꾸기":"+ 그림 추가"}</button>
         ${q.figure_url?`<button class="figbtn del" data-figdel="${q.id}" type="button">그림 삭제</button>`:""}
-        <span class="fighint">파일을 고르거나, 이미지를 복사해 두고 <b>Ctrl+V</b></span>
+        <div class="pastebox" data-pasteq="${q.id}" tabindex="0" role="button"
+             aria-label="여기를 누르고 Ctrl+V 로 그림 붙여넣기">여기를 누르고 <b>Ctrl+V</b> · 파일을 끌어다 놓아도 됩니다</div>
+        ${q.figure_url?`<div class="figsize" data-figsize="${q.id}">
+          <span class="figlbl">크기</span>
+          <input type="range" min="20" max="100" step="5" value="${figW(q)}" aria-label="그림 크기">
+          <span class="figpct">${figW(q)}%</span>
+          <button class="figbtn save" type="button" disabled>저장</button>
+        </div>`:""}
       </div>`:""}
       ${chs?`<div class="choices">${chs}</div>`:""}
     </div>
@@ -1984,6 +2043,116 @@ function wireCard(root, slide){
   root.querySelector(".cover")?.addEventListener("click",()=>slide.classList.add("peek"));
   root.querySelector("[data-figadd]")?.addEventListener("click", e => figPick(e.currentTarget.dataset.figadd));
   root.querySelector("[data-figdel]")?.addEventListener("click", e => figRemove(e.currentTarget.dataset.figdel));
+  wirePasteBox(root);
+  wireFigSize(root);
+}
+
+/* 붙여넣기 칸 — 초점을 쥐면 PASTE_TARGET 에 그 문항을 걸어둔다.
+   초점이 없는 div 에는 paste 가 안 오는 브라우저가 있어서, 실제 처리는 창 전체의
+   paste 처리기가 맡고 여기서는 "어느 문항이냐"만 넘긴다. 끌어다 놓기도 같이 받는다. */
+let PASTE_TARGET = null;
+function wirePasteBox(root){
+  const box = root.querySelector("[data-pasteq]");
+  if(!box) return;
+  const qid = box.dataset.pasteq;
+  box.addEventListener("focus", () => { PASTE_TARGET = qid; });
+  box.addEventListener("blur",  () => { if(PASTE_TARGET === qid) PASTE_TARGET = null; });
+  box.addEventListener("click", () => box.focus());
+  ["dragenter","dragover"].forEach(t =>
+    box.addEventListener(t, e => { e.preventDefault(); box.classList.add("over"); }));
+  ["dragleave","dragend"].forEach(t =>
+    box.addEventListener(t, () => box.classList.remove("over")));
+  box.addEventListener("drop", e => {
+    e.preventDefault(); box.classList.remove("over");
+    const f = [...(e.dataTransfer?.files || [])].find(x => /^image\//.test(x.type));
+    if(!f) return toast("이미지 파일만 붙일 수 있습니다.");
+    figReplaceGuard(qid, f);
+  });
+}
+
+/* 이미 그림이 있으면 한 번 물어보고 바꾼다 — 붙여넣기·끌어놓기 양쪽이 같이 쓴다 */
+function figReplaceGuard(qid, file){
+  const q = S.questions.find(x => String(x.id) === String(qid));
+  if(!q) return;
+  if(q.figure_url && !confirm(`${q.number}번에 이미 그림이 있습니다. 바꿀까요?`)) return;
+  figAttach(q.id, file);
+}
+
+/* 그림 크기 — 슬라이더는 바로 눈에 보이게만 바꾸고, 저장을 눌러야 DB 에 남는다.
+   미리 보고 되돌릴 수 있어야 해서 자동 저장으로 만들지 않았다. */
+function wireFigSize(root){
+  const bar = root.querySelector("[data-figsize]");
+  if(!bar) return;
+  const q = S.questions.find(x => String(x.id) === String(bar.dataset.figsize));
+  if(!q) return;
+  const range = bar.querySelector("input[type=range]");
+  const pct   = bar.querySelector(".figpct");
+  const save  = bar.querySelector(".save");
+  const fig   = root.querySelector(".qfig");
+
+  const paint = () => {
+    const v = +range.value;
+    pct.textContent = v + "%";
+    fig?.style.setProperty("--figw", v + "%");
+    save.disabled = (v === figW(q));
+  };
+  range.addEventListener("input", paint);
+  save.addEventListener("click", async () => {
+    const v = +range.value;
+    save.disabled = true;
+    const r = await sb.from("questions").update({ figure_width: v }).eq("id", q.id);
+    if(r.error){
+      save.disabled = false;
+      return toast(/figure_width/.test(r.error.message)
+        ? "figure_width 칸이 아직 없습니다 — supabase-그림크기-제목.sql 을 먼저 돌리세요."
+        : "크기를 저장하지 못했습니다 — " + r.error.message);
+    }
+    q.figure_width = v;
+    toast(`그림 크기를 ${v}% 로 저장했습니다.`);
+  });
+  paint();
+}
+
+/* 문제 제목(summary) 고쳐 쓰기 — 자동 요약이 엉뚱하게 잡힌 문항을 손으로 바로잡는다.
+   Enter 나 칸 밖 누르기로 저장, Esc 로 취소. 저장에 실패하면 원래 제목으로 되돌린다. */
+function editSummary(qid, head){
+  if(!S.loggedIn) return;
+  const q = S.questions.find(x => String(x.id) === String(qid));
+  const span = head?.querySelector(".qsum");
+  if(!q || !span || head.querySelector(".qsumin")) return;
+
+  const rateTail = () => q.correct_rate != null ? ` · 정답률 ${q.correct_rate}%` : "";
+  const input = document.createElement("input");
+  input.className = "qsumin";
+  input.type = "text";
+  input.maxLength = 120;
+  input.value = stripQNo(q.summary || "");
+  input.placeholder = "이 문제를 한 줄로 — 예: 습공기선도 상태변화";
+  span.replaceWith(input);
+  input.focus(); input.select();
+
+  let done = false;
+  const close = async val => {
+    if(done) return; done = true;
+    input.replaceWith(span);
+    if(val == null) return;
+    const before = q.summary;
+    if(val === stripQNo(before || "")) return;
+    q.summary = val;
+    span.textContent = val + rateTail();
+    const r = await sb.from("questions").update({ summary: val || null }).eq("id", q.id);
+    if(r.error){
+      q.summary = before;
+      span.textContent = stripQNo(before || "") + rateTail();
+      return toast("제목을 저장하지 못했습니다 — " + r.error.message);
+    }
+    toast("제목을 저장했습니다.");
+  };
+  input.addEventListener("keydown", e => {
+    if(e.key === "Enter"){ e.preventDefault(); close(input.value.trim()); }
+    else if(e.key === "Escape"){ e.preventDefault(); close(null); }
+  });
+  input.addEventListener("blur", () => close(input.value.trim()));
 }
 
 /* ═══════════════════════════════════════════════
@@ -2059,19 +2228,19 @@ function figPick(qid){
   FIG_INPUT.click();
 }
 
-/* 붙여넣기 — 지금 보고 있는 문항에 붙는다 */
+/* 붙여넣기 — 붙여넣기 칸에 초점이 있으면 그 문항으로, 아니면 지금 보고 있는 문항으로 */
 addEventListener("paste", e => {
   if(!S.loggedIn || !$("#v-study").classList.contains("on")) return;
   if(/^(INPUT|TEXTAREA)$/.test(e.target?.tagName)) return;
   const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith("image/"));
-  if(!item) return;
-  const q = S.questions[S.idx];
+  if(!item){ if(PASTE_TARGET) toast("클립보드에 이미지가 없습니다."); return; }
+  const q = PASTE_TARGET
+    ? S.questions.find(x => String(x.id) === String(PASTE_TARGET))
+    : S.questions[S.idx];
   if(!q) return;
   e.preventDefault();
   const file = item.getAsFile();
-  if(!file) return;
-  if(q.figure_url && !confirm(`${q.number}번에 이미 그림이 있습니다. 바꿀까요?`)) return;
-  figAttach(q.id, file);
+  if(file) figReplaceGuard(q.id, file);
 });
 
 let TOAST_T = 0;
@@ -2159,6 +2328,9 @@ function hydrate(i){
     <div class="qhead">
       <span class="qno">${q.number}</span>
       <span class="qsum">${esc(stripQNo(q.summary||""))}${q.correct_rate!=null?` · 정답률 ${q.correct_rate}%`:""}</span>
+      ${S.loggedIn?`<button class="qedit" data-editsum="${q.id}" type="button" aria-label="문제 제목 고치기" title="문제 제목 고치기">
+        <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+      </button>`:""}
       <button class="qink ${hasInk?"has":""}" aria-label="필기">
         <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
       </button>
@@ -2180,6 +2352,8 @@ function hydrate(i){
     $(`#rail .bub[data-i="${i}"]`)?.classList.toggle("star",!!S.stars[id]);
   });
   body.querySelector(".qink")?.addEventListener("click", ()=> onInkClick(q, body, i));
+  body.querySelector("[data-editsum]")?.addEventListener("click", e =>
+    editSummary(e.currentTarget.dataset.editsum, body.querySelector(".qhead")));
   body.querySelector("[data-delq]")?.addEventListener("click", ()=>
     confirmDelete(`${q.number}번 문항을 지웁니다.`, ()=>deleteQuestion(q.id), ()=>{
       S.questions = S.questions.filter(x=>x.id !== q.id);
@@ -2338,6 +2512,9 @@ function fail(el,big,sub){
   el.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="big">${big}</div><div>${sub}</div></div>`;
 }
 inkRefresh();
+/* 세션은 새로고침 직후 조금 늦게 살아나고, 시간이 지나면 만료되기도 한다.
+   그때마다 고치기 단추가 알아서 나타나고 사라지도록 붙여 둔다. */
+sb?.auth?.onAuthStateChange?.(() => inkRefresh());
 route();
 
 /* 홈 화면 설치 + 오프라인 */

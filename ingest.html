@@ -52,6 +52,14 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
 .drop{border:1.6px dashed var(--rule);border-radius:12px;padding:26px;text-align:center;color:var(--ink-2);cursor:pointer;transition:.15s}
 .drop.on{border-color:var(--accent);background:#E4ECFD;color:var(--accent)}
 .drop b{display:block;font:600 15px/1.4 var(--font-d);color:var(--ink);margin-bottom:4px}
+/* 붙여넣기는 "지금 초점이 어디 있는가"로 갈린다. 끌어놓기 칸은 눌러도 파일 고르기가 열려
+   초점을 붙잡아 둘 수가 없어서, 초점만 받는 칸을 따로 둔다. */
+.pastebox{margin-top:8px;font:500 12px/1.5 var(--font-d);color:var(--ink-2);
+  border:1.4px dashed var(--rule);border-radius:10px;padding:11px 12px;text-align:center;
+  background:transparent;cursor:text;transition:.15s}
+.pastebox b{color:var(--ink);font-weight:700}
+.pastebox:focus{outline:0;border-style:solid;border-color:var(--accent);color:var(--accent);background:#E4ECFD}
+.pastebox:focus b{color:var(--accent)}
 .srctabs{display:flex;gap:6px;margin-bottom:14px}
 .srctab{padding:8px 14px;border-radius:999px;border:1.4px solid var(--rule);
      font:600 12px/1 var(--font-d);background:none;color:var(--ink-2)}
@@ -165,8 +173,10 @@ button.sm{font:600 12px/1 var(--font-d);padding:7px 11px;border-radius:8px}
       <div id="src-images" hidden>
         <div class="drop" id="dropImg">
           <b>사진 여러 장을 한꺼번에 끌어다 놓기</b>
-          문제지를 순서대로 찍은 사진들. 눌러서 고르거나, 캡처한 이미지를 <b>Ctrl+V</b> 로 붙여넣어도 됩니다
+          문제지를 순서대로 찍은 사진들. 눌러서 고르셔도 됩니다
         </div>
+        <div class="pastebox" id="pasteImg" tabindex="0" role="button"
+             aria-label="여기를 누르고 Ctrl+V 로 사진 붙여넣기">여기를 누르고 <b>Ctrl+V</b> · 여러 장을 한 번에 붙여도 순서대로 들어갑니다</div>
         <input id="fileImg" type="file" accept="image/*" multiple hidden>
         <div class="imglist" id="imglist"></div>
       </div>
@@ -494,12 +504,25 @@ $("#fileImg").onchange = e => takeImages([...e.target.files]);
 /* ── 클립보드 붙여넣기 ──
    캡처 도구로 오린 화면을 파일로 저장했다가 다시 고르는 게 번거로워서,
    Ctrl+V 로 바로 넣을 수 있게 한다. 여러 장을 한 번에 붙여도 순서대로 들어간다.
-   붙여넣은 이미지는 이름이 없으므로 붙인 순서대로 번호를 매겨 정렬이 흐트러지지 않게 한다. */
+   붙여넣은 이미지는 이름이 없으므로 붙인 순서대로 번호를 매겨 정렬이 흐트러지지 않게 한다.
+
+   페이지 번호 칸 같은 데 커서가 가 있으면 Ctrl+V 가 그쪽으로 먹혀서 아무 일도 안 일어난다.
+   그래서 초점을 확실히 받아 두는 칸(#pasteImg)을 따로 두고, 거기 초점이 있으면
+   무슨 일이 있어도 사진으로 받는다. 붙인 뒤에도 초점을 놓지 않아 연달아 붙일 수 있다. */
 let PASTE_N = 0;
+const pasteBox = $("#pasteImg");
+let PASTE_ARMED = false;
+pasteBox.addEventListener("click", () => pasteBox.focus());
+pasteBox.addEventListener("focus", () => { PASTE_ARMED = true; });
+pasteBox.addEventListener("blur",  () => { PASTE_ARMED = false; });
+
 addEventListener("paste", async e => {
-  if(/^(INPUT|TEXTAREA)$/.test(e.target?.tagName)) return;
+  if(!PASTE_ARMED && /^(INPUT|TEXTAREA)$/.test(e.target?.tagName)) return;
   const items = [...(e.clipboardData?.items || [])].filter(i => i.type.startsWith("image/"));
-  if(!items.length) return;
+  if(!items.length){
+    if(PASTE_ARMED) say($("#fm"), "클립보드에 이미지가 없습니다. 캡처한 뒤 다시 붙여넣어 보세요.", "err");
+    return;
+  }
   e.preventDefault();
   if(SRC !== "images"){
     say($("#fm"), "사진 모드에서만 붙여넣을 수 있습니다. 위에서 \"사진 여러 장\"을 골라 주세요.", "err");
@@ -512,7 +535,10 @@ addEventListener("paste", async e => {
     const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg");
     return new File([f], `붙여넣기_${stamp}.${ext}`, { type:f.type });
   }).filter(Boolean);
-  if(files.length) takeImages(files);
+  if(files.length){
+    takeImages(files);
+    if(PASTE_ARMED) pasteBox.focus();   /* 연달아 붙일 수 있게 초점을 지킨다 */
+  }
 });
 
 function fileToB64(file){
