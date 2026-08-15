@@ -705,7 +705,7 @@ mark.st{
         <input id="inkEm" type="email" placeholder="이메일" autocomplete="username">
         <input id="inkPw" type="password" placeholder="비밀번호" autocomplete="current-password">
         <button id="inkLoginBtn">로그인</button>
-        <div class="hint">로그인하면 문항에 펜·형광펜·밑줄로 필기할 수 있습니다.</div>
+        <div class="hint">로그인하면 문항에 필기하고, 핵심개념 자료와 문제 그림을 넣고 고칠 수 있습니다.</div>
         <div class="err" id="inkErr"></div>
       </div>
       <div id="inkPopOut" hidden>
@@ -813,7 +813,18 @@ async function inkRefresh(session){
   /* 고치기 단추들은 로그인 여부를 보고 그릴지 말지를 정한다. 그래서 로그인 상태가
      바뀌면 이미 그려둔 문항을 다시 그려야 단추가 나타나거나 사라진다.
      필기 중인 문항은 건드리지 않는다 — 다시 그리면 그리던 획이 날아간다. */
-  if(was !== S.loggedIn) redrawOpenCards();
+  if(was !== S.loggedIn){
+    redrawOpenCards();
+    redrawOpenNotes();     /* 자료 패널은 문항 카드가 아니라서 위 함수가 못 건드린다 */
+  }
+}
+
+/* 펼쳐져 있는 핵심개념 자료 패널을 다시 그린다.
+   버튼은 로그인 여부와 무관하게 늘 그려지고 눌렀을 때 막는 구조라 없어도 동작은 하지만,
+   로그인 직후 화면이 그대로면 "된 건가?" 싶어서 한 번 새로 그려 준다. */
+function redrawOpenNotes(){
+  const np = document.getElementById("notePanel");
+  if(np && np.dataset.subject && np.dataset.open === "1") drawNotes(+np.dataset.subject, np);
 }
 
 function redrawOpenCards(){
@@ -832,7 +843,10 @@ $("#inkLoginBtn")?.addEventListener("click", async ()=>{
   const {error} = await sb.auth.signInWithPassword({email:$("#inkEm").value.trim(), password:$("#inkPw").value});
   if(error){ $("#inkErr").textContent = "로그인 실패 — " + error.message; return; }
   $("#inkErr").textContent = "";
+  $("#inkEm").value = ""; $("#inkPw").value = "";
+  $("#inkPop")?.classList.remove("on");     /* 로그인됐으면 창을 닫아 준다 */
   await inkRefresh();
+  toast("로그인했습니다. 이제 자료를 넣고 고칠 수 있습니다.");
 });
 $("#inkLogoutBtn")?.addEventListener("click", async ()=>{ if(sb){ await sb.auth.signOut(); await inkRefresh(); } });
 
@@ -1834,6 +1848,8 @@ async function viewExams(subjectId){
   if(nb) nb.onclick = () => {
     const on = np.classList.toggle("on");
     nb.classList.toggle("on", on);
+    np.dataset.subject = subjectId;      /* 로그인 직후 다시 그릴 때 쓰려고 남겨 둔다 */
+    np.dataset.open = on ? "1" : "0";
     if(on) drawNotes(subjectId, np);
   };
   /* 자료가 몇 개 있는지는 펼치지 않아도 보이게 미리 세어 둔다 */
@@ -2048,6 +2064,18 @@ async function buildExamInfo(subjectId, box){
    문항에 붙는 그림과 달리 과목에 붙고, 여러 장이 쌓이므로 하나씩 접어 둔다.
    파일은 이미 쓰고 있는 qfig 보관함의 notes/ 아래에 넣어 정책을 새로 만들지 않는다.
    ═══════════════════════════════════════════════ */
+/* 자료는 로그인 없이도 보게 두되, 손대려 하면 그 자리에서 로그인 창을 띄운다.
+   단추를 아예 감추면 "왜 안 되지" 하고 헤매게 되고, 무턱대고 눌러도 서버(RLS)가 막으므로
+   이유를 바로 알려 주는 편이 낫다. */
+function needLogin(){
+  if(S.loggedIn) return true;
+  /* 바깥을 누르면 로그인 창을 닫는 처리가 문서 전체에 걸려 있어서, 지금 이 클릭이
+     끝나기 전에 열면 열자마자 다시 닫힌다. 한 박자 뒤로 미룬다. */
+  setTimeout(() => $("#inkPop")?.classList.add("on"), 0);
+  toast("로그인해야 자료를 넣거나 고칠 수 있습니다.");
+  return false;
+}
+
 const NOTE_MAX_W = 1800;     /* 표가 촘촘한 자료라 문항 그림(1000)보다 크게 남긴다 */
 
 async function countNotes(subjectId){
@@ -2073,11 +2101,11 @@ async function drawNotes(subjectId, box){
   const rows = data || [];
   const el = $("#noteN"); if(el) el.textContent = rows.length ? ` · ${rows.length}개` : "";
 
-  const adder = S.loggedIn ? `<div class="noteadd">
+  const adder = `<div class="noteadd">
       <button class="figbtn" data-noteimg type="button">+ 사진 넣기</button>
       <button class="figbtn" data-notepdf type="button">+ PDF 넣기</button>
       <div class="pastebox" data-notepaste tabindex="0" role="button">여기를 누르고 <b>Ctrl+V</b> · 끌어다 놓아도 됩니다</div>
-    </div>` : "";
+    </div>`;
 
   const list = rows.length ? rows.map((r, i) => `
     <details class="note" data-note="${r.id}">
@@ -2092,13 +2120,13 @@ async function drawNotes(subjectId, box){
           : `<img src="${esc(r.url)}" alt="${esc(r.title || "자료")}" loading="lazy" decoding="async">`}
         <div class="nbar">
           <a class="figbtn" href="${esc(r.url)}" target="_blank" rel="noopener">새 창에서 크게</a>
-          ${S.loggedIn ? `<button class="figbtn ${r.pinned ? "save" : ""}" data-notepin="${r.id}" type="button">${r.pinned ? "★ 즐겨찾기 해제" : "☆ 즐겨찾기"}</button>
-            <button class="figbtn" data-noteren="${r.id}" type="button">이름 고치기</button>
-            <button class="figbtn del" data-notedel="${r.id}" type="button">삭제</button>` : ""}
+          <button class="figbtn ${r.pinned ? "save" : ""}" data-notepin="${r.id}" type="button">${r.pinned ? "★ 즐겨찾기 해제" : "☆ 즐겨찾기"}</button>
+          <button class="figbtn" data-noteren="${r.id}" type="button">이름 고치기</button>
+          <button class="figbtn del" data-notedel="${r.id}" type="button">삭제</button>
         </div>
       </div>
     </details>`).join("")
-    : `<p>${S.loggedIn ? "아직 자료가 없습니다. 위에서 사진이나 PDF를 넣어 주세요." : "아직 올라온 자료가 없습니다."}</p>`;
+    : `<p>아직 자료가 없습니다. 위에서 사진이나 PDF를 넣어 주세요.</p>`;
 
   box.innerHTML = adder + list
     + `<p style="margin-top:10px">회차와 상관없이 이 과목에 늘 붙어 있는 자료입니다.
@@ -2107,23 +2135,22 @@ async function drawNotes(subjectId, box){
         <b>☆ 즐겨찾기</b>로 표시해 두면 문제를 푸는 중에 문항 번호 줄의 <b>책갈피 단추</b>나
         <b>N</b> 키로 곧바로 꺼내 볼 수 있습니다. 주기율표처럼 계속 들춰 보는 자료에 걸어 두세요.</p>`;
 
-  if(!S.loggedIn) return;
-
   box.querySelector("[data-noteimg]")?.addEventListener("click",
-    () => notePick(subjectId, box, "image"));
+    () => { if(needLogin()) notePick(subjectId, box, "image"); });
   box.querySelector("[data-notepdf]")?.addEventListener("click",
-    () => notePick(subjectId, box, "pdf"));
+    () => { if(needLogin()) notePick(subjectId, box, "pdf"); });
 
   const pb = box.querySelector("[data-notepaste]");
   if(pb){
-    pb.addEventListener("click", () => pb.focus());
-    pb.addEventListener("focus", () => { NOTE_PASTE = { subjectId, box }; });
+    pb.addEventListener("click", () => { if(needLogin()) pb.focus(); });
+    pb.addEventListener("focus", () => { if(S.loggedIn) NOTE_PASTE = { subjectId, box }; });
     pb.addEventListener("blur",  () => { NOTE_PASTE = null; });
     ["dragenter","dragover"].forEach(t =>
       pb.addEventListener(t, e => { e.preventDefault(); pb.classList.add("over"); }));
     ["dragleave","dragend"].forEach(t => pb.addEventListener(t, () => pb.classList.remove("over")));
     pb.addEventListener("drop", e => {
       e.preventDefault(); pb.classList.remove("over");
+      if(!needLogin()) return;
       const fs = [...(e.dataTransfer?.files || [])].filter(f => /^image\/|pdf$/.test(f.type));
       if(fs.length) noteUpload(subjectId, box, fs);
       else toast("사진이나 PDF만 넣을 수 있습니다.");
@@ -2131,6 +2158,7 @@ async function drawNotes(subjectId, box){
   }
 
   box.querySelectorAll("[data-notepin]").forEach(b => b.addEventListener("click", async () => {
+    if(!needLogin()) return;
     const r = rows.find(x => String(x.id) === b.dataset.notepin);
     const up = await sb.from("subject_notes").update({ pinned: !r.pinned }).eq("id", r.id);
     if(up.error) return toast(/pinned|schema cache/i.test(up.error.message)
@@ -2142,6 +2170,7 @@ async function drawNotes(subjectId, box){
   }));
 
   box.querySelectorAll("[data-noteren]").forEach(b => b.addEventListener("click", async () => {
+    if(!needLogin()) return;
     const r = rows.find(x => String(x.id) === b.dataset.noteren);
     const t = prompt("자료 이름", r?.title || "");
     if(t === null) return;
@@ -2151,6 +2180,7 @@ async function drawNotes(subjectId, box){
   }));
 
   box.querySelectorAll("[data-notedel]").forEach(b => b.addEventListener("click", async () => {
+    if(!needLogin()) return;
     const r = rows.find(x => String(x.id) === b.dataset.notedel);
     if(!confirm(`"${r?.title || "이 자료"}" 를 지웁니다.`)) return;
     const del = await sb.from("subject_notes").delete().eq("id", r.id);
