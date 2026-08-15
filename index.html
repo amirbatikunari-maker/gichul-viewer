@@ -112,6 +112,12 @@ a{color:var(--accent);text-decoration:none}
 .subj .bar{position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:var(--accent)}
 
 /* ── 회차 행 ─────────────────────────────────── */
+#reroll{position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:60;
+  padding:12px 16px;border-radius:999px;border:0;cursor:pointer;
+  font:700 13px/1 var(--font-d);color:#fff;background:var(--accent);
+  box-shadow:0 4px 14px -4px rgba(16,35,61,.5)}
+#reroll:active{transform:scale(.95)}
+#reroll[hidden]{display:none}
 .mixbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:7px;margin:4px 0 8px}
 .mixb{padding:12px 8px;border-radius:11px;border:1.5px solid var(--rule);background:var(--card);
   font:700 12.5px/1.2 var(--font-d);color:var(--ink);cursor:pointer}
@@ -120,7 +126,14 @@ a{color:var(--accent);text-decoration:none}
 .mixb.g{border-color:#C79A16;color:#946F06;background:#FDF6E3}
 .mixb.s{border-color:#9AA6B2;color:#5E6C7A;background:#F2F4F6}
 .mixb.b{border-color:#B98A63;color:#8A5F3C;background:#FAF1E9}
-.mixnote{font-size:11.5px;color:var(--ink-2);line-height:1.6;margin:0 0 16px}
+.mixb.r{border-color:var(--rule);color:var(--ink-2)}
+.mixb .c{display:block;font:500 10.5px/1 var(--font-m);opacity:.75;margin-top:5px}
+#reroll{position:fixed;right:12px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:40;
+  padding:11px 15px;border:0;border-radius:22px;background:var(--ink);color:var(--paper);
+  font:700 12.5px/1 var(--font-d);box-shadow:0 6px 18px -8px rgba(16,35,61,.6);cursor:pointer}
+#reroll:active{transform:scale(.95)}
+.mixnote{font-size:11.5px;color:var(--ink-2);line-height:1.7;margin:0 0 16px}
+.mixnote b{color:var(--ink);font-weight:600}
 .year{font:600 13px/1 var(--font-m);color:var(--ink-2);margin:20px 0 8px;letter-spacing:.04em}
 .rows{display:flex;flex-direction:column;gap:8px}
 .row{
@@ -558,6 +571,9 @@ html[data-theme="dark"] mark.hl{background:color-mix(in srgb,#FDE047 24%,transpa
   <div class="track" id="track"></div>
   <div class="foot" id="foot"></div>
 </section>
+
+<!-- ══ 섞어 보기 중에만 뜨는 다시 뽑기 버튼 ══ -->
+<button id="reroll" hidden type="button">🎲 다시 뽑기</button>
 
 <!-- ══ 형광펜 말풍선 — 글자를 고르면 뜬다 ══ -->
 <div class="hlbar" id="hlbar">
@@ -1453,6 +1469,8 @@ function show(id){
   $("#veilBtn").hidden = !study;
   $("#layoutBtn").hidden = !study;
   $("#back").hidden = id==="v-subjects";
+  if(id !== "v-study") document.getElementById("reroll")?.remove();
+  $("#reroll").hidden = !(study && S.exam?._mix);
   document.body.style.overflow = study ? "hidden" : "";
 }
 window.addEventListener("hashchange", route);
@@ -1536,13 +1554,13 @@ async function viewExams(subjectId){
   const byYear = {};
   S.exams.forEach(e=>(byYear[e.year] ||= []).push(e));
   const mixBar = `<div class="mixbar">
-    <button class="mixb rnd" data-mode="random">🎲 랜덤 뽑기</button>
-    <button class="mixb g" data-mode="gold">금 · 빈출</button>
-    <button class="mixb s" data-mode="silver">은 · 중요</button>
-    <button class="mixb b" data-mode="bronze">동 · 나머지</button>
+    <button class="mixb rnd" data-mode="random">🎲 랜덤<span class="c" data-c="random"></span></button>
+    <button class="mixb g" data-mode="gold">금<span class="c" data-c="gold"></span></button>
+    <button class="mixb s" data-mode="silver">은<span class="c" data-c="silver"></span></button>
+    <button class="mixb b" data-mode="bronze">동<span class="c" data-c="bronze"></span></button>
+    <button class="mixb r" data-mode="rest">나머지<span class="c" data-c="rest"></span></button>
   </div>
-  <div class="mixnote">저장된 이 과목 전체 회차를 한 덩어리로 묶어, 되풀이해 나온 주제일수록 위 등급으로 올립니다.
-    문제·해설·필기·별표는 원래 문항 그대로입니다.</div>`;
+  <div class="mixnote" id="mixnote">등급을 세는 중…</div>`;
   $("#exams").innerHTML = mixBar + Object.keys(byYear).sort((a,b)=>b-a).map(y=>`
     <div class="year">${y}</div>
     <div class="rows">${byYear[y].map(e=>{
@@ -1557,6 +1575,19 @@ async function viewExams(subjectId){
         <span class="chev">›</span>
       </button>`}).join("")}</div>`).join("");
   $$("#exams .mixb").forEach(b=>b.onclick=()=>go(`#/mix/${subjectId}/${b.dataset.mode}`));
+  /* 각 등급에 몇 문항이 들어갔는지, 어떤 기준인지 목록 위에 바로 보여준다 */
+  mixIndex(subjectId, true).then(ix => {
+    if(!$("#mixnote")) return;
+    const n = { random: ix.rows.length };
+    Object.keys(ix.tiers).forEach(k => n[k] = ix.tiers[k].length);
+    $$("#exams .mixb .c").forEach(el => { el.textContent = (n[el.dataset.c] ?? 0) + "문항"; });
+    $("#mixnote").innerHTML =
+      `회차 ${ix.N}개 · 문항 ${ix.rows.length}개를 한 덩어리로 보고, 문항마다 대표 낱말이
+       <b>몇 개 회차(R)</b>·<b>몇 문항(C)</b>에 나왔는지 세어 나눕니다.<br>
+       <b>금</b> R≥3 세 회차 이상 반복 · <b>은</b> R=2 두 회차 반복 ·
+       <b>동</b> R=1이지만 C≥2 한 회차 안에서 여러 문항 · <b>나머지</b> 딱 한 번만 나온 주제.<br>
+       회차를 추가하면 다시 셉니다. 문제·해설·필기·별표는 원래 문항 그대로입니다.`;
+  }).catch(()=>{ if($("#mixnote")) $("#mixnote").textContent = "등급을 세지 못했습니다."; });
   $$("#exams .row").forEach(b=>b.onclick=e=>{
     const w = e.target.closest("[data-wipe]"), d = e.target.closest("[data-delexam]");
     const ex = S.exams.find(x=>x.id===+(w?.dataset.wipe || d?.dataset.delexam));
@@ -1581,6 +1612,7 @@ async function viewExams(subjectId){
    3. 학습 뷰
    ═══════════════════════════════════════════════ */
 async function viewStudy(examId, num){
+  if(S.exam?._mix) S.exam = null;      // 섞어 보기에서 실제 회차로 넘어오면 표식을 지운다
   show("v-study");
   const track=$("#track"), rail=$("#rail");
   if(S.exam?.id !== examId){
@@ -1611,48 +1643,74 @@ async function viewStudy(examId, num){
 
 
 /* ═══════════════════════════════════════════════
-   3.5 섞어 보기 — 랜덤 · 빈출 금/은/동
-   저장된 그 과목 전체 회차를 한 덩어리로 보고 덱을 만든다.
-   문항 자체는 원래 행을 그대로 쓰므로 해설·필기·별표가 전부 따라온다.
-   ═══════════════════════════════════════════════ */
-const MIX_SIZE = 20;                       // 한 덱에 담을 문항 수
-const STOP = new Set(["다음","것은","무엇","경우","가장","옳은","틀린","아닌","대한","설명","계산",
-  "얼마","이때","구하","때의","중에서","해당","관한","위한","다음중","값은","것을","하는","되는"]);
+   3.5 섞어 보기 — 랜덤 · 금 / 은 / 동 / 나머지
 
-/* 요약·문제에서 두 글자 이상 낱말만 뽑는다 (조사까지 정확히 자르진 못하지만 빈도 비교엔 충분하다) */
+   등급 기준 (감이 아니라 세어서 매긴다)
+     문항마다 "대표 낱말"을 하나 고른 뒤, 그 낱말이
+       R = 몇 개 회차에 나왔는지,  C = 전체 몇 문항에 나왔는지 를 센다.
+       금   R ≥ 3   세 회차 이상에서 되풀이된 주제
+       은   R = 2   두 회차에서 되풀이된 주제
+       동   R = 1 이고 C ≥ 2   한 회차 안에서만 여러 문항으로 나온 주제
+       나머지  R = 1, C = 1   딱 한 번만 나온 주제
+   저장된 회차를 읽어 그때그때 다시 계산하므로,
+   회차를 추가하면 다음에 들어올 때 등급이 바뀐다.
+   ═══════════════════════════════════════════════ */
+const MIX_SIZE = 20;
+const MIX_LABEL = { random:"🎲 랜덤", gold:"금", silver:"은", bronze:"동", rest:"나머지" };
+const MIX_RULE = {
+  gold:"세 회차 이상에서 되풀이된 주제", silver:"두 회차에서 되풀이된 주제",
+  bronze:"한 회차 안에서 여러 문항으로 나온 주제", rest:"딱 한 번만 나온 주제"
+};
+const STOP = new Set(["다음","것은","무엇","경우","가장","옳은","틀린","아닌","대한","설명","계산",
+  "얼마","이때","구하","때의","중에서","해당","관한","위한","다음중","값은","것을","하는","되는",
+  "이란","무엇인가","적합","적절","거리가","고르","구하시오"]);
+
 function tokens(q){
   const src = ((q.summary || "") + " " + (q.question_text || "").slice(0, 60));
   return [...new Set((src.match(/[가-힣A-Za-z]{2,}/g) || [])
-    .map(w => w.replace(/(으로|에서|에는|이다|한다|인가|하면|보다|까지|부터)$/, ""))
+    .map(w => w.replace(/(으로|에서|에는|이다|한다|인가|하면|보다|까지|부터|에게|에서의)$/, ""))
     .filter(w => w.length >= 2 && !STOP.has(w)))];
 }
 
-/* 각 낱말이 "몇 개 회차"에 나왔는지 세고, 그 값으로 문항 점수를 매긴다.
-   한 회차 안에서 여러 번 나온 건 세지 않는다 — 되풀이해 출제된 주제를 찾는 게 목적이다. */
-function rankByFrequency(rows){
-  const df = new Map();
-  const perTok = new Map();
-  rows.forEach(q => tokens(q).forEach(t => {
-    if(!perTok.has(t)) perTok.set(t, new Set());
-    perTok.get(t).add(q.exam_id);
-  }));
-  perTok.forEach((exams, t) => df.set(t, exams.size));
+/* 과목 전체를 가볍게(요약·문제 앞부분만) 한 번 읽어 등급표를 만든다 */
+async function mixIndex(subjectId, force){
+  S._mix ||= {};
+  if(S._mix[subjectId] && !force) return S._mix[subjectId];
 
-  return rows.map(q => {
-    const ts = tokens(q);
-    const hits = ts.map(t => df.get(t) || 1).sort((a,b) => b-a);
-    const top = hits.slice(0, 3);                       // 대표 낱말 3개로 평가
-    const score = top.reduce((a,b) => a+b, 0) / Math.max(top.length, 1);
-    const best = ts.map(t => [t, df.get(t) || 1]).sort((a,b) => b[1]-a[1])[0];
-    return { ...q, _score: score, _key: best?.[0] || "", _exams: best?.[1] || 1 };
-  }).sort((a,b) => b._score - a._score);
+  const {data:exams} = await sb.from("exam_list").select("id,label").eq("subject_id", subjectId);
+  const ids = (exams || []).map(e => e.id);
+  if(!ids.length) return (S._mix[subjectId] = { rows:[], tiers:{}, N:0, label:{} });
+
+  const {data:rows} = await sb.from("questions")
+    .select("id,exam_id,number,summary,question_text").in("exam_id", ids);
+
+  const byExam = new Map(), byCount = new Map();
+  (rows || []).forEach(q => tokens(q).forEach(t => {
+    if(!byExam.has(t)) byExam.set(t, new Set());
+    byExam.get(t).add(q.exam_id);
+    byCount.set(t, (byCount.get(t) || 0) + 1);
+  }));
+
+  const tiers = { gold:[], silver:[], bronze:[], rest:[] };
+  (rows || []).forEach(q => {
+    /* 대표 낱말 = 회차 수가 가장 많은 낱말, 같으면 문항 수가 많은 쪽 */
+    const best = tokens(q)
+      .map(t => ({ t, R:(byExam.get(t)||new Set()).size, C:byCount.get(t)||1 }))
+      .sort((a,b) => b.R - a.R || b.C - a.C)[0] || { t:"", R:1, C:1 };
+    q._key = best.t; q._R = best.R; q._C = best.C;
+    (best.R >= 3 ? tiers.gold : best.R === 2 ? tiers.silver
+                 : best.C >= 2 ? tiers.bronze : tiers.rest).push(q);
+  });
+
+  const label = {}; (exams||[]).forEach(e => label[e.id] = e.label);
+  return (S._mix[subjectId] = { rows: rows || [], tiers, N: ids.length, label });
 }
 
 async function viewMix(subjectId, mode){
   show("v-study");
   const track = $("#track"), rail = $("#rail");
   track.innerHTML = `<div class="slide"><div class="sheet-body"><div class="empty"><div class="big">문항을 모으는 중…</div></div></div></div>`;
-  rail.innerHTML = "";
+  rail.innerHTML = ""; mountReroll(null);
 
   if(!S.subjects.length){
     const {data} = await sb.from("subject_list").select("*").order("sort_order");
@@ -1660,45 +1718,54 @@ async function viewMix(subjectId, mode){
   }
   S.subject = S.subjects.find(x => x.id === subjectId) || S.subject;
 
-  const {data:exams} = await sb.from("exam_list").select("*").eq("subject_id", subjectId);
-  const ids = (exams || []).map(e => e.id);
-  if(!ids.length){ go(`#/s/${subjectId}`); return; }
-  const label = {}; (exams||[]).forEach(e => label[e.id] = e.label);
+  /* 랜덤은 매번 새로 뽑아야 하므로 캐시를 다시 만든다(회차를 추가했을 때도 바로 반영) */
+  const ix = await mixIndex(subjectId, true);
+  if(!ix.rows.length){ go(`#/s/${subjectId}`); return; }
 
-  const {data:rows, error} = await sb.from("questions").select("*").in("exam_id", ids);
-  if(error || !rows?.length){
-    track.innerHTML = `<div class="slide"><div class="sheet-body"><div class="empty"><div class="big">모을 문항이 없습니다.</div><div>회차를 먼저 올려주세요.</div></div></div></div>`;
+  const band = mode === "random" ? ix.rows : (ix.tiers[mode] || []);
+  let note = mode === "random"
+    ? `${ix.N}개 회차 ${ix.rows.length}문항에서 무작위`
+    : `${MIX_LABEL[mode]} · ${MIX_RULE[mode]} — ${band.length}문항`;
+
+  if(!band.length){
+    track.innerHTML = `<div class="slide"><div class="sheet-body"><div class="empty">
+      <div class="big">${MIX_LABEL[mode]} 등급에 해당하는 문항이 없습니다.</div>
+      <div>${esc(MIX_RULE[mode])}가 기준입니다. 회차가 ${ix.N}개뿐이라 아직 안 잡힐 수 있습니다.</div></div></div></div>`;
+    $("#ttl").textContent = S.subject?.name || ""; $("#sub").textContent = note; $("#foot").textContent = "";
     return;
   }
 
-  let deck, note;
-  if(mode === "random"){
-    deck = [...rows].sort(() => Math.random() - .5).slice(0, MIX_SIZE);
-    note = `${ids.length}개 회차 ${rows.length}문항에서 무작위 ${deck.length}문항`;
-  }else{
-    const ranked = rankByFrequency(rows);
-    /* 상위 15% 금, 다음 25% 은, 나머지 동 — 회차가 적어도 세 등급이 다 나오게 비율로 자른다 */
-    const g = Math.max(1, Math.round(ranked.length * 0.15));
-    const sv = Math.max(1, Math.round(ranked.length * 0.25));
-    const band = mode === "gold" ? ranked.slice(0, g)
-               : mode === "silver" ? ranked.slice(g, g + sv)
-               : ranked.slice(g + sv);
-    deck = [...band].sort(() => Math.random() - .5).slice(0, MIX_SIZE);
-    note = ({gold:"금 · 빈출", silver:"은 · 중요", bronze:"동 · 나머지"}[mode] || "")
-         + ` — ${band.length}문항 중 ${deck.length}문항`;
-  }
+  const pickIds = [...band].sort(() => Math.random() - .5).slice(0, MIX_SIZE).map(q => q.id);
+  const meta = new Map(band.map(q => [q.id, q]));
+  const {data:full} = await sb.from("questions").select("*").in("id", pickIds);
+  const deck = pickIds.map(id => full.find(q => q.id === id)).filter(Boolean);
   if(!deck.length){ go(`#/s/${subjectId}`); return; }
 
-  /* 원래 회차를 알 수 있게 문항 머리말에 붙인다 */
-  deck.forEach(q => { q.subject_part = `${label[q.exam_id] || "회차"} ${q.number}번` + (q._key ? ` · ${q._key} (${q._exams}개 회차)` : ""); });
+  deck.forEach(q => {
+    const m = meta.get(q.id) || {};
+    q.subject_part = `${ix.label[q.exam_id] || "회차"} ${q.number}번`
+      + (m._key ? ` · ${m._key} (${m._R}개 회차 · ${m._C}문항)` : "");
+  });
 
-  S.exam = { id: `mix:${subjectId}:${mode}`, label: note, _mix: true };
+  S.exam = { id:`mix:${subjectId}:${mode}`, label:note, _mix:true, _sid:subjectId, _mode:mode };
   S.questions = deck;
   await loadAnnotations(deck.map(q => q.id));
   build();
   $("#ttl").textContent = S.subject?.name || "";
-  $("#sub").textContent = note;
+  $("#sub").textContent = `${note} 중 ${deck.length}문항`;
   jump(0, false);
+  mountReroll(S.exam);
+}
+
+/* 문제 푸는 중에도 바로 다시 뽑을 수 있게 떠 있는 버튼 */
+function mountReroll(exam){
+  document.getElementById("reroll")?.remove();
+  if(!exam?._mix) return;
+  const b = document.createElement("button");
+  b.id = "reroll";
+  b.textContent = `${MIX_LABEL[exam._mode] || "섞기"} 다시 뽑기`;
+  b.onclick = () => viewMix(exam._sid, exam._mode);
+  document.body.appendChild(b);
 }
 
 function build(){
