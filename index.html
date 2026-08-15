@@ -685,11 +685,16 @@ function stripQNo(s){
 /* ═══════════════════════════════════════════════
    필기 — 로그인
    ═══════════════════════════════════════════════ */
-async function inkRefresh(){
+/* session 을 넘겨받으면 getSession() 을 부르지 않는다.
+   onAuthStateChange 콜백 안에서 getSession() 을 부르면 잠금이 서로를 기다려 굳어버리기 때문이다. */
+async function inkRefresh(session){
   if(!sb) return;
   const was = S.loggedIn;
-  const {data} = await sb.auth.getSession();
-  S.loggedIn = !!data.session;
+  if(session === undefined){
+    const {data} = await sb.auth.getSession();
+    session = data.session;
+  }
+  S.loggedIn = !!session;
   $("#inkPopIn").hidden = S.loggedIn;
   $("#inkPopOut").hidden = !S.loggedIn;
   $("#inkAuthBtn").classList.toggle("on", S.loggedIn);
@@ -2513,8 +2518,15 @@ function fail(el,big,sub){
 }
 inkRefresh();
 /* 세션은 새로고침 직후 조금 늦게 살아나고, 시간이 지나면 만료되기도 한다.
-   그때마다 고치기 단추가 알아서 나타나고 사라지도록 붙여 둔다. */
-sb?.auth?.onAuthStateChange?.(() => inkRefresh());
+   그때마다 고치기 단추가 알아서 나타나고 사라지도록 붙여 둔다.
+
+   ★ supabase-js v2 의 이 콜백은 인증 잠금을 쥔 채로 불린다. 그 안에서 getSession() 이나
+     sb.from(...) 을 부르면 같은 잠금을 다시 기다리다 영영 굳는다. 화면 전체가 로딩
+     상태로 멈춰버리므로, 잠금 밖으로 빠져나온 뒤(setTimeout 0)에 처리하고
+     세션도 다시 묻지 않고 콜백이 준 값을 그대로 쓴다. */
+sb?.auth?.onAuthStateChange?.((_evt, session) => {
+  setTimeout(() => inkRefresh(session ?? null), 0);
+});
 route();
 
 /* 홈 화면 설치 + 오프라인 */
