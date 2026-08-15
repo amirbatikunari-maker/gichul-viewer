@@ -256,6 +256,13 @@ body.haspin .qnote{display:grid}
   background:color-mix(in srgb,var(--paper) 92%,transparent);
   backdrop-filter:blur(10px);border-bottom:1px solid var(--rule);
 }
+/* 문항이 많으면(합본처럼 200문항 넘어가면) 한 줄로는 끝없이 밀어야 한다.
+   두 줄로 접어 스크롤 길이를 절반으로 줄인다. */
+.rail.two{
+  height:calc(var(--rail) * 1.75);
+  display:grid;grid-auto-flow:column;grid-template-rows:repeat(2, 1fr);
+  align-content:center;gap:4px 5px;padding-top:4px;padding-bottom:4px;
+}
 .rail::-webkit-scrollbar{display:none}
 .bub{
   flex:none;position:relative;min-width:28px;height:28px;padding:0 6px;
@@ -559,6 +566,34 @@ mark.hlm{background:transparent;color:inherit}
   z-index:80;padding:11px 16px;border-radius:999px;background:var(--ink);color:var(--paper);
   font:600 12.5px/1 var(--font-d);opacity:0;pointer-events:none;transition:opacity .18s;max-width:90vw;text-align:center}
 #toast.on{opacity:.96}
+/* 문항 고르기 창 */
+.jumpov{position:fixed;inset:0;z-index:88;background:rgba(10,20,35,.5);display:grid;place-items:center;padding:12px}
+.jumpbox{background:var(--card);border-radius:16px;width:100%;max-width:640px;max-height:88vh;
+  display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px -20px rgba(0,0,0,.6)}
+.jtop{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--rule)}
+.jtop b{font:700 14px/1 var(--font-d)}
+.jtop .jstat{flex:1;font-size:11.5px;color:var(--ink-2)}
+.jfind{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+.jfind input{flex:1;min-width:120px;padding:9px 11px;border:1.4px solid var(--rule);border-radius:8px;
+  background:var(--paper);color:var(--ink);font:500 13px/1 var(--font-m)}
+.jlegend{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--ink-2)}
+.jlegend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:2px;vertical-align:-1px}
+.jlegend i.star{background:var(--stamp)}
+.jlegend i.ink{background:var(--accent)}
+.jlegend i.seen{background:var(--rule)}
+.jbody{flex:1;min-height:0;overflow-y:auto;padding:6px 16px 16px}
+.jsec{margin-top:12px}
+.jhead{font:600 10.5px/1 var(--font-d);letter-spacing:.08em;color:var(--ink-2);margin-bottom:7px}
+.jgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:5px}
+.jb{padding:9px 2px;border-radius:8px;border:1.3px solid var(--rule);background:var(--card);
+  color:var(--ink);font:600 12.5px/1 var(--font-m);cursor:pointer;position:relative}
+.jb:active{transform:scale(.94)}
+.jb.seen{background:var(--paper);color:var(--ink-2)}
+.jb.star{border-color:var(--stamp);color:var(--stamp)}
+.jb.ink::after{content:"";position:absolute;right:4px;bottom:4px;width:5px;height:5px;
+  border-radius:50%;background:var(--accent)}
+.jb.now{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.qno{border:0;cursor:pointer}
 .flatov{position:fixed;inset:0;z-index:90;background:rgba(10,20,35,.55);display:grid;place-items:center;padding:14px}
 .flatbox{background:var(--card);border-radius:16px;max-width:760px;width:100%;max-height:92vh;
   display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px -20px rgba(0,0,0,.6)}
@@ -3102,11 +3137,79 @@ function mountReroll(exam){
   b.hidden = false;
 }
 
+/* ═══════════════════════════════════════════════
+   문항 고르기 창
+   238문항짜리 합본은 두 줄로 접어도 한참 밀어야 한다.
+   번호 배지를 누르면 전체를 격자로 펼쳐, 한눈에 보고 바로 뛴다.
+   본 문항·별표·필기가 색으로 구분되니 "어디까지 했더라"도 같이 해결된다.
+   ═══════════════════════════════════════════════ */
+function jumpGridClose(){ document.getElementById("jumpOv")?.remove(); }
+
+function jumpGridOpen(){
+  jumpGridClose();
+  if(!S.questions.length) return;
+  const ov = document.createElement("div");
+  ov.className = "jumpov on"; ov.id = "jumpOv";
+
+  /* 20개씩 묶어 구간 머리글을 달아 준다 — 번호가 200을 넘으면 눈이 길을 잃는다 */
+  const CH = 20;
+  let body = "";
+  for(let s0 = 0; s0 < S.questions.length; s0 += CH){
+    const part = S.questions.slice(s0, s0 + CH);
+    body += `<div class="jsec"><div class="jhead">${part[0].number} – ${part[part.length-1].number}</div>
+      <div class="jgrid">` + part.map((q, k) => {
+        const i = s0 + k;
+        const cls = [
+          i === S.idx ? "now" : "",
+          S.seen[q.id] ? "seen" : "",
+          S.stars[q.id] ? "star" : "",
+          S.anno[q.id]?.strokes?.length ? "ink" : ""
+        ].filter(Boolean).join(" ");
+        return `<button class="jb ${cls}" data-i="${i}">${q.number}</button>`;
+      }).join("") + `</div></div>`;
+  }
+
+  const seen = S.questions.filter(q => S.seen[q.id]).length;
+  const star = S.questions.filter(q => S.stars[q.id]).length;
+  ov.innerHTML = `<div class="jumpbox">
+    <div class="jtop">
+      <b>문항 고르기</b>
+      <span class="jstat">${S.questions.length}문항 · 본 것 ${seen} · 별표 ${star}</span>
+      <button class="figbtn" data-jclose type="button">닫기</button>
+    </div>
+    <div class="jfind">
+      <input id="jumpNum" type="number" inputmode="numeric" placeholder="번호 입력 후 Enter">
+      <button class="figbtn save" data-jgo type="button">가기</button>
+      <span class="jlegend"><i class="star"></i>별표 <i class="ink"></i>필기 <i class="seen"></i>본 것</span>
+    </div>
+    <div class="jbody">${body}</div>
+  </div>`;
+  document.body.appendChild(ov);
+
+  ov.querySelector("[data-jclose]").onclick = jumpGridClose;
+  ov.addEventListener("click", e => { if(e.target === ov) jumpGridClose(); });
+  ov.querySelectorAll(".jb").forEach(b => b.onclick = () => { jumpGridClose(); jump(+b.dataset.i); });
+
+  const go = () => {
+    const n = +document.getElementById("jumpNum").value;
+    const i = S.questions.findIndex(q => +q.number === n);
+    if(i < 0) return toast(`${n}번을 찾지 못했습니다.`);
+    jumpGridClose(); jump(i);
+  };
+  ov.querySelector("[data-jgo]").onclick = go;
+  const inp = document.getElementById("jumpNum");
+  inp.addEventListener("keydown", e => { if(e.key === "Enter"){ e.preventDefault(); go(); } });
+
+  /* 지금 문항이 화면 가운데 오게 */
+  ov.querySelector(".jb.now")?.scrollIntoView({ block:"center" });
+}
+
 function build(){
   const track=$("#track"), rail=$("#rail");
   rail.innerHTML = S.questions.map((q,i)=>`
     <button class="bub" data-i="${i}">${q.number}</button>`).join("");
   $$("#rail .bub").forEach(b=>b.onclick=()=>jump(+b.dataset.i));
+  rail.classList.toggle("two", S.questions.length > 60);
 
   track.innerHTML = S.questions.map((q,i)=>`
     <article class="slide" data-i="${i}"><div class="sheet-body" data-h="0"></div></article>`).join("");
@@ -3540,7 +3643,7 @@ function hydrate(i){
 
   const headHTML = `
     <div class="qhead">
-      <span class="qno">${q.number}</span>
+      <button class="qno" data-jumpopen type="button" title="문항 고르기 (G)">${q.number}</button>
       <span class="qsum">${esc(stripQNo(q.summary||""))}${q.correct_rate!=null?` · 정답률 ${q.correct_rate}%`:""}</span>
       ${S.loggedIn?`<button class="qedit" data-editsum="${q.id}" type="button" aria-label="제목 고치기" title="제목 고치기 (본문은 카드 안 '본문 고치기')">
         <svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 11h9"/><path d="M4 16h5"/><path d="M14.5 19.5l5.5-5.5 2 2-5.5 5.5H14.5z"/></svg>
@@ -3568,6 +3671,7 @@ function hydrate(i){
     LS.set("stars",S.stars); el.classList.toggle("on",!!S.stars[id]);
     $(`#rail .bub[data-i="${i}"]`)?.classList.toggle("star",!!S.stars[id]);
   });
+  body.querySelector("[data-jumpopen]")?.addEventListener("click", jumpGridOpen);
   body.querySelector(".qink")?.addEventListener("click", ()=> onInkClick(q, body, i));
   body.querySelector("[data-qnote]")?.addEventListener("click", () => pinOpen());
   body.querySelector("[data-editsum]")?.addEventListener("click", e =>
@@ -3715,6 +3819,15 @@ addEventListener("keydown",e=>{
   if(document.getElementById("noteOv")?.classList.contains("on")){
     if(e.key === "Escape" || e.key === "n" || e.key === "N"){ e.preventDefault(); pinClose(); }
     return;
+  }
+
+  if(document.getElementById("jumpOv")){
+    if(e.key === "Escape"){ e.preventDefault(); jumpGridClose(); }
+    return;                       /* 고르기 창이 떠 있으면 뒤쪽 단축키는 먹지 않게 */
+  }
+  if((e.key === "g" || e.key === "G") && !e.ctrlKey && !e.metaKey
+     && !$(`#track .slide[data-i="${S.idx}"] .sheet-body`)?.__ink?.editing){
+    e.preventDefault(); jumpGridOpen(); return;
   }
 
   /* 필기 중이면 포토샵처럼 알파벳 한 글자로 도구를 바꾼다 (V=이동, P=펜, H=형광펜, U=밑줄, E=지우개) */
