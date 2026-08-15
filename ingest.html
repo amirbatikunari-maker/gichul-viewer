@@ -500,7 +500,7 @@ dropImg.onclick = () => $("#fileImg").click();
 dropImg.addEventListener("drop", ev => { takeImages([...ev.dataTransfer.files].filter(f => f.type.startsWith("image/"))); });
 /* 화면에 보일 이름을 안 적으면 «연도 + 회차» 로 만들어 둔다.
    직접 손댄 뒤에는 건드리지 않는다 — 고쳐 놓은 걸 덮어쓰면 짜증난다. */
-let LABEL_TOUCHED = false;
+let LABEL_TOUCHED = false, LABEL_DONE = null;
 $("#elabel")?.addEventListener("input", () => { LABEL_TOUCHED = $("#elabel").value.trim() !== ""; });
 function autoLabel(){
   if(LABEL_TOUCHED) return;
@@ -1359,7 +1359,7 @@ async function go(only, forceImage){
     return;
   }
 
-  RUNNING = true; ABORT = false;
+  RUNNING = true; ABORT = false; LABEL_DONE = null;
   $("#run").disabled = $("#retry").disabled = $("#runImage").disabled = true;
   $("#stop").disabled = false;
 
@@ -1417,6 +1417,17 @@ $("#retry").onclick    = () => go(true, FORCE_IMAGE_MODE); // 직전에 쓰던 �
 $("#stop").onclick     = () => { ABORT = true; $("#stop").disabled = true; };
 
 /* ── 미리보기 ── */
+/* 미리보기에서만 $…$ 껍질을 벗기고 아래첨자를 사람이 읽는 글자로 바꾼다.
+   뷰어는 KaTeX 로 제대로 그리니 저장값은 손대지 않는다 — 여기 표시만 읽기 좋게. */
+const PSUB = {"0":"₀","1":"₁","2":"₂","3":"₃","4":"₄","5":"₅","6":"₆","7":"₇","8":"₈","9":"₉","+":"₊","-":"₋"};
+function plain(t){
+  return String(t || "")
+    .replace(/\$\$?([^$\n]+?)\$\$?/g, "$1")
+    .replace(/_\{([^}]{1,6})\}/g, (_, g) => [...g].map(c => PSUB[c] || c).join(""))
+    .replace(/_([0-9+\-])/g, (_, g) => PSUB[g] || g)
+    .replace(/\\times/g, "×").replace(/\\cdot/g, "·");
+}
+
 function preview(){
   const qs = Object.values(RESULTS).sort((a,b)=>a.number-b.number);
   $("#pv").style.display = qs.length ? "" : "none";
@@ -1433,7 +1444,7 @@ function preview(){
   $("#pv").innerHTML =
     (holes.length ? `<div class="q"><span class="bad">빠진 번호: ${holes.join(", ")}</span></div>` : "") +
     qs.map(q => `<div class="q"><b>${q.number}</b> ${
-      (q.question_text||"").slice(0,60)}${
+      plain(q.question_text||"").slice(0,60)}${
       q.answer ? ` <span style="color:var(--ok)">· 답 ${q.answer}</span>` : ` <span class="bad">· 답 없음</span>`}${
       (q.explanation_md||q.explanation_html) ? "" : ` <span class="bad">· 해설 없음</span>`}${
       q.choices.length !== 4 ? ` <span class="bad">· 보기 ${q.choices.length}개</span>` : ""}</div>`).join("");
@@ -1462,11 +1473,20 @@ async function push(quiet){
   });
   if(error){ log("업로드 실패 — " + error.message, "e"); if(!quiet) say($("#um"), "업로드 실패 — " + error.message, "err"); return false; }
 
-  /* 화면에 보일 이름을 그대로 덮어쓴다 — 저장 함수는 «2020년 3회» 꼴만 만들 줄 안다 */
+  /* 화면에 보일 이름을 덮어쓴다 — 저장 함수는 «2020년 3회» 꼴만 만들 줄 안다.
+     exam_list 는 뷰라서 직접 update 가 안 되므로(cannot update view) 전용 함수를 부른다.
+     묶음마다 부르면 로그가 도배되니 한 회차에 한 번만 시도한다. */
   const wantLabel = ($("#elabel").value.trim()) || autoLabelText();
-  if(wantLabel){
-    const lr = await sb.from("exam_list").update({ label: wantLabel }).eq("id", data);
-    if(lr.error) log("이름을 바꾸지 못했습니다 — " + lr.error.message, "e");
+  if(wantLabel && LABEL_DONE !== data){
+    LABEL_DONE = data;
+    const lr = await sb.rpc("set_exam_label", { p_exam_id: data, p_label: wantLabel });
+    if(lr.error){
+      log(/function.*set_exam_label|schema cache/i.test(lr.error.message)
+        ? `이름을 «${wantLabel}» 로 바꾸려면 supabase-회차이름.sql 을 한 번 돌려 주세요. (지금은 기본 이름으로 저장됐습니다)`
+        : "이름을 바꾸지 못했습니다 — " + lr.error.message, "e");
+    }else{
+      log(`회차 이름을 «${wantLabel}» 로 정했습니다.`, "g");
+    }
   }
 
   /* 그림 주소는 회차 저장 함수(upsert_exam_bundle)가 모르는 항목이라 따로 붙인다.
