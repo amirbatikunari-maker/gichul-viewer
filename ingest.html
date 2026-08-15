@@ -356,10 +356,10 @@ let DB_NUMBERS = []; // ★ 추가: DB에 이미 올라간 문항 번호들
 // ★ 추가: Supabase(저장소)에서 이미 올라간 문항 번호 동기화
 async function fetchSavedNumbers() {
   const scode = $("#scode").value.trim();
-  /* 연도·회차에 글자가 들어와도 첫 숫자만 뽑아 찾는다 — 저장할 때와 같은 규칙 */
-  const year = firstNum($("#year").value);
-  const sess = firstNum($("#sess").value);
-  if(!scode || !$("#year").value.trim()) return;
+  /* year·session 칸이 글자로 바뀌었으므로 적으신 그대로 비교한다 */
+  const year = $("#year").value.trim();
+  const sess = $("#sess").value.trim();
+  if(!scode || !year) return;
   
   try {
     const { data: sub } = await sb.from("subject_list").select("id").eq("code", scode).maybeSingle();
@@ -1477,15 +1477,21 @@ async function push(quiet){
      exam_list 는 뷰라서 직접 update 가 안 되므로(cannot update view) 전용 함수를 부른다.
      묶음마다 부르면 로그가 도배되니 한 회차에 한 번만 시도한다. */
   const wantLabel = ($("#elabel").value.trim()) || autoLabelText();
-  if(wantLabel && LABEL_DONE !== data){
+  const rawYear = $("#year").value.trim(), rawSess = $("#sess").value.trim();
+  if(LABEL_DONE !== data){
     LABEL_DONE = data;
-    const lr = await sb.rpc("set_exam_label", { p_exam_id: data, p_label: wantLabel });
+    /* 저장 함수는 연도·회차를 숫자로만 받으므로 «2021~2026» 같은 글자는 잘려 들어간다.
+       그래서 저장 직후에 적어 주신 글 그대로 다시 덮어쓴다. */
+    const lr = await sb.rpc("set_exam_meta", {
+      p_exam_id: data, p_label: wantLabel || null,
+      p_year: rawYear || null, p_session: rawSess || null
+    });
     if(lr.error){
-      log(/function.*set_exam_label|schema cache/i.test(lr.error.message)
-        ? `이름을 «${wantLabel}» 로 바꾸려면 supabase-회차이름.sql 을 한 번 돌려 주세요. (지금은 기본 이름으로 저장됐습니다)`
-        : "이름을 바꾸지 못했습니다 — " + lr.error.message, "e");
+      log(/set_exam_meta|schema cache/i.test(lr.error.message)
+        ? `이름·연도를 «${wantLabel}» 로 넣으려면 supabase-회차이름.sql 을 한 번 돌려 주세요. (지금은 기본값으로 저장됐습니다)`
+        : "이름·연도를 넣지 못했습니다 — " + lr.error.message, "e");
     }else{
-      log(`회차 이름을 «${wantLabel}» 로 정했습니다.`, "g");
+      log(`회차를 «${wantLabel || rawYear}» 로 정했습니다.`, "g");
     }
   }
 
