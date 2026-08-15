@@ -443,6 +443,14 @@ mark.hl{
   box-decoration-break:clone;-webkit-box-decoration-break:clone;
 }
 html[data-theme="dark"] mark.hl{background:color-mix(in srgb,#FDE047 24%,transparent)}
+/* 취소선 — 틀린 보기·지워야 할 조건에 빨간 중간줄 */
+mark.hlm{background:transparent;color:inherit}
+mark.st{
+  text-decoration:line-through;
+  text-decoration-color:var(--stamp);
+  text-decoration-thickness:2px;
+  text-underline-offset:0;
+}
 [data-hl]{-webkit-user-select:text;user-select:text}
 
 .hlbar{
@@ -459,6 +467,9 @@ html[data-theme="dark"] mark.hl{background:color-mix(in srgb,#FDE047 24%,transpa
 .hlbar button[hidden]{display:none}
 .hlbar .sw{width:13px;height:13px;border-radius:4px;flex:none;
            background:#FDE047;border:1px solid color-mix(in srgb,#B59A00 60%,transparent)}
+.hlbar .sw.line{background:transparent;border:0;position:relative}
+.hlbar .sw.line::after{content:"";position:absolute;left:0;right:0;top:50%;height:2px;
+           background:var(--stamp);transform:translateY(-1px)}
 .hlbar .del{color:var(--ink-2)}
 
 /* ── 하단 진행 ───────────────────────────────── */
@@ -574,6 +585,7 @@ html[data-theme="dark"] mark.hl{background:color-mix(in srgb,#FDE047 24%,transpa
 <!-- ══ 형광펜 말풍선 — 글자를 고르면 뜬다 ══ -->
 <div class="hlbar" id="hlbar">
   <button id="hlAdd" type="button"><span class="sw"></span>형광펜</button>
+  <button id="hlStrike" type="button"><span class="sw line"></span>취소선</button>
   <button id="hlDel" class="del" type="button" hidden>지우기</button>
 </div>
 
@@ -867,11 +879,13 @@ function setupZoom(zoomwrap, zoomstage){
     }
 
     if(dragMode === null){
-      if(Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-      /* 세로 넘김 모드에서는 가로 판정을 아예 하지 않는다 —
-         문항 넘김을 브라우저의 세로 스크롤 스냅에 통째로 맡겨야 가장 부드럽다. */
+      /* 넘김 감도 — 마우스로 글자를 고르다가 툭하면 다음 문항으로 넘어가서 문턱을 올렸다.
+         마우스는 손가락보다 미세하게 움직이므로 더 많이 끌어야 넘김으로 친다. */
+      const MIN = ev.pointerType === "mouse" ? 34 : 18;
+      if(Math.abs(dx) < MIN && Math.abs(dy) < MIN) return;
       if(track.classList.contains("vert")) dragMode = "v";
-      else dragMode = Math.abs(dx) > Math.abs(dy) * 1.15 ? "h" : "v";
+      /* 가로가 세로보다 확실히 우세할 때만 넘김으로 본다 (1.15배 → 1.6배) */
+      else dragMode = Math.abs(dx) > Math.abs(dy) * 1.6 ? "h" : "v";
     }
     if(dragMode === "h"){
       ev.preventDefault();
@@ -891,7 +905,9 @@ function setupZoom(zoomwrap, zoomstage){
       const vx = dx / dt;
       const w = track.clientWidth || 1;
       let target = S.idx;
-      if(Math.abs(dx) > w*0.18 || Math.abs(vx) > 0.35){
+      /* 넘어가는 데 필요한 거리·속도도 올렸다 (화면 폭의 18% → 32%, 속도 0.35 → 0.75) */
+      const mouse = ev.pointerType === "mouse";
+      if(Math.abs(dx) > w*(mouse ? 0.32 : 0.24) || Math.abs(vx) > (mouse ? 0.75 : 0.5)){
         target = dx < 0 ? Math.min(S.idx+1, S.questions.length-1) : Math.max(S.idx-1, 0);
       }
       jump(target); // 가장 가까운 문항으로 부드럽게 스냅 (안 넘어가도 제자리로 스냅됨)
@@ -1281,21 +1297,26 @@ function hlSet(qid, key, ranges){
   LS.set("hl", S.hl);
 }
 function hlMerge(list){
-  const a = list.filter(r=>r[1]>r[0]).map(r=>[r[0],r[1]]).sort((x,y)=>x[0]-y[0]);
+  /* 형광펜끼리, 취소선끼리만 이어 붙인다. 종류가 다르면 겹쳐도 따로 남긴다. */
   const out = [];
-  for(const r of a){
-    const last = out[out.length-1];
-    if(last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
-    else out.push(r);
+  for(const kind of ["h", "s"]){
+    const a = list.filter(r => (r[2] === "s" ? "s" : "h") === kind && r[1] > r[0])
+                  .map(r => [r[0], r[1], kind]).sort((x, y) => x[0] - y[0]);
+    for(const r of a){
+      const last = out[out.length-1];
+      if(last && last[2] === kind && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
+      else out.push(r);
+    }
   }
   return out;
 }
 function hlSubtract(ranges, s, e){
   const out = [];
-  for(const [a,b] of ranges){
-    if(b <= s || a >= e){ out.push([a,b]); continue; }
-    if(a < s) out.push([a,s]);
-    if(b > e) out.push([e,b]);
+  for(const r of ranges){
+    const [a, b] = r, k = r[2] === "s" ? "s" : "h";
+    if(b <= s || a >= e){ out.push([a, b, k]); continue; }
+    if(a < s) out.push([a, s, k]);
+    if(b > e) out.push([e, b, k]);
   }
   return out;
 }
@@ -1337,7 +1358,7 @@ function hlPointAt(map, node, offset){
 
 /* 저장된 글자 범위대로 <mark> 를 다시 씌운다 */
 function hlPaint(block, ranges){
-  block.querySelectorAll("mark.hl").forEach(m => {
+  block.querySelectorAll("mark.hlm").forEach(m => {
     const p = m.parentNode;
     while(m.firstChild) p.insertBefore(m.firstChild, m);
     p.removeChild(m);
@@ -1345,21 +1366,33 @@ function hlPaint(block, ranges){
   block.normalize();
   if(!ranges || !ranges.length) return;
   const map = hlNodes(block);
-  /* 한 노드 안에서는 뒤쪽 조각부터 잘라야 앞쪽 글자 번호가 안 흔들린다 */
+
+  /* 형광펜과 취소선이 겹칠 수 있으므로, 구간을 그냥 잘라 넣지 않고
+     글자마다 어떤 표시가 걸렸는지 적어둔 뒤 같은 표시가 이어지는 만큼 한 번에 감싼다. */
   for(let i = map.length - 1; i >= 0; i--){
-    const t = map[i];
-    const segs = [];
-    for(const [s,e] of ranges){
-      const a = Math.max(s, t.start), b = Math.min(e, t.end);
-      if(b > a) segs.push([a - t.start, b - t.start]);
+    const t = map[i], len = t.end - t.start;
+    if(len <= 0) continue;
+    const kinds = new Array(len).fill("");
+    for(const r of ranges){
+      const [s0, e0] = r, kind = r[2] === "s" ? "s" : "h";
+      const a0 = Math.max(s0, t.start), b0 = Math.min(e0, t.end);
+      for(let c = a0 - t.start; c < b0 - t.start; c++)
+        if(!kinds[c].includes(kind)) kinds[c] += kind;
     }
-    segs.sort((x,y)=>y[0]-x[0]);
-    for(const [a,b] of segs){
+    const runs = [];
+    let c = 0;
+    while(c < len){
+      if(!kinds[c]){ c++; continue; }
+      let j = c; while(j < len && kinds[j] === kinds[c]) j++;
+      runs.push([c, j, kinds[c]]); c = j;
+    }
+    runs.sort((x, y) => y[0] - x[0]);          // 뒤에서부터 잘라야 앞 글자 번호가 안 흔들린다
+    for(const [a1, b1, kind] of runs){
       const node = t.node;
-      if(b < node.nodeValue.length) node.splitText(b);
-      const target = a > 0 ? node.splitText(a) : node;
+      if(b1 < node.nodeValue.length) node.splitText(b1);
+      const target = a1 > 0 ? node.splitText(a1) : node;
       const mk = document.createElement("mark");
-      mk.className = "hl";
+      mk.className = "hlm" + (kind.includes("h") ? " hl" : "") + (kind.includes("s") ? " st" : "");
       target.parentNode.replaceChild(mk, target);
       mk.appendChild(target);
     }
@@ -1378,6 +1411,7 @@ function hlHide(){ $("#hlbar")?.classList.remove("on"); HLSEL = null; }
 function hlShow(rect, canDelete, canAdd = true){
   const bar = $("#hlbar"); if(!bar) return;
   $("#hlAdd").hidden = !canAdd;
+  $("#hlStrike").hidden = !canAdd;
   $("#hlDel").hidden = !canDelete;
   bar.classList.add("on");
   const w = bar.offsetWidth, h = bar.offsetHeight;
@@ -1442,6 +1476,14 @@ $("#hlAdd")?.addEventListener("click", ()=>{
   if(!HLSEL) return;
   const {qid,key,s,e,block} = HLSEL;
   hlSet(qid, key, hlMerge([...hlGet(qid,key), [s,e]]));
+  hlPaint(block, hlGet(qid,key));
+  getSelection()?.removeAllRanges();
+  hlHide();
+});
+$("#hlStrike")?.addEventListener("click", ()=>{
+  if(!HLSEL) return;
+  const {qid,key,s,e,block} = HLSEL;
+  hlSet(qid, key, hlMerge([...hlGet(qid,key), [s,e,"s"]]));
   hlPaint(block, hlGet(qid,key));
   getSelection()?.removeAllRanges();
   hlHide();
