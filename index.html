@@ -274,13 +274,13 @@ body.haspin .qnote{display:grid}
   border-radius:999px;border:1.4px solid var(--rule);
   /* 아직 안 본 번호도 읽을 수 있어야 한다. 예전에는 연한 회색이라
      200개가 뿌옇게 깔려 어디가 어딘지 분간이 안 됐다. */
-  font:500 12px/1 var(--font-m);color:color-mix(in srgb,var(--ink) 72%,transparent);
-  background:var(--card);
+  font:500 12px/1 var(--font-m);color:var(--ink);
+  background:#fff;
   display:grid;place-items:center;transition:all .16s;
 }
-/* 본 것은 색을 빼서 "남은 것"이 눈에 띄게 한다 (반대로 하면 할 일이 안 보인다) */
-.bub.seen{background:color-mix(in srgb,var(--ink) 7%,transparent);
-  border-color:transparent;color:color-mix(in srgb,var(--ink) 45%,transparent)}
+/* 본 문항이라고 흐리게 만들지 않는다 — 번호는 늘 같은 흰 바탕에 또렷하게.
+   테두리만 살짝 진해져서 "봤다"는 표시만 남는다. */
+.bub.seen{border-color:color-mix(in srgb,var(--ink) 32%,transparent)}
 /* 10의 배수에 굵은 테두리 — 200개 넘어가면 눈금이 있어야 위치를 잡는다 */
 .bub.tick{border-color:color-mix(in srgb,var(--accent) 45%,transparent);font-weight:700}
 
@@ -303,7 +303,7 @@ body.haspin .qnote{display:grid}
   content:"";position:absolute;top:-1px;right:-1px;width:6px;height:6px;
   border-radius:50%;background:var(--stamp);
 }
-.bub.now{background:var(--ink);border-color:var(--ink);color:var(--paper);font-weight:600}
+.bub.now{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:600}
 
 /* ── 스와이프 트랙 ───────────────────────────── */
 .track{
@@ -481,6 +481,7 @@ html[data-theme="dark"] #blank{background:#fff}
       font:600 11px/1 var(--font-d);white-space:nowrap;cursor:pointer}
 .delx:active{background:color-mix(in srgb,var(--stamp) 12%,transparent)}
 body.manage .delx{display:inline-flex}
+body.authed .delx.edit{display:inline-flex}   /* 이름·연도 고치기는 정리 모드가 아니어도 */
 .delx.wipe{border-color:var(--ink-2);color:var(--ink-2)}
 .subj .delx,.row .delx{margin-left:6px}
 .qhead .delx{margin-left:2px}
@@ -609,6 +610,13 @@ mark.hlm{background:transparent;color:inherit}
 .jlegend i.star{background:var(--stamp)}
 .jlegend i.ink{background:var(--accent)}
 .jlegend i.seen{background:var(--rule)}
+.exl{display:block;font:600 10.5px/1 var(--font-d);letter-spacing:.08em;color:var(--ink-2);margin:0 0 6px}
+.exi{width:100%;padding:10px 12px;border:1.4px solid var(--rule);border-radius:9px;
+  background:var(--paper);color:var(--ink);font:500 14px/1.2 Pretendard,sans-serif}
+.exi:focus{outline:0;border-color:var(--accent)}
+.exh{font-size:11.5px;color:var(--ink-2);line-height:1.6;margin-top:6px}
+.exh b{color:var(--ink);font-weight:600}
+.delx.edit{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
 .jrow2{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-2);cursor:pointer}
 .jrow2 input{accent-color:var(--accent)}
 .jbody{flex:1;min-height:0;overflow-y:auto;padding:6px 16px 16px}
@@ -917,6 +925,7 @@ async function inkRefresh(session){
   $("#inkPopOut").hidden = !S.loggedIn;
   $("#inkAuthBtn").classList.toggle("on", S.loggedIn);
   $$(".qink").forEach(b => b.classList.toggle("loggedin", S.loggedIn));
+  document.body.classList.toggle("authed", S.loggedIn);   /* 고치기 단추 보이기용 */
   if(!S.loggedIn) setManage(false);
   /* 고치기 단추들은 로그인 여부를 보고 그릴지 말지를 정한다. 그래서 로그인 상태가
      바뀌면 이미 그려둔 문항을 다시 그려야 단추가 나타나거나 사라진다.
@@ -1980,10 +1989,15 @@ async function viewExams(subjectId){
         <span class="no">${esc(sessBadge(e))}</span>
         <span class="ttl">${esc(e.label)}${e.note?` · ${esc(e.note)}`:""}</span>
         <span class="cnt">${pos?`${pos+1} / `:""}${e.question_count}문항</span>
+        <span class="delx edit" data-editexam="${e.id}">이름·연도 고치기</span>
         <span class="delx wipe" data-wipe="${e.id}">문항 비우기</span>
         <span class="delx" data-delexam="${e.id}">회차 삭제</span>
         <span class="chev">›</span>
       </button>`}).join("")}</div>`).join("");
+  $$("#exams [data-editexam]").forEach(el => el.onclick = ev => {
+    ev.preventDefault(); ev.stopPropagation();
+    editExam(el.dataset.editexam, subjectId);
+  });
   $$("#exams .mixb").forEach(b=>b.onclick=()=>go(`#/mix/${subjectId}/${b.dataset.mode}`));
   /* 시험 정보는 누를 때 처음 한 번만 계산한다 — 회차 목록이 뜨는 속도를 늦추지 않게 */
   const ib = $("#infoBtn"), ip = $("#infoPanel");
@@ -3187,6 +3201,78 @@ const railTwo = () => LS.get("railTwo", 1) === 1;
 function applyRailRows(){
   const rail = $("#rail"); if(!rail) return;
   rail.classList.toggle("two", railTwo() && S.questions.length > 40);
+}
+
+/* ═══════════════════════════════════════════════
+   회차 정보 고치기 — 이름 · 연도(묶음) · 회차(순서)
+   exam_list 는 뷰라 직접 못 고친다. 전용 함수(set_exam_meta)를 부른다.
+   ═══════════════════════════════════════════════ */
+function editExam(examId, subjectId){
+  if(!S.loggedIn) return needLoginPop();
+  const e = S.exams.find(x => String(x.id) === String(examId));
+  if(!e) return;
+  document.getElementById("exOv")?.remove();
+
+  const ov = document.createElement("div");
+  ov.className = "jumpov on"; ov.id = "exOv";
+  ov.innerHTML = `<div class="jumpbox" style="max-width:460px">
+    <div class="jtop"><b>회차 고치기</b><span class="jstat">#${e.id}</span>
+      <button class="figbtn" data-exclose type="button">닫기</button></div>
+    <div style="padding:14px 16px">
+      <label class="exl">화면에 보일 이름</label>
+      <input class="exi" id="exLabel" value="${esc(e.label || "")}" placeholder="예: 2021~2026 합본">
+      <div class="exh">목록에 크게 보이는 글입니다. <b>맨 끝 낱말</b>이 왼쪽 동그란 배지가 됩니다
+        («위험물 6개년 합본» → 배지 «합본»).</div>
+
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <div style="flex:1">
+          <label class="exl">연도 (묶음 제목)</label>
+          <input class="exi" id="exYear" type="number" value="${e.year ?? ""}" placeholder="2021">
+        </div>
+        <div style="flex:1">
+          <label class="exl">회차 (정렬 순서)</label>
+          <input class="exi" id="exSess" type="number" value="${e.session ?? ""}" placeholder="1">
+        </div>
+      </div>
+      <div class="exh">이 둘은 <b>숫자만</b> 들어갑니다 — 목록을 묶고 줄 세우는 데만 씁니다.
+        글자로 보이고 싶은 건 위 «이름» 에 쓰세요.</div>
+
+      <div class="bar" style="justify-content:flex-end;margin-top:16px">
+        <button class="figbtn" data-exclose type="button">취소</button>
+        <button class="figbtn save" data-exsave type="button">저장</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelectorAll("[data-exclose]").forEach(b => b.onclick = close);
+  ov.addEventListener("click", ev => { if(ev.target === ov) close(); });
+
+  ov.querySelector("[data-exsave]").onclick = async () => {
+    const label = document.getElementById("exLabel").value.trim();
+    const y = document.getElementById("exYear").value.trim();
+    const n = document.getElementById("exSess").value.trim();
+    const r = await sb.rpc("set_exam_meta", {
+      p_exam_id: e.id,
+      p_label: label || null,
+      p_year: y === "" ? null : +y,
+      p_session: n === "" ? null : +n
+    });
+    if(r.error){
+      return toast(/set_exam_meta|schema cache/i.test(r.error.message)
+        ? "supabase-회차이름.sql 을 한 번 돌려 주세요."
+        : "고치지 못했습니다 — " + r.error.message);
+    }
+    close(); toast("고쳤습니다.");
+    S.exams = [];                 /* 목록을 새로 읽어 온다 */
+    viewExams(subjectId);
+  };
+  document.getElementById("exLabel").focus();
+}
+
+function needLoginPop(){
+  setTimeout(() => $("#inkPop")?.classList.add("on"), 0);
+  toast("로그인해야 고칠 수 있습니다.");
 }
 
 function jumpGridClose(){ document.getElementById("jumpOv")?.remove(); }
