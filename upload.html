@@ -90,6 +90,26 @@ tr.nowrow td{outline:1.5px solid var(--accent);outline-offset:-1.5px}
 .src a{color:var(--ink-2)}
 .src b{color:var(--ink);font-weight:600}
 
+.hscroll{overflow-x:auto;overflow-y:hidden;margin:6px -16px 0;padding:0 16px 6px;
+  -webkit-overflow-scrolling:touch;scroll-behavior:smooth}
+.hscroll svg{display:block}
+.strip{display:flex;gap:0;overflow-x:auto;overflow-y:hidden;margin:6px -16px 0;padding:6px 16px 10px;
+  scrollbar-width:thin;-webkit-overflow-scrolling:touch;scroll-behavior:smooth}
+.hcell{flex:0 0 auto;width:50px;text-align:center;position:relative;padding:2px 0}
+.hcell + .hcell{border-left:1px solid color-mix(in srgb,var(--rule) 55%,transparent)}
+.hcell.past{opacity:.42}
+.hcell.now{background:color-mix(in srgb,var(--accent) 9%,transparent);border-radius:9px}
+.hcell .hh{font:600 10.5px/1.3 var(--font-m);color:var(--ink-2);height:26px}
+.hcell.now .hh{color:var(--accent);font-weight:700}
+.hcell .hh em{display:block;font:700 9.5px/1.2 var(--font-d);color:var(--stamp);font-style:normal}
+.hcell .ic{font-size:15px;line-height:1.5}
+.hcell .tp{font:600 13px/1.4 var(--font-m)}
+.hcell .pp{font:400 10px/1.4 var(--font-m);color:var(--accent);min-height:14px}
+.hcell .bwrap{height:38px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px}
+.hcell .bar{width:14px;border-radius:3px 3px 0 0}
+.hcell .bar.rn{background:var(--accent)}
+.hcell .bar.sn{background:var(--snow)}
+.hcell .mm{font:500 9.5px/1.3 var(--font-m);color:var(--ink-2);min-height:13px}
 .nav3{display:flex;gap:2px;padding:7px 8px;overflow-x:auto;padding-top:calc(7px + env(safe-area-inset-top));background:var(--ink);}
 .nav3 a{flex:1;text-align:center;padding:7px 6px;border-radius:8px;font:600 11.5px/1 var(--font-d);letter-spacing:.02em;color:color-mix(in srgb, var(--paper) 55%, transparent);text-decoration:none;transition:background .15s,color .15s;white-space:nowrap}
 .nav3 a.on{background:color-mix(in srgb, var(--paper) 15%, transparent);color:var(--paper)}
@@ -113,21 +133,23 @@ tr.nowrow td{outline:1.5px solid var(--accent);outline-offset:-1.5px}
 
   <div class="card">
     <div class="eyebrow">지점</div>
-    <div class="grid" style="margin-bottom:10px">
-      <div><label>시 · 도</label><select id="sido"></select></div>
-      <div><label>시 · 군 · 구</label><select id="sigungu"></select></div>
+    <div class="picked" id="picked">—</div>
+    <div class="bar" style="margin-bottom:10px">
+      <button class="ghost sm" id="here">📍 내 위치</button>
+      <button class="ghost sm" id="reset">시·도부터 다시</button>
     </div>
-    <div class="bar" style="margin-bottom:14px">
-      <button class="sm" id="pickGo">이 지점으로 보기</button>
-      <button class="ghost sm" id="here">내 위치</button>
+    <div id="favWrap"></div>
+    <div class="steplbl" id="stepLbl">1 · 시 · 도</div>
+    <div class="blocks" id="blocks"></div>
+    <div id="dongWrap" class="hide">
+      <div class="steplbl">3 · 읍 · 면 · 동 (선택)</div>
+      <div class="bar">
+        <input id="q" placeholder="예: 역삼 / 정자 / 신봉" style="flex:1;min-width:130px">
+        <button class="sm" id="find">찾기</button>
+      </div>
+      <div class="blocks" id="dongs"></div>
+      <div class="hint">시·군·구까지만 골라도 예보는 나옵니다. 읍·면·동은 더 좁히고 싶을 때만 쓰세요.</div>
     </div>
-    <label>더 좁혀서 — 동·읍·면 이름으로 검색</label>
-    <div class="bar">
-      <input id="q" placeholder="예: 역삼동 / 정자 / 강남구 / 대덕읍" style="flex:1;min-width:150px">
-      <button class="ghost sm" id="find">찾기</button>
-    </div>
-    <div class="hits" id="hits"></div>
-    <div class="hint" id="place">—</div>
   </div>
 
   <div class="card">
@@ -157,13 +179,13 @@ tr.nowrow td{outline:1.5px solid var(--accent);outline-offset:-1.5px}
       <div class="cell snow"><div class="k">쌓인 눈</div><div class="v" id="sDep">—</div></div>
       <div class="cell"><div class="k">비/눈 오는 시간</div><div class="v" id="pHrs">—</div></div>
     </div>
-    <svg class="chart" id="rainC" viewBox="0 0 340 130" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="strip" id="strip"></div>
     <div class="bar" style="margin-top:10px">
       <button class="ghost sm" id="more">시간별로 자세히 보기 (지난 24h ~ 앞으로 24h)</button>
       <span class="hint" style="margin:0" id="sky">—</span>
     </div>
     <div class="tblwrap" id="tblwrap"><table id="tbl"></table></div>
-    <div class="hint">그래프와 표는 <b>지난 24시간 ~ 앞으로 24시간</b>입니다. 흐린 막대가 지나간 시간, 빨간 세로선이 지금입니다.<br>강수는 mm(1mm = 1L/m²), 눈은 cm 단위의 <b>새로 내린 양</b>, 쌓인 눈은 지면 적설 깊이입니다.
+    <div class="hint">시간대 띠는 <b>지금을 가운데 두고 지난 24시간 ~ 앞으로 24시간</b>입니다. 좌우로 밀어 보세요. 흐린 칸이 지나간 시간입니다.<br>강수는 mm(1mm = 1L/m²), 눈은 cm 단위의 <b>새로 내린 양</b>, 쌓인 눈은 지면 적설 깊이입니다.
       같은 물 1mm가 기온에 따라 대략 0.5~2cm로 쌓입니다.</div>
   </div>
 
@@ -174,7 +196,7 @@ tr.nowrow td{outline:1.5px solid var(--accent);outline-offset:-1.5px}
       <div><label>접근온도 approach (K)</label><input id="app" type="number" step="0.5" value="3"></div>
     </div>
     <div id="verdicts"></div>
-    <svg class="chart" id="day" viewBox="0 0 340 150" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="hscroll" id="day"></div>
     <div class="hint">공랭식(건식 쿨러·프리쿨링 코일)은 <b>건구온도</b>, 냉각탑을 쓰는 습식은 <b>습구온도</b>가 기준입니다.
       외기가 <span style="font-family:var(--font-m)">출수온도 − 접근온도</span>보다 낮으면 완전,
       <span style="font-family:var(--font-m)">출수온도</span>보다 낮으면 부분 프리쿨링으로 봅니다.</div>
@@ -275,31 +297,6 @@ const KR = {
   "제주특별자치도":[["제주시",33.500,126.531],["서귀포시",33.254,126.560]]
 };
 
-function fillSido(){
-  const sel = $("#sido");
-  sel.innerHTML = Object.keys(KR).map(k => `<option>${k}</option>`).join("");
-  const saved = localStorage.getItem("gichul:sido");
-  if(saved && KR[saved]) sel.value = saved;
-  fillSigungu();
-}
-function fillSigungu(){
-  const sido = $("#sido").value;
-  $("#sigungu").innerHTML = KR[sido].map((r,i) => `<option value="${i}">${r[0]}</option>`).join("");
-  const saved = localStorage.getItem("gichul:sigungu:" + sido);
-  if(saved != null && KR[sido][+saved]) $("#sigungu").value = saved;
-}
-$("#sido").onchange = fillSigungu;
-$("#pickGo").onclick = () => {
-  const sido = $("#sido").value, i = +$("#sigungu").value;
-  const r = KR[sido][i]; if(!r) return;
-  localStorage.setItem("gichul:sido", sido);
-  localStorage.setItem("gichul:sigungu:" + sido, String(i));
-  SPOT = { name: `${sido} ${r[0]}`, lat:r[1], lon:r[2] };
-  localStorage.setItem("gichul:spot", JSON.stringify(SPOT));
-  $("#hits").className = "hits";
-  load();
-};
-
 /* ══ 카드 접기·펼치기 ══ 항목이 많아 한 화면에 안 들어오므로, 눈여겨볼 카드만 펴둔다 */
 function setupFold(){
   document.querySelectorAll(".card > .eyebrow").forEach((eb, i) => {
@@ -319,107 +316,163 @@ function setupFold(){
   });
 }
 
-let NOW = null, HOURS = [], DAY = null, P_KPA = 101.325, NOWI = 0;
+let NOW = null, HOURS = [], P_KPA = 101.325, NOWI = 0, MODEL = "";
 let SPOT = JSON.parse(localStorage.getItem("gichul:spot") || "null")
         || { name:"서울특별시 중구", lat:37.5665, lon:126.9780 };
 
-/* ── 지점 검색 ── */
-async function search(name){
-  if(!name.trim()) return;
-  say("지점을 찾는 중…");
-  try{
-    /* 지오코더가 "역삼동"은 못 찾고 "역삼"은 찾는 경우가 흔하다.
-       그래서 ① 입력 그대로 ② 동/읍/면/리 꼬리를 뗀 것 ③ 마지막 낱말만
-       세 가지로 같이 물어보고 결과를 합친다. 동 단위가 안 잡히면 상위 행정구역이라도 잡힌다. */
-    const raw = name.trim();
-    const variants = [...new Set([raw, raw.replace(/[동읍면리가]$/, ""), raw.split(/\s+/).pop()])]
-                       .filter(v => v && v.length >= 2);
-    const packs = await Promise.all(variants.map(v =>
-      fetch("https://geocoding-api.open-meteo.com/v1/search"
-            + `?name=${encodeURIComponent(v)}&count=10&language=ko&format=json`)
-        .then(r => r.ok ? r.json() : { results: [] }).catch(() => ({ results: [] }))));
+/* ══ 지점 고르기 — 눌러서 좁혀 간다 ══════════════════════════
+   드롭다운은 손가락으로 두 번 열어야 해서 답답했다. 위의 KR 표(좌표 포함)를 그대로 써서
+   시·도 → 시·군·구를 블록으로 눌러 고른다. 좌표가 표에 있으니 조회 없이 즉시 뜬다.
+   읍·면·동은 전국 3천여 개라 표에 못 넣는다 — 고른 시·군·구 안에서 좁혀 찾는 칸을 따로 뒀다. */
+let SIDO_SEL = localStorage.getItem("gichul:sido") || "서울특별시";
+if(!KR[SIDO_SEL]) SIDO_SEL = "서울특별시";
 
-    const seen = new Set(), list = [];
-    for(const d of packs)
-      for(const r of (d.results || [])){
-        if(r.country_code !== "KR") continue;
-        const key = r.latitude.toFixed(3) + "," + r.longitude.toFixed(3);
-        if(seen.has(key)) continue;
-        seen.add(key); list.push(r);
-      }
-    /* 입력한 글자로 시작하는 지명을 위로 올린다 */
-    list.sort((a, b) => (b.name.startsWith(raw) ? 1 : 0) - (a.name.startsWith(raw) ? 1 : 0));
-    if(!list.length){ say("그 이름으로는 못 찾았습니다.\n동 이름이 안 잡히면 상위 구·시(예: \"강남구\", \"성남시 분당구\")로 검색해 보세요.", "err"); return; }
+const FAVKEY = "gichul:spots";
+const favs = () => { try{ return JSON.parse(localStorage.getItem(FAVKEY) || "[]"); }catch(e){ return []; } };
+const saveSpot = () => localStorage.setItem("gichul:spot", JSON.stringify(SPOT));
+function remember(spot){
+  const list = favs().filter(x => x.name !== spot.name);
+  list.unshift(spot);
+  localStorage.setItem(FAVKEY, JSON.stringify(list.slice(0, 6)));
+  drawFavs();
+}
+function drawFavs(){
+  const list = favs();
+  $("#favWrap").innerHTML = list.length
+    ? `<div class="steplbl">최근 본 곳</div><div class="blocks">`
+      + list.map((f, i) => `<button class="blk fav" data-fav="${i}">${f.name.split(" ").slice(-1)[0]}<span>${f.name}</span></button>`).join("")
+      + `</div>` : "";
+  $("#favWrap").querySelectorAll("[data-fav]").forEach(b => b.onclick = () => {
+    SPOT = favs()[+b.dataset.fav]; saveSpot(); load();
+  });
+}
+
+const shortSido = k => k.replace("특별자치도","").replace("특별자치시","").replace("특별시","").replace("광역시","").replace(/도$/,"");
+function drawSido(){
+  $("#stepLbl").textContent = "1 · 시 · 도";
+  $("#dongWrap").className = "hide";
+  $("#blocks").innerHTML = Object.keys(KR)
+    .map(k => `<button class="blk${k===SIDO_SEL?" on":""}" data-sido="${k}">${shortSido(k)}</button>`).join("");
+  $("#blocks").querySelectorAll("[data-sido]").forEach(b => b.onclick = () => {
+    SIDO_SEL = b.dataset.sido;
+    localStorage.setItem("gichul:sido", SIDO_SEL);
+    drawGu();
+  });
+}
+function drawGu(){
+  $("#stepLbl").innerHTML = `2 · 시 · 군 · 구 <span class="crumb">${SIDO_SEL}</span>
+    <button class="mini" id="upSido">시·도 바꾸기</button>`;
+  $("#blocks").innerHTML = KR[SIDO_SEL].map((r, i) => `<button class="blk" data-gu="${i}">${r[0]}</button>`).join("");
+  $("#upSido").onclick = drawSido;
+  $("#blocks").querySelectorAll("[data-gu]").forEach(b => b.onclick = () => {
+    const r = KR[SIDO_SEL][+b.dataset.gu];
+    SPOT = { name:`${SIDO_SEL} ${r[0]}`, lat:r[1], lon:r[2] };
+    saveSpot(); remember(SPOT);
+    $("#dongWrap").className = "";
+    $("#dongs").innerHTML = ""; $("#q").value = "";
+    load();
+  });
+}
+
+/* 읍·면·동은 좌표를 지어낼 수 없으므로 지오코더에 물어본다 */
+async function findDong(){
+  const term = $("#q").value.trim();
+  if(term.length < 2) return say("두 글자 이상 넣어 주세요 (예: 역삼).", "err");
+  say("읍·면·동을 찾는 중…");
+  try{
+    const u = "https://geocoding-api.open-meteo.com/v1/search"
+      + `?name=${encodeURIComponent(term)}&count=20&language=ko&format=json`;
+    const d = await fetch(u).then(r => r.ok ? r.json() : { results:[] });
+    let list = (d.results || []).filter(r => r.country_code === "KR");
+    const head = shortSido(SIDO_SEL).slice(0, 2);
+    const near = list.filter(r => (r.admin1 || "").includes(head));
+    if(near.length) list = near;                    /* 고른 시·도 안을 먼저 보여준다 */
+    list = list.slice(0, 12);
+    if(!list.length) return say("못 찾았습니다. 두 글자만 넣어 보세요(예: 역삼).", "err");
     hide();
-    $("#hits").className = "hits on";
-    $("#hits").innerHTML = list.map((r, i) => {
-      const admin = [r.admin1, r.admin2, r.admin3].filter(Boolean).join(" ");
-      return `<div class="hit" data-i="${i}"><b>${r.name}</b> <span>${admin}</span></div>`;
-    }).join("");
-    $("#hits").querySelectorAll(".hit").forEach(el => el.onclick = () => {
-      const r = list[+el.dataset.i];
-      SPOT = { name:[r.admin1, r.admin2, r.admin3, r.name].filter(Boolean).join(" "), lat:r.latitude, lon:r.longitude };
-      localStorage.setItem("gichul:spot", JSON.stringify(SPOT));
-      $("#hits").className = "hits"; $("#q").value = "";
-      load();
+    $("#dongs").innerHTML = list.map((r, i) =>
+      `<button class="blk sm2" data-d="${i}">${r.name}<span>${[r.admin1, r.admin2].filter(Boolean).join(" ")}</span></button>`).join("");
+    $("#dongs").querySelectorAll("[data-d]").forEach(b => b.onclick = () => {
+      const r = list[+b.dataset.d];
+      SPOT = { name:[r.admin1, r.admin2, r.name].filter(Boolean).join(" "), lat:r.latitude, lon:r.longitude };
+      saveSpot(); remember(SPOT); load();
     });
   }catch(e){ say("검색에 실패했습니다 — " + e.message, "err"); }
 }
 
-/* ── 예보 받기 (기상청 모델 고정) ── */
-async function load(){
-  $("#place").textContent = `${SPOT.name} · ${(+SPOT.lat).toFixed(4)}, ${(+SPOT.lon).toFixed(4)}`;
-  say("기상청 모델 자료를 받는 중…");
-  const u = "https://api.open-meteo.com/v1/forecast"
-    + `?latitude=${SPOT.lat}&longitude=${SPOT.lon}`
-    + "&models=kma_seamless"
-    + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,surface_pressure,precipitation,rain,snowfall,snow_depth,weather_code"
-    + "&hourly=temperature_2m,relative_humidity_2m,surface_pressure,precipitation,precipitation_probability,rain,snowfall,snow_depth"
-    + "&daily=precipitation_sum,rain_sum,snowfall_sum,precipitation_hours"
-    + "&past_days=1&forecast_days=2&timezone=Asia%2FSeoul";   /* 지난 24시간까지 같이 받는다 */
-  try{
-    const d = await fetch(u).then(r => r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status)));
-    const c = d.current;
-    P_KPA = (c.surface_pressure || 1013.25) / 10;
-    NOW = psy(c.temperature_2m, c.relative_humidity_2m, P_KPA);
-    Object.assign(NOW, {
-      ap:c.apparent_temperature, prcp:c.precipitation ?? 0, rain:c.rain ?? 0,
-      snow:c.snowfall ?? 0, depth:c.snow_depth ?? 0, code:c.weather_code
-    });
-    DAY = {
-      rain:d.daily.rain_sum?.[0] ?? 0, prcp:d.daily.precipitation_sum?.[0] ?? 0,
-      snow:d.daily.snowfall_sum?.[0] ?? 0, hours:d.daily.precipitation_hours?.[0] ?? 0
-    };
-    const today = new Date().toISOString().slice(0,10), nowH = new Date().getHours();
-    HOURS = d.hourly.time.map((iso, i) => {
-      const db = d.hourly.temperature_2m[i], rh = d.hourly.relative_humidity_2m[i];
-      if(db == null || rh == null) return null;
-      const p = (d.hourly.surface_pressure[i] || 1013.25) / 10;
-      return {
-        iso, hour:+iso.slice(11,13), day:iso.slice(0,10), db, rh,
-        wb: psy(db, rh, p).twb,
-        prcp: d.hourly.precipitation[i] ?? 0,
-        pop:  d.hourly.precipitation_probability?.[i] ?? null,
-        snow: d.hourly.snowfall[i] ?? 0,
-        depth:(d.hourly.snow_depth?.[i] ?? 0) * 100      /* m → cm */
-      };
-    }).filter(Boolean);
+$("#find").onclick = findDong;
+$("#q").addEventListener("keydown", e => { if(e.key === "Enter") findDong(); });
+$("#reset").onclick = drawSido;
+$("#here").onclick = () => {
+  if(!navigator.geolocation) return say("이 브라우저는 위치를 알려주지 않습니다.", "err");
+  say("위치를 확인하는 중…");
+  navigator.geolocation.getCurrentPosition(
+    p => { SPOT = { name:"현재 위치", lat:+p.coords.latitude.toFixed(4), lon:+p.coords.longitude.toFixed(4) };
+           saveSpot(); remember(SPOT); load(); },
+    () => say("위치를 가져오지 못했습니다. 아래에서 시·도부터 골라 주세요.", "err"),
+    { timeout: 8000 });
+};
 
-    /* 지금 시각을 가운데 두고 [지난 24시간 … 앞으로 24시간] 만 남긴다.
-       비/눈은 "지금 0.0mm" 만 보여주면 아무 정보가 없다 —
-       방금 전까지 얼마나 왔는지, 앞으로 얼마나 올지가 있어야 판단이 된다. */
-    const nowMs = Date.now();
-    HOURS.forEach(h => {
-      h.ms   = new Date(h.iso).getTime();
-      h.past = h.ms < nowMs - 30 * 60 * 1000;
-      h.isNow = Math.abs(h.ms - nowMs) <= 30 * 60 * 1000;
-    });
-    HOURS = HOURS.filter(h => h.ms >= nowMs - 24.5 * 3600e3 && h.ms <= nowMs + 24.5 * 3600e3);
-    NOWI = Math.max(0, HOURS.findIndex(h => !h.past));
-    hide(); render();
-  }catch(e){
-    say("자료를 받지 못했습니다 — " + e.message + "\n잠시 뒤 다시 눌러보세요.", "err");
+/* ── 예보 받기 ──────────────────────────────────────────────
+   예전에는 ① models=kma_seamless 를 못 쓰는 조합이거나 ② current 블록의 항목 하나가
+   그 모델에 없으면 요청 전체가 에러로 떨어져 화면이 통째로 비었다.
+   그래서 ① 기상청 모델을 먼저 시도하고 안 되면 기본 모델로 물러서고,
+        ② "지금 값"은 current 블록에 기대지 않고 시간별 자료에서 현재 시각을 집어 쓴다.
+   시간별만 살아 있으면 표·그래프·판정이 전부 그려진다. */
+function url(lat, lon, model){
+  return "https://api.open-meteo.com/v1/forecast"
+    + `?latitude=${lat}&longitude=${lon}`
+    + (model ? `&models=${model}` : "")
+    + "&hourly=temperature_2m,relative_humidity_2m,surface_pressure,precipitation,"
+    + "precipitation_probability,rain,snowfall,snow_depth,weather_code,apparent_temperature"
+    + "&past_days=1&forecast_days=2&timezone=Asia%2FSeoul";
+}
+
+async function load(){
+  $("#picked").textContent = `${SPOT.name} · ${(+SPOT.lat).toFixed(4)}, ${(+SPOT.lon).toFixed(4)}`;
+  say("기상 자료를 받는 중…");
+
+  let d = null, used = "";
+  for(const [model, name] of [["kma_seamless", "기상청 모델"], ["", "기본 모델(다중 앙상블)"]]){
+    try{
+      const r = await fetch(url(SPOT.lat, SPOT.lon, model));
+      if(!r.ok) continue;
+      const j = await r.json();
+      if(j?.hourly?.time?.length && j.hourly.temperature_2m?.some(v => v != null)){ d = j; used = name; break; }
+    }catch(e){ /* 다음 모델로 */ }
   }
+  if(!d){ say("기상 자료를 받지 못했습니다.\n잠시 뒤 지점을 다시 골라 보세요.", "err"); return; }
+
+  const H = d.hourly, pick = (k, i) => (H[k] ? H[k][i] : null);
+  const nowMs = Date.now();
+  HOURS = H.time.map((iso, i) => {
+    const db = pick("temperature_2m", i), rh = pick("relative_humidity_2m", i);
+    if(db == null || rh == null) return null;
+    const p = (pick("surface_pressure", i) || 1013.25) / 10;
+    const st = psy(db, rh, p);
+    return {
+      iso, hour:+iso.slice(11,13), day:iso.slice(0,10), ms:new Date(iso).getTime(),
+      db, rh, P:p, wb:st.twb, td:st.td, W:st.W, h:st.h, v:st.v,
+      ap:   pick("apparent_temperature", i),
+      prcp: pick("precipitation", i) || 0,
+      pop:  pick("precipitation_probability", i),
+      snow: pick("snowfall", i) || 0,
+      depth:(pick("snow_depth", i) || 0) * 100,     /* m → cm */
+      code: pick("weather_code", i)
+    };
+  }).filter(Boolean);
+
+  HOURS.forEach(h => { h.past = h.ms < nowMs - 30*60*1000; h.isNow = Math.abs(h.ms - nowMs) <= 30*60*1000; });
+  HOURS = HOURS.filter(h => h.ms >= nowMs - 24.5*3600e3 && h.ms <= nowMs + 24.5*3600e3);
+  if(!HOURS.length){ say("이 지점의 시간별 자료가 비어 있습니다.", "err"); return; }
+
+  NOWI = Math.max(0, HOURS.findIndex(h => !h.past));
+  const cur = HOURS.find(h => h.isNow) || HOURS[NOWI] || HOURS[0];
+  P_KPA = cur.P;
+  NOW = psy(cur.db, cur.rh, cur.P);
+  Object.assign(NOW, { ap:cur.ap, prcp:cur.prcp, snow:cur.snow, depth:cur.depth/100, code:cur.code });
+  MODEL = used;
+  hide(); render();
 }
 
 /* ── 그리기 ── */
@@ -433,7 +486,7 @@ function render(){
   $("#vW").innerHTML  = f(NOW.W * 1000, 1) + '<span class="u">g/kg</span>';
   $("#vH").innerHTML  = f(NOW.h) + '<span class="u">kJ/kg</span>';
   $("#vV").innerHTML  = f(NOW.v, 3) + '<span class="u">m³/kg</span>';
-  $("#stamp").textContent = `기압 ${f(P_KPA)} kPa · 기상청 모델 · ${new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"})} 기준`;
+  $("#stamp").textContent = `기압 ${f(P_KPA)} kPa · ${MODEL} · ${new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"})} 기준`;
 
   const sum = (k, past) => HOURS.filter(h => !!h.past === past).reduce((a, h) => a + (h[k] || 0), 0);
   const wetHrs = HOURS.filter(h => !h.past && (h.prcp > 0 || h.snow > 0)).length;
@@ -447,36 +500,41 @@ function render(){
   $("#pHrs").innerHTML  = wetHrs + '<span class="u">시간</span>';
   $("#sky").textContent = (SKY[NOW.code] || "—") + ` · 앞으로 24시간 강수 ${f(sum("prcp", false))}mm`;
 
-  drawRain(); freeCooling(); drawDay(); drawPsy(); coil(); drawTable();
+  drawStrip(); freeCooling(); drawDay(); drawPsy(); coil(); drawTable();
 }
 
 /* ── 강수·적설 막대 ── */
-function drawRain(){
-  const H = HOURS;
-  if(!H.length) return;
-  const W = 340, Ht = 130, L = 26, R = 8, T = 12, B = 22;
-  const max = Math.max(1, ...H.map(h => Math.max(h.prcp, h.snow)));
-  const bw = (W - L - R) / H.length;
-  const y = v => T + (1 - v / max) * (Ht - T - B);
-  let g = "";
-  for(let i = 0; i <= 2; i++){
-    const v = max * i / 2;
-    g += `<line x1="${L}" y1="${y(v)}" x2="${W-R}" y2="${y(v)}" stroke="var(--rule)"/>
-          <text x="2" y="${y(v)+3.5}" font-size="8" fill="var(--ink-2)" font-family="var(--font-m)">${v.toFixed(1)}</text>`;
-  }
-  H.forEach((h, i) => {
-    const x = L + i * bw;
-    const op = h.past ? .32 : 1;    /* 지나간 시간은 흐리게 — 앞으로 올 비와 헷갈리지 않게 */
-    if(h.prcp > 0) g += `<rect x="${x+1}" y="${y(h.prcp)}" width="${bw-2}" height="${Ht-B-y(h.prcp)}" fill="var(--accent)" opacity="${op*.78}"/>`;
-    if(h.snow > 0) g += `<rect x="${x+1}" y="${y(h.snow)}" width="${bw-2}" height="${Ht-B-y(h.snow)}" fill="var(--snow)" opacity="${op}"/>`;
-    if(h.hour % 6 === 0) g += `<text x="${x+bw/2}" y="${Ht-7}" font-size="8" fill="var(--ink-2)" text-anchor="middle" font-family="var(--font-m)">${h.hour}</text>`;
-  });
-  const nx = L + NOWI * bw;
-  g += `<line x1="${nx}" y1="${T}" x2="${nx}" y2="${Ht-B}" stroke="var(--stamp)" stroke-width="1.3"/>
-        <text x="${nx+3}" y="${T+8}" font-size="8" fill="var(--stamp)" font-family="var(--font-m)">지금</text>`;
-  g += `<text x="${L+2}" y="${T+8}" font-size="8.5" fill="var(--accent)" font-family="var(--font-m)">비 mm</text>
-        <text x="${L+44}" y="${T+8}" font-size="8.5" fill="var(--snow)" font-family="var(--font-m)">눈 cm</text>`;
-  $("#rainC").innerHTML = g;
+/* ── 시간대 띠 (네이버 시간별예보 방식) ────────────────────
+   48개 막대를 340px 안에 밀어 넣으니 아무것도 안 보였다.
+   지금을 가운데 두고 한 시간에 카드 하나씩, 가로로 밀어 보는 방식으로 바꾼다.
+   왼쪽이 지난 24시간, 오른쪽이 앞으로 24시간이다. */
+const SKY_ICON = c =>
+  c == null ? "·" :
+  c === 0 ? "☀" : c <= 2 ? "🌤" : c === 3 ? "☁" :
+  c <= 48 ? "🌫" : c <= 57 ? "🌦" : c <= 67 ? "🌧" :
+  c <= 77 ? "❄" : c <= 82 ? "🌦" : c <= 86 ? "🌨" : "⛈";
+
+function drawStrip(){
+  if(!HOURS.length) return;
+  const peak = Math.max(0.2, ...HOURS.map(h => Math.max(h.prcp, h.snow)));
+  let lastDay = "";
+  $("#strip").innerHTML = HOURS.map((h, i) => {
+    const amt = Math.max(h.prcp, h.snow);
+    const barH = amt > 0 ? Math.max(3, Math.round(amt / peak * 34)) : 0;
+    const dayMark = h.day !== lastDay ? (lastDay = h.day, `<em>${+h.day.slice(5,7)}/${+h.day.slice(8,10)}</em>`) : "";
+    return `<div class="hcell${h.past ? " past" : ""}${h.isNow ? " now" : ""}" data-i="${i}">
+      <div class="hh">${dayMark}${h.isNow ? "지금" : String(h.hour).padStart(2,"0") + "시"}</div>
+      <div class="ic">${SKY_ICON(h.code)}</div>
+      <div class="tp">${h.db.toFixed(0)}°</div>
+      <div class="pp">${h.pop == null ? "&nbsp;" : h.pop + "%"}</div>
+      <div class="bwrap">${barH ? `<div class="bar ${h.snow > 0 ? "sn" : "rn"}" style="height:${barH}px"></div>` : ""}</div>
+      <div class="mm">${amt > 0 ? amt.toFixed(1) + (h.snow > 0 ? "cm" : "mm") : "·"}</div>
+    </div>`;
+  }).join("");
+
+  /* 지금 칸을 화면 가운데로 밀어 놓는다 */
+  const el = $("#strip"), now = el.querySelector(".hcell.now") || el.children[NOWI];
+  if(now) el.scrollLeft = now.offsetLeft - el.clientWidth / 2 + now.clientWidth / 2;
 }
 
 /* ── 시간별 표(자세히) ── */
@@ -518,33 +576,44 @@ function freeCooling(){
   }).join("");
 }
 
-/* ── 24시간 온도 ── */
+/* ── 온도 그래프 ──
+   48시간을 340px 안에 그리면 한 시간이 6px 밖에 안 돼 곡선이 뭉개진다.
+   시간대 띠와 같은 폭(칸당 50px)으로 넓게 그리고 가로 스크롤로 본다. */
 function drawDay(){
   const H = HOURS;
   if(!H.length) return;
-  const W = 340, Ht = 150, L = 30, R = 8, T = 12, B = 22;
+  const CW = 50, L = 34, R = 14, T = 14, B = 24, Ht = 170;
+  const W = L + R + CW * H.length;
   const thr = +$("#chw").value - +$("#app").value;
   const temps = H.flatMap(h => [h.db, h.wb]).concat([thr]);
   const lo = Math.floor(Math.min(...temps) - 2), hi = Math.ceil(Math.max(...temps) + 2);
-  const x = i => L + i / Math.max(H.length - 1, 1) * (W - L - R);
+  const x = i => L + CW * (i + .5);
   const y = v => T + (hi - v) / Math.max(hi - lo, 1) * (Ht - T - B);
   const line = k => H.map((h, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(h[k]).toFixed(1)}`).join("");
+
   let g = "";
-  for(let v = lo; v <= hi; v += Math.max(1, Math.round((hi - lo) / 4)))
+  for(let v = lo; v <= hi; v += Math.max(1, Math.round((hi - lo) / 5)))
     g += `<line x1="${L}" y1="${y(v)}" x2="${W-R}" y2="${y(v)}" stroke="var(--rule)"/>
-          <text x="4" y="${y(v)+3.5}" font-size="8" fill="var(--ink-2)" font-family="var(--font-m)">${v}</text>`;
-  H.forEach((h, i) => { if(h.hour % 6 === 0)
-    g += `<text x="${x(i)}" y="${Ht-7}" font-size="8" fill="var(--ink-2)" text-anchor="middle" font-family="var(--font-m)">${h.hour}시</text>`; });
-  const nx = x(NOWI);
-  g += `<line x1="${nx}" y1="${T}" x2="${nx}" y2="${Ht-B}" stroke="var(--stamp)" stroke-width="1.3"/>
-        <text x="${nx+3}" y="${Ht-B-3}" font-size="8" fill="var(--stamp)" font-family="var(--font-m)">지금</text>`;
-  $("#day").innerHTML = `${g}
-    <line x1="${L}" y1="${y(thr)}" x2="${W-R}" y2="${y(thr)}" stroke="var(--ok)" stroke-width="1.4" stroke-dasharray="4 3"/>
-    <text x="${W-R}" y="${y(thr)-4}" font-size="8" fill="var(--ok)" text-anchor="end" font-family="var(--font-m)">프리쿨링 기준 ${thr.toFixed(1)}℃</text>
-    <path d="${line("db")}" fill="none" stroke="var(--stamp)" stroke-width="1.8"/>
-    <path d="${line("wb")}" fill="none" stroke="var(--accent)" stroke-width="1.8"/>
-    <text x="${L+2}" y="${T+8}" font-size="8.5" fill="var(--stamp)" font-family="var(--font-m)">건구</text>
-    <text x="${L+26}" y="${T+8}" font-size="8.5" fill="var(--accent)" font-family="var(--font-m)">습구</text>`;
+          <text x="4" y="${y(v)+3.5}" font-size="9" fill="var(--ink-2)" font-family="var(--font-m)">${v}</text>`;
+  H.forEach((h, i) => {
+    if(h.past) g += `<rect x="${L+CW*i}" y="${T}" width="${CW}" height="${Ht-T-B}" fill="var(--ink-2)" opacity=".05"/>`;
+    if(h.hour % 3 === 0)
+      g += `<text x="${x(i)}" y="${Ht-7}" font-size="9" fill="var(--ink-2)" text-anchor="middle" font-family="var(--font-m)">${h.hour}시</text>`;
+  });
+  const nx = x(NOWI) - CW/2;
+  g += `<line x1="${nx}" y1="${T}" x2="${nx}" y2="${Ht-B}" stroke="var(--stamp)" stroke-width="1.4"/>
+        <text x="${nx+4}" y="${T+9}" font-size="9" fill="var(--stamp)" font-family="var(--font-m)">지금</text>`;
+
+  $("#day").innerHTML = `<svg viewBox="0 0 ${W} ${Ht}" width="${W}" height="${Ht}">${g}
+    <line x1="${L}" y1="${y(thr)}" x2="${W-R}" y2="${y(thr)}" stroke="var(--ok)" stroke-width="1.4" stroke-dasharray="5 4"/>
+    <text x="${L+4}" y="${y(thr)-5}" font-size="9" fill="var(--ok)" font-family="var(--font-m)">프리쿨링 기준 ${thr.toFixed(1)}℃</text>
+    <path d="${line("db")}" fill="none" stroke="var(--stamp)" stroke-width="2"/>
+    <path d="${line("wb")}" fill="none" stroke="var(--accent)" stroke-width="2"/>
+    <text x="${L+4}" y="${T+9}" font-size="9.5" fill="var(--stamp)" font-family="var(--font-m)">건구</text>
+    <text x="${L+30}" y="${T+9}" font-size="9.5" fill="var(--accent)" font-family="var(--font-m)">습구</text></svg>`;
+
+  const el = $("#day");
+  el.scrollLeft = Math.max(0, x(NOWI) - el.clientWidth / 2);
 }
 
 /* ── 습공기선도 ── */
@@ -622,8 +691,8 @@ $("#here").onclick = () => {
 ["chw","app"].forEach(id => $("#"+id).addEventListener("input", () => { if(NOW){ freeCooling(); drawDay(); } }));
 ["cmh","rdb","rrh"].forEach(id => $("#"+id).addEventListener("input", () => { if(NOW){ coil(); drawPsy(); } }));
 
-fillSido();
 setupFold();
+drawSido(); drawFavs();
 load();
 </script>
 </body>

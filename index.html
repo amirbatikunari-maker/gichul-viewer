@@ -1581,11 +1581,14 @@ async function viewExams(subjectId){
     Object.keys(ix.tiers).forEach(k => n[k] = ix.tiers[k].length);
     $$("#exams .mixb .c").forEach(el => { el.textContent = (n[el.dataset.c] ?? 0) + "문항"; });
     $("#mixnote").innerHTML =
-      `회차 ${ix.N}개 · 문항 ${ix.rows.length}개를 한 덩어리로 보고, 문항마다 대표 낱말이
-       <b>몇 개 회차(R)</b>·<b>몇 문항(C)</b>에 나왔는지 세어 나눕니다.<br>
-       <b>금</b> R≥3 세 회차 이상 반복 · <b>은</b> R=2 두 회차 반복 ·
-       <b>동</b> R=1이지만 C≥2 한 회차 안에서 여러 문항 · <b>나머지</b> 딱 한 번만 나온 주제.<br>
-       회차를 추가하면 다시 셉니다. 문제·해설·필기·별표는 원래 문항 그대로입니다.`;
+      `회차 ${ix.N}개 · 문항 ${ix.rows.length}개를 <b>합격 기여도</b> 순으로 줄 세운 뒤,
+       문항 수가 아니라 <b>기여도 총합의 몫</b>으로 끊습니다. 금이 적을수록 밀도가 높다는 뜻입니다.<br>
+       <b>기여도 = 또 나올 확률 × 지금 내가 약한 정도</b><br>
+       · 또 나올 확률 — 몇 %의 회차에 나왔나(55%) + 최근 회차일수록 가중(30%) + 그 주제에 걸린 문항 수(15%).
+       "냉동·공기" 같은 흔한 말은 주제어에서 빼고, 드문 낱말을 함께 쓰는 문항끼리 묶어 셉니다.<br>
+       · 내가 약한 정도 — <b>별표</b>한 문항 1.8배, 아직 안 본 문항 1.25배, 이미 본 문항 0.85배.<br>
+       별표를 누르거나 회차를 추가하면 다음에 들어올 때 등급이 다시 계산됩니다.
+       문제·해설·필기·별표는 원래 문항 그대로입니다.`;
   }).catch(()=>{ if($("#mixnote")) $("#mixnote").textContent = "등급을 세지 못했습니다."; });
   $$("#exams .row").forEach(b=>b.onclick=e=>{
     const w = e.target.closest("[data-wipe]"), d = e.target.closest("[data-delexam]");
@@ -1662,13 +1665,69 @@ const MIX_RULE = {
 };
 const STOP = new Set(["다음","것은","무엇","경우","가장","옳은","틀린","아닌","대한","설명","계산",
   "얼마","이때","구하","때의","중에서","해당","관한","위한","다음중","값은","것을","하는","되는",
-  "이란","무엇인가","적합","적절","거리가","고르","구하시오"]);
+  "이란","무엇인가","적합","적절","거리가","고르","구하시오","때에","의해","하기","있는","없는",
+  "이상","이하","사용","방법","특징","종류","조건","기준","보기","문제","다음의","얼마인가"]);
 
 function tokens(q){
-  const src = ((q.summary || "") + " " + (q.question_text || "").slice(0, 60));
+  const src = ((q.summary || "") + " " + (q.question_text || "").slice(0, 80));
   return [...new Set((src.match(/[가-힣A-Za-z]{2,}/g) || [])
-    .map(w => w.replace(/(으로|에서|에는|이다|한다|인가|하면|보다|까지|부터|에게|에서의)$/, ""))
+    .map(w => w.replace(/(으로|에서|에는|이다|한다|인가|하면|보다|까지|부터|에게|에서의|에서는)$/, ""))
     .filter(w => w.length >= 2 && !STOP.has(w)))];
+}
+
+/* ── 같은 주제끼리 묶기 ──
+   앞선 방식은 "그 문항의 낱말 중 가장 여러 회차에 나온 낱말"을 대표로 삼았다.
+   그런데 그런 낱말은 "냉동·공기·온도"처럼 아무 문항에나 들어 있는 흔한 말이라
+   거의 모든 문항이 R=10 이 되어 800문항 중 793개가 금으로 나왔다. 정반대였다.
+   이제는 흔한 말을 버리고, 드문 낱말을 함께 쓰는 문항끼리 묶어 "주제 덩어리"를 만든 뒤
+   그 덩어리가 몇 회차(R)·몇 문항(C)에 걸쳐 있는지를 센다. */
+function clusterTopics(rows){
+  const N = rows.length;
+  const toks = rows.map(tokens);
+  const df = new Map();
+  toks.forEach(ts => ts.forEach(t => df.set(t, (df.get(t) || 0) + 1)));
+
+  const COMMON = Math.max(6, Math.floor(N * 0.05));    // 전체의 5% 넘게 나오면 주제어로 안 씀
+  const RARE   = Math.max(2, Math.floor(N * 0.012));   // 이보다 드물면 하나만 겹쳐도 같은 주제
+  const keys = toks.map(ts => ts.filter(t => { const d = df.get(t); return d >= 2 && d <= COMMON; }));
+
+  const inv = new Map();
+  keys.forEach((ks, i) => ks.forEach(t => { (inv.get(t) || inv.set(t, []).get(t)).push(i); }));
+
+  const pair = new Map(), strong = new Map();
+  inv.forEach((list, t) => {
+    if(list.length > 40) return;                        // 너무 퍼진 낱말은 쌍 만들기에서 제외(속도)
+    const rare = df.get(t) <= RARE;
+    for(let a = 0; a < list.length; a++)
+      for(let b = a + 1; b < list.length; b++){
+        const k = list[a] + "|" + list[b];
+        pair.set(k, (pair.get(k) || 0) + 1);
+        if(rare) strong.set(k, true);
+      }
+  });
+
+  const par = [...Array(N).keys()];
+  const find = x => par[x] === x ? x : (par[x] = find(par[x]));
+  const uni = (a, b) => { a = find(a); b = find(b); if(a !== b) par[b] = a; };
+  pair.forEach((n, k) => {
+    /* 드문 낱말 2개를 함께 쓰거나, 아주 드문 낱말 하나를 공유하면 같은 주제로 본다 */
+    if(n >= 2 || strong.get(k)){ const [a, b] = k.split("|").map(Number); uni(a, b); }
+  });
+
+  const groups = new Map();
+  for(let i = 0; i < N; i++){ const r = find(i); (groups.get(r) || groups.set(r, []).get(r)).push(i); }
+
+  groups.forEach(idxs => {
+    const R = new Set(idxs.map(i => rows[i].exam_id)).size, C = idxs.length;
+    const freq = new Map();
+    idxs.forEach(i => keys[i].forEach(t => freq.set(t, (freq.get(t) || 0) + 1)));
+    const key = [...freq.entries()]
+      .sort((a, b) => b[1] - a[1] || (df.get(a[0]) - df.get(b[0])))[0]?.[0] || "";
+    const gid = idxs[0];   /* 덩어리 고유 번호 — 이게 없으면 주제 없는 단발 문항들이
+                              전부 같은 열쇠("|1|1")로 묶여 한 덩어리가 되어 버린다 */
+    idxs.forEach(i => { rows[i]._R = R; rows[i]._C = C; rows[i]._key = key; rows[i]._gid = gid; });
+  });
+  return rows;
 }
 
 /* 과목 전체를 가볍게(요약·문제 앞부분만) 한 번 읽어 등급표를 만든다 */
@@ -1676,31 +1735,62 @@ async function mixIndex(subjectId, force){
   S._mix ||= {};
   if(S._mix[subjectId] && !force) return S._mix[subjectId];
 
-  const {data:exams} = await sb.from("exam_list").select("id,label").eq("subject_id", subjectId);
+  const {data:exams} = await sb.from("exam_list").select("id,label,year,session").eq("subject_id", subjectId);
   const ids = (exams || []).map(e => e.id);
   if(!ids.length) return (S._mix[subjectId] = { rows:[], tiers:{}, N:0, label:{} });
 
   const {data:rows} = await sb.from("questions")
     .select("id,exam_id,number,summary,question_text").in("exam_id", ids);
 
-  const byExam = new Map(), byCount = new Map();
-  (rows || []).forEach(q => tokens(q).forEach(t => {
-    if(!byExam.has(t)) byExam.set(t, new Set());
-    byExam.get(t).add(q.exam_id);
-    byCount.set(t, (byCount.get(t) || 0) + 1);
-  }));
+  clusterTopics(rows || []);
 
-  const tiers = { gold:[], silver:[], bronze:[], rest:[] };
-  (rows || []).forEach(q => {
-    /* 대표 낱말 = 회차 수가 가장 많은 낱말, 같으면 문항 수가 많은 쪽 */
-    const best = tokens(q)
-      .map(t => ({ t, R:(byExam.get(t)||new Set()).size, C:byCount.get(t)||1 }))
-      .sort((a,b) => b.R - a.R || b.C - a.C)[0] || { t:"", R:1, C:1 };
-    q._key = best.t; q._R = best.R; q._C = best.C;
-    (best.R >= 3 ? tiers.gold : best.R === 2 ? tiers.silver
-                 : best.C >= 2 ? tiers.bronze : tiers.rest).push(q);
+  /* ── 합격 기여도 점수 ──────────────────────────────────────
+     "얼마나 자주 나왔나"만 보면 이미 완벽히 아는 주제도 계속 위로 올라온다.
+     실제로 점수를 올려 주는 건  [또 나올 확률] × [지금 내가 약한 정도]  다.
+
+       출제력 = 0.55·빈도(몇 %의 회차에 나왔나)
+              + 0.30·최근성(최근 회차일수록 가중, 회차당 0.8배씩 감쇠)
+              + 0.15·비중(한 주제에 문항이 몇 개나 걸려 있나)
+       약한정도 = 별표 ×1.8 · 아직 안 본 문항 ×1.25 · 이미 본 문항 ×0.85 (최소 0.4)
+
+     이 점수로 줄 세운 뒤, 등급은 개수가 아니라 "점수 총합의 몫"으로 끊는다.
+     금 = 전체 기여도의 위 25%를 만들어내는 문항들 → 수는 적고 밀도는 높다.
+     기준을 사람이 정하지 않으므로, 회차를 더 넣으면 경계도 알아서 움직인다. */
+  const rank = {};                       // 회차 id → 최신이 0
+  [...(exams || [])]
+    .sort((x, y) => (y.year - x.year) || (y.session - x.session))
+    .forEach((e, i) => rank[e.id] = i);
+
+  const N = Math.max(1, (exams || []).length);
+  const gid = new Map();
+  (rows || []).forEach(q => { (gid.get(q._gid) || gid.set(q._gid, []).get(q._gid)).push(q); });
+
+  gid.forEach(pack => {
+    const freshest = Math.min(...pack.map(q => rank[q.exam_id] ?? N));
+    const exposure = 0.55 * (pack[0]._R / N)
+                   + 0.30 * Math.pow(0.8, freshest)
+                   + 0.15 * (pack[0]._C / (pack[0]._C + 2));
+    pack.forEach(q => {
+      let need = 1;
+      if(S.stars[q.id]) need *= 1.8;          // 내가 별표한 것 = 아직 안 잡힌 것
+      need *= S.seen[q.id] ? 0.85 : 1.25;     // 이미 본 것은 조금 뒤로
+      q._exp = exposure;
+      q._need = Math.max(0.4, need);
+      q._score = exposure * q._need;
+    });
   });
 
+  const ordered = [...(rows || [])].sort((a, b) => b._score - a._score);
+  const totalScore = ordered.reduce((t, q) => t + q._score, 0) || 1;
+  const tiers = { gold:[], silver:[], bronze:[], rest:[] };
+  const order = ["gold", "silver", "bronze", "rest"];
+  let acc = 0, bucket = 0;
+  for(const q of ordered){
+    while(bucket < 3 && acc >= totalScore * (bucket + 1) / 4) bucket++;
+    q._tier = order[bucket];
+    tiers[order[bucket]].push(q);
+    acc += q._score;
+  }
   const label = {}; (exams||[]).forEach(e => label[e.id] = e.label);
   return (S._mix[subjectId] = { rows: rows || [], tiers, N: ids.length, label });
 }
@@ -1742,8 +1832,11 @@ async function viewMix(subjectId, mode){
 
   deck.forEach(q => {
     const m = meta.get(q.id) || {};
+    const badge = { gold:"금", silver:"은", bronze:"동", rest:"나머지" }[m._tier] || "";
     q.subject_part = `${ix.label[q.exam_id] || "회차"} ${q.number}번`
-      + (m._key ? ` · ${m._key} (${m._R}개 회차 · ${m._C}문항)` : "");
+      + (badge ? ` · ${badge}` : "")
+      + (m._key ? ` · ${m._key}` : "")
+      + (m._R ? ` (${m._R}/${ix.N}회차 · ${m._C}문항${S.stars[q.id] ? " · 별표" : ""})` : "");
   });
 
   S.exam = { id:`mix:${subjectId}:${mode}`, label:note, _mix:true, _sid:subjectId, _mode:mode };
