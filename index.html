@@ -128,10 +128,6 @@ a{color:var(--accent);text-decoration:none}
 .mixb.b{border-color:#B98A63;color:#8A5F3C;background:#FAF1E9}
 .mixb.r{border-color:var(--rule);color:var(--ink-2)}
 .mixb .c{display:block;font:500 10.5px/1 var(--font-m);opacity:.75;margin-top:5px}
-#reroll{position:fixed;right:12px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:40;
-  padding:11px 15px;border:0;border-radius:22px;background:var(--ink);color:var(--paper);
-  font:700 12.5px/1 var(--font-d);box-shadow:0 6px 18px -8px rgba(16,35,61,.6);cursor:pointer}
-#reroll:active{transform:scale(.95)}
 .mixnote{font-size:11.5px;color:var(--ink-2);line-height:1.7;margin:0 0 16px}
 .mixnote b{color:var(--ink);font-weight:600}
 .year{font:600 13px/1 var(--font-m);color:var(--ink-2);margin:20px 0 8px;letter-spacing:.04em}
@@ -1469,8 +1465,11 @@ function show(id){
   $("#veilBtn").hidden = !study;
   $("#layoutBtn").hidden = !study;
   $("#back").hidden = id==="v-subjects";
-  if(id !== "v-study") document.getElementById("reroll")?.remove();
-  $("#reroll").hidden = !(study && S.exam?._mix);
+  /* 다시 뽑기 버튼은 섞어 보기 덱을 볼 때만 띄운다.
+     버튼은 HTML 에 붙박이로 두고 숨기기만 한다 — 지웠다 만들었다 하면
+     지운 뒤에 다시 읽는 코드에서 바로 터진다(실제로 그래서 화면이 통째로 멈췄다). */
+  const rr = document.getElementById("reroll");
+  if(rr) rr.hidden = !(study && S.exam?._mix);
   document.body.style.overflow = study ? "hidden" : "";
 }
 window.addEventListener("hashchange", route);
@@ -1757,15 +1756,15 @@ async function viewMix(subjectId, mode){
   mountReroll(S.exam);
 }
 
-/* 문제 푸는 중에도 바로 다시 뽑을 수 있게 떠 있는 버튼 */
+/* 문제 푸는 중에도 바로 다시 뽑을 수 있게 떠 있는 버튼.
+   HTML 에 있는 붙박이 버튼의 글자와 동작만 바꾼다. */
 function mountReroll(exam){
-  document.getElementById("reroll")?.remove();
-  if(!exam?._mix) return;
-  const b = document.createElement("button");
-  b.id = "reroll";
+  const b = document.getElementById("reroll");
+  if(!b) return;
+  if(!exam?._mix){ b.hidden = true; b.onclick = null; return; }
   b.textContent = `${MIX_LABEL[exam._mode] || "섞기"} 다시 뽑기`;
   b.onclick = () => viewMix(exam._sid, exam._mode);
-  document.body.appendChild(b);
+  b.hidden = false;
 }
 
 function build(){
