@@ -559,6 +559,20 @@ mark.hlm{background:transparent;color:inherit}
   z-index:80;padding:11px 16px;border-radius:999px;background:var(--ink);color:var(--paper);
   font:600 12.5px/1 var(--font-d);opacity:0;pointer-events:none;transition:opacity .18s;max-width:90vw;text-align:center}
 #toast.on{opacity:.96}
+.nx{margin-left:6px;flex:none;width:22px;height:22px;display:grid;place-items:center;border-radius:6px;
+  color:var(--ink-2);font:600 15px/1 var(--font-d);cursor:pointer}
+.nx:hover,.nx:active{background:color-mix(in srgb,var(--stamp) 12%,transparent);color:var(--stamp)}
+.nk.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+.clean{padding:2px 0 12px;font-size:14px;line-height:1.7}
+.clean table{width:100%;border-collapse:collapse;margin:8px 0;font-size:13px}
+.clean th,.clean td{border:1px solid var(--rule);padding:6px 8px;text-align:left}
+.clean th{background:var(--paper);font-weight:600}
+.clean h2{font:700 15px/1.4 var(--font-d);margin:12px 0 6px}
+.clean p:has(> :only-child), .clean p{margin:6px 0}
+.clean .warnline{padding:8px 11px;border-left:3px solid var(--warn);
+  background:color-mix(in srgb,var(--warn) 8%,transparent);border-radius:0 8px 8px 0;font-size:12.5px;margin:8px 0}
+.rawwrap>summary{cursor:pointer;font:600 12px/1 var(--font-d);color:var(--ink-2);padding:8px 0}
+.rawwrap[open]>summary{margin-bottom:6px}
 .figbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:9px}
 .figbtn{font:600 11.5px/1 var(--font-d);padding:8px 11px;border-radius:8px;
   border:1.3px solid var(--rule);background:var(--card);color:var(--ink-2);cursor:pointer}
@@ -2113,6 +2127,68 @@ async function countNotes(subjectId){
   }catch(e){ return null; }
 }
 
+/* ═══════════════════════════════════════════════
+   찍어 온 자료를 다시 짜기
+   노트를 비스듬히 찍은 사진은 그대로 두면 읽기가 괴롭다.
+   AI 에게 사진을 보내 표는 표로, 목록은 목록으로 옮겨 적게 하고
+   그 결과를 원본 사진과 함께 보관한다. 사진은 절대 지우지 않는다 —
+   옮겨 적다 틀릴 수 있으므로 언제든 원본과 대조할 수 있어야 한다.
+   ═══════════════════════════════════════════════ */
+function cleanPrompt(){
+  return `너는 손으로 쓰거나 인쇄된 학습 자료 사진을 보고, 화면에서 읽기 좋게 다시 옮겨 적는 사람이다.
+
+[할 일]
+- 사진에 보이는 내용을 마크다운으로 옮겨라. 새로 만들어 내지 말고, 보이는 것만 옮긴다.
+- 표는 반드시 마크다운 파이프 표로 옮겨라.
+  | 머리1 | 머리2 |
+  |---|---|
+  | 값 | 값 |
+- 제목이 있으면 **굵게** 로, 항목 나열은 - 로 옮겨라. (# 이나 > 문법은 이 화면에서 안 먹으니 쓰지 마라)
+- 수식은 $ ... $ 로 감싸라. 화학식 아래첨자는 H_2O 처럼 쓰지 말고 H₂O 처럼 그대로 적어라.
+- 사진이 기울어져 있거나 그림자가 져도, 내용만 반듯하게 옮기면 된다.
+
+[지켜야 할 것]
+- 숫자를 절대 고치거나 반올림하지 마라. 흐려서 확신이 없는 칸은 값 대신 ? 를 적고,
+  맨 아래에 "> 흐려서 못 읽은 곳: (어디)" 로 남겨라. 지어내는 것이 가장 나쁘다.
+- 사진에 없는 설명·해설·요약을 덧붙이지 마라. 옮겨 적기만 한다.
+- 표가 아니라 그림(회로도·선도·장치도)이면 옮기지 말고
+  "※ 이 자료는 그림이라 옮겨 적지 않았습니다. 원본 사진을 보세요." 한 줄만 써라.
+- 마크다운 본문만 출력한다. \`\`\` 로 감싸지 마라.`;
+}
+
+async function noteClean(id, subjectId, box){
+  if(!needLogin()) return;
+  const row = box.querySelector(`[data-note="${id}"]`);
+  const slot = row?.querySelector("[data-cleanslot]");
+  if(slot) slot.innerHTML = `<div class="wait">사진을 읽어 다시 옮겨 적는 중… 20~40초쯤 걸립니다.</div>`;
+  try{
+    const url = row?.dataset.url;
+    if(!url) throw new Error("사진 주소를 찾지 못했습니다");
+    const blob = await fetch(url).then(r => r.blob());
+    if(blob.size > 5 * 1024 * 1024) throw new Error("사진이 너무 큽니다(5MB 초과)");
+    let txt = await askAIWithImage(cleanPrompt(), blob);
+    txt = txt.replace(/^```(markdown|md)?\s*/i, "").replace(/```\s*$/, "").trim();
+    if(!txt) throw new Error("빈 응답이 왔습니다");
+    const r = await sb.from("subject_notes").update({ clean_md: txt }).eq("id", id);
+    if(r.error) throw new Error(/clean_md|schema cache/i.test(r.error.message)
+      ? "clean_md 칸이 아직 없습니다 — supabase-자료정리.sql 을 돌려 주세요."
+      : r.error.message);
+    toast("정리했습니다.");
+    drawNotes(subjectId, box);
+  }catch(e){
+    if(slot) slot.innerHTML = `<div class="wait">정리하지 못했습니다 — ${esc(e.message || String(e))}</div>`;
+    else toast("정리하지 못했습니다 — " + (e.message || e));
+  }
+}
+
+async function noteCleanDel(id, subjectId, box){
+  if(!needLogin()) return;
+  if(!confirm("정리본만 지웁니다. 원본 사진은 그대로 남습니다.")) return;
+  const r = await sb.from("subject_notes").update({ clean_md: null }).eq("id", id);
+  if(r.error) return toast("지우지 못했습니다 — " + r.error.message);
+  drawNotes(subjectId, box);
+}
+
 async function drawNotes(subjectId, box){
   box.innerHTML = `<p>자료를 불러오는 중…</p>`;
   const { data, error } = await sb.from("subject_notes").select("*")
@@ -2135,17 +2211,28 @@ async function drawNotes(subjectId, box){
     </div>`;
 
   const list = rows.length ? rows.map((r, i) => `
-    <details class="note" data-note="${r.id}">
+    <details class="note" data-note="${r.id}" data-url="${esc(r.url)}">
       <summary>
         <span class="ni">${i + 1}</span>
         <span class="nt">${r.pinned ? "★ " : ""}${esc(r.title || "이름 없는 자료")}</span>
+        ${r.clean_md ? `<span class="nk ok">정리됨</span>` : ""}
         <span class="nk">${r.kind === "pdf" ? "PDF" : "사진"}</span>
+        <span class="nx" data-notedel="${r.id}" role="button" title="이 자료 삭제">×</span>
       </summary>
       <div class="nb">
+        <div data-cleanslot>${r.clean_md ? `<div class="clean">${md(r.clean_md).replace(/<p>(※[^<]*)<\/p>/g, '<div class="warnline">$1</div>')}</div>` : ""}</div>
+
         ${r.kind === "pdf"
           ? `<iframe src="${esc(r.url)}" title="${esc(r.title || "자료")}" loading="lazy"></iframe>`
-          : `<img src="${esc(r.url)}" alt="${esc(r.title || "자료")}" loading="lazy" decoding="async">`}
+          : r.clean_md
+            ? `<details class="rawwrap"><summary>원본 사진 보기</summary>
+                 <img src="${esc(r.url)}" alt="${esc(r.title || "자료")}" loading="lazy" decoding="async"></details>`
+            : `<img src="${esc(r.url)}" alt="${esc(r.title || "자료")}" loading="lazy" decoding="async">`}
+
         <div class="nbar">
+          ${r.kind === "image" || r.kind !== "pdf"
+            ? `<button class="figbtn save" data-noteclean="${r.id}" type="button">${r.clean_md ? "다시 정리" : "표·글자로 정리하기"}</button>` : ""}
+          ${r.clean_md ? `<button class="figbtn" data-notecleandel="${r.id}" type="button">정리본 지우기</button>` : ""}
           <a class="figbtn" href="${esc(r.url)}" target="_blank" rel="noopener">새 창에서 크게</a>
           <button class="figbtn ${r.pinned ? "save" : ""}" data-notepin="${r.id}" type="button">${r.pinned ? "★ 즐겨찾기 해제" : "☆ 즐겨찾기"}</button>
           <button class="figbtn" data-noteren="${r.id}" type="button">이름 고치기</button>
@@ -2184,6 +2271,14 @@ async function drawNotes(subjectId, box){
     });
   }
 
+  box.querySelectorAll("[data-noteclean]").forEach(b => b.addEventListener("click", e => {
+    e.preventDefault(); e.stopPropagation();
+    noteClean(b.dataset.noteclean, subjectId, box);
+  }));
+  box.querySelectorAll("[data-notecleandel]").forEach(b => b.addEventListener("click", e => {
+    e.preventDefault(); e.stopPropagation();
+    noteCleanDel(b.dataset.notecleandel, subjectId, box);
+  }));
   box.querySelectorAll("[data-notepin]").forEach(b => b.addEventListener("click", async () => {
     if(!needLogin()) return;
     const r = rows.find(x => String(x.id) === b.dataset.notepin);
@@ -2206,7 +2301,9 @@ async function drawNotes(subjectId, box){
     drawNotes(subjectId, box);
   }));
 
-  box.querySelectorAll("[data-notedel]").forEach(b => b.addEventListener("click", async () => {
+  box.querySelectorAll("[data-notedel]").forEach(b => b.addEventListener("click", async e => {
+    /* 접힌 줄의 × 는 summary 안에 있어서, 막지 않으면 지우면서 동시에 펼쳐진다 */
+    e.preventDefault(); e.stopPropagation();
     if(!needLogin()) return;
     const r = rows.find(x => String(x.id) === b.dataset.notedel);
     if(!confirm(`"${r?.title || "이 자료"}" 를 지웁니다.`)) return;
@@ -2336,10 +2433,21 @@ function pinClose(){
    ═══════════════════════════════════════════════ */
 const AI_ENDPOINTS = [CFG.WORKER_URL, CFG.WORKER_BACKUP_URL].filter(Boolean);
 
-async function askAI(prompt, maxTokens = 2600){
+/* 사진을 함께 보내는 호출. 워커는 Gemini 형식을 그대로 받으므로 inline_data 로 넣는다. */
+async function askAIWithImage(prompt, blob, maxTokens = 4096){
+  const b64 = await new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).split(",")[1]);
+    r.onerror = () => rej(new Error("사진을 읽지 못했습니다"));
+    r.readAsDataURL(blob);
+  });
+  return askAI(prompt, maxTokens, [{ inline_data: { mime_type: blob.type || "image/jpeg", data: b64 } }]);
+}
+
+async function askAI(prompt, maxTokens = 2600, extraParts = []){
   if(!AI_ENDPOINTS.length) throw new Error("config.js 에 WORKER_URL 이 없습니다");
   const body = {
-    contents: [{ role:"user", parts:[{ text: prompt }] }],
+    contents: [{ role:"user", parts:[...extraParts, { text: prompt }] }],
     generationConfig: { temperature:0.35, maxOutputTokens:maxTokens }
   };
   let last = "";
