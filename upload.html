@@ -86,6 +86,23 @@ tr.wet td{background:#EFF4FD}
 tr.snowy td{background:#EDF2F7}
 tr.nowrow td{outline:1.5px solid var(--accent);outline-offset:-1.5px}
 
+td.acc{color:var(--accent);font-weight:500}
+tr.pastrow td.acc{color:var(--ink-2);font-weight:400}
+tr.pastrow td:first-child{color:var(--ink-2)}
+th.acc{color:var(--accent)}
+
+.kv{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;align-items:baseline;margin:0}
+.kv dt{font:600 10.5px/1.6 var(--font-d);letter-spacing:.06em;color:var(--ink-2);white-space:nowrap}
+.kv dd{margin:0;font:400 11.5px/1.6 var(--font-m);word-break:break-all}
+.kv dd a{color:var(--accent)}
+.kv dd b{font-family:var(--font-d);font-weight:600}
+.plain{border:1px solid var(--rule);border-radius:10px;overflow:hidden;margin-top:4px}
+.plain table{font-size:11.5px}
+.badge{display:inline-block;font:600 10px/1 var(--font-d);letter-spacing:.06em;padding:4px 7px;border-radius:6px;vertical-align:middle}
+.badge.ok{background:#E3F3EA;color:var(--ok)}
+.badge.warn{background:#FDF3DC;color:var(--warn)}
+.badge.bad{background:#FBE9E8;color:var(--stamp)}
+
 .src{font-size:11.5px;color:var(--ink-2);margin-top:22px;line-height:1.9}
 .src a{color:var(--ink-2)}
 .src b{color:var(--ink);font-weight:600}
@@ -186,7 +203,17 @@ tr.nowrow td{outline:1.5px solid var(--accent);outline-offset:-1.5px}
     </div>
     <div class="tblwrap" id="tblwrap"><table id="tbl"></table></div>
     <div class="hint">시간대 띠는 <b>지금을 가운데 두고 지난 24시간 ~ 앞으로 24시간</b>입니다. 좌우로 밀어 보세요. 흐린 칸이 지나간 시간입니다.<br>강수는 mm(1mm = 1L/m²), 눈은 cm 단위의 <b>새로 내린 양</b>, 쌓인 눈은 지면 적설 깊이입니다.
-      같은 물 1mm가 기온에 따라 대략 0.5~2cm로 쌓입니다.</div>
+      같은 물 1mm가 기온에 따라 대략 0.5~2cm로 쌓입니다.<br>
+      <b>누적 mm</b>는 <b>지금을 기준으로 끊어서</b> 더합니다. 지나간 칸은 24시간 전부터 그 시각까지,
+      앞으로의 칸은 지금부터 그 시각까지 쌓인 양입니다. 그래서 지금 바로 위 칸이 <b>지난 24h 비</b>,
+      맨 아래 칸이 <b>앞으로 24h 비</b>와 같은 값이 됩니다. 눈은 물로 환산해 이 누적에 이미 들어가 있습니다.</div>
+  </div>
+
+  <div class="card" id="srcCard">
+    <div class="eyebrow">출처 · 정확도</div>
+    <dl class="kv" id="srcKV"><dt>상태</dt><dd>지점을 고르면 채워집니다.</dd></dl>
+    <div id="skill" style="margin-top:14px"></div>
+    <div class="hint" id="skillNote"></div>
   </div>
 
   <div class="card">
@@ -228,8 +255,15 @@ tr.nowrow td{outline:1.5px solid var(--accent);outline-offset:-1.5px}
   <div class="src">
     <b>자료 출처</b><br>
     · 기상 예측: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a> 를 통해
-      <b>기상청(KMA) 수치예보 모델</b>을 받습니다 (<span style="font-family:var(--font-m)">models=kma_seamless</span>).
-      한반도는 기상청 국지모델의 해상도가 가장 높아 이 모델로 고정했습니다.<br>
+      <b>기상청(KMA) 수치예보 모델</b>을 먼저 시도합니다 (<span style="font-family:var(--font-m)">models=kma_seamless</span>).
+      한반도는 기상청 국지모델(LDPS 1.5 km)의 해상도가 가장 높기 때문입니다.<br>
+    · <b>다만 기상청은 2026년 3월 말 기존 UM 계열 모델을 접고 KIM 계열로 넘어갔고,
+      Open-Meteo는 새 배포 체계로 옮기는 동안 KMA 갱신을 멈춰 둔 상태입니다.</b>
+      그래서 이 페이지는 KMA 응답에 앞으로 24시간이 실제로 채워져 있는지 검사하고,
+      비어 있으면 말없이 기본 모델로 물러섭니다. 지금 무엇이 쓰였는지는 위 <b>출처 · 정확도</b> 칸에 그대로 적힙니다.
+      최신 상태는 <a href="https://open-meteo.com/en/docs/model-updates" target="_blank" rel="noopener">모델 갱신 현황</a>에서 확인하세요.<br>
+    · 정확도 측정: <a href="https://open-meteo.com/en/docs/previous-runs-api" target="_blank" rel="noopener">Previous Runs API</a>
+      로 지난 7일치 리드타임별 예보를 받아 이 페이지가 직접 오차를 계산합니다.<br>
     · 지점 검색: <a href="https://open-meteo.com/en/docs/geocoding-api" target="_blank" rel="noopener">Open-Meteo Geocoding</a>
       (GeoNames 기반 · 동/읍/면 단위)<br>
     · 습공기 상태값(습구·노점·절대습도·엔탈피·비체적)은 받아온 기온·습도·기압으로 이 페이지가 직접 계산합니다.
@@ -301,7 +335,9 @@ const KR = {
 function setupFold(){
   document.querySelectorAll(".card > .eyebrow").forEach((eb, i) => {
     const card = eb.parentElement;
-    const key = "gichul:fold:" + i;
+    /* 예전에는 순번으로 키를 잡았는데, 카드를 하나 끼워 넣으면 그 뒤가 전부 한 칸씩 밀려
+       엉뚱한 카드가 접힌 채로 열렸다. 제목으로 잡으면 순서가 바뀌어도 따라붙는다. */
+    const key = "gichul:fold:" + (eb.textContent.trim() || i);
     const btn = document.createElement("button");
     btn.className = "fold"; btn.type = "button";
     const paint = () => btn.textContent = card.classList.contains("folded") ? "펼치기" : "접기";
@@ -317,6 +353,7 @@ function setupFold(){
 }
 
 let NOW = null, HOURS = [], P_KPA = 101.325, NOWI = 0, MODEL = "";
+let SRC = { id:"", url:"", grid:null, tried:[] };   /* 실제로 쓴 모델·요청 URL·격자점 */
 let SPOT = JSON.parse(localStorage.getItem("gichul:spot") || "null")
         || { name:"서울특별시 중구", lat:37.5665, lon:126.9780 };
 
@@ -428,20 +465,47 @@ function url(lat, lon, model){
     + "&past_days=1&forecast_days=2&timezone=Asia%2FSeoul";
 }
 
+/* ── 신선도 검사 ────────────────────────────────────────────
+   예전 검사는 "온도가 하나라도 null이 아니면 통과"였다. 그런데 공급이 끊긴 모델은
+   과거 구간만 남기고 앞쪽이 비는 식으로 응답하기 때문에 그 검사를 그냥 통과해 버린다.
+   화면은 멀쩡한데 내용이 낡은 게 제일 나쁘므로, 앞으로 24시간이 실제로 채워졌는지를 본다. */
+function freshness(j){
+  const H = j?.hourly;
+  if(!H?.time?.length) return { ok:false, why:"시간별 자료 없음" };
+  const now = Date.now();
+  let need = 0, have = 0;
+  H.time.forEach((iso, i) => {
+    const ms = new Date(iso).getTime();
+    if(ms > now && ms <= now + 24*3600e3){
+      need++;
+      if(H.temperature_2m?.[i] != null && H.precipitation?.[i] != null) have++;
+    }
+  });
+  if(need < 12)           return { ok:false, why:"예보 구간이 짧음" };
+  if(have / need < 0.9)   return { ok:false, why:`앞으로 24h 중 ${need-have}시간이 빔 (공급 중단 의심)` };
+  return { ok:true, why:"" };
+}
+
 async function load(){
   $("#picked").textContent = `${SPOT.name} · ${(+SPOT.lat).toFixed(4)}, ${(+SPOT.lon).toFixed(4)}`;
   say("기상 자료를 받는 중…");
 
-  let d = null, used = "";
-  for(const [model, name] of [["kma_seamless", "기상청 모델"], ["", "기본 모델(다중 앙상블)"]]){
+  let d = null, used = "", usedId = "", usedUrl = "";
+  SRC = { id:"", url:"", grid:null, tried:[] };
+  for(const [model, name] of [["kma_seamless", "기상청 모델 (KMA seamless)"], ["", "기본 모델 (best match)"]]){
+    const u = url(SPOT.lat, SPOT.lon, model);
     try{
-      const r = await fetch(url(SPOT.lat, SPOT.lon, model));
-      if(!r.ok) continue;
+      const r = await fetch(u);
+      if(!r.ok){ SRC.tried.push([name, `HTTP ${r.status}`]); continue; }
       const j = await r.json();
-      if(j?.hourly?.time?.length && j.hourly.temperature_2m?.some(v => v != null)){ d = j; used = name; break; }
-    }catch(e){ /* 다음 모델로 */ }
+      const chk = freshness(j);
+      SRC.tried.push([name, chk.ok ? "사용" : chk.why]);
+      if(chk.ok){ d = j; used = name; usedId = model; usedUrl = u; break; }
+    }catch(e){ SRC.tried.push([name, "요청 실패"]); }
   }
   if(!d){ say("기상 자료를 받지 못했습니다.\n잠시 뒤 지점을 다시 골라 보세요.", "err"); return; }
+  SRC.id = usedId; SRC.url = usedUrl;
+  SRC.grid = { lat:d.latitude, lon:d.longitude, elev:d.elevation, gen:d.generationtime_ms };
 
   const H = d.hourly, pick = (k, i) => (H[k] ? H[k][i] : null);
   const nowMs = Date.now();
@@ -473,6 +537,8 @@ async function load(){
   Object.assign(NOW, { ap:cur.ap, prcp:cur.prcp, snow:cur.snow, depth:cur.depth/100, code:cur.code });
   MODEL = used;
   hide(); render();
+  renderSrc();
+  loadSkill();          /* 정확도 측정은 화면을 막지 않고 뒤따라 채운다 */
 }
 
 /* ── 그리기 ── */
@@ -538,15 +604,25 @@ function drawStrip(){
 }
 
 /* ── 시간별 표(자세히) ── */
+/* 누적강수량은 "지금"에서 한 번 끊는다.
+   과거 칸은 −24h부터 그 시각까지 쌓인 양이라 지금 직전 칸이 곧 "지난 24시간 비"가 되고,
+   미래 칸은 지금부터 쌓아서 맨 아래 칸이 곧 "앞으로 24시간 비"가 된다.
+   한 줄로 죽 더하면 지금 시점에 얼마가 남았는지를 읽을 수 없어 이렇게 나눴다. */
 function drawTable(){
+  let accPast = 0, accNext = 0;
   $("#tbl").innerHTML =
-    "<thead><tr><th>시각</th><th>기온</th><th>습구</th><th>습도</th><th>강수확률</th><th>비 mm</th><th>눈 cm</th><th>적설 cm</th></tr></thead><tbody>" +
+    "<thead><tr><th>시각</th><th>기온</th><th>습구</th><th>습도</th><th>강수확률</th>" +
+    "<th>비 mm</th><th class=\"acc\">누적 mm</th><th>눈 cm</th><th>적설 cm</th></tr></thead><tbody>" +
     HOURS.map(h => {
-      const cls = h.isNow ? "nowrow" : h.snow > 0 ? "snowy" : h.prcp > 0 ? "wet" : "";
+      if(h.past) accPast += (h.prcp || 0); else accNext += (h.prcp || 0);
+      const acc = h.past ? accPast : accNext;
+      const cls = (h.isNow ? "nowrow" : h.snow > 0 ? "snowy" : h.prcp > 0 ? "wet" : "")
+                + (h.past ? " pastrow" : "");
       return `<tr class="${cls}"><td>${h.day.slice(5)} ${String(h.hour).padStart(2,"0")}시</td>
         <td>${h.db.toFixed(1)}</td><td>${h.wb.toFixed(1)}</td><td>${h.rh.toFixed(0)}%</td>
         <td>${h.pop == null ? "—" : h.pop + "%"}</td>
         <td>${h.prcp > 0 ? h.prcp.toFixed(1) : "·"}</td>
+        <td class="acc">${acc > 0 ? acc.toFixed(1) : "·"}</td>
         <td>${h.snow > 0 ? h.snow.toFixed(1) : "·"}</td>
         <td>${h.depth > 0 ? h.depth.toFixed(1) : "·"}</td></tr>`;
     }).join("") + "</tbody>";
@@ -558,6 +634,149 @@ $("#more").onclick = () => {
   w.classList.toggle("on");
   $("#more").textContent = w.classList.contains("on") ? "표 접기" : "시간별로 자세히 보기";
 };
+
+/* ══ 출처 · 정확도 ═══════════════════════════════════════════
+   "어디서 받았나"는 적어 두면 그만이지만 "얼마나 맞나"는 적어 두면 거짓말이 된다.
+   모델도 계절도 지점도 바뀌니까. 그래서 문구로 쓰지 않고 그때그때 재서 띄운다.
+   Open-Meteo Previous Runs API가 리드타임별(1~7일 전에 예보한 값) 시계열을 주므로,
+   지난 7일 동안 "하루 전에 예보한 값"과 "지금 최신 값"을 맞대 보면 오차가 나온다. */
+const MODEL_INFO = {
+  kma_seamless: {
+    name: "기상청 KMA Seamless",
+    detail: "전 지구 GDPS 0.13°(약 12 km)에 한반도 국지모델 LDPS 1.5 km를 덮어 이어 붙인 조합입니다.",
+    grid: "한반도 구간 1.5 km", cycle: "6시간마다 (하루 4회)", span: "LDPS 2일 · GDPS 12일",
+    doc: "https://open-meteo.com/en/docs/kma-api"
+  },
+  "": {
+    name: "Open-Meteo Best Match",
+    detail: "지점마다 성적이 가장 좋은 모델을 골라 섞습니다. 한반도에서는 ECMWF·GFS·ICON 계열이 주로 잡힙니다.",
+    grid: "모델에 따라 9 ~ 25 km", cycle: "모델에 따라 1 ~ 6시간", span: "최대 16일",
+    doc: "https://open-meteo.com/en/docs"
+  }
+};
+
+const distKm = (a1, o1, a2, o2) => {
+  const R = 6371, r = Math.PI / 180;
+  const dA = (a2 - a1) * r, dO = (o2 - o1) * r;
+  const x = Math.sin(dA/2)**2 + Math.cos(a1*r) * Math.cos(a2*r) * Math.sin(dO/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+};
+
+function renderSrc(){
+  const M = MODEL_INFO[SRC.id] ?? MODEL_INFO[""];
+  const g = SRC.grid || {};
+  const d = (g.lat != null) ? distKm(+SPOT.lat, +SPOT.lon, g.lat, g.lon) : null;
+  const skipped = SRC.tried.filter(t => t[1] !== "사용");
+
+  $("#srcKV").innerHTML = `
+    <dt>받은 곳</dt>
+    <dd><a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>
+        · 공개 API, 키 없이 씁니다. 비상업 이용 무료 (CC BY 4.0)</dd>
+
+    <dt>쓴 모델</dt>
+    <dd><b>${M.name}</b><br>${M.detail}
+        <a href="${M.doc}" target="_blank" rel="noopener">모델 문서</a></dd>
+
+    <dt>격자 · 갱신</dt>
+    <dd>${M.grid} · ${M.cycle} 갱신 · 예보 기간 ${M.span}</dd>
+
+    <dt>고른 지점</dt>
+    <dd>${SPOT.name} (${(+SPOT.lat).toFixed(4)}, ${(+SPOT.lon).toFixed(4)})
+        ${g.lat != null ? `<br>실제로 값을 꺼낸 격자점 ${g.lat.toFixed(4)}, ${g.lon.toFixed(4)}
+        · 표고 ${g.elev ?? "—"} m · 고른 지점에서 <b>${d.toFixed(1)} km</b>` : ""}</dd>
+
+    ${skipped.length ? `<dt>건너뛴 모델</dt>
+    <dd>${skipped.map(t => `${t[0]} — ${t[1]}`).join("<br>")}</dd>` : ""}
+
+    <dt>요청 주소</dt>
+    <dd><a href="${SRC.url}" target="_blank" rel="noopener">${SRC.url}</a></dd>
+
+    <dt>여기서 계산</dt>
+    <dd>습구·노점·절대습도·엔탈피·비체적은 API가 주는 값이 아니라, 받아온 기온·습도·기압으로
+        이 페이지가 직접 풉니다. 포화수증기압은 Magnus 식, 습구온도는 ASHRAE 관계식을 이분법으로 역산합니다.
+        누적 mm는 시간별 강수량을 그대로 더한 값입니다.</dd>
+  `;
+}
+
+async function loadSkill(){
+  const box = $("#skill"), note = $("#skillNote");
+  box.innerHTML = `<div class="hint" style="margin:0">지난 7일치 지난 예보를 다시 받아 오차를 재는 중…</div>`;
+  note.innerHTML = "";
+
+  const V = [];
+  for(const v of ["temperature_2m", "precipitation"]){
+    V.push(v);
+    for(let n = 1; n <= 3; n++) V.push(`${v}_previous_day${n}`);
+  }
+  const base = "https://previous-runs-api.open-meteo.com/v1/forecast"
+    + `?latitude=${SPOT.lat}&longitude=${SPOT.lon}`
+    + `&hourly=${V.join(",")}&past_days=7&forecast_days=1&timezone=Asia%2FSeoul`;
+
+  let j = null;
+  for(const m of (SRC.id ? [SRC.id, ""] : [""])){
+    try{
+      const r = await fetch(base + (m ? `&models=${m}` : ""));
+      if(!r.ok) continue;
+      const k = await r.json();
+      if(k?.hourly?.temperature_2m_previous_day1?.some(v => v != null)){ j = k; break; }
+    }catch(e){ /* 다음 */ }
+  }
+  if(!j){
+    box.innerHTML = `<div class="hint" style="margin:0">과거 예보 기록을 받지 못해 오차를 재지 못했습니다.
+      아래 일반적인 눈금만 참고하세요 — 하루 전 기온 예보는 대개 ±1~2 ℃, 사흘 전은 ±2~3 ℃입니다.</div>`;
+    return;
+  }
+
+  const H = j.hourly, now = Date.now(), rows = [];
+  for(let n = 1; n <= 3; n++){
+    const T = H[`temperature_2m_previous_day${n}`] || [];
+    const P = H[`precipitation_previous_day${n}`] || [];
+    let nT = 0, sT = 0, bT = 0, nP = 0, hit = 0, sP = 0;
+    H.time.forEach((iso, i) => {
+      if(new Date(iso).getTime() > now) return;      /* 아직 검증 안 된 시간은 뺀다 */
+      const t0 = H.temperature_2m?.[i], tf = T[i];
+      if(t0 != null && tf != null){ nT++; sT += Math.abs(tf - t0); bT += tf - t0; }
+      const p0 = H.precipitation?.[i], pf = P[i];
+      if(p0 != null && pf != null){ nP++; sP += Math.abs(pf - p0); if((p0 >= 0.1) === (pf >= 0.1)) hit++; }
+    });
+    if(nT >= 24) rows.push({ n, nT, mae:sT/nT, bias:bT/nT, nP, hit:nP ? hit/nP*100 : null, pmae:nP ? sP/nP : null });
+  }
+
+  if(!rows.length){
+    box.innerHTML = `<div class="hint" style="margin:0">이 지점은 비교할 과거 예보 표본이 모자랍니다.</div>`;
+    return;
+  }
+
+  const d1 = rows[0];
+  const grade = d1.mae < 1 ? ["ok", "좋음"] : d1.mae < 2 ? ["warn", "보통"] : ["bad", "주의"];
+
+  box.innerHTML =
+    `<div style="margin-bottom:8px">하루 전 기온 예보 평균오차 <b>${d1.mae.toFixed(2)} ℃</b>
+      <span class="badge ${grade[0]}">${grade[1]}</span></div>
+     <div class="plain"><table>
+      <thead><tr><th>리드타임</th><th>표본</th><th>기온 MAE</th><th>기온 편차</th><th>강수 유무 적중</th><th>강수량 MAE</th></tr></thead>
+      <tbody>` +
+    rows.map(r => `<tr>
+      <td>${r.n}일 전 예보</td>
+      <td>${r.nT}시간</td>
+      <td>${r.mae.toFixed(2)} ℃</td>
+      <td>${r.bias >= 0 ? "+" : ""}${r.bias.toFixed(2)} ℃</td>
+      <td>${r.hit == null ? "—" : r.hit.toFixed(0) + "%"}</td>
+      <td>${r.pmae == null ? "—" : r.pmae.toFixed(2) + " mm"}</td>
+    </tr>`).join("") + `</tbody></table></div>`;
+
+  note.innerHTML = `
+    <b>이 숫자를 읽는 법.</b> 이 지점 좌표로 지난 7일치를 다시 받아, <b>N일 전에 그 시각을 두고 예보했던 값</b>과
+    <b>지금 최신 값</b>을 시간마다 맞대 계산했습니다. MAE는 틀린 폭의 평균,
+    편차는 방향입니다 — 양수면 실제보다 덥게 보는 버릇, 음수면 춥게 보는 버릇입니다.<br>
+    <b>한계.</b> 기준으로 삼은 "지금 최신 값"은 <b>AWS 실측 관측이 아니라 같은 모델의 최신 해석값</b>입니다.
+    모델이 자기 자신을 채점하는 셈이라 <b>실제 관측 대비 오차는 이 표보다 큽니다.</b> 낙관적인 하한으로 보세요.
+    강수량은 몇 km만 벗어나도 값이 확 달라져 MAE보다 <b>유무 적중률</b>이 쓸 만합니다.<br>
+    <b>그래서.</b> 위 프리쿨링 판정이 문턱에서 ${d1.mae.toFixed(1)} ℃ 안쪽으로 아슬아슬하면 뒤집힐 수 있는 값입니다.
+    설계 근거로 쓸 숫자는 예보가 아니라 기상청 관측 통계
+    (<a href="https://data.kma.go.kr" target="_blank" rel="noopener">기상자료개방포털</a>)의 TMY·설계외기조건이어야 합니다.
+    실시간 관측·특보는 <a href="https://www.weather.go.kr" target="_blank" rel="noopener">weather.go.kr</a>을 보세요.`;
+}
 
 /* ── 프리쿨링 ── */
 function freeCooling(){
