@@ -331,7 +331,8 @@ body.haspin .qnote{display:grid}
 .slide{
   flex:0 0 100%;scroll-snap-align:center;scroll-snap-stop:always;
   overflow-y:auto;overscroll-behavior-y:contain;
-  padding:0 14px calc(48px + env(safe-area-inset-bottom));
+  /* 태블릿에서 아래쪽 도구모음이 마지막 줄을 덮는 일이 있어 여유를 넉넉히 둔다 */
+  padding:0 14px calc(96px + env(safe-area-inset-bottom));
 }
 .sheet-body{max-width:760px;margin:0 auto}
 
@@ -361,10 +362,16 @@ body.haspin .qnote{display:grid}
     display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
     gap:16px;align-items:start;
   }
-  /* 두 칸 각각이 따로 스크롤된다 — 해설을 내려도 문제는 그대로 보인다 */
+  /* 두 칸 각각이 따로 스크롤된다 — 해설을 내려도 문제는 그대로 보인다.
+     높이를 dvh 로 계산하면 태블릿에서 주소창·도구모음이 접혔다 펴질 때 실제 보이는
+     높이와 어긋나, 칸이 화면 밖으로 삐져나가 아래쪽 해설에 손이 닿지 않는다.
+     그래서 --colh 를 JS 가 실제로 재서 넣어 준다. dvh 계산은 그게 없을 때의 보험이다.
+     overscroll 도 contain 대신 풀어 둔다 — 칸 끝에서 더 밀면 슬라이드가 이어서 밀리므로
+     혹시 칸 높이가 어긋나도 내용이 갇히지 않는다. */
   .split .splitcols > *{
-    max-height:calc(100dvh - var(--head) - var(--rail) - var(--qhead) - 40px);
-    overflow-y:auto;overscroll-behavior:contain;
+    max-height:var(--colh, calc(100dvh - var(--head) - var(--rail) - var(--qhead) - 40px));
+    overflow-y:auto;overscroll-behavior:auto;-webkit-overflow-scrolling:touch;
+    padding-bottom:32px;
   }
   .split .splitcols > *::-webkit-scrollbar{width:6px}
   .split .splitcols > *::-webkit-scrollbar-thumb{background:var(--rule);border-radius:3px}
@@ -821,6 +828,7 @@ mark.st{
   <a href="./index.html" class="on">뷰어</a>
   <a href="./upload.html">기계</a>
   <a href="./ingest.html">자동 변환</a>
+  <a href="./practice.html">실기</a>
   <a href="./interview.html">면접</a>
   <a href="./portfolio.html">포트폴리오</a>
 </nav>
@@ -3461,7 +3469,23 @@ const railTwo = () => LS.get("railTwo", 1) === 1;
 function applyRailRows(){
   const rail = $("#rail"); if(!rail) return;
   rail.classList.toggle("two", railTwo() && S.questions.length > 40);
+  sizeCols();
 }
+
+/* 2단 배치에서 각 칸이 쓸 수 있는 실제 높이를 재서 --colh 로 넘긴다.
+   dvh 로 계산하면 태블릿 주소창이 접혔다 펴질 때마다 어긋나서, 화면 밖으로 밀려난
+   해설 아랫부분에 손이 닿지 않는 일이 생긴다. 재서 넣으면 그런 일이 없다. */
+function sizeCols(){
+  const track = $("#track");
+  if(!track) return;
+  const h = track.clientHeight || 0;
+  if(h < 120) return;
+  const qh = document.querySelector(".qhead")?.offsetHeight || 52;
+  document.documentElement.style.setProperty("--colh", Math.max(240, h - qh - 28) + "px");
+}
+addEventListener("resize", sizeCols);
+addEventListener("orientationchange", () => setTimeout(sizeCols, 250));
+window.visualViewport?.addEventListener("resize", sizeCols);
 
 /* ═══════════════════════════════════════════════
    회차 정보 고치기 — 이름 · 연도(묶음) · 회차(순서)
@@ -4153,6 +4177,7 @@ function setActive(i){
 function jump(i,smooth=true){
   const slide=$(`#track .slide[data-i="${i}"]`); if(!slide) return;
   hydrate(i);
+  requestAnimationFrame(sizeCols);   /* 헤더 높이가 문항마다 달라질 수 있어 그릴 때마다 다시 잰다 */
   const track=$("#track");
   /* 세로 넘김 모드에서는 스크롤 축이 위아래로 바뀐다 */
   if(track.classList.contains("vert"))
