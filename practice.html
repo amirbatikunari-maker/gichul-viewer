@@ -92,6 +92,28 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
 .wait{font-size:12.5px;color:var(--ink-2)}
 
 .hide{display:none !important}
+
+/* ── 한 문항씩 보기 ──
+   실기 문제는 통짜 그림이라, 여러 장을 세로로 늘어놓으면 폰에서 전부 찌부러진다.
+   필기 뷰어처럼 한 화면에 한 문항만 두고 번호줄로 건너뛴다. */
+.prail{display:none;gap:5px;overflow-x:auto;scrollbar-width:none;
+  padding:8px 2px;margin:0 -2px;position:sticky;top:0;z-index:20;
+  background:color-mix(in srgb,var(--paper) 94%,transparent);backdrop-filter:blur(8px)}
+.prail::-webkit-scrollbar{display:none}
+body.oneup .prail{display:flex}
+.pb{flex:none;min-width:46px;height:30px;padding:0 8px;border-radius:999px;
+  border:1.4px solid var(--rule);background:#fff;color:var(--ink);
+  font:500 11.5px/1 var(--font-m);cursor:pointer;display:grid;place-items:center;white-space:nowrap}
+.pb.now{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:700}
+.pb.mark{border-color:var(--stamp)}
+.pb.easy::after{content:"";position:absolute;margin-top:20px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
+.pnav{display:none;gap:10px;align-items:center;justify-content:center;
+  position:sticky;bottom:0;padding:10px 0 14px;
+  background:linear-gradient(transparent,var(--paper) 30%)}
+body.oneup .pnav{display:flex}
+#pnavAt{font:600 12px/1 var(--font-m);color:var(--ink-2);min-width:120px;text-align:center}
+body.oneup #list > .pcard{display:none}
+body.oneup #list > .pcard.show{display:block}
 .noans{margin-top:10px;padding:11px 13px;border:1px dashed var(--rule);border-radius:10px;
   font-size:12.5px;color:var(--ink-2);line-height:1.7;background:var(--paper)}
 .noans b{color:var(--ink)}
@@ -195,8 +217,15 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
           <option value="30">30문항</option>
           <option value="50">50문항</option>
         </select>
+        <button class="chip on" id="fOne" type="button" title="한 화면에 한 문항만 보여 줍니다">한 문항씩</button>
       </div>
+      <div class="prail" id="prail"></div>
       <div id="list"><div class="empty">과목을 고르세요.</div></div>
+      <div class="pnav" id="pnav">
+        <button class="zb" type="button" data-step="-1">‹ 이전</button>
+        <span id="pnavAt">—</span>
+        <button class="zb" type="button" data-step="1">다음 ›</button>
+      </div>
     </div>
 
     <!-- 3 · 자료함 --------------------------------------------- -->
@@ -441,6 +470,52 @@ async function loadList(){
   drawList();
 }
 
+/* ── 한 문항씩 보기 ── */
+let ONEUP = localStorage.getItem("prac:oneup") !== "0";
+let ONEAT = 0;          // 지금 보고 있는 순번
+let SHOWN = [];         // 화면에 걸린 문항들(거른 뒤)
+
+function applyOneUp(){
+  document.body.classList.toggle("oneup", ONEUP);
+  $("#fOne")?.classList.toggle("on", ONEUP);
+  if(ONEUP) showAt(Math.min(ONEAT, Math.max(0, SHOWN.length - 1)));
+  else $$("#list > .pcard").forEach(c => c.classList.add("show"));
+}
+
+function drawRail(){
+  if(!ONEUP) return;
+  $("#prail").innerHTML = SHOWN.map((r, i) => {
+    const has = (MARKS[r.id] || []).length;
+    return `<button class="pb ${i === ONEAT ? "now" : ""} ${has ? "mark" : ""} ${r.easy_md ? "easy" : ""}"
+      type="button" data-go="${i}">${r.year % 100}-${r.session} ${r.no}</button>`;
+  }).join("");
+  $$("#prail .pb").forEach(b => b.onclick = () => showAt(+b.dataset.go));
+  $("#prail .pb.now")?.scrollIntoView({ behavior:"smooth", block:"nearest", inline:"center" });
+}
+
+function showAt(i){
+  if(!SHOWN.length) return;
+  ONEAT = Math.max(0, Math.min(i, SHOWN.length - 1));
+  const want = String(SHOWN[ONEAT].id);
+  $$("#list > .pcard").forEach(c => c.classList.toggle("show", c.dataset.id === want));
+  const r = SHOWN[ONEAT];
+  $("#pnavAt").textContent = `${ONEAT + 1} / ${SHOWN.length} · ${r.year}년 제${r.session}회 ${r.no}번`;
+  drawRail();
+  document.querySelector("#list > .pcard.show")?.scrollIntoView({ block:"start" });
+}
+
+$("#fOne").onclick = () => {
+  ONEUP = !ONEUP;
+  localStorage.setItem("prac:oneup", ONEUP ? "1" : "0");
+  applyOneUp();
+};
+$$("#pnav [data-step]").forEach(b => b.onclick = () => showAt(ONEAT + (+b.dataset.step)));
+addEventListener("keydown", e => {
+  if(!ONEUP || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName)) return;
+  if(e.key === "ArrowRight") { e.preventDefault(); showAt(ONEAT + 1); }
+  if(e.key === "ArrowLeft")  { e.preventDefault(); showAt(ONEAT - 1); }
+});
+
 function drawList(){
   const y = $("#fYear").value, s = $("#fSess").value, q = $("#fQ").value.trim();
   let rows = ROWS;
@@ -460,7 +535,10 @@ function drawList(){
     return;
   }
 
-  $("#list").innerHTML = rows.slice(0, 200).map(r => {
+  /* 한 문항씩 볼 때는 200개 제한이 의미가 없다 — 어차피 한 장만 보이므로 500개까지 걸어 둔다 */
+  const cap = ONEUP ? 500 : 200;
+  SHOWN = rows.slice(0, cap);
+  $("#list").innerHTML = SHOWN.map(r => {
     const rot = r.rotate ? `transform:rotate(${r.rotate}deg)` : "";
     const marks = MARKS[r.id] || [];
     const dots = t => marks.filter(m => (m.target || "q") === t).map((m, k) =>
@@ -508,7 +586,7 @@ function drawList(){
         </div>
       </div>
     </div>`; }).join("")
-    + (rows.length > 200 ? `<div class="empty">${rows.length}개 중 200개만 보이고 있습니다. 연도나 회차로 좁혀 보세요.</div>` : "");
+    + (rows.length > cap ? `<div class="empty">${rows.length}개 중 ${cap}개만 보이고 있습니다. 연도나 회차로 좁혀 보세요.</div>` : "");
 
   /* ── 답안 그림을 손으로 붙이기 ──
      원본에 «답안작성» 표시가 없어 못 잘린 문항, 답안이 다른 파일에 있는 문항을
@@ -632,6 +710,10 @@ ${EASY_RULE}`, blob, 3000);
     if(!hid) box.querySelectorAll("[data-pz]").forEach(attachZoom);
   });
   $$("#list .pbody > [data-pz]").forEach(attachZoom);
+
+  /* 새로 그린 뒤 한 문항씩 모드를 다시 적용한다 */
+  if(ONEAT >= SHOWN.length) ONEAT = 0;
+  applyOneUp();
 }
 
 ["#fYear","#fSess"].forEach(k => $(k).onchange = () => { RAND = null; paintRand(); drawList(); });
