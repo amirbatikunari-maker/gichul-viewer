@@ -52,14 +52,6 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
 .drop{border:1.6px dashed var(--rule);border-radius:12px;padding:26px;text-align:center;color:var(--ink-2);cursor:pointer;transition:.15s}
 .drop.on{border-color:var(--accent);background:#E4ECFD;color:var(--accent)}
 .drop b{display:block;font:600 15px/1.4 var(--font-d);color:var(--ink);margin-bottom:4px}
-/* 붙여넣기는 "지금 초점이 어디 있는가"로 갈린다. 끌어놓기 칸은 눌러도 파일 고르기가 열려
-   초점을 붙잡아 둘 수가 없어서, 초점만 받는 칸을 따로 둔다. */
-.pastebox{margin-top:8px;font:500 12px/1.5 var(--font-d);color:var(--ink-2);
-  border:1.4px dashed var(--rule);border-radius:10px;padding:11px 12px;text-align:center;
-  background:transparent;cursor:text;transition:.15s}
-.pastebox b{color:var(--ink);font-weight:700}
-.pastebox:focus{outline:0;border-style:solid;border-color:var(--accent);color:var(--accent);background:#E4ECFD}
-.pastebox:focus b{color:var(--accent)}
 .srctabs{display:flex;gap:6px;margin-bottom:14px}
 .srctab{padding:8px 14px;border-radius:999px;border:1.4px solid var(--rule);
      font:600 12px/1 var(--font-d);background:none;color:var(--ink-2)}
@@ -147,8 +139,16 @@ button.sm{font:600 12px/1 var(--font-d);padding:7px 11px;border-radius:8px}
         <div><label>과목명</label><input id="sname" placeholder="위험물산업기사"></div>
         <div><label>과목 코드</label><input id="scode" placeholder="danger-ind"></div>
         <div><label>분류</label><input id="scat" placeholder="소방·안전"></div>
-        <div><label>연도</label><input id="year" type="number" placeholder="2020"></div>
-        <div><label>회차</label><input id="sess" type="number" placeholder="3"></div>
+        <div><label>연도</label><input id="year" placeholder="2020  ·  2021~2026  ·  합본"></div>
+        <div><label>회차</label><input id="sess" placeholder="3  ·  1~4회  ·  개념정리"></div>
+      </div>
+      <label style="margin-top:11px">화면에 보일 이름</label>
+      <input id="elabel" placeholder="비워 두면 «연도 + 회차» 로 자동으로 만듭니다">
+      <div class="hint" style="margin-top:6px">
+        연도·회차·이름 모두 <b>숫자·한글·기호 아무거나</b> 넣을 수 있습니다.
+        예) 연도 <b>2021~2026</b> · 회차 <b>합본</b> · 이름 <b>위험물 6개년 합본</b><br>
+        뷰어에서 묶는 기준(연도)과 순서(회차)는 적어 주신 글 속 <b>첫 숫자</b>를 씁니다.
+        숫자가 없으면 맨 위에 놓입니다.
       </div>
     </div>
 
@@ -173,10 +173,8 @@ button.sm{font:600 12px/1 var(--font-d);padding:7px 11px;border-radius:8px}
       <div id="src-images" hidden>
         <div class="drop" id="dropImg">
           <b>사진 여러 장을 한꺼번에 끌어다 놓기</b>
-          문제지를 순서대로 찍은 사진들. 눌러서 고르셔도 됩니다
+          문제지를 순서대로 찍은 사진들. 눌러서 고르거나, 캡처한 이미지를 <b>Ctrl+V</b> 로 붙여넣어도 됩니다
         </div>
-        <div class="pastebox" id="pasteImg" tabindex="0" role="button"
-             aria-label="여기를 누르고 Ctrl+V 로 사진 붙여넣기">여기를 누르고 <b>Ctrl+V</b> · 여러 장을 한 번에 붙여도 순서대로 들어갑니다</div>
         <input id="fileImg" type="file" accept="image/*" multiple hidden>
         <div class="imglist" id="imglist"></div>
       </div>
@@ -358,9 +356,10 @@ let DB_NUMBERS = []; // ★ 추가: DB에 이미 올라간 문항 번호들
 // ★ 추가: Supabase(저장소)에서 이미 올라간 문항 번호 동기화
 async function fetchSavedNumbers() {
   const scode = $("#scode").value.trim();
-  const year = +$("#year").value;
-  const sess = +$("#sess").value;
-  if(!scode || !year || !sess) return;
+  /* 연도·회차에 글자가 들어와도 첫 숫자만 뽑아 찾는다 — 저장할 때와 같은 규칙 */
+  const year = firstNum($("#year").value);
+  const sess = firstNum($("#sess").value);
+  if(!scode || !$("#year").value.trim()) return;
   
   try {
     const { data: sub } = await sb.from("subject_list").select("id").eq("code", scode).maybeSingle();
@@ -499,30 +498,31 @@ dropImg.onclick = () => $("#fileImg").click();
 ["dragenter","dragover"].forEach(e => dropImg.addEventListener(e, ev => { ev.preventDefault(); dropImg.classList.add("on"); }));
 ["dragleave","drop"].forEach(e => dropImg.addEventListener(e, ev => { ev.preventDefault(); dropImg.classList.remove("on"); }));
 dropImg.addEventListener("drop", ev => { takeImages([...ev.dataTransfer.files].filter(f => f.type.startsWith("image/"))); });
+/* 화면에 보일 이름을 안 적으면 «연도 + 회차» 로 만들어 둔다.
+   직접 손댄 뒤에는 건드리지 않는다 — 고쳐 놓은 걸 덮어쓰면 짜증난다. */
+let LABEL_TOUCHED = false;
+$("#elabel")?.addEventListener("input", () => { LABEL_TOUCHED = $("#elabel").value.trim() !== ""; });
+function autoLabel(){
+  if(LABEL_TOUCHED) return;
+  const y = $("#year").value.trim(), n = $("#sess").value.trim();
+  if(!y && !n) return;
+  const yy = y ? (/^\d+$/.test(y) ? y + "년" : y) : "";
+  const nn = n ? (/^\d+$/.test(n) ? n + "회" : n) : "";
+  $("#elabel").placeholder = [yy, nn].filter(Boolean).join(" ") || "비워 두면 자동으로 만듭니다";
+}
+["year","sess"].forEach(id => $("#"+id)?.addEventListener("input", autoLabel));
+
 $("#fileImg").onchange = e => takeImages([...e.target.files]);
 
 /* ── 클립보드 붙여넣기 ──
    캡처 도구로 오린 화면을 파일로 저장했다가 다시 고르는 게 번거로워서,
    Ctrl+V 로 바로 넣을 수 있게 한다. 여러 장을 한 번에 붙여도 순서대로 들어간다.
-   붙여넣은 이미지는 이름이 없으므로 붙인 순서대로 번호를 매겨 정렬이 흐트러지지 않게 한다.
-
-   페이지 번호 칸 같은 데 커서가 가 있으면 Ctrl+V 가 그쪽으로 먹혀서 아무 일도 안 일어난다.
-   그래서 초점을 확실히 받아 두는 칸(#pasteImg)을 따로 두고, 거기 초점이 있으면
-   무슨 일이 있어도 사진으로 받는다. 붙인 뒤에도 초점을 놓지 않아 연달아 붙일 수 있다. */
+   붙여넣은 이미지는 이름이 없으므로 붙인 순서대로 번호를 매겨 정렬이 흐트러지지 않게 한다. */
 let PASTE_N = 0;
-const pasteBox = $("#pasteImg");
-let PASTE_ARMED = false;
-pasteBox.addEventListener("click", () => pasteBox.focus());
-pasteBox.addEventListener("focus", () => { PASTE_ARMED = true; });
-pasteBox.addEventListener("blur",  () => { PASTE_ARMED = false; });
-
 addEventListener("paste", async e => {
-  if(!PASTE_ARMED && /^(INPUT|TEXTAREA)$/.test(e.target?.tagName)) return;
+  if(/^(INPUT|TEXTAREA)$/.test(e.target?.tagName)) return;
   const items = [...(e.clipboardData?.items || [])].filter(i => i.type.startsWith("image/"));
-  if(!items.length){
-    if(PASTE_ARMED) say($("#fm"), "클립보드에 이미지가 없습니다. 캡처한 뒤 다시 붙여넣어 보세요.", "err");
-    return;
-  }
+  if(!items.length) return;
   e.preventDefault();
   if(SRC !== "images"){
     say($("#fm"), "사진 모드에서만 붙여넣을 수 있습니다. 위에서 \"사진 여러 장\"을 골라 주세요.", "err");
@@ -535,10 +535,7 @@ addEventListener("paste", async e => {
     const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg");
     return new File([f], `붙여넣기_${stamp}.${ext}`, { type:f.type });
   }).filter(Boolean);
-  if(files.length){
-    takeImages(files);
-    if(PASTE_ARMED) pasteBox.focus();   /* 연달아 붙일 수 있게 초점을 지킨다 */
-  }
+  if(files.length) takeImages(files);
 });
 
 function fileToB64(file){
@@ -668,6 +665,15 @@ function plan(){
 ["pFrom","pTo","chunk"].forEach(id => $("#"+id)?.addEventListener("change", plan));
 
 function unit(){ return SRC === "pdf" ? "쪽" : "번"; }
+
+/* 글 속 첫 숫자만 뽑는다. "2021~2026" → 2021, "합본" → 0 */
+function firstNum(v){ const m = String(v || "").match(/\d+/); return m ? +m[0] : 0; }
+function autoLabelText(){
+  const y = $("#year").value.trim(), n = $("#sess").value.trim();
+  const yy = y ? (/^\d+$/.test(y) ? y + "년" : y) : "";
+  const nn = n ? (/^\d+$/.test(n) ? n + "회" : n) : "";
+  return [yy, nn].filter(Boolean).join(" ");
+}
 function drawBatches(){
   $("#batches").innerHTML = BATCHES.map((b,i) =>
     `<button type="button" class="bt ${b.status} ${b.off?"off":""}" data-i="${i}" title="${
@@ -1449,10 +1455,19 @@ async function push(quiet){
     p_subject_name: $("#sname").value.trim(),
     p_subject_code: $("#scode").value.trim(),
     p_category: $("#scat").value.trim() || "기타",
-    p_year: +$("#year").value, p_session: +$("#sess").value,
+    /* 저장 함수는 연도·회차를 숫자로만 받는다. 그래서 적어 주신 글에서 첫 숫자만 뽑아
+       묶는 기준·순서로 쓰고, 사람이 읽을 이름은 아래에서 label 에 그대로 넣는다. */
+    p_year: firstNum($("#year").value), p_session: firstNum($("#sess").value),
     p_questions: qs
   });
   if(error){ log("업로드 실패 — " + error.message, "e"); if(!quiet) say($("#um"), "업로드 실패 — " + error.message, "err"); return false; }
+
+  /* 화면에 보일 이름을 그대로 덮어쓴다 — 저장 함수는 «2020년 3회» 꼴만 만들 줄 안다 */
+  const wantLabel = ($("#elabel").value.trim()) || autoLabelText();
+  if(wantLabel){
+    const lr = await sb.from("exam_list").update({ label: wantLabel }).eq("id", data);
+    if(lr.error) log("이름을 바꾸지 못했습니다 — " + lr.error.message, "e");
+  }
 
   /* 그림 주소는 회차 저장 함수(upsert_exam_bundle)가 모르는 항목이라 따로 붙인다.
      함수를 고치는 것보다 안전하고, 그림이 있는 문항만 도니 몇 건에 그친다. */
