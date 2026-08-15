@@ -481,7 +481,6 @@ html[data-theme="dark"] #blank{background:#fff}
       font:600 11px/1 var(--font-d);white-space:nowrap;cursor:pointer}
 .delx:active{background:color-mix(in srgb,var(--stamp) 12%,transparent)}
 body.manage .delx{display:inline-flex}
-body.authed .delx.edit{display:inline-flex}   /* 이름·연도 고치기는 정리 모드가 아니어도 */
 .delx.wipe{border-color:var(--ink-2);color:var(--ink-2)}
 .subj .delx,.row .delx{margin-left:6px}
 .qhead .delx{margin-left:2px}
@@ -925,7 +924,6 @@ async function inkRefresh(session){
   $("#inkPopOut").hidden = !S.loggedIn;
   $("#inkAuthBtn").classList.toggle("on", S.loggedIn);
   $$(".qink").forEach(b => b.classList.toggle("loggedin", S.loggedIn));
-  document.body.classList.toggle("authed", S.loggedIn);   /* 고치기 단추 보이기용 */
   if(!S.loggedIn) setManage(false);
   /* 고치기 단추들은 로그인 여부를 보고 그릴지 말지를 정한다. 그래서 로그인 상태가
      바뀌면 이미 그려둔 문항을 다시 그려야 단추가 나타나거나 사라진다.
@@ -3084,7 +3082,7 @@ async function mixIndex(subjectId, force){
      기준을 사람이 정하지 않으므로, 회차를 더 넣으면 경계도 알아서 움직인다. */
   const rank = {};                       // 회차 id → 최신이 0
   [...(exams || [])]
-    .sort((x, y) => (y.year - x.year) || (y.session - x.session))
+    .sort((x, y) => (numOf(y.year) - numOf(x.year)) || (numOf(y.session) - numOf(x.session)))
     .forEach((e, i) => rank[e.id] = i);
 
   const N = Math.max(1, (exams || []).length);
@@ -3197,6 +3195,10 @@ function mountReroll(exam){
    세로로 채우므로 윗줄이 101·103·105…, 아랫줄이 102·104·106… 으로 갈린다.
    대신 스크롤 길이가 절반이고, 한 칸 위아래가 곧 연속 번호라 위치를 잡기 쉽다.
    한 줄이 편하면 문항 고르기 창에서 끌 수 있다. */
+/* 연도·회차 칸에 "2021~2026" 이나 "합본" 같은 글자가 들어와도
+   묶고 줄 세울 때는 첫 숫자만 본다. 숫자가 없으면 0. */
+const numOf = v => { const m = String(v ?? "").match(/\d+/); return m ? +m[0] : 0; };
+
 const railTwo = () => LS.get("railTwo", 1) === 1;
 function applyRailRows(){
   const rail = $("#rail"); if(!rail) return;
@@ -3227,15 +3229,15 @@ function editExam(examId, subjectId){
       <div style="display:flex;gap:10px;margin-top:12px">
         <div style="flex:1">
           <label class="exl">연도 (묶음 제목)</label>
-          <input class="exi" id="exYear" type="number" value="${e.year ?? ""}" placeholder="2021">
+          <input class="exi" id="exYear" value="${esc(e.year ?? "")}" placeholder="2021 · 2021~2026 · 합본">
         </div>
         <div style="flex:1">
-          <label class="exl">회차 (정렬 순서)</label>
-          <input class="exi" id="exSess" type="number" value="${e.session ?? ""}" placeholder="1">
+          <label class="exl">회차</label>
+          <input class="exi" id="exSess" value="${esc(e.session ?? "")}" placeholder="1 · 1~4회 · 개념정리">
         </div>
       </div>
-      <div class="exh">이 둘은 <b>숫자만</b> 들어갑니다 — 목록을 묶고 줄 세우는 데만 씁니다.
-        글자로 보이고 싶은 건 위 «이름» 에 쓰세요.</div>
+      <div class="exh">셋 다 <b>숫자·한글·기호 아무거나</b> 됩니다.
+        목록을 묶고 줄 세울 때는 적으신 글 속 <b>첫 숫자</b>를 보고, 숫자가 없으면 맨 위에 놓습니다.</div>
 
       <div class="bar" style="justify-content:flex-end;margin-top:16px">
         <button class="figbtn" data-exclose type="button">취소</button>
@@ -3255,8 +3257,8 @@ function editExam(examId, subjectId){
     const r = await sb.rpc("set_exam_meta", {
       p_exam_id: e.id,
       p_label: label || null,
-      p_year: y === "" ? null : +y,
-      p_session: n === "" ? null : +n
+      p_year: y || null,
+      p_session: n || null
     });
     if(r.error){
       return toast(/set_exam_meta|schema cache/i.test(r.error.message)
