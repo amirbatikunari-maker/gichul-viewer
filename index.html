@@ -1218,11 +1218,27 @@ function setupInkPage(qid, wrap, page, canvas, tools, onEditingChange, zoomCtl){
     }, HOLD_MS);
   }
 
+  /* ── 펜 뒤꼭지·지우개 버튼 ──
+     태블릿 펜은 지우개 쪽으로 뒤집거나 옆 버튼을 누르면
+     pointerdown 에 button 5 (buttons 비트 32) 를 실어 보낸다.
+     그 획 동안만 지우개로 바꿔 쓰고, 손을 떼면 원래 도구로 돌려놓는다.
+     (도구 단추를 눌러 지우개로 바꿨다가 다시 펜으로 되돌리는 수고를 없앤다) */
+  const TOOLNAME = { pen:"펜", hi:"형광펜", ul:"밑줄", er:"지우개", move:"이동" };
+  const isEraserBtn = ev => ev.pointerType === "pen" && (ev.button === 5 || (ev.buttons & 32) !== 0);
+  let penErase = null;              // 잠시 지우개로 쓰는 동안 원래 도구를 넣어 둔다
+  const markTool = name =>
+    tools.querySelectorAll("[data-tool]").forEach(x => x.classList.toggle("on", x.dataset.tool === name));
+
   canvas.addEventListener("pointerdown", ev=>{
     if(!state.editing) return;
     ev.preventDefault();
     canvas.setPointerCapture(ev.pointerId);
     straight = false; clearHold();
+    if(isEraserBtn(ev) && state.tool !== "er"){
+      penErase = state.tool;
+      state.tool = "er";
+      markTool("er");
+    }
     if(state.tool === "er"){ state.drawing = true; eraseNear(...toVirtual(ev).slice(0,2)); return; }
     state.drawing = true;
     const col = state.tool === "hi" ? state.hiColor : state.color;
@@ -1249,10 +1265,18 @@ function setupInkPage(qid, wrap, page, canvas, tools, onEditingChange, zoomCtl){
   });
   function finish(){
     clearHold();
-    if(!state.drawing) return;
+    /* 펜 지우개로 잠시 바뀌었으면 손을 떼는 순간 원래 도구로 돌려놓는다.
+       state.drawing 검사보다 앞에 둔다 — 아무것도 못 지운 채 떼도 되돌아와야 한다. */
+    const back = () => {
+      if(!penErase) return;
+      state.tool = penErase; penErase = null;
+      markTool(state.tool); syncPointer(); syncOpa();
+      toast(TOOLNAME[state.tool] + "으로 돌아왔습니다");
+    };
+    if(!state.drawing){ back(); return; }
     state.drawing = false;
     straight = false;
-    if(state.tool === "er"){ return; }
+    if(state.tool === "er"){ back(); return; }   /* 지우개로 끝난 획도 원래 도구로 되돌린다 */
     if(state.cur && state.cur.pts.length >= 2){
       if(state.tool === "ul"){
         const pts = state.cur.pts;
@@ -1267,7 +1291,9 @@ function setupInkPage(qid, wrap, page, canvas, tools, onEditingChange, zoomCtl){
   }
   canvas.addEventListener("pointerup", finish);
   canvas.addEventListener("pointercancel", finish);
-  canvas.addEventListener("pointerleave", ()=>{ if(state.tool!=="er") finish(); });
+  /* 지우개일 때는 캔버스를 잠깐 벗어나도 계속 지우게 두지만,
+     펜 뒤꼭지로 잠시 지우개가 된 상태라면 반드시 finish 를 거쳐 원래 도구로 돌아와야 한다. */
+  canvas.addEventListener("pointerleave", ()=>{ if(state.tool!=="er" || penErase) finish(); });
 
   /* ── 도구 전환 ──
      "move"(이동) 는 그리는 도구가 아니라 손도구다. 이때는 캔버스가 아예 터치를 안 받게 해서
@@ -1281,6 +1307,7 @@ function setupInkPage(qid, wrap, page, canvas, tools, onEditingChange, zoomCtl){
   }
   function setTool(name){
     if(!name) return;
+    penErase = null;          /* 손으로 도구를 고른 순간, 펜 지우개 임시 상태는 없던 일로 */
     state.tool = name;
     tools.querySelectorAll("[data-tool]").forEach(x=>x.classList.toggle("on", x.dataset.tool===name));
     clearHold();
