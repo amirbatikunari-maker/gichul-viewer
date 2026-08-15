@@ -112,11 +112,18 @@ th.acc{color:var(--accent)}
 .hscroll svg{display:block}
 .strip{display:flex;gap:0;overflow-x:auto;overflow-y:hidden;margin:6px -16px 0;padding:6px 16px 10px;
   scrollbar-width:thin;-webkit-overflow-scrolling:touch;scroll-behavior:smooth}
-.hcell{flex:0 0 auto;width:50px;text-align:center;position:relative;padding:2px 0}
+/* 칸 하나하나. width 에 테두리가 더해지면 첫 칸만 1px 좁아져 줄이 어긋나므로 border-box 로 센다.
+   날짜 표시(<em>)가 붙는 칸은 글자가 한 줄 아래로 밀린다. 그래서 머리글을 아래쪽 기준으로
+   붙여, 날짜가 있든 없든 시각 글자가 이웃과 같은 높이에 오게 한다. */
+.hcell{flex:0 0 auto;width:52px;box-sizing:border-box;text-align:center;position:relative;padding:2px 0;
+  display:flex;flex-direction:column}
 .hcell + .hcell{border-left:1px solid color-mix(in srgb,var(--rule) 55%,transparent)}
 .hcell.past{opacity:.42}
-.hcell.now{background:color-mix(in srgb,var(--accent) 9%,transparent);border-radius:9px}
-.hcell .hh{font:600 10.5px/1.3 var(--font-m);color:var(--ink-2);height:26px}
+/* 배경이 테두리 자리까지 번지면 파란 칸만 한쪽으로 밀려 보인다 */
+.hcell.now{background:color-mix(in srgb,var(--accent) 9%,transparent);border-radius:9px;
+  background-clip:padding-box}
+.hcell .hh{font:600 10.5px/1.3 var(--font-m);color:var(--ink-2);min-height:26px;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-end;white-space:nowrap}
 .hcell.now .hh{color:var(--accent);font-weight:700}
 .hcell .hh em{display:block;font:700 9.5px/1.2 var(--font-d);color:var(--stamp);font-style:normal}
 .hcell .ic{font-size:15px;line-height:1.5}
