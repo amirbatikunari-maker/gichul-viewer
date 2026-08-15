@@ -92,6 +92,12 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
 .wait{font-size:12.5px;color:var(--ink-2)}
 
 .hide{display:none !important}
+.noans{margin-top:10px;padding:11px 13px;border:1px dashed var(--rule);border-radius:10px;
+  font-size:12.5px;color:var(--ink-2);line-height:1.7;background:var(--paper)}
+.noans b{color:var(--ink)}
+.noans.armed{border-color:var(--accent);border-style:solid}
+.hintx{font-size:11.5px;color:var(--ink-2)}
+.hintx b{color:var(--ink);font-family:var(--font-m)}
 .peekhead{font-size:12px;color:var(--ink-2);margin:12px 0 8px;line-height:1.6}
 .peekwrap{display:grid;gap:12px}
 .peekcard{border:1px solid var(--rule);border-radius:12px;overflow:hidden;background:var(--card)}
@@ -475,7 +481,15 @@ function drawList(){
         ${r.a_url ? `<div class="ans ${HIDE_ALL ? "hide" : ""}" data-ans>
             <button class="ansbtn ${HIDE_ALL ? "" : "on"}" type="button" data-toggle>${HIDE_ALL ? "답안 보기" : "답안 가리기"}</button>
             <div style="margin-top:9px">${img(r.a_url, "답안", "a")}</div>
-          </div>` : ""}
+          </div>`
+        : `<div class="noans">
+            <b>답안이 붙어 있지 않습니다.</b>
+            원본에서 «답안작성» 표시를 못 찾아 잘리지 않았거나, 답안이 다른 파일에 있는 경우입니다.
+            <div class="bar" style="margin-top:8px">
+              <button class="zb" type="button" data-ansadd="${r.id}">답안 그림 넣기</button>
+              <span class="hintx">파일을 고르거나, 캡처해 두고 이 자리를 누른 뒤 <b>Ctrl+V</b></span>
+            </div>
+          </div>`}
         <div class="marknotes" data-notes="${r.id}">${marks.map((m, k) => `
           <div class="mknote" data-note="${m.id}">
             <div class="mkh"><b>${k+1}</b><span>${(m.target||"q")==="a"?"답안":"문제"} 부분</span>
@@ -495,6 +509,24 @@ function drawList(){
       </div>
     </div>`; }).join("")
     + (rows.length > 200 ? `<div class="empty">${rows.length}개 중 200개만 보이고 있습니다. 연도나 회차로 좁혀 보세요.</div>` : "");
+
+  /* ── 답안 그림을 손으로 붙이기 ──
+     원본에 «답안작성» 표시가 없어 못 잘린 문항, 답안이 다른 파일에 있는 문항을
+     여기서 바로 채운다. 파일을 고르거나 캡처한 것을 Ctrl+V 로 붙인다. */
+  $$("#list [data-ansadd]").forEach(b => b.onclick = () => {
+    const id = b.dataset.ansadd;
+    ANS_TARGET = id;
+    b.closest(".noans")?.classList.add("armed");
+    if(!ANS_INPUT){
+      ANS_INPUT = document.createElement("input");
+      ANS_INPUT.type = "file"; ANS_INPUT.accept = "image/*";
+      ANS_INPUT.style.display = "none";
+      document.body.appendChild(ANS_INPUT);
+    }
+    ANS_INPUT.value = "";
+    ANS_INPUT.onchange = e => { const f = e.target.files[0]; if(f) putAnswer(id, f); };
+    ANS_INPUT.click();
+  });
 
   /* ── 막히는 곳 표시 ── */
   $$("#list [data-pick]").forEach(b => b.onclick = () => startPick(b.dataset.pick, b));
@@ -637,6 +669,48 @@ $("#fAns").onclick = () => {
   drawList();
 };
 $("#fAns").classList.add("on");
+
+/* ── 답안 그림 붙이기 ── */
+let ANS_TARGET = null, ANS_INPUT = null;
+
+async function putAnswer(id, file){
+  if(!/^image\//.test(file.type)) return log("이미지 파일만 붙일 수 있습니다.");
+  const r = ROWS.find(x => String(x.id) === String(id));
+  if(!r) return;
+  log(`${r.year}-${r.session} ${r.no}번 답안 올리는 중…`);
+  try{
+    /* 폭 1400px 로 줄여 올린다. 캡처 원본을 그대로 올리면 몇 MB 씩 쌓인다. */
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 1400 / bmp.width);
+    const cv = document.createElement("canvas");
+    cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+    const g = cv.getContext("2d");
+    g.fillStyle = "#fff"; g.fillRect(0, 0, cv.width, cv.height);
+    g.drawImage(bmp, 0, 0, cv.width, cv.height);
+    bmp.close?.();
+    const blob = await new Promise(res => cv.toBlob(res, "image/jpeg", 0.88));
+
+    const path = `prac/${r.subject_id}/${r.year}_${r.session}_${String(r.no).padStart(2,"0")}_a_manual_${Date.now()}.jpg`;
+    const url = await put(path, blob);
+    const up = await sb.from("practicals").update({ a_url:url }).eq("id", r.id);
+    if(up.error) throw up.error;
+    r.a_url = url;
+    ANS_TARGET = null;
+    log("답안을 붙였습니다.");
+    drawList();
+  }catch(e){ log("붙이지 못했습니다 — " + niceErr(e)); }
+}
+
+/* 답안 넣기를 누른 문항이 있으면 그 문항에, 없으면 무시한다 */
+addEventListener("paste", e => {
+  if(!ANS_TARGET) return;
+  if(/^(INPUT|TEXTAREA)$/.test(e.target?.tagName)) return;
+  const it = [...(e.clipboardData?.items || [])].find(x => x.type.startsWith("image/"));
+  if(!it) return;
+  e.preventDefault();
+  const f = it.getAsFile();
+  if(f) putAnswer(ANS_TARGET, f);
+});
 
 /* ── 네모로 집기 ──
    그림 위에서 끌어 네모를 만든다. 좌표는 그림 크기로 나눈 0~1 비율로 저장하므로
@@ -1233,7 +1307,10 @@ async function uploadItems(list, sid, scale, MODE, label){
             q_text: cut > 0 ? whole.slice(0, cut) : whole,
             source:it.source, page_from:it.start.page, page_to:it.end.page
           };
-          if(MODE !== "q" || aUrl){ row.a_url = aUrl; row.a_text = cut > 0 ? whole.slice(cut) : null; }
+          /* 답안을 실제로 만들어 냈을 때만 그 칸을 건드린다.
+             예전에는 «문제+답안» 모드로 다시 올리면 이번에 답안이 안 잘렸다는 이유로
+             전에 잘 들어가 있던 답안까지 null 로 덮어써 버렸다. */
+          if(aUrl){ row.a_url = aUrl; row.a_text = cut > 0 ? whole.slice(cut) : null; }
           const r = await sb.from("practicals").upsert(row, { onConflict:"subject_id,year,session,no" });
           if(r.error) throw r.error;
           ok++;
