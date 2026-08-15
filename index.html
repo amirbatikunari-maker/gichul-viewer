@@ -2568,25 +2568,28 @@ async function drawNotes(subjectId, box){
         <span class="ni">${i + 1}</span>
         <span class="nt">${r.pinned ? "★ " : ""}${esc(r.title || "이름 없는 자료")}</span>
         ${r.flat_url ? `<span class="nk ok">다듬음</span>` : ""}${r.clean_md ? `<span class="nk">글</span>` : ""}
-        <span class="nk">${r.kind === "pdf" ? "PDF" : "사진"}</span>
+        <span class="nk">${r.kind === "pdf" ? "PDF" : (r.url || r.flat_url) ? "사진" : "글만"}</span>
         <span class="nx" data-notedel="${r.id}" role="button" title="이 자료 삭제">×</span>
       </summary>
       <div class="nb">
         <div data-cleanslot>${r.clean_md ? `<div class="clean" title="표가 넓으면 좌우로 밀어 보세요">${md(cleanFix(r.clean_md)).replace(/<p>(※[^<]*)<\/p>/g, '<div class="warnline">$1</div>')}</div>` : ""}</div>
 
-        ${r.kind === "pdf"
+        ${!r.url && !r.flat_url
+          ? ""                                  /* 사진을 지운 자료 — 옮겨 적은 글만 남는다 */
+          : r.kind === "pdf"
           ? `<iframe src="${esc(r.url)}" title="${esc(r.title || "자료")}" loading="lazy"></iframe>`
           : `<img src="${esc(r.flat_url || r.url)}" alt="${esc(r.title || "자료")}" loading="lazy" decoding="async">
-             ${r.flat_url ? `<details class="rawwrap"><summary>원본 사진 보기</summary>
+             ${r.flat_url && r.url ? `<details class="rawwrap"><summary>원본 사진 보기</summary>
                  <img src="${esc(r.url)}" alt="원본" loading="lazy" decoding="async"></details>` : ""}`}
 
         <div class="nbar">
-          ${r.kind !== "pdf" ? `<button class="figbtn save" data-noteflat="${r.id}" type="button">${r.flat_url ? "다시 다듬기" : "✦ 사진 다듬기"}</button>` : ""}
+          ${(r.kind !== "pdf" && (r.url || r.flat_url)) ? `<button class="figbtn save" data-noteflat="${r.id}" type="button">${r.flat_url ? "다시 다듬기" : "✦ 사진 다듬기"}</button>` : ""}
           ${r.flat_url ? `<button class="figbtn" data-noteflatdel="${r.id}" type="button">원본으로</button>` : ""}
-          ${r.kind !== "pdf"
+          ${r.url && r.clean_md ? `<button class="figbtn del" data-notephotodel="${r.id}" type="button">사진만 지우기</button>` : ""}
+          ${(r.kind !== "pdf" && (r.url || r.flat_url))
             ? `<button class="figbtn" data-noteclean="${r.id}" type="button">${r.clean_md ? "글 다시 옮기기" : "글로 옮기기"}</button>` : ""}
           ${r.clean_md ? `<button class="figbtn" data-notecleandel="${r.id}" type="button">옮긴 글 지우기</button>` : ""}
-          <a class="figbtn" href="${esc(r.url)}" target="_blank" rel="noopener">새 창에서 크게</a>
+          ${(r.url || r.flat_url) ? `<a class="figbtn" href="${esc(r.flat_url || r.url)}" target="_blank" rel="noopener">새 창에서 크게</a>` : ""}
           <button class="figbtn ${r.pinned ? "save" : ""}" data-notepin="${r.id}" type="button">${r.pinned ? "★ 즐겨찾기 해제" : "☆ 즐겨찾기"}</button>
           <button class="figbtn" data-noteren="${r.id}" type="button">이름 고치기</button>
           <button class="figbtn del" data-notedel="${r.id}" type="button">삭제</button>
@@ -2624,6 +2627,23 @@ async function drawNotes(subjectId, box){
     });
   }
 
+  box.querySelectorAll("[data-notephotodel]").forEach(b => b.addEventListener("click", async e => {
+    e.preventDefault(); e.stopPropagation();
+    if(!needLogin()) return;
+    const r = rows.find(x => String(x.id) === b.dataset.notephotodel);
+    if(!r) return;
+    if(!confirm(`"${r.title || "이 자료"}" 의 사진만 지웁니다.\n옮겨 적은 글은 그대로 남습니다. 사진은 되돌릴 수 없습니다.`)) return;
+    /* 글은 남기고 사진 주소만 비운다. 보관함 파일도 같이 치운다. */
+    const up = await sb.from("subject_notes")
+      .update({ url: null, flat_url: null, path: null }).eq("id", r.id);
+    if(up.error) return toast(/null value|not-null/i.test(up.error.message)
+      ? "supabase-사진만지우기.sql 을 한 번 돌려 주세요."
+      : "지우지 못했습니다 — " + up.error.message);
+    const paths = [r.path].filter(Boolean);
+    if(paths.length) await sb.storage.from("qfig").remove(paths).catch(() => {});
+    toast("사진을 지웠습니다. 글은 남아 있습니다.");
+    drawNotes(subjectId, box);
+  }));
   box.querySelectorAll("[data-noteflat]").forEach(b => b.addEventListener("click", e => {
     e.preventDefault(); e.stopPropagation();
     noteFlatOpen(b.dataset.noteflat, subjectId, box);
