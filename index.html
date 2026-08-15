@@ -261,11 +261,16 @@ body.haspin .qnote{display:grid}
 .rail.two{
   height:calc(var(--rail) * 1.75);
   display:grid;grid-auto-flow:column;grid-template-rows:repeat(2, 1fr);
-  align-content:center;gap:4px 5px;padding-top:4px;padding-bottom:4px;
+  align-content:center;justify-items:center;   /* 늘리지 말고 가운데에 둔다 */
+  gap:4px 5px;padding-top:4px;padding-bottom:4px;
 }
 .rail::-webkit-scrollbar{display:none}
 .bub{
-  flex:none;position:relative;min-width:28px;height:28px;padding:0 6px;
+  flex:none;position:relative;
+  /* 세 자리(101…)가 되면 글자가 동그라미를 꽉 채워 가운데를 벗어나 보인다.
+     그래서 그 회차의 가장 큰 번호 자릿수에 맞춰 모든 동그라미 폭을 한 값으로 맞춘다. */
+  min-width:var(--bubw, 28px);width:var(--bubw, auto);
+  height:28px;padding:0 4px;box-sizing:border-box;text-align:center;
   border-radius:999px;border:1.4px solid var(--rule);
   /* 아직 안 본 번호도 읽을 수 있어야 한다. 예전에는 연한 회색이라
      200개가 뿌옇게 깔려 어디가 어딘지 분간이 안 됐다. */
@@ -3267,6 +3272,9 @@ function build(){
       ${+q.number % 50 === 0 ? `data-n="${q.number}"` : ""}></span>` : "");
   }).join("");
   $$("#rail .bub").forEach(b=>b.onclick=()=>jump(+b.dataset.i));
+  /* 가장 큰 번호의 자릿수로 동그라미 폭을 정한다 (2자리 30px, 3자리 38px, 4자리 46px) */
+  const digits = String(Math.max(...S.questions.map(q => +q.number || 0), 0)).length;
+  rail.style.setProperty("--bubw", (digits <= 2 ? 30 : digits === 3 ? 38 : 46) + "px");
   applyRailRows();
 
   track.innerHTML = S.questions.map((q,i)=>`
