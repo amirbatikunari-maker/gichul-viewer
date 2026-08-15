@@ -1383,6 +1383,21 @@ function md(src){
   }).join("");
   return s.replace(/\u0000(\d+)\u0000/g,(_,i)=>keep[i]);
 }
+/* 자동 변환이 수식 구분자($)를 빠뜨리고 LaTeX 만 넣어 둔 문항이 있다. 그러면 KaTeX 가
+   수식인 줄 모르고 지나가서 \frac{1}{\omega L} 이 글자 그대로 화면에 남는다.
+   $ 가 하나도 없고 한글도 없는데 LaTeX 명령만 들어 있으면, 그 줄은 통째로 수식으로 본다.
+   한글이 섞인 줄은 어디까지가 수식인지 확실치 않아 손대지 않는다 — 멀쩡한 문장을
+   깨뜨리는 쪽이 더 나쁘다. */
+const TEX_CMD = /\\(frac|dfrac|tfrac|sqrt|over|cdot|times|div|pm|mp|le|leq|ge|geq|neq|approx|equiv|propto|sum|prod|int|infty|partial|log|ln|exp|sin|cos|tan|alpha|beta|gamma|delta|epsilon|zeta|eta|theta|kappa|lambda|mu|nu|xi|rho|sigma|tau|phi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Phi|Psi|Omega|left|right|begin|mathrm|mathbf|text|hat|bar|vec|dot|angle|circ)\b/;
+function autoMath(s){
+  const t = String(s ?? "").trim();
+  if(!t || t.includes("$")) return s;
+  if(/[가-힣]/.test(t)) return s;              /* 한글이 섞이면 건드리지 않는다 */
+  if(/<svg|!\[|\\begin\{tikzpicture\}/.test(t)) return s;   /* 그림·tikz 는 대상 아님 */
+  if(!TEX_CMD.test(t)) return s;
+  return "$" + t + "$";
+}
+
 const tex = el=>{
   if(!window.renderMathInElement) return;
   try{ renderMathInElement(el,{delimiters:[
@@ -1811,9 +1826,11 @@ async function buildExamInfo(subjectId, box){
     .select("id,label,year,session,question_count").eq("subject_id", subjectId);
   if(e1 || !exams?.length) return void (box.innerHTML = `<p>회차를 읽지 못했습니다.</p>`);
 
-  const {data:qs, error:e2} = await sb.from("questions")
-    .select("exam_id,number,subject_part").in("exam_id", exams.map(e => e.id));
-  if(e2) return void (box.innerHTML = `<p>문항을 읽지 못했습니다 — ${esc(e2.message)}</p>`);
+  let qs = [];
+  try{
+    qs = await fetchAllRows("questions", "id,exam_id,number,subject_part",
+                            q => q.in("exam_id", exams.map(e => e.id)));
+  }catch(e){ return void (box.innerHTML = `<p>문항을 읽지 못했습니다 — ${esc(e.message || e)}</p>`); }
 
   /* ── 회차별로 모으기 ── */
   const byExam = new Map();
@@ -2061,6 +2078,22 @@ function clusterTopics(rows){
 }
 
 /* 과목 전체를 가볍게(요약·문제 앞부분만) 한 번 읽어 등급표를 만든다 */
+/* Supabase(PostgREST)는 한 요청에 최대 1000줄만 돌려준다. 그보다 많으면 오류도 없이
+   조용히 잘려서, 문항이 1038개여도 화면에는 늘 "1000문항"으로 멈춰 보인다.
+   1000줄씩 끝까지 이어 받는다. 페이지가 어긋나지 않게 id 로 정렬해서 받는다. */
+async function fetchAllRows(table, cols, apply, page = 1000){
+  const out = [];
+  for(let from = 0; from < 200000; from += page){
+    let q = sb.from(table).select(cols).order("id").range(from, from + page - 1);
+    if(apply) q = apply(q);
+    const { data, error } = await q;
+    if(error) throw error;
+    out.push(...(data || []));
+    if(!data || data.length < page) break;
+  }
+  return out;
+}
+
 async function mixIndex(subjectId, force){
   S._mix ||= {};
   if(S._mix[subjectId] && !force) return S._mix[subjectId];
@@ -2069,8 +2102,11 @@ async function mixIndex(subjectId, force){
   const ids = (exams || []).map(e => e.id);
   if(!ids.length) return (S._mix[subjectId] = { rows:[], tiers:{}, N:0, label:{} });
 
-  const {data:rows} = await sb.from("questions")
-    .select("id,exam_id,number,summary,question_text").in("exam_id", ids);
+  let rows = [];
+  try{
+    rows = await fetchAllRows("questions", "id,exam_id,number,summary,question_text",
+                              q => q.in("exam_id", ids));
+  }catch(e){ rows = []; }
 
   clusterTopics(rows || []);
 
@@ -2214,7 +2250,7 @@ const figW = q => Math.min(100, Math.max(20, +q?.figure_width || 100));
 function cardHTML(q){
   const chs = (Array.isArray(q.choices)?q.choices:[]).map((c,k)=>`
     <div class="ch ${q.answer===k+1?"ok":""}">
-      <span class="b">${k+1}</span><span class="t" data-hl="c${k}" data-qid="${q.id}">${md(String(c)).replace(/^<p>|<\/p>$/g,"")}</span>
+      <span class="b">${k+1}</span><span class="t" data-hl="c${k}" data-qid="${q.id}">${md(autoMath(String(c))).replace(/^<p>|<\/p>$/g,"")}</span>
     </div>`).join("");
 
   const expInner = q.explanation_html
