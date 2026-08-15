@@ -61,6 +61,13 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .nav3{display:flex;gap:2px;padding:7px 8px;padding-top:calc(7px + env(safe-area-inset-top));background:var(--ink);overflow-x:auto}
 .nav3 a{flex:1;text-align:center;padding:7px 5px;border-radius:8px;font:600 11px/1 var(--font-d);color:color-mix(in srgb,var(--paper) 55%,transparent);text-decoration:none;white-space:nowrap}
 .nav3 a.on{background:color-mix(in srgb,var(--paper) 15%,transparent);color:var(--paper)}
+
+/* 탭 사이 구분선 — 가운데만 얇게. 지금 보고 있는 탭(알약) 양옆은 지워
+   알약 테두리와 선이 겹쳐 지저분해지지 않게 한다. */
+.nav3 a{position:relative}
+.nav3 a + a::before{content:"";position:absolute;left:-1px;top:24%;bottom:24%;width:1px;
+  background:color-mix(in srgb,var(--paper) 20%,transparent)}
+.nav3 a.on::before,.nav3 a.on + a::before{background:transparent}
 .hide{display:none}
 /* ── 로그인 잠금 화면 ── */
 .nav3 .authbtn{flex:none;padding:7px 11px;border-radius:8px;border:0;cursor:pointer;
@@ -77,10 +84,10 @@ button:disabled{opacity:.45;cursor:not-allowed}
 </head>
 <body>
 <nav class="nav3">
-  <a href="./index.html">뷰어</a>
+  <a href="./index.html">필기뷰어</a>
+  <a href="./practice.html">실기뷰어</a>
   <a href="./upload.html">기계</a>
   <a href="./ingest.html">자동 변환</a>
-  <a href="./practice.html">실기</a>
   <a href="./interview.html">면접</a>
   <a href="./portfolio.html" class="on">포트폴리오</a>
   <button class="authbtn" id="authBtn">로그인</button>
