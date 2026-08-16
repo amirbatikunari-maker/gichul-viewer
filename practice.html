@@ -219,6 +219,13 @@ body.oneup .lead,body.oneup h1{display:none}
   <a href="./portfolio.html">포트폴리오</a>
 </nav>
 
+<!-- 화면 좌우 넘김 단추 — 반드시 <script> 보다 «앞» 에 있어야 한다.
+     뒤에 두면 스크립트가 돌 때 이 요소가 아직 없어서 null 에서 터지고,
+     그 아래 boot() 까지 통째로 안 돌아 화면이 텅 빈다. (실제로 그렇게 됐었다) -->
+<button class="edgenav prev" id="edgePrev" type="button" aria-label="이전 문제">‹</button>
+<button class="edgenav next" id="edgeNext" type="button" aria-label="다음 문제">›</button>
+
+
 <div class="wrap">
   <h1>실기 기출</h1>
   <div class="lead">보기 없는 주관식·계산·도면 문제. 문제와 답안을 따로 접어 두고 풉니다.</div>
@@ -577,8 +584,8 @@ function edgeSync(){
   a.disabled = !ONEUP || ONEAT <= 0;
   b.disabled = !ONEUP || ONEAT >= SHOWN.length - 1;
 }
-$("#edgePrev").onclick = () => { showAt(ONEAT - 1); edgeWake(); };
-$("#edgeNext").onclick = () => { showAt(ONEAT + 1); edgeWake(); };
+$("#edgePrev")?.addEventListener("click", () => { showAt(ONEAT - 1); edgeWake(); });
+$("#edgeNext")?.addEventListener("click", () => { showAt(ONEAT + 1); edgeWake(); });
 addEventListener("scroll", edgeWake, true);
 addEventListener("wheel",  edgeWake, { passive:true });
 
@@ -2054,7 +2061,5 @@ async function boot(){
 (async () => { if(await gate()) boot(); })();
 sb?.auth?.onAuthStateChange?.(() => setTimeout(() => gate().then(on => on && boot()), 0));
 </script>
-<button class="edgenav prev" id="edgePrev" type="button" aria-label="이전 문제">‹</button>
-<button class="edgenav next" id="edgeNext" type="button" aria-label="다음 문제">›</button>
 </body>
 </html>
