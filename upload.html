@@ -638,6 +638,27 @@ function centerNow(){
   requestAnimationFrame(() => { if(!put()) requestAnimationFrame(put); });
   [120, 400, 900].forEach(ms => setTimeout(put, ms));
   document.fonts?.ready?.then(put).catch(() => {});
+
+  /* ★ 시간 제한을 두고 몇 번 찔러 보는 것만으로는 모자랐다.
+     이 띠가 접힌 줄 안이나 화면 밖에 있으면 그 동안 폭이 0 이라 계산이 통째로 빗나가고,
+     0.9초가 지나 포기한 뒤에야 눈에 들어온다. 그래서 «실제로 보이고 폭이 잡힌 순간» 을
+     지켜보다 그때 한 번 더 밀어 준다. 사람이 직접 밀었으면 더는 건드리지 않는다. */
+  if(el && !centerNow._watch){
+    centerNow._watch = true;
+    let touched = false;
+    el.addEventListener("pointerdown", () => { touched = true; }, { passive:true });
+    el.addEventListener("wheel",       () => { touched = true; }, { passive:true });
+    const nudge = () => { if(!touched) put(); };
+    try{ new ResizeObserver(nudge).observe(el); }catch(e){}
+    try{
+      new IntersectionObserver(es => {
+        es.forEach(x => { if(x.isIntersecting && x.boundingClientRect.width) nudge(); });
+      }, { threshold:0.1 }).observe(el);
+    }catch(e){}
+    addEventListener("resize", nudge);
+    /* 세로가 아주 짧은 폰에서는 배치가 한 박자 늦게 끝난다 */
+    [1500, 2500].forEach(ms => setTimeout(nudge, ms));
+  }
 }
 
 /* ── 시간별 표(자세히) ── */
