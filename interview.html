@@ -301,6 +301,20 @@ button:disabled{opacity:.45;cursor:not-allowed}
   .noprint{display:none !important}
 }
 .print-only{display:none}
+
+/* 화면 아래에 붙어 따라오는 알림 띠 — 어디까지 내려가 있어도 보인다 */
+#flash{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);
+  z-index:9998;max-width:min(680px,92vw);padding:12px 16px;border-radius:12px;
+  font:500 13px/1.55 Pretendard,sans-serif;white-space:pre-wrap;text-align:center;
+  box-shadow:0 12px 34px -14px rgba(16,35,61,.55);opacity:0;pointer-events:none;transition:opacity .18s;
+  background:var(--ink);color:var(--paper)}
+#flash.on{opacity:.97}
+#flash.run::before{content:"";display:inline-block;width:11px;height:11px;margin-right:8px;
+  vertical-align:-1px;border:2px solid color-mix(in srgb,var(--paper) 35%,transparent);
+  border-top-color:var(--paper);border-radius:50%;animation:spin .8s linear infinite}
+#flash.ok{background:var(--ok)}
+#flash.err{background:var(--stamp)}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -512,6 +526,15 @@ button:disabled{opacity:.45;cursor:not-allowed}
             <option value="0">전체</option><option value="1">1차 실무</option><option value="2">2차 임원</option></select></div>
           <div><label>제한 시간</label><select id="mockT">
             <option value="30" selected>30초</option><option value="45">45초</option><option value="60">60초</option></select></div>
+          <div><label>꼬리질문 추격</label><select id="mockChase">
+            <option value="2" selected>2단까지 (권장)</option>
+            <option value="3">3단까지 — 실제 면접 수준</option>
+            <option value="0">안 함 — 한 번만 묻기</option></select></div>
+        </div>
+        <div class="hint" style="margin:-4px 0 12px">
+          추격을 켜면 <b>내 답을 듣고 그 답에서 파고드는 질문</b>이 이어집니다.
+          "그 안에 뭐가 들어갑니까 → 어떤 순서로 했습니까 → 그중 직접 한 게 뭡니까" 식으로요.
+          실제로 이 지원자를 떨어뜨린 게 이 구간입니다.
         </div>
         <button id="mockGo">시작</button>
         <div class="hint" id="micHint"></div>
@@ -607,13 +630,14 @@ button:disabled{opacity:.45;cursor:not-allowed}
             <label style="margin-top:11px">본문 (파일을 올리면 자동으로 채워집니다)</label>
             <textarea id="dBody" placeholder="PDF·이미지를 올리거나, 공고·자소서 내용을 직접 붙여넣으세요."></textarea>
             <div class="bar" style="margin-top:10px">
-              <input id="dFile" type="file" accept=".pdf,.txt,.md,image/*" class="hide">
+              <input id="dFile" type="file" accept=".pdf,.txt,.md,.docx,.pptx,.rtf,.csv,image/*" class="hide">
               <button class="ghost sm" id="pick">파일 선택</button>
+              <button class="ghost sm" id="fromPf">포트폴리오에서 가져오기</button>
               <span class="hint" style="margin:0" id="fname">선택된 파일 없음</span>
               <button class="sm" id="dSave" style="margin-left:auto">자료 저장</button>
               <button class="ghost sm hide" id="dCancel">수정 취소</button>
             </div>
-            <div class="hint">PDF는 글자를 뽑아 본문에 넣고 원본도 같이 보관합니다.
+            <div class="hint">PDF · 워드(.docx) · 파워포인트(.pptx) · 텍스트에서 글자를 뽑아 본문에 넣고 원본도 같이 보관합니다.
               글자가 안 뽑히는 스캔본은 직접 붙여넣어 주세요 — AI에는 본문 텍스트만 보냅니다.</div>
           </div>
         </div>
@@ -642,16 +666,31 @@ const KEEP = localStorage.getItem("iv-keep") === "1";
 const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY,
   { auth:{ persistSession:KEEP, autoRefreshToken:KEEP, storageKey:"sb-iv-session" } });
 
-const say = (t, c) => { const m = $("#m"); m.textContent = t; m.className = "msg " + (c || "on");
-  if(c === "ok") setTimeout(() => { if(m.textContent === t) m.className = "msg"; }, 3500); };
-const hideMsg = () => { $("#m").className = "msg"; };
+/* 알림은 화면 맨 위 상자와 «화면에 붙는 띠» 두 군데에 같이 띄운다.
+   상자만 있으면 스크롤을 내려둔 상태에서 눌렀을 때 아무 반응이 없어 보인다. */
+const say = (t, c) => {
+  const m = $("#m"); m.textContent = t; m.className = "msg " + (c || "on");
+  let f = $("#flash");
+  if(!f){ f = document.createElement("div"); f.id = "flash"; document.body.appendChild(f); }
+  f.textContent = t;
+  f.className = "on " + (c || "run");
+  clearTimeout(say._t);
+  if(c === "ok" || c === "err")
+    say._t = setTimeout(() => { f.className = ""; if(m.textContent === t && c === "ok") m.className = "msg"; },
+      c === "err" ? 9000 : 3500);
+};
+const hideMsg = () => { $("#m").className = "msg"; const f = $("#flash"); if(f) f.className = ""; };
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const toast = t => say(t, "ok");
 
 /* PC 에서는 Render 만, 모바일은 워커 우선 — 자동 변환 탭과 같은 규칙 */
-const isPC = window.innerWidth > 768 && !/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-const ENDPOINTS = isPC ? ["https://sniper-render.onrender.com"]
-                       : [CFG.WORKER_URL, CFG.WORKER_BACKUP_URL].filter(Boolean);
+/* ★ PC 에서 «만들기» 를 눌러도 아무 일이 없던 이유.
+   예전에는 PC 일 때 Render 한 곳만 불렀는데, 무료 Render 는 안 쓰면 잠들어 있어
+   첫 요청이 1분 가까이 걸리거나 그냥 실패한다. 그동안 화면에는 아무 표시도 없었다.
+   이제는 두 곳을 다 순서대로 시도하고, 진행 상황을 단추 옆에 직접 보여 준다. */
+const ENDPOINTS = [CFG.WORKER_URL, CFG.WORKER_BACKUP_URL, "https://sniper-render.onrender.com"]
+  .filter(Boolean)
+  .filter((v, i, a) => a.indexOf(v) === i);
 
 const KIND = { posting:"채용공고", cover:"자기소개서", career:"경력기술서",
                portfolio:"포트폴리오", review:"기업 후기", etc:"기타 메모" };
@@ -837,34 +876,166 @@ $("#dCancel").onclick = () => {
   $("#dSave").textContent = "자료 저장"; $("#dCancel").className = "ghost sm hide";
 };
 $("#pick").onclick = () => $("#dFile").click();
+/* ═══════════════════════════════════════════════
+   워드(.docx) · 파워포인트(.pptx) 에서 글자 뽑기
+   ───────────────────────────────────────────────
+   둘 다 속을 열면 XML 이 든 ZIP 파일이다.
+   바깥 라이브러리를 부르지 않고, 브라우저에 내장된 압축 해제기
+   (DecompressionStream)로 직접 푼다 — 인터넷이 느려도 실패하지 않는다.
+   ═══════════════════════════════════════════════ */
+async function unzip(buf){
+  const dv = new DataView(buf), u8 = new Uint8Array(buf);
+  /* 끝에서부터 «중앙 목록» 표시(EOCD)를 찾는다 */
+  let eo = -1;
+  for(let i = u8.length - 22; i >= Math.max(0, u8.length - 66000); i--)
+    if(dv.getUint32(i, true) === 0x06054b50){ eo = i; break; }
+  if(eo < 0) throw new Error("압축 파일 구조를 읽지 못했습니다");
+  const n = dv.getUint16(eo + 10, true);
+  let p = dv.getUint32(eo + 16, true);
+  const out = {};
+  for(let i = 0; i < n; i++){
+    if(dv.getUint32(p, true) !== 0x02014b50) break;
+    const method = dv.getUint16(p + 10, true);
+    const csize  = dv.getUint32(p + 20, true);
+    const nlen   = dv.getUint16(p + 28, true);
+    const elen   = dv.getUint16(p + 30, true);
+    const clen   = dv.getUint16(p + 32, true);
+    const lho    = dv.getUint32(p + 42, true);
+    const name   = new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nlen));
+    p += 46 + nlen + elen + clen;
+    if(!/\.xml$/i.test(name)) continue;
+    const lnl = dv.getUint16(lho + 26, true), lel = dv.getUint16(lho + 28, true);
+    const start = lho + 30 + lnl + lel;
+    const raw = u8.subarray(start, start + csize);
+    if(method === 0){ out[name] = new TextDecoder().decode(raw); continue; }
+    if(method !== 8) continue;                       /* deflate 만 다룬다 — 사실상 전부 이것 */
+    const ds = new DecompressionStream("deflate-raw");
+    const ab = await new Response(new Blob([raw]).stream().pipeThrough(ds)).arrayBuffer();
+    out[name] = new TextDecoder().decode(ab);
+  }
+  return out;
+}
+const xmlText = (x, tag) => {
+  const m = x.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "g")) || [];
+  return m.map(v => v.replace(/<[^>]+>/g, "")).join("");
+};
+const unesc = t => t.replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&amp;/g,"&")
+                    .replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&apos;/g,"'");
+
+async function docxText(file){
+  const z = await unzip(await file.arrayBuffer());
+  const doc = z["word/document.xml"]; if(!doc) throw new Error("워드 본문(word/document.xml)을 못 찾았습니다");
+  /* 문단(<w:p>) 단위로 줄을 나누고, 각 문단 안의 글자 조각(<w:t>)을 잇는다 */
+  return unesc((doc.match(/<w:p[ >][\s\S]*?<\/w:p>/g) || [])
+    .map(par => (par.match(/<w:t[^>]*>[\s\S]*?<\/w:t>/g) || [])
+      .map(t => t.replace(/<[^>]+>/g, "")).join(""))
+    .filter(l => l.trim()).join("\n")).trim();
+}
+async function pptxText(file){
+  const z = await unzip(await file.arrayBuffer());
+  const slides = Object.keys(z).filter(k => /^ppt\/slides\/slide\d+\.xml$/.test(k))
+    .sort((a,b) => (+a.match(/\d+/)[0]) - (+b.match(/\d+/)[0]));
+  if(!slides.length) throw new Error("슬라이드를 못 찾았습니다");
+  const notes = k => z[k.replace("slides/slide", "notesSlides/notesSlide")] || "";
+  return slides.map((k, i) => {
+    const body = (z[k].match(/<a:t>[\s\S]*?<\/a:t>/g) || [])
+      .map(t => t.replace(/<[^>]+>/g, "")).filter(x => x.trim()).join("\n");
+    const nt = (notes(k).match(/<a:t>[\s\S]*?<\/a:t>/g) || [])
+      .map(t => t.replace(/<[^>]+>/g, "")).filter(x => x.trim()).join(" ");
+    return unesc(`── ${i+1}쪽 ──\n${body}` + (nt ? `\n[발표자 노트] ${nt}` : ""));
+  }).join("\n\n").trim();
+}
+
 $("#dFile").onchange = async e => {
   FILE = e.target.files[0]; if(!FILE) return;
   $("#fname").textContent = FILE.name;
-  if(/\.(txt|md)$/i.test(FILE.name)){ $("#dBody").value = await FILE.text(); return; }
-  if(/\.pdf$/i.test(FILE.name)){
-    try{
+  const done = txt => {
+    $("#dBody").value = txt;
+    $("#dBody").dispatchEvent(new Event("input"));
+    txt.length < 50
+      ? say("글자가 거의 안 뽑혔습니다. 본문을 직접 붙여넣어 주세요.", "err")
+      : say(`${txt.length.toLocaleString()}자를 뽑았습니다. 확인하고 «자료 저장» 을 누르세요.`, "ok");
+  };
+  try{
+    if(/\.(txt|md|csv)$/i.test(FILE.name)) return done((await FILE.text()).trim());
+    if(/\.rtf$/i.test(FILE.name))
+      return done((await FILE.text()).replace(/\\'[0-9a-f]{2}/gi," ").replace(/\\[a-z]+-?\d* ?/gi,"")
+                  .replace(/[{}]/g,"").replace(/\n{3,}/g,"\n\n").trim());
+    if(/\.docx$/i.test(FILE.name)){ say("워드에서 글자를 뽑는 중…"); return done(await docxText(FILE)); }
+    if(/\.pptx$/i.test(FILE.name)){ say("파워포인트에서 글자를 뽑는 중…"); return done(await pptxText(FILE)); }
+    if(/\.pdf$/i.test(FILE.name)){
       say("PDF에서 글자를 뽑는 중…");
       const buf = new Uint8Array(await FILE.arrayBuffer());
       const doc = await pdfjsLib.getDocument({ data: buf }).promise;
       let out = "";
       for(let p = 1; p <= doc.numPages; p++){
+        say(`PDF에서 글자를 뽑는 중… ${p}/${doc.numPages}쪽`);
         const c = await doc.getPage(p).then(pg => pg.getTextContent());
         out += c.items.map(i => i.str).join(" ") + "\n\n";
       }
-      $("#dBody").value = out.trim();
-      out.trim().length < 50
-        ? say("글자가 거의 안 뽑혔습니다(스캔본으로 보입니다). 본문을 직접 붙여넣어 주세요.", "err")
-        : say(`${doc.numPages}쪽에서 ${out.trim().length.toLocaleString()}자를 뽑았습니다.`, "ok");
-    }catch(err){ say("PDF를 읽지 못했습니다 — " + err.message, "err"); }
+      return done(out.trim());
+    }
+    if(/\.(doc|ppt|hwp|hwpx)$/i.test(FILE.name))
+      return say(`${FILE.name.split(".").pop().toUpperCase()} 는 바로 못 읽습니다.\n`
+        + "PDF 로 «다른 이름으로 저장» 한 뒤 올리거나, 내용을 복사해 붙여넣어 주세요.\n"
+        + "(원본 파일 자체는 그대로 보관됩니다)", "err");
+    say("이 파일은 글자를 뽑지 않고 원본만 보관합니다. 필요하면 본문에 직접 붙여넣어 주세요.");
+  }catch(err){
+    say(`${FILE.name} 에서 글자를 뽑지 못했습니다 — ${err.message}\n`
+      + "본문에 직접 붙여넣으시면 그대로 씁니다.", "err");
   }
 };
+/* 포트폴리오 탭에 쌓아 둔 내용을 그대로 본문에 붓는다 —
+   같은 내용을 두 번 적지 않게. 여기 들어와야 AI 가 근거로 쓴다. */
+$("#fromPf").onclick = async () => {
+  say("포트폴리오를 읽는 중…");
+  const { data, error } = await sb.from("pf_item").select("*")
+    .order("sort_order", { ascending:true }).order("created_at", { ascending:true });
+  if(error) return say("읽지 못했습니다 — " + error.message, "err");
+  const rows = (data || []).map(x => ({ ...x, kind:x.kind || "project", meta:x.meta || {} }));
+  if(!rows.length) return say("포트폴리오 탭이 비어 있습니다.", "err");
+  const g  = (r, k) => k.startsWith("m.") ? (r.meta[k.slice(2)] || "") : (r[k] || "");
+  const of = k => rows.filter(r => r.kind === k);
+  const out = [];
+  const p = of("profile")[0];
+  if(p) out.push(`# ${p.title}`, p.summary || "", p.category || "", p.body_md || "");
+  of("career").forEach(c => {
+    out.push("", `### ${c.title}${c.category ? " — " + c.category : ""} (${c.period || ""})`);
+    if(g(c,"m.about")) out.push(`회사소개: ${g(c,"m.about")}`);
+    if(c.summary)      out.push(`담당업무: ${c.summary}`);
+    rows.filter(k => k.kind === "achieve" && String(k.parent_id) === String(c.id)).forEach(k => {
+      out.push(`■ ${k.title}`, k.body_md || "");
+      if(g(k,"m.numbers")) out.push(`숫자: ${g(k,"m.numbers")}`);
+      if(g(k,"m.mine"))    out.push(`내가 직접 한 것 / 검토만 한 것: ${g(k,"m.mine")}`);
+    });
+    if(g(c,"m.leave")) out.push(`이직사유: ${g(c,"m.leave")}`);
+  });
+  const list = (t, k, fn) => { const r = of(k); if(r.length){ out.push("", `## ${t}`); r.forEach(x => out.push(fn(x))); } };
+  list("학력 · 병역", "edu",  r => `- ${r.title} / ${r.category || ""} / ${r.period || ""}`);
+  list("자격 · 면허", "cert", r => `- ${r.title} (${r.category || ""}) ${r.period || ""} ${g(r,"m.no")}`);
+  list("프로젝트",   "project", r => `### ${r.title} (${[r.category,r.period].filter(Boolean).join(" · ")})\n${r.summary || ""}\n${r.body_md || ""}`);
+  list("스펙 · 수상", "spec", r => `- ${r.title} / ${r.category || ""} / ${r.period || ""}`);
+  list("교내외 활동", "activity", r => `- ${r.title} / ${r.category || ""} / ${r.period || ""} ${r.summary || ""}`);
+  list("경험 아카이빙", "archive", r => `- [${r.category || ""}/${g(r,"m.type")}] ${r.title}${r.summary ? " → " + r.summary : ""}`);
+  const txt = out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  $("#dKind").value = "portfolio";
+  if(!$("#dTitle").value.trim()) $("#dTitle").value = "포트폴리오 (자동 가져오기)";
+  $("#dBody").value = txt;
+  $("#dBody").dispatchEvent(new Event("input"));
+  say(`${txt.length.toLocaleString()}자를 가져왔습니다. 확인하고 «자료 저장» 을 누르세요.`, "ok");
+};
+
 $("#dSave").onclick = async () => {
   const body = $("#dBody").value.trim();
   if(!body && !FILE) return say("본문을 넣거나 파일을 선택해 주세요.", "err");
   say("저장하는 중…");
   let file_path = null;
   if(FILE){
-    file_path = `${ME.id}/${CUR.id}/${Date.now()}_${FILE.name.replace(/[^\w.\-]/g, "_")}`;
+    /* 보관함 키에는 한글·공백·괄호를 넣을 수 없다 (Invalid key 오류의 원인) */
+    const ext  = (FILE.name.match(/\.([A-Za-z0-9]{1,8})$/) || [,"bin"])[1].toLowerCase();
+    const stem = FILE.name.replace(/\.[^.]*$/, "").replace(/[^A-Za-z0-9._-]+/g, "-")
+                          .replace(/-{2,}/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "file";
+    file_path = `${ME.id}/${CUR.id}/${Date.now()}_${stem}.${ext}`;
     const { error } = await sb.storage.from("iv-docs").upload(file_path, FILE);
     if(error){ say("원본 업로드 실패 — " + error.message + "\n본문만 저장합니다.", "err"); file_path = null; }
   }
@@ -943,27 +1114,47 @@ function mdToHtml(md){
 }
 
 /* ══ AI 호출 ══ */
-async function ask(prompt){
+async function ask(prompt, note){
   const body = { parts:[{ text: prompt }], generationConfig:{ maxOutputTokens: 8192, temperature: 0.4 } };
+  const tried = [];
   let last = "";
-  for(const base of ENDPOINTS){
+  for(let i = 0; i < ENDPOINTS.length; i++){
+    const base = ENDPOINTS[i];
+    const host = base.replace(/^https?:\/\//, "").split("/")[0];
+    if(note) say(`${note}\n서버 ${i+1}/${ENDPOINTS.length} (${host}) 에 묻는 중…`
+      + (i ? "\n첫 서버가 안 되어 다음 서버로 넘어갑니다." : ""));
     const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), 120000);
+    const timer = setTimeout(() => ac.abort(), 150000);   /* 잠든 서버가 깨는 데 시간이 걸린다 */
     try{
       const res = await fetch(base.replace(/\/$/, "") + "/get-data", {
         method:"POST", headers:{ "Content-Type":"application/json" },
         body: JSON.stringify(body), signal: ac.signal
       });
-      const d = await res.json();
-      if(!res.ok){ last = d.detail || String(res.status); continue; }
-      return d.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    }catch(e){ last = e.name === "AbortError" ? "응답이 너무 오래 걸립니다" : e.message; }
+      const raw = await res.text();
+      let d = {};
+      try{ d = JSON.parse(raw); }catch(e){ d = {}; }
+      if(!res.ok){
+        last = `${host} — ${d.detail || d.error?.message || raw.slice(0,160) || "HTTP " + res.status}`;
+        tried.push(last); continue;
+      }
+      const out = d.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      if(!out){
+        /* 안전필터에 걸리거나 빈 응답이 오는 경우가 있다. 조용히 넘어가면 원인을 못 찾는다 */
+        last = `${host} — 빈 응답이 왔습니다 (${d.candidates?.[0]?.finishReason || "이유 미상"})`;
+        tried.push(last); continue;
+      }
+      return out;
+    }catch(e){
+      last = `${host} — ` + (e.name === "AbortError" ? "응답이 너무 오래 걸립니다(2분 반)" : e.message);
+      tried.push(last);
+    }
     finally{ clearTimeout(timer); }
   }
-  throw new Error(last || "서버가 응답하지 않습니다");
+  throw new Error((tried.join("\n") || last || "서버가 응답하지 않습니다")
+    + "\n\n서버가 잠들어 있었다면 한 번 더 눌러 보세요 — 두 번째는 대개 빠릅니다.");
 }
-async function askJSON(prompt){
-  const raw = await ask(prompt + "\n\n[출력] 머리말·설명·코드펜스 없이 JSON 배열만 출력해라.");
+async function askJSON(prompt, note){
+  const raw = await ask(prompt + "\n\n[출력] 머리말·설명·코드펜스 없이 JSON 배열만 출력해라.", note);
   const s = raw.replace(/```json|```/g, "").trim();
   const i = s.indexOf("["), j = s.lastIndexOf("]");
   if(i < 0 || j < 0) throw new Error("형식이 이상합니다. 다시 눌러주세요");
@@ -978,7 +1169,11 @@ const FORMAT =
 면접에서 말할 답은 아래 네 덩어리로만 써라. 배경 설명·장황한 서술 금지.
 [면접 답변] 실제 면접에서 그대로 입 밖으로 낼 구어체 문장. 20~30초(200~300자). 존댓말. 두괄식.
 [핵심] 키워드 3개를 " · " 로 이어 한 줄.
-[꼬리질문] 1~2개. 각각 바로 뒤에 한 줄짜리 대응까지.
+[꼬리질문] 실제 면접관은 한 번 묻고 끝내지 않는다. 반드시 «파고드는» 3단으로 써라.
+  1단 — 구성·항목을 되묻는다 ("그 문서 안에 뭐가 들어갑니까?")   → 대응 한 줄
+  2단 — 절차·순서를 되묻는다 ("어떤 단계로 진행했습니까?")        → 대응 한 줄
+  3단 — 본인 경험을 되묻는다 ("그중 직접 해본 게 뭡니까? 기억나는 항목은?") → 대응 한 줄
+  대응 한 줄에는 반드시 «구체적인 이름·개수·수치» 가 들어가야 한다. "잘 챙겼습니다" 같은 말은 금지.
 [감점] 이 질문에서 하면 깎이는 말 한 줄.
 설명을 더 붙이고 싶어도 붙이지 마라. 사용자는 외워서 말할 문장만 필요하다.`;
 
@@ -991,7 +1186,17 @@ const STANCE =
 3. 약점은 "경력 부족"이 아니라 "경력의 방향 차이"로 프레이밍해라.
 4. 답변에는 숫자·설비명·용량·대수·기간을 반드시 넣어라. "큰 냉동기"가 아니라 "350RT 터보 2대".
 5. 실무 면접은 문서(SOP/MOP/EOP)·분해 순서·기준값·이격거리처럼 바로 꺼내야 하는 디테일에서 갈린다.
-   추상적 방법론으로 도망가지 말고 구체적인 절차와 수치로 답해라.`;
+   추상적 방법론으로 도망가지 말고 구체적인 절차와 수치로 답해라.
+6. ★ 이 지원자를 떨어뜨린 것은 «두루뭉술한 답» 이 아니라 «파고드는 꼬리질문» 이었다.
+   면접관은 이런 식으로 계속 내려간다:
+     "서류를 만든다고 했는데, 그 안에 구성 항목이 뭡니까?"
+     "커미셔닝을 했다면 어떤 단계로 진행했고, 각 단계에서 무엇을 얻었습니까?"
+     "ISMS 심사 대응했다면 구성 항목 중 기억나는 게 뭡니까?"
+   그러니 어떤 답이든 다음 세 가지를 «이름과 개수로» 댈 수 있게 써라.
+     ① 구성요소 — 그 문서·시스템 안에 실제로 들어가는 항목 이름들 (5~8개, 목록으로)
+     ② 절차 — 어떤 순서로 했고 각 단계의 산출물이 무엇인지
+     ③ 내 몫 — 그중 «내가 직접 손으로 한 것» 과 «지시·검토만 한 것» 의 구분
+   "전반적으로 관리했습니다" 는 이 지원자를 떨어뜨린 문장이다. 절대 쓰지 마라.`;
 
 function docText(kind, cap = 12000){
   return DOCS.filter(d => d.kind === kind).map(d => (d.body || "").slice(0, cap)).join("\n\n---\n\n");
@@ -1052,7 +1257,8 @@ const BLOCKS = [
   { key:"numbers",   name:"③ 내 숫자·근거 카드",   sub:"입으로 바로 나와야 할 정량 사실" },
   { key:"audit",     name:"④ 내 서류 검증 질문",   sub:"자소서·경력기술서를 파고드는 질문과 답" },
   { key:"qa",        name:"⑤ 예상 질문 & 베스트 답변", sub:"이 회차에서 실제로 나올 질문" },
-  { key:"company",   name:"⑥ 기업 조언 · 역질문",  sub:"회사 성격·분위기·조심할 점" }
+  { key:"company",   name:"⑥ 기업 조언 · 역질문",  sub:"회사 성격·분위기·조심할 점" },
+  { key:"deep",      name:"⑦ 파고들기 카드",      sub:"구성요소·단계·내가 한 것 — 꼬리질문 방어용" }
 ];
 
 const TAILS = {
@@ -1140,6 +1346,36 @@ qa:
   [감점]
 - 마지막에 "내가 되물을 질문" 5개 — 실무를 아는 티가 나는 것으로.`,
 
+deep:
+`[할 일] 이 지원자가 «꼬리질문에 파고들려 들어올 때» 버틸 수 있게, 주제별 «파고들기 카드» 를 만들어라.
+이 사람은 큰 그림은 말하는데 세부 항목을 못 대서 떨어졌다. 그 구멍을 메우는 문서다.
+
+자료(경력기술서·자소서·포트폴리오)에서 이 사람이 실제로 했다고 적은 주제를 8~10개 뽑아라.
+(예: 통합시험, 절차서 작성, 정보보호 심사 대응, 벤더 작업 통제, 성능점검, 기류 최적화 …)
+자료에 없는 주제는 만들지 마라.
+
+각 주제를 반드시 아래 다섯 칸으로 채워라. 칸을 비우지 말고, 비울 수밖에 없으면
+"자료에 없음 — 본인이 채울 것" 이라고 적어라.
+
+### 주제 이름
+▸**구성요소** — 그 문서·시스템·심사 안에 실제로 들어가는 항목 이름 5~8개를 «목록» 으로.
+   면접관이 "그 안에 뭐가 들어갑니까?" 하면 이 목록을 그대로 읊으면 된다.
+▸**단계와 산출물** — 표로. 열: 단계 | 무엇을 하는가 | 이 단계에서 나오는 문서·결과.
+▸**기준·수치** — 이 주제에서 숫자로 말해야 하는 것 (기준값, 대수, 기간, 합격 판정선).
+   모르면 "확인 필요" 로 남겨라. 지어내지 마라.
+▸**내 몫** — 자료를 근거로, 내가 «직접 손으로 한 것» 과 «지시·검토만 한 것» 을 나눠 적어라.
+   이걸 구분해서 말하는 사람이 신뢰를 얻는다.
+[면접 답변] 이 주제를 처음 물었을 때 할 20~30초 답
+[꼬리질문] 1단(구성) → 2단(절차) → 3단(내 경험) 각각 대응 한 줄
+[감점]
+
+마지막에 반드시 이 절을 붙여라.
+## 지금 당장 외워야 할 «항목 목록» 모음
+위에서 뽑은 구성요소들만 한자리에 모아, 주제별로 한 줄씩. 면접 전날 이것만 훑으면 되게.
+
+## 자료에 근거가 없어서 본인이 채워야 하는 칸
+어느 주제의 어느 칸이 비었는지 목록으로. 각 항목에 "어디를 보면 확인되는지" 한 줄.`,
+
 company:
 `[할 일] 이 회사를 지원자 입장에서 어떻게 봐야 하는지 정리해라.
 - 회사·사업의 성격과 이 직무가 조직에서 차지하는 위치
@@ -1214,8 +1450,9 @@ async function genBlocks(todo){
   $("#gen").disabled = $("#genOne").disabled = true;
   try{
     for(const b of todo){
-      say(`${ROUND}차 · ${b.name} 만드는 중… (${todo.indexOf(b)+1}/${todo.length})`);
-      const md = await ask(buildPrompt(b.key));
+      const note = `${ROUND}차 · ${b.name} 만드는 중… (${todo.indexOf(b)+1}/${todo.length})`;
+      say(note);
+      const md = await ask(buildPrompt(b.key), note);
       PREP[`${ROUND}:${b.key}`] = md;
       const { error } = await sb.from("iv_prep")
         .upsert({ case_id:CUR.id, user_id:ME.id, round:ROUND, block:b.key, content_md:md },
@@ -1662,6 +1899,8 @@ A: ...`);
    질문 한 개 → 제한시간 안에 소리 내어 답 → 즉시 채점
    ══════════════════════════════════════════════════ */
 let MQ = [], MI = 0, MSRC = "all", MLIM = 30, MT0 = 0, MTICK = null, MREC = null, MRECING = false, MSESS = [];
+/* 꼬리질문 추격 — 지금 몇 단까지 내려왔는지, 여기까지 무슨 말을 했는지 */
+let MCHASE = 2, MDEPTH = 0, MTRAIL = [];
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 $("#micHint").textContent = SR
   ? "🎤 음성으로 답하면 말한 시간이 그대로 측정됩니다. 마이크 권한을 허용해 주세요."
@@ -1723,6 +1962,7 @@ function poolFor(src){
 }
 $("#mockGo").onclick = async () => {
   MLIM = +$("#mockT").value;
+  MCHASE = +$("#mockChase").value;
   const n = +$("#mockN").value;
   if(MSRC === "ai"){
     if(!DOCS.some(d => d.kind === "posting")) return say("AI 출제는 채용공고가 필요합니다.", "err");
@@ -1741,7 +1981,7 @@ $("#mockGo").onclick = async () => {
     if(!pool.length) return say("출제할 게 없습니다. 답변이나 용어부터 쌓아주세요.", "err");
     MQ = pool.sort(() => Math.random() - .5).slice(0, n);
   }
-  MI = 0; MSESS = []; hideMsg();
+  MI = 0; MSESS = []; MDEPTH = 0; MTRAIL = []; hideMsg();
   $("#mockSetup").className = "card hide";
   $("#mockHistCard").className = "card hide";
   $("#mockRun").className = "";
@@ -1760,8 +2000,11 @@ function drawMock(){
   $("#mockRun").innerHTML = `
     <div class="mock">
       <div class="prog"><i style="width:${Math.round(MI / MQ.length * 100)}%"></i></div>
-      <div class="mmeta">${MI + 1} / ${MQ.length} · ${CUR.company}</div>
+      <div class="mmeta">${MI + 1} / ${MQ.length} · ${CUR.company}${
+        MDEPTH ? ` · <b style="color:var(--stamp)">꼬리질문 ${MDEPTH}단</b>` : ""}</div>
       <div class="mq">${esc(item.q)}</div>
+      ${MTRAIL.length ? `<div class="hint" style="margin:2px 0 0">
+        직전에 한 말: “${esc(MTRAIL[MTRAIL.length-1].a.slice(0,70))}${MTRAIL[MTRAIL.length-1].a.length>70?"…":""}”</div>` : ""}
       <div class="clock" id="clk"><span class="cring"><i>0s</i></span>
         <span class="ctxt">목표 ${MLIM}초. 결론부터 말하고 근거·사례 순서로.<br>준비되면 아래를 누르고 바로 말하세요.</span></div>
       ${SR ? `<button class="mic" id="mMic">🎤 말하면서 답하기</button>` : ""}
@@ -1806,7 +2049,10 @@ function drawMock(){
       $("#mMic").className = "mic rec"; $("#mMic").textContent = "● 듣는 중 — 다 말하면 누르세요";
     }catch(e){ say("마이크를 열지 못했습니다 — " + e.message, "err"); }
   };
-  $("#mSkip").onclick = () => { MSESS.push({ q:item.q, score:0, sec:0 }); MI++; drawMock(); };
+  $("#mSkip").onclick = () => {
+    MSESS.push({ q:item.q, score:0, sec:0 });
+    MDEPTH = 0; MTRAIL = []; MI++; drawMock();
+  };
   $("#mQuit").onclick = () => endMock(true);
   $("#mSubmit").onclick = () => grade(item);
 }
@@ -1817,24 +2063,38 @@ async function grade(item){
   if(!my) return say("답을 적거나 말해주세요. 정 모르면 '넘기기' 를 누르세요.", "err");
   $("#mSubmit").disabled = true; say("채점 중…");
   try{
+    const chasing = MCHASE > 0 && MDEPTH < MCHASE;
+    const trail = MTRAIL.length
+      ? "\n[여기까지 오간 말]\n" + MTRAIL.map((t,i) => `Q${i+1}. ${t.q}\nA${i+1}. ${t.a}`).join("\n") + "\n"
+      : "";
     const arr = await askJSON(headPrompt() +
 `[할 일] 지금 모의면접 채점을 한다. 냉정하게 봐라. 위로하지 마라.
-질문: ${item.q}
+${trail}지금 질문: ${item.q}
 지원자가 실제로 말한 답: ${my}
 말하는 데 걸린 시간: ${sec}초 (목표 ${MLIM}초)
 ${item.ref ? "참고 모범답: " + item.ref : ""}
 
 채점 기준 100점 만점:
-- 두괄식으로 결론부터 나왔는가 (20)
-- 구체적 절차·설비명·수치가 들어갔는가 (30)
-- 질문에 실제로 답했는가, 딴 데로 샜는가 (25)
-- 길이와 속도가 적절한가 — 목표 시간의 ±50% 안 (15)
-- "가서 배우겠다" 류 회피성 표현이 없는가 (10)
+- 두괄식으로 결론부터 나왔는가 (15)
+- 구체적 «항목 이름·절차·수치» 가 들어갔는가 (35)
+  ★ 여기가 이 지원자가 떨어지는 지점이다. "전반적으로 관리했다", "잘 챙겼다" 같은
+    이름 없는 말은 0점 처리하고 그 이유를 분명히 적어라.
+- 질문에 실제로 답했는가, 딴 데로 샜는가 (20)
+- 내가 «직접 한 것» 과 «지시·검토만 한 것» 이 구분되는가 (15)
+- 길이와 속도가 적절한가 (10) / 회피성 표현이 없는가 (5)
 
 JSON 배열에 원소 1개만:
 [{"score":0~100 정수,
   "verdict":"한 줄 총평 — 면접관이 속으로 할 말",
-  "md":"마크다운 피드백. 순서: ▸잘한 것 1~2줄 / ▸깎인 이유 (항목별 한 줄) / [면접 답변] 이렇게 말했어야 한다(20~30초 구어체) / [핵심] / [꼬리질문] / [감점]"}]`);
+  "md":"마크다운 피드백. 순서: ▸잘한 것 1~2줄 / ▸깎인 이유 (항목별 한 줄) / [면접 답변] 이렇게 말했어야 한다(20~30초 구어체) / [핵심] / [꼬리질문] / [감점]"${
+  chasing ? `,
+  "next":"지금 지원자가 «실제로 말한 답» 에서 곧바로 파고드는 다음 질문 한 개. 반드시 그 답에 나온 단어를 물고 늘어져라. ${
+    MDEPTH === 0 ? "1단 — 방금 말한 문서·시스템·업무의 «구성 항목» 을 대라고 요구해라." :
+    MDEPTH === 1 ? "2단 — 방금 말한 것의 «절차·순서와 각 단계 산출물» 을 요구해라." :
+                   "3단 — 그중 «본인이 직접 손으로 한 것과 기억나는 구체적 항목» 을 대라고 요구해라."}
+    답을 얼버무렸다면 그 얼버무린 지점을 정확히 겨냥해라. 질문만 쓰고 답은 쓰지 마라.",
+  "chase_ok":true 또는 false — 지원자가 이미 항목·절차·본인 몫을 구체적으로 다 말했으면 false(더 팔 게 없음)` : ""}}]`,
+      "채점하는 중…");
     const g = arr[0] || {};
     const score = Math.max(0, Math.min(100, +g.score || 0));
     const md = `**${g.verdict || ""}**\n\n` + (g.md || "");
@@ -1849,12 +2109,16 @@ JSON 배열에 원소 1개만:
       const m = score >= 75 ? 2 : score >= 55 ? 1 : 0;
       await sb.from("iv_term").update({ mastery:m }).eq("id", item.id);
     }
-    MSESS.push({ q:item.q, score, sec });
-    hideMsg(); showGrade(item, my, score, md, sec);
+    MSESS.push({ q:item.q, score, sec, depth:MDEPTH });
+    MTRAIL.push({ q:item.q, a:my });
+    /* 다음 꼬리질문이 왔으면 이어서 판다 — 이게 실제 면접의 모습이다 */
+    const nextQ = (MCHASE > 0 && MDEPTH < MCHASE && g.chase_ok !== false && g.next)
+      ? String(g.next).trim() : "";
+    hideMsg(); showGrade(item, my, score, md, sec, nextQ);
   }catch(e){ say("채점 실패 — " + e.message, "err"); }
   finally{ const b = $("#mSubmit"); if(b) b.disabled = false; }
 }
-function showGrade(item, my, score, md, sec){
+function showGrade(item, my, score, md, sec, nextQ){
   const cls = score >= 75 ? "hi" : score >= 55 ? "mid" : "lo";
   $("#mockRun").innerHTML = `
     <div class="mock">
@@ -1866,14 +2130,25 @@ function showGrade(item, my, score, md, sec){
       <details class="qa"><summary><span class="qt">내가 한 답 다시 보기</span></summary>
         <div class="qb"><div class="ansbox">${esc(my)}</div></div></details>
       <div class="body" style="padding:0;margin-top:10px">${mdToHtml(md)}</div>
+      ${nextQ ? `<div class="scoreband" style="background:#FBE9E8;margin-top:12px">
+        <b style="font-size:20px;color:var(--stamp)">↳</b>
+        <span><b>면접관이 여기서 안 놓아 줍니다 (${MDEPTH + 1}단)</b><br>${esc(nextQ)}</span></div>` : ""}
       <div class="bar" style="margin-top:13px">
-        <button id="mNext">${MI + 1 >= MQ.length ? "결과 보기" : "다음 질문"}</button>
+        ${nextQ ? `<button id="mChase">이 꼬리질문에 답하기</button>` : ""}
+        <button class="${nextQ ? "ghost sm" : ""}" id="mNext">${
+          nextQ ? "여기서 끊고 다음 질문" : (MI + 1 >= MQ.length ? "결과 보기" : "다음 질문")}</button>
         <button class="ghost sm" id="mRetry">이 질문 다시</button>
         <button class="ghost sm" id="mBank">고친 답을 답변함에 저장</button>
         <button class="ghost sm" id="mQuit2" style="margin-left:auto">그만</button>
       </div>
     </div>`;
-  $("#mNext").onclick  = () => { MI++; drawMock(); };
+  if(nextQ) $("#mChase").onclick = () => {
+    /* 지금 문항 자리에 꼬리질문을 끼워 넣는다 — 문항 수는 그대로 두고 깊이만 늘린다 */
+    MDEPTH++;
+    MQ[MI] = { q:nextQ, ref:"", kind:"chase" };
+    drawMock();
+  };
+  $("#mNext").onclick  = () => { MDEPTH = 0; MTRAIL = []; MI++; drawMock(); };
   $("#mRetry").onclick = () => drawMock();
   $("#mQuit2").onclick = () => endMock(true);
   $("#mBank").onclick  = async () => {
@@ -1892,16 +2167,22 @@ function showGrade(item, my, score, md, sec){
   };
 }
 async function endMock(early){
-  stopTimer(); stopRec();
+  stopTimer(); stopRec(); MDEPTH = 0; MTRAIL = [];
   const n = MSESS.length;
   const avg = n ? Math.round(MSESS.reduce((a, b) => a + b.score, 0) / n) : 0;
   const worst = [...MSESS].sort((a, b) => a.score - b.score).slice(0, 3);
+  const deep = MSESS.filter(x => x.depth > 0);
+  const deepAvg = deep.length ? Math.round(deep.reduce((a,b)=>a+b.score,0)/deep.length) : null;
   $("#mockRun").innerHTML = n ? `
     <div class="mock">
       <div class="eyebrow">모의면접 결과</div>
       <div class="scoreband ${avg >= 75 ? "hi" : avg >= 55 ? "mid" : "lo"}"><b>${avg}</b>
         <span>${n}문항 평균${early ? " (중간에 그만둠)" : ""}<br>${
           avg >= 75 ? "실전에서 이 정도면 통합니다." : avg >= 55 ? "절반은 됩니다. 아래 세 개부터 다시 만드세요." : "지금 상태로 들어가면 위험합니다."}</span></div>
+      ${deepAvg !== null ? `<div class="hint" style="margin:10px 0 0">
+        꼬리질문 ${deep.length}개 평균 <b style="color:${deepAvg >= 65 ? "var(--ok)" : "var(--stamp)"}">${deepAvg}점</b>
+        — 첫 질문보다 ${avg - deepAvg > 8 ? "확 떨어집니다. 항목·절차를 못 대고 있다는 뜻입니다."
+          : "잘 버티고 있습니다."}</div>` : ""}
       ${worst.length ? `<h3 style="font:700 13px/1.4 var(--font-d);margin:14px 0 6px">다시 만들어야 할 질문</h3>
         ${worst.map(w => `<div class="rv bad"><div class="rq">${esc(w.q)}</div>
           <div class="hint" style="margin-top:3px">${w.score}점</div></div>`).join("")}` : ""}
@@ -1986,11 +2267,22 @@ $("#tGen").onclick = async () => {
   try{
     const arr = await askJSON(headPrompt() +
 `[할 일] 이 공고에 나오는 설비·시스템·문서·법규 용어 중 면접관이 물을 만한 것 15개를 뽑아라.
-각 원소: {"cat":"전기/기계/운영/안전/법규/구축 중 하나","term":"용어","answer":"면접에서 20초 안에 말할 구어체 정의(120~180자)","keys":"키워드 · 키워드 · 키워드"}`);
+면접관은 용어를 물은 뒤 반드시 파고든다 — "그게 무슨 업무고, 안에 뭐가 들어가고, 어떤 순서로 하고,
+실제로 해본 게 뭡니까?" 그래서 정의만 있으면 2단에서 무너진다.
+answer 는 «정의 한 문장 → 구성·항목 → 절차 한 줄» 순서로 써라.
+각 원소: {"cat":"전기/기계/운영/안전/법규/구축 중 하나","term":"용어",
+"answer":"20초 구어체 정의(120~180자)","keys":"키워드 · 키워드 · 키워드",
+"parts":"이 안에 들어가는 구성 항목 5개를 · 로 이어서",
+"steps":"진행 순서를 → 로 이어서 (해당 없으면 빈 문자열)"}`);
     const have = new Set(TERMS.map(t => t.term));
     const rows = arr.filter(x => x.term && !have.has(x.term)).slice(0, 20)
       .map(x => ({ user_id:ME.id, case_id:CUR.id, cat:String(x.cat || "운영"),
-        term:String(x.term), answer:String(x.answer || ""), keys:String(x.keys || "") }));
+        term:String(x.term),
+        /* 구성 항목·절차를 정의 뒤에 붙여 둔다 — 꼬리질문 2·3단이 여기서 막힌다 */
+        answer:[String(x.answer || ""),
+                x.parts ? "▸구성 — " + x.parts : "",
+                x.steps ? "▸절차 — " + x.steps : ""].filter(Boolean).join("\n"),
+        keys:String(x.keys || "") }));
     if(!rows.length) return say("새로 넣을 게 없습니다.", "ok");
     await sb.from("iv_term").insert(rows);
     say(`${rows.length}개를 넣었습니다.`, "ok"); loadTerms();
