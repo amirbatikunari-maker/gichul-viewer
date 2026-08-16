@@ -139,6 +139,11 @@ a{color:var(--accent);text-decoration:none}
   color:var(--ink)}
 .pickb.on .dotc{opacity:1}
 .pickall{margin-left:4px;border-style:dashed}
+.picktip{font-size:12px;color:var(--ink-2);margin:-6px 0 12px}
+/* 과목을 하나도 안 골랐을 때는 아래 단추들만 흐리게 죽인다.
+   ★ 과목 «고르는 칩(#pickBar)» 은 이 상자 «바깥» 에 있어야 한다.
+     안에 두면 아무것도 안 고른 상태에서 칩까지 같이 죽어,
+     첫 과목을 영영 고를 수 없게 된다. (실제로 그랬다) */
 #multiWrap.off{opacity:.42;pointer-events:none}
 .mixbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:7px;margin:4px 0 8px}
 /* 한 번에 몇 문항을 뽑을지 — 위 다섯 단추 모두에 함께 걸린다 */
@@ -603,7 +608,47 @@ body.manage .delx{display:inline-flex}
 .mdtable td:first-child{white-space:normal;font-weight:500}
 html[data-theme="dark"] .sheet-host{filter:invert(.92) hue-rotate(180deg)}
 html[data-theme="dark"] .sheet-host img{filter:invert(1) hue-rotate(180deg)}
-.katex{font-size:1.02em}
+/* ══ 수식은 «같은 크기» 여도 작아 보인다 ══
+   KaTeX 는 서양 활자(Computer Modern) 계열이라 글자 높이(x-height)가 낮고
+   좌우 여백이 넓다. 한글(Pretendard)은 네모 칸을 거의 꽉 채운다.
+   그래서 font-size 가 같아도 수식이 한 눈금 작아 보인다.
+   1.02em 로는 모자라서, 눈으로 맞춘 값(1.14em)까지 올린다.
+
+   폰에서는 여기에 더해 «바닥» 을 정해 둔다. 본문을 13px 로 줄이면
+   수식은 15px 밑으로 내려가는데, 그 크기의 아래첨자는 사실상 안 보인다. */
+.katex{font-size:max(1.22em, 16px)}
+/* 따로 떨어져 있는 수식은 한 줄을 통째로 쓰므로 조금 더 키워도 된다 */
+.katex-display > .katex{font-size:max(1.28em, 17px)}
+
+/* ★ 같은 px 이어도 수식이 더 작아 보이는 이유.
+   KaTeX 가 쓰는 Computer Modern 은 한글 본문(Pretendard)보다
+   x-높이(소문자 몸통 높이)가 낮고 획이 가늘다. 그래서 «13px 대 13px» 로 맞춰 놔도
+   눈에는 수식이 한 눈금 작게 들어온다. 배수만으로는 안 맞고 «바닥값» 이 필요하다.
+
+   해설·쉬운 풀이는 본문을 13.5px 로 줄여 놓았으므로,
+   1.22배를 곱해도 16.5px 밖에 안 된다. 그 크기의 분수·아래첨자는 흐릿하다.
+   그래서 이 두 자리에는 바닥을 따로 더 올려 둔다. */
+.exp-b .katex, .easy .eb .katex, .mkb .katex{font-size:max(1.26em, 16.5px)}
+.exp-b .katex-display > .katex,
+.easy .eb .katex-display > .katex{font-size:max(1.3em, 17.5px)}
+
+/* 아래첨자·위첨자는 본문의 0.7배로 줄어든다. 수식 전체를 키워도
+   Iₐ 의 a 는 여전히 10px 언저리라 폰에서 뭉개진다. 여기만 따로 받쳐 준다. */
+.katex .msupsub{font-size:1.1em}
+.katex .mfrac .frac-line{border-bottom-width:.06em}   /* 분수선이 가늘어 안 보이던 것 */
+/* 루트 기호와 괄호도 획이 가늘어 배경에 묻힌다 */
+.katex .sqrt > .sqrt-line{border-top-width:.055em}
+
+/* 유니코드 아래첨자(I₁ · Vₐ)로 쓴 글도 같은 문제를 겪는다.
+   KaTeX 가 아니라 그냥 글자라 브라우저가 0.75배로 줄여 버린다. */
+sub,sup{font-size:.8em;line-height:0}
+sub{bottom:-.22em}
+
+@media(max-width:520px){
+  .katex{font-size:max(1.24em, 16px)}
+  .katex-display > .katex{font-size:max(1.28em, 16.5px)}
+  .exp-b .katex, .easy .eb .katex, .mkb .katex{font-size:max(1.28em, 16.5px)}
+}
 /* 긴 수식은 좌우로 밀어 볼 수 있게 두되, 스크롤 막대는 감춘다.
    안 감추면 안드로이드 크롬에서 회색 가로 막대가 수식 아래에 늘 그려져
    "수식에 줄이 그어진 것"처럼 보인다. */
@@ -959,8 +1004,9 @@ mark.st{
 
     <!-- ══ 과목을 여럿 골라 한꺼번에 섞어 보기 ══ -->
     <div class="eyebrow" style="margin-top:26px">과목 섞어 보기 <span class="n" id="pickN"></span></div>
+    <div class="pickbar" id="pickBar"></div>
+    <div class="picktip" id="pickTip"></div>
     <div id="multiWrap">
-      <div class="pickbar" id="pickBar"></div>
       <div class="mixbar" id="multiMix">
         <button class="mixb rnd" data-mode="random">🎲 랜덤<span class="c" data-c="random"></span></button>
         <button class="mixb g"   data-mode="gold">금<span class="c" data-c="gold"></span></button>
@@ -3488,6 +3534,12 @@ function drawMultiMix(){
   $("#pickN").textContent = pick.length ? `${pick.length} / ${S.subjects.length}` : "";
   drawMultiWrapState();
   syncMultiCounts();
+  /* 아무것도 안 골랐을 때 무엇을 해야 하는지는 칩 «바로 아래» 가 아니라
+     칩 줄 끝에 붙여 준다 — 아래 상자는 흐려져 있어 글이 안 읽힌다. */
+  const tip = $("#pickTip");
+  if(tip) tip.textContent = pick.length
+    ? ""
+    : "과목을 눌러 고르세요. 고른 과목들의 금·은·동을 한 묶음으로 섞어 냅니다.";
 }
 
 /* 고른 과목들의 등급별 문항 수를 합쳐 단추에 적는다 */
@@ -4603,7 +4655,7 @@ route();
 
 /* 홈 화면 설치 + 오프라인 */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=49").catch(()=>{}));
+  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=50").catch(()=>{}));
 </script>
 </body>
 </html>
