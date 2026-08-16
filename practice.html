@@ -157,6 +157,8 @@ body.oneup #list > .pcard.show{display:block}
 .ptools .zb.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
 .ptools .lv{font:500 11px/1 var(--font-m);color:var(--ink-2);min-width:40px;text-align:center}
 .ptools .sep{width:1px;height:18px;background:var(--rule);margin:0 2px}
+.ptools .fold{margin-left:auto;border-color:var(--accent);color:var(--accent)}
+.ptools .fold.on{background:var(--accent);border-color:var(--accent);color:#fff}
 
 /* ── 답안 — 문제 바로 아래에 붙인다.
    예전에는 큼직한 단추 하나가 사이를 갈라 놔서 «다른 첨부» 처럼 보였다. ── */
@@ -177,6 +179,21 @@ body.oneup #list > .pcard.show{display:block}
 .inkswatch{width:16px;height:16px;border-radius:50%;border:1.4px solid var(--rule);
   padding:0;cursor:pointer;flex:none}
 .inkswatch.on{box-shadow:0 0 0 2px var(--ink)}
+
+/* ── 화면 좌우 넘김 단추 — 마우스로 끌어 넘기는 대신 ── */
+.edgenav{position:fixed;top:50%;transform:translateY(-50%);z-index:55;
+  width:44px;height:76px;border:0;border-radius:12px;cursor:pointer;
+  display:none;align-items:center;justify-content:center;
+  background:color-mix(in srgb,var(--ink) 26%,transparent);color:#fff;
+  font:400 26px/1 var(--font-d);opacity:.18;transition:opacity .22s,background .22s;
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
+  -webkit-user-select:none;user-select:none;touch-action:manipulation}
+body.oneup .edgenav{display:flex}
+.edgenav.wake{opacity:.62}
+.edgenav:hover{opacity:.95;background:color-mix(in srgb,var(--ink) 62%,transparent)}
+.edgenav:disabled{opacity:.06;cursor:default}
+.edgenav.prev{left:6px} .edgenav.next{right:6px}
+@media(max-width:720px){ .edgenav{width:34px;height:60px;font-size:21px} }
 
 /* ── 몰입 — 한 문항씩 볼 때는 상자·여백을 걷어내고 종이만 남긴다 ── */
 body.oneup .wrap{max-width:1180px;padding:10px 8px 70px}
@@ -542,9 +559,28 @@ function showAt(i){
   $$("#list > .pcard").forEach(c => c.classList.toggle("show", c.dataset.id === want));
   const r = SHOWN[ONEAT];
   $("#pnavAt").textContent = `${ONEAT + 1} / ${SHOWN.length} · ${r.year}년 제${r.session}회 ${r.no}번`;
-  drawRail();
+  drawRail(); edgeSync();
   document.querySelector("#list > .pcard.show")?.scrollIntoView({ block:"start" });
 }
+
+/* ── 화면 좌우 넘김 단추 ──
+   한 문항씩 보기일 때만 나온다. 스크롤할 때 잠깐 또렷해졌다가 다시 흐려진다. */
+let EDGE_T = null;
+function edgeWake(){
+  const a = $("#edgePrev"), b = $("#edgeNext"); if(!a || !b) return;
+  a.classList.add("wake"); b.classList.add("wake");
+  clearTimeout(EDGE_T);
+  EDGE_T = setTimeout(() => { a.classList.remove("wake"); b.classList.remove("wake"); }, 1600);
+}
+function edgeSync(){
+  const a = $("#edgePrev"), b = $("#edgeNext"); if(!a || !b) return;
+  a.disabled = !ONEUP || ONEAT <= 0;
+  b.disabled = !ONEUP || ONEAT >= SHOWN.length - 1;
+}
+$("#edgePrev").onclick = () => { showAt(ONEAT - 1); edgeWake(); };
+$("#edgeNext").onclick = () => { showAt(ONEAT + 1); edgeWake(); };
+addEventListener("scroll", edgeWake, true);
+addEventListener("wheel",  edgeWake, { passive:true });
 
 $("#fOne").onclick = () => {
   ONEUP = !ONEUP;
@@ -745,13 +781,7 @@ ${EASY_RULE}`, blob, 3000);
     drawList();
   });
 
-  $$("#list [data-toggle]").forEach(b => b.onclick = () => {
-    const box = b.closest("[data-ans]");
-    const hid = box.classList.toggle("hide");
-    b.classList.toggle("on", !hid);
-    b.textContent = hid ? "보기" : "가리기";
-    if(!hid) box.querySelectorAll("[data-pz]").forEach(attachZoom);   /* 안에서 중복을 막는다 */
-  });
+  $$("#list [data-toggle]").forEach(b => b.onclick = () => ansToggle(b.closest(".pcard")));
   $$("#list .pbody > [data-pz]").forEach(attachZoom);
 
   /* 새로 그린 뒤 한 문항씩 모드를 다시 적용한다 */
@@ -974,6 +1004,10 @@ function attachZoom(wrap){
 
   const qid = stage.dataset.qid, side = stage.dataset.mkhost;
   const canInk = !!(qid && side && stage.querySelector("canvas.inkc"));
+  const card   = wrap.closest(".pcard");
+  const ansBox = card?.querySelector("[data-ans]");
+  /* 답안 접기·펼치기는 문제 그림 쪽 도구줄에만 단다 (답안 위에 또 달면 어지럽다) */
+  const canFold = !!(ansBox && side === "q");
 
   const tools = document.createElement("div");
   tools.className = "ptools";
@@ -981,20 +1015,53 @@ function attachZoom(wrap){
     <button class="zb" type="button" data-z="+">+</button>
     <button class="zb" type="button" data-z="0">처음</button>`
     + (canInk ? `<span class="sep"></span>
-    <button class="zb" type="button" data-inkon title="손으로 쓰기">✎ 필기</button>
+    <button class="zb" type="button" data-inkon title="문제와 답안에 동시에 씁니다">✎ 필기</button>
     <button class="zb hide" type="button" data-inktool="pen">펜</button>
     <button class="zb hide" type="button" data-inktool="hi">형광</button>
     <button class="zb hide" type="button" data-inktool="er">지우개</button>
     ${INK_COLORS.map(c => `<button class="inkswatch hide" type="button" data-inkcolor="${c}" style="background:${c}"></button>`).join("")}
     <button class="zb hide" type="button" data-inkundo>되돌리기</button>
-    <button class="zb hide" type="button" data-inkclear>전부 지우기</button>` : "");
+    <button class="zb hide" type="button" data-inkclear>전부 지우기</button>` : "")
+    + (canFold ? `<button class="zb fold" type="button" data-ansfold>답안 펼치기</button>` : "");
   wrap.after(tools);
   tools.onclick = e => {
     const t = e.target.closest("[data-z]");
     if(t) return zoomTo(t.dataset.z === "+" ? k*1.35 : t.dataset.z === "-" ? k/1.35 : 1);
+    if(e.target.closest("[data-ansfold]")) ansToggle(card);
   };
   apply();
+  if(canFold) ansSync(card);
   if(canInk) attachInk(wrap, stage, tools, qid, side);
+}
+
+/* ═══ 답안 접기·펼치기 — 도구줄 단추와 아래 점선 띠가 늘 같은 상태를 가리키게 한다 ═══ */
+function ansToggle(card, force){
+  const box = card?.querySelector("[data-ans]"); if(!box) return;
+  const hid = force === undefined ? box.classList.toggle("hide")
+                                  : (box.classList.toggle("hide", force), box.classList.contains("hide"));
+  if(!hid){
+    box.querySelectorAll("[data-pz]").forEach(attachZoom);   /* 안에서 중복을 막는다 */
+    /* 문제 쪽에서 필기를 켜 둔 채 답안을 펼치면, 답안에도 바로 필기가 켜지게 한다 */
+    if(card.dataset.inkon === "1") inkBroadcast(card, true);
+  }
+  ansSync(card);
+}
+function ansSync(card){
+  const box = card?.querySelector("[data-ans]"); if(!box) return;
+  const hid = box.classList.contains("hide");
+  card.querySelectorAll("[data-ansfold]").forEach(b => {
+    b.textContent = hid ? "답안 펼치기" : "답안 접기";
+    b.classList.toggle("on", !hid);
+  });
+  const strip = box.querySelector("[data-toggle]");
+  if(strip){ strip.textContent = hid ? "보기" : "가리기"; strip.classList.toggle("on", !hid); }
+}
+
+/* 한 카드 안의 모든 그림(문제·답안)에 필기 상태를 한꺼번에 전한다 */
+function inkBroadcast(card, on){
+  if(!card) return;
+  card.dataset.inkon = on ? "1" : "";
+  (card._inkSetters || []).forEach(fn => { try{ fn(on); }catch(e){} });
 }
 
 /* ═══════════════════════════════════════════════
@@ -1127,25 +1194,52 @@ function attachInk(wrap, stage, tools, qid, side){
     tools.querySelectorAll("[data-inktool]").forEach(b => b.classList.toggle("on", b.dataset.inktool === INK_TOOL));
     tools.querySelectorAll("[data-inkcolor]").forEach(b => b.classList.toggle("on", b.dataset.inkcolor === INK_COLOR));
   };
+
+  /* ★ 필기는 «카드 단위» 다.
+     문제 그림에서 켜면 답안 그림에서도 같이 켜진다. 한쪽만 켜지면
+     풀이를 쓰다가 답안에 표시하려 할 때마다 다시 눌러야 해서 성가시다. */
+  const card = wrap.closest(".pcard");
+  function setOn(v){
+    on = v;
+    wrap.dataset.ink = on ? "1" : "";
+    tools.querySelectorAll("[data-inkon]").forEach(b => b.classList.toggle("on", on));
+    subs().forEach(x => on ? show(x) : hide(x));
+    paint();
+  }
+  if(card){
+    (card._inkSetters = card._inkSetters || []).push(setOn);
+    if(card.dataset.inkon === "1") setOn(true);       /* 이미 켜둔 카드라면 바로 따라간다 */
+  }
+
   tools.addEventListener("click", e => {
     const b = e.target.closest("button"); if(!b) return;
     if(b.hasAttribute("data-inkon")){
-      on = !on;
-      wrap.dataset.ink = on ? "1" : "";
-      b.classList.toggle("on", on);
-      subs().forEach(x => on ? show(x) : hide(x));
-      paint();
+      const next = !on;
+      /* 답안이 접혀 있으면 펼쳐 준다 — 켜 놓고 안 보이면 켠 줄도 모른다 */
+      if(next && card?.querySelector("[data-ans].hide")) ansToggle(card, false);
+      card ? inkBroadcast(card, next) : setOn(next);
       return;
     }
-    if(b.dataset.inktool){ INK_TOOL = b.dataset.inktool; return paint(); }
-    if(b.dataset.inkcolor){ INK_COLOR = b.dataset.inkcolor; INK_TOOL = "pen"; return paint(); }
+    if(b.dataset.inktool){ INK_TOOL = b.dataset.inktool; return card ? cardPaint(card) : paint(); }
+    if(b.dataset.inkcolor){ INK_COLOR = b.dataset.inkcolor; INK_TOOL = "pen"; return card ? cardPaint(card) : paint(); }
     if(b.hasAttribute("data-inkundo")){
       inkGet(qid, side).pop(); inkStore(qid, side); return redraw();
     }
     if(b.hasAttribute("data-inkclear")){
-      if(!confirm("이 그림에 쓴 필기를 전부 지웁니다.")) return;
-      INK[`${qid}:${side}`] = []; inkStore(qid, side); return redraw();
+      if(!confirm("이 문제의 문제·답안에 쓴 필기를 전부 지웁니다.")) return;
+      ["q","a"].forEach(t => { INK[`${qid}:${t}`] = []; inkStore(qid, t); });
+      card ? card.querySelectorAll(".inkc").forEach(c => c._redraw?.()) : redraw();
+      return;
     }
+  });
+  cv._redraw = redraw;
+}
+
+/* 펜·색을 바꾸면 그 카드의 도구줄을 모두 같은 모양으로 맞춘다 */
+function cardPaint(card){
+  card.querySelectorAll(".ptools").forEach(t => {
+    t.querySelectorAll("[data-inktool]").forEach(b => b.classList.toggle("on", b.dataset.inktool === INK_TOOL));
+    t.querySelectorAll("[data-inkcolor]").forEach(b => b.classList.toggle("on", b.dataset.inkcolor === INK_COLOR));
   });
 }
 
@@ -1960,5 +2054,7 @@ async function boot(){
 (async () => { if(await gate()) boot(); })();
 sb?.auth?.onAuthStateChange?.(() => setTimeout(() => gate().then(on => on && boot()), 0));
 </script>
+<button class="edgenav prev" id="edgePrev" type="button" aria-label="이전 문제">‹</button>
+<button class="edgenav next" id="edgeNext" type="button" aria-label="다음 문제">›</button>
 </body>
 </html>
