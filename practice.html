@@ -89,6 +89,8 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
   background:color-mix(in srgb,var(--accent) 6%,transparent);border:1px solid color-mix(in srgb,var(--accent) 22%,transparent)}
 .easybox p{margin:5px 0} .easybox ul{margin:5px 0;padding-left:19px}
 .easybox h4{font:700 13.5px/1.4 var(--font-d);margin:10px 0 4px;color:var(--accent)}
+.easybox.empty{background:transparent;border-style:dashed;padding:9px 13px}
+.easybox .wait{display:block}
 .wait{font-size:12.5px;color:var(--ink-2)}
 
 .hide{display:none !important}
@@ -96,11 +98,37 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
 /* ── 한 문항씩 보기 ──
    실기 문제는 통짜 그림이라, 여러 장을 세로로 늘어놓으면 폰에서 전부 찌부러진다.
    필기 뷰어처럼 한 화면에 한 문항만 두고 번호줄로 건너뛴다. */
+/* ── 접었다 펴는 상자 ──
+   자료함과 PDF 가져오기는 평소에 안 쓴다. 늘 펼쳐 두면 문제를 보려고
+   매번 한참 스크롤해야 해서, 기본을 «접힘» 으로 둔다. */
+.box.fold{padding-top:0;padding-bottom:0}
+.box.fold .foldh{width:100%;display:flex;align-items:center;gap:9px;background:none;border:0;
+  padding:15px 0;cursor:pointer;color:var(--ink-2);text-align:left;
+  font:600 11px/1 var(--font-d);letter-spacing:.14em}
+.box.fold .foldh .arw{display:inline-block;font-size:10px;color:var(--accent);
+  transition:transform .18s;flex:none}
+.box.fold .foldh::after{content:"";flex:1;height:1px;background:var(--rule)}
+.box.fold .foldb{display:none;padding-bottom:16px}
+.box.fold.open .foldb{display:block}
+.box.fold.open .foldh .arw{transform:rotate(-90deg)}   /* ◀ 가 ▼ 처럼 눕는다 */
 .prail{display:none;gap:5px;overflow-x:auto;scrollbar-width:none;
   padding:8px 2px;margin:0 -2px;position:sticky;top:0;z-index:20;
   background:color-mix(in srgb,var(--paper) 94%,transparent);backdrop-filter:blur(8px)}
 .prail::-webkit-scrollbar{display:none}
-body.oneup .prail{display:flex}
+body.oneup /* ── 접었다 펴는 상자 ──
+   자료함과 PDF 가져오기는 평소에 안 쓴다. 늘 펼쳐 두면 문제를 보려고
+   매번 한참 스크롤해야 해서, 기본을 «접힘» 으로 둔다. */
+.box.fold{padding-top:0;padding-bottom:0}
+.box.fold .foldh{width:100%;display:flex;align-items:center;gap:9px;background:none;border:0;
+  padding:15px 0;cursor:pointer;color:var(--ink-2);text-align:left;
+  font:600 11px/1 var(--font-d);letter-spacing:.14em}
+.box.fold .foldh .arw{display:inline-block;font-size:10px;color:var(--accent);
+  transition:transform .18s;flex:none}
+.box.fold .foldh::after{content:"";flex:1;height:1px;background:var(--rule)}
+.box.fold .foldb{display:none;padding-bottom:16px}
+.box.fold.open .foldb{display:block}
+.box.fold.open .foldh .arw{transform:rotate(-90deg)}   /* ◀ 가 ▼ 처럼 눕는다 */
+.prail{display:flex}
 .pb{flex:none;min-width:46px;height:30px;padding:0 8px;border-radius:999px;
   border:1.4px solid var(--rule);background:#fff;color:var(--ink);
   font:500 11.5px/1 var(--font-m);cursor:pointer;display:grid;place-items:center;white-space:nowrap}
@@ -267,6 +295,7 @@ body.oneup .lead,body.oneup h1{display:none}
           <option value="50">50문항</option>
         </select>
         <button class="chip on" id="fOne" type="button" title="한 화면에 한 문항만 보여 줍니다">한 문항씩</button>
+        <button class="chip" id="fAuto" type="button" title="문제를 볼 때 해설이 없으면 그 자리에서 씁니다">✎ 자동 해설</button>
       </div>
       <div class="prail" id="prail"></div>
       <div id="list"><div class="empty">과목을 고르세요.</div></div>
@@ -278,8 +307,10 @@ body.oneup .lead,body.oneup h1{display:none}
     </div>
 
     <!-- 3 · 자료함 --------------------------------------------- -->
-    <div class="box">
-      <div class="eyebrow">2 · 자료함</div>
+    <div class="box fold" id="boxFiles">
+      <button class="eyebrow foldh" type="button" data-fold="boxFiles">
+        <span class="arw">◀</span>2 · 자료함</button>
+      <div class="foldb">
       <div class="filters">
         <select id="aYear"><option value="">연도 전체</option></select>
         <select id="aSess"><option value="">회차 전체</option></select>
@@ -300,11 +331,14 @@ body.oneup .lead,body.oneup h1{display:none}
         사진과 PDF 는 눌러서 그 자리에서 펼쳐 볼 수 있고, 나머지는 내려받습니다.
         한 파일이 <b>45MB</b>를 넘으면 Supabase 가 받지 않으므로 나눠서 올려 주세요.
       </div>
+      </div>
     </div>
 
     <!-- 4 · 가져오기 ------------------------------------------------ -->
-    <div class="box">
-      <div class="eyebrow">3 · PDF 에서 문제 가져오기</div>
+    <div class="box fold" id="boxImport">
+      <button class="eyebrow foldh" type="button" data-fold="boxImport">
+        <span class="arw">◀</span>3 · PDF 에서 문제 가져오기</button>
+      <div class="foldb">
       <div class="grid">
         <div>
           <label>어느 과목에 넣을까요</label>
@@ -387,6 +421,7 @@ body.oneup .lead,body.oneup h1{display:none}
         <b>같은 문제를 다시 올리면</b> 덮어씁니다(연도·회차·번호 기준). 중복이 쌓이지 않습니다.<br>
       <b>빠진 문제만 채우기</b> 는 Supabase 에 실제로 뭐가 들어 있는지 물어본 뒤 <b>없는 것만</b> 올립니다.
       실패했거나 중간에 중지해서 빠진 것을 한 번에 메웁니다. 새로고침한 뒤에도 됩니다.
+      </div>
       </div>
     </div>
   </div>
@@ -545,7 +580,7 @@ function applyOneUp(){
   document.body.classList.toggle("oneup", ONEUP);
   $("#fOne")?.classList.toggle("on", ONEUP);
   if(ONEUP) showAt(Math.min(ONEAT, Math.max(0, SHOWN.length - 1)));
-  else $$("#list > .pcard").forEach(c => c.classList.add("show"));
+  else { $$("#list > .pcard").forEach(c => c.classList.add("show")); ezWatch(); }
 }
 
 function drawRail(){
@@ -566,7 +601,7 @@ function showAt(i){
   $$("#list > .pcard").forEach(c => c.classList.toggle("show", c.dataset.id === want));
   const r = SHOWN[ONEAT];
   $("#pnavAt").textContent = `${ONEAT + 1} / ${SHOWN.length} · ${r.year}년 제${r.session}회 ${r.no}번`;
-  drawRail(); edgeSync();
+  drawRail(); edgeSync(); ezWatch();
   document.querySelector("#list > .pcard.show")?.scrollIntoView({ block:"start" });
 }
 
@@ -661,10 +696,14 @@ function drawList(){
               <button class="zb" type="button" data-mkdel="${m.id}">지우기</button></div>
             <div class="mkb">${m.note_md ? mdLite(m.note_md) : `<span class="wait">아직 설명이 없습니다.</span>`}</div>
           </div>`).join("")}</div>
-        ${r.easy_md ? `<div class="easybox">${mdLite(r.easy_md)}</div>` : ""}
+        <div class="easybox${r.easy_md ? "" : " empty"}">${
+          r.easy_md ? mdLite(r.easy_md)
+                    : `<span class="wait">${AUTO ? "이 문제를 보면 해설을 씁니다." : "자동 해설이 꺼져 있습니다. 아래 «해설 만들기» 를 누르세요."}</span>`}</div>
         <div class="ptools" style="margin-top:10px;border-top:1px solid var(--rule);padding-top:10px">
           <button class="zb pick" type="button" data-pick="${r.id}">✎ 막히는 곳 표시</button>
-          <button class="zb" type="button" data-easy="${r.id}">${r.easy_md ? "쉬운 해설 다시" : "쉬운 해설"}</button>
+          <button class="zb${r.easy_md ? "" : " pick"}" type="button" data-easy="${r.id}">${
+            r.easy_md ? "↻ 다시 해석하기" : "✎ 해설 만들기"}</button>
+          ${r.easy_md ? `<button class="zb" type="button" data-easyedit="${r.id}">고쳐 쓰기</button>` : ""}
           ${r.easy_md ? `<button class="zb" type="button" data-easydel="${r.id}">해설 지우기</button>` : ""}
           <button class="zb" type="button" data-rot="${r.id}" title="90° 씩 돌립니다">↻ 회전${r.rotate ? " " + r.rotate + "°" : ""}</button>
           <button class="zb" type="button" data-swap="${r.id}" title="문제와 답안이 뒤바뀌었을 때">문제 ↔ 답안</button>
@@ -723,42 +762,50 @@ function drawList(){
     }catch(e){ box.innerHTML = `<span class="wait">설명하지 못했습니다 — ${esc(e.message || e)}</span>`; }
   });
 
-  /* ── 문제 전체를 쉬운 말로 ── */
-  $$("#list [data-easy]").forEach(b => b.onclick = async () => {
+  /* ── 해설 만들기 · 다시 해석하기 ──
+     이미 써 둔 해설은 건드리지 않는다. 이 단추를 눌렀을 때만 갈아엎는다. */
+  $$("#list [data-easy]").forEach(b => b.onclick = () => {
     const r = ROWS.find(x => String(x.id) === b.dataset.easy);
     if(!r?.q_url) return log("문제 그림이 없습니다.");
-    const card = b.closest(".pcard");
-    let box = card.querySelector(".easybox");
-    if(!box){ box = document.createElement("div"); box.className = "easybox";
-              card.querySelector(".ptools").before(box); }
-    box.innerHTML = `<span class="wait">비전공자 눈높이로 다시 쓰는 중… 20~40초쯤 걸립니다.</span>`;
-    try{
-      const blob = await fetch(r.q_url).then(x => x.blob());
-      const md = await askAI(`실기 시험 문제 그림이다. 전공자가 아닌 사람이 이해할 수 있게 다시 써라.
-
-[문제 글(참고용, 불완전할 수 있음)]
-${(r.q_text || "").slice(0, 1500) || "(없음)"}
-
-[할 일]
-1. **무엇을 묻는 문제인가** — 한두 줄로.
-2. **알아야 할 것** — 이 문제를 풀려면 먼저 알아야 하는 개념을 쉬운 말로.
-3. **푸는 순서** — 번호를 매겨 단계별로. 각 단계에서 무엇을 왜 하는지 같이.
-4. **자주 틀리는 곳** — 한두 가지.
-${EASY_RULE}`, blob, 3000);
-      const up = await sb.from("practicals").update({ easy_md: md }).eq("id", r.id);
-      if(up.error) throw new Error(/easy_md|schema cache/i.test(up.error.message)
-        ? "easy_md 칸이 없습니다 — supabase-실기.sql 을 다시 돌려 주세요." : up.error.message);
-      r.easy_md = md; box.innerHTML = mdLite(md);
-    }catch(e){ box.innerHTML = `<span class="wait">쓰지 못했습니다 — ${esc(e.message || e)}</span>`; }
+    if(r.easy_md && !confirm("지금 해설을 버리고 처음부터 다시 씁니다. 계속할까요?")) return;
+    ezMake(r.id, true);
   });
+  $$("#list [data-easydel]").forEach(b => b.onclick = () => ezDel(b.dataset.easydel));
 
-  $$("#list [data-easydel]").forEach(b => b.onclick = async () => {
-    const r = ROWS.find(x => String(x.id) === b.dataset.easydel);
-    if(!confirm("쉬운 해설을 지웁니다.")) return;
-    await sb.from("practicals").update({ easy_md: null }).eq("id", r.id);
-    r.easy_md = null; drawList();
+  /* ── 고쳐 쓰기 ──
+     AI 해설이 대체로 맞는데 한두 줄만 틀린 경우가 많다. 그때마다 통째로 다시
+     만들면 맞았던 부분까지 날아간다. 그래서 그 자리에서 직접 고칠 수 있게 둔다.
+     고친 것도 Supabase 에 그대로 남는다. */
+  $$("#list [data-easyedit]").forEach(b => b.onclick = () => {
+    const r = ROWS.find(x => String(x.id) === b.dataset.easyedit);
+    const card = document.querySelector(`.pcard[data-id="${r.id}"]`);
+    const box = card?.querySelector(".easybox"); if(!box) return;
+    if(box.dataset.editing === "1") return;
+    box.dataset.editing = "1";
+    const ta = document.createElement("textarea");
+    ta.value = r.easy_md || "";
+    ta.style.cssText = "width:100%;min-height:320px;font-family:var(--font-m);font-size:12.5px;"
+      + "line-height:1.7;padding:11px;border:1.4px solid var(--accent);border-radius:9px;"
+      + "background:var(--card);color:var(--ink);resize:vertical";
+    const bar = document.createElement("div");
+    bar.className = "ptools"; bar.style.marginTop = "8px";
+    bar.innerHTML = `<button class="zb pick" type="button" data-esave>저장</button>
+      <button class="zb" type="button" data-ecancel>취소</button>
+      <span class="hintx">**굵게** 와 - 목록만 씁니다</span>`;
+    box.innerHTML = ""; box.append(ta, bar);
+    ta.focus();
+    bar.querySelector("[data-ecancel]").onclick = () => {
+      box.dataset.editing = ""; box.innerHTML = mdLite(r.easy_md || "");
+    };
+    bar.querySelector("[data-esave]").onclick = async () => {
+      const md = ta.value.trim();
+      const up = await sb.from("practicals").update({ easy_md: md || null }).eq("id", r.id);
+      if(up.error) return alert("저장하지 못했습니다 — " + up.error.message);
+      r.easy_md = md || null;
+      box.dataset.editing = "";
+      if(md) box.innerHTML = mdLite(md); else drawList();
+    };
   });
-
   $$("#list [data-rot]").forEach(b => b.onclick = async () => {
     const r = ROWS.find(x => String(x.id) === b.dataset.rot);
     const next = ((r.rotate || 0) + 180) % 360;      /* 뒤집힌 쪽을 되돌리는 게 대부분이라 180° 씩 */
@@ -1625,11 +1672,159 @@ async function cropRect(url, rect){
 
 const EASY_RULE = `
 [말투]
-- 전공자가 아닌 사람에게 설명한다고 생각해라. 용어가 나오면 그 자리에서 한 줄로 풀어 준다.
+- 처음 보는 사람도 따라올 수 있게 쓴다. 용어가 나오면 그 자리에서 한 줄로 풀어 준다.
 - 공식을 던지지 말고, 왜 그 식이 나오는지부터 말해라.
+- ★ "비전공자도 알 수 있게", "쉽게 말하면", "초등학생도" 같은 말은 절대 쓰지 마라.
+  독자를 낮춰 보는 표현과 유치한 비유(사탕, 물통 …)도 쓰지 마라.
+  설명이 친절하면 되는 것이지, 친절하다고 선언할 필요는 없다.
+- 담백한 평서문으로. 감탄사·이모지·격려("어렵지 않죠?")를 넣지 마라.
+- 숫자가 나오면 단위를 반드시 붙이고, 계산은 한 줄에 한 단계씩 보여라.
 - LaTeX 를 쓰지 마라. $ 로 감싸지 마라. 아래첨자는 I₁ 처럼 유니코드로, 곱셈은 × 로 쓴다.
 - 마크다운은 **굵게** 와 - 목록만 쓴다.
 - 지어내지 마라. 그림에서 안 보이는 값은 "그림에 안 나와 있음" 이라고 적어라.`;
+
+/* 문제 하나를 처음부터 끝까지 풀어 주는 해설 프롬프트 */
+function easyPrompt(r){
+  return `실기 시험 문제 그림이다. 이 문제를 처음 보는 사람이 혼자 풀 수 있을 만큼 자세히 해설해라.
+
+[문제 글(참고용, 불완전할 수 있음)]
+${(r.q_text || "").slice(0, 1800) || "(없음)"}
+
+[답안 글(있으면 참고. 없으면 그림만 보고 판단)]
+${(r.a_text || "").slice(0, 1200) || "(없음)"}
+
+[할 일 — 이 차례 그대로, 소제목을 굵게 달아서]
+**무엇을 묻는 문제인가**
+한두 줄. 주어진 것과 구하는 것을 분명히 갈라서 적어라.
+
+**주어진 값**
+- 기호 = 값 [단위] 꼴로 하나씩. 그림에만 있고 글에는 없는 값도 빠짐없이 적어라.
+- 그림에서 읽히지 않는 값은 "그림에 안 나와 있음" 이라고 적어라.
+
+**알아야 할 것**
+이 문제를 풀려면 먼저 알아야 하는 개념·공식을 두세 개. 각각 왜 그렇게 되는지 한 줄씩 붙여라.
+
+**푸는 순서**
+번호를 매겨 단계별로. 각 단계마다
+- 무엇을 구하는 단계인지 한 줄
+- 쓰는 식
+- 숫자를 넣은 계산 한 줄 (단위 포함)
+- 그 단계의 답
+계산을 건너뛰지 마라. 중간값을 반올림했으면 어디서 반올림했는지 밝혀라.
+
+**답**
+최종 답을 단위까지 붙여 한 줄로.
+
+**자주 틀리는 곳**
+두세 가지. 왜 틀리는지와 어떻게 피하는지 같이.
+
+**이 문제가 물고 늘어질 수 있는 것**
+같은 개념에서 변형되어 나올 만한 물음 두 개. 각각 한 줄 답까지.
+${EASY_RULE}`;
+}
+
+/* ══════════════════════════════════════════════════════
+   자동 해설
+   ──────────────────────────────────────────────────────
+   문제를 «볼 때» 해설이 없으면 그 자리에서 만든다. 한 번 만든 것은
+   Supabase 에 남으므로 다음부터는 그대로 꺼내 쓴다(다시 만들지 않는다).
+   한 번에 하나씩만 부른다 — 목록을 주르륵 넘길 때 요청이 몰리면
+   서버가 죄다 거절해서 오히려 하나도 안 나온다.
+   ══════════════════════════════════════════════════════ */
+let AUTO = localStorage.getItem("prac:auto") !== "0";
+let EZBUSY = false;
+const EZQUEUE = [];
+
+/* ★ 여기가 «해설이 안 나오던» 자리.
+   ezEnqueue 는 만들어만 두고 어디서도 부르지 않았다. 그래서 자동 해설이
+   한 번도 돌지 않았고, 사람이 «쉬운 해설» 단추를 눌러야만 나왔다.
+   이제 문제가 화면에 «보이면» 그때 줄을 세운다. */
+function ezWatch(){
+  if(!AUTO) return;
+  if(ONEUP){                                  /* 한 문항씩 — 지금 보고 있는 것만 */
+    const r = SHOWN[ONEAT];
+    if(r) ezEnqueue(r.id);
+    return;
+  }
+  /* 목록 — 화면에 들어온 카드만. 스크롤로 지나친 것까지 만들면 돈과 시간이 샌다 */
+  if(EZOBS) EZOBS.disconnect();
+  EZOBS = new IntersectionObserver(es => {
+    es.forEach(e => { if(e.isIntersecting) ezEnqueue(e.target.dataset.id); });
+  }, { rootMargin: "160px 0px" });
+  document.querySelectorAll("#list > .pcard").forEach(c => EZOBS.observe(c));
+}
+let EZOBS = null;
+
+/* 자동 해설 켜기·끄기 */
+function paintAuto(){
+  const b = $("#fAuto"); if(!b) return;
+  b.classList.toggle("on", AUTO);
+  b.textContent = AUTO ? "✎ 자동 해설 켬" : "✎ 자동 해설 끔";
+}
+$("#fAuto")?.addEventListener("click", () => {
+  AUTO = !AUTO;
+  localStorage.setItem("prac:auto", AUTO ? "1" : "0");
+  paintAuto();
+  if(AUTO) ezWatch(); else { EZQUEUE.length = 0; EZOBS?.disconnect(); }
+});
+paintAuto();
+
+function ezEnqueue(id){
+  if(!AUTO) return;
+  const r = ROWS.find(x => String(x.id) === String(id));
+  if(!r || r.easy_md || !r.q_url) return;
+  if(EZQUEUE.includes(String(id))) return;
+  EZQUEUE.push(String(id));
+  ezPump();
+}
+async function ezPump(){
+  if(EZBUSY || !EZQUEUE.length) return;
+  EZBUSY = true;
+  const id = EZQUEUE.shift();
+  try{ await ezMake(id, false); }catch(e){}
+  EZBUSY = false;
+  if(EZQUEUE.length) setTimeout(ezPump, 400);
+}
+
+/* force = true 면 이미 있는 해설도 갈아엎는다 (다시 해석하기) */
+async function ezMake(id, force){
+  const r = ROWS.find(x => String(x.id) === String(id));
+  if(!r || !r.q_url) return;
+  if(r.easy_md && !force) return;
+
+  const card = document.querySelector(`.pcard[data-id="${id}"]`);
+  let box = card?.querySelector(".easybox");
+  if(card && !box){
+    box = document.createElement("div"); box.className = "easybox";
+    card.querySelector(".ptools")?.before(box);
+  }
+  if(box){
+    box.classList.remove("empty");
+    box.innerHTML = `<span class="wait">해설을 쓰는 중입니다… 20~40초쯤 걸립니다.</span>`;
+  }
+  try{
+    const blob = await fetch(r.q_url).then(x => x.blob());
+    const md = await askAI(easyPrompt(r), blob, 3600);
+    const up = await sb.from("practicals").update({ easy_md: md }).eq("id", r.id);
+    if(up.error) throw new Error(/easy_md|schema cache/i.test(up.error.message)
+      ? "easy_md 칸이 없습니다 — supabase-실기.sql 을 다시 돌려 주세요." : up.error.message);
+    r.easy_md = md;
+    if(box) box.innerHTML = mdLite(md);
+    /* 단추 줄(다시 해석하기 · 고쳐 쓰기 · 지우기)을 손으로 끼워 맞추면 손잡이가 어긋난다.
+       한 번 다시 그리는 편이 확실하다. 필기는 저장돼 있으므로 그대로 되살아난다. */
+    drawList();
+    drawRail?.();
+  }catch(e){
+    if(box) box.innerHTML = `<span class="wait">해설을 쓰지 못했습니다 — ${esc(e.message || e)}
+      <button class="zb" type="button" style="margin-left:8px" onclick="ezMake('${id}', true)">다시 시도</button></span>`;
+  }
+}
+async function ezDel(id){
+  const r = ROWS.find(x => String(x.id) === String(id));
+  if(!confirm("이 해설을 지웁니다. 자동 해설이 켜져 있으면 다시 볼 때 새로 씁니다.")) return;
+  await sb.from("practicals").update({ easy_md: null }).eq("id", r.id);
+  r.easy_md = null; drawList();
+}
 
 async function markExplain(id, target, rect, markId){
   const r = ROWS.find(x => String(x.id) === String(id));
@@ -2050,6 +2245,17 @@ async function putFiles(files){
   $("#aFile").value = "";
   loadFiles();
 }
+
+/* ── 접었다 펴기 — 접은 상태를 기기에 기억해 둔다 ── */
+$$("[data-fold]").forEach(b => {
+  const box = document.getElementById(b.dataset.fold);
+  if(localStorage.getItem("prac:fold:" + b.dataset.fold) === "1") box.classList.add("open");
+  b.onclick = () => {
+    const on = box.classList.toggle("open");
+    localStorage.setItem("prac:fold:" + b.dataset.fold, on ? "1" : "0");
+    if(on) box.scrollIntoView({ behavior:"smooth", block:"start" });
+  };
+});
 
 /* ═══════════════════════════════════════════════ */
 async function boot(){
