@@ -1115,7 +1115,14 @@ function mdToHtml(md){
 
 /* ══ AI 호출 ══ */
 async function ask(prompt, note){
-  const body = { parts:[{ text: prompt }], generationConfig:{ maxOutputTokens: 8192, temperature: 0.4 } };
+  /* ★ 여기가 «만들지 못했습니다» 의 원인이었다.
+     워커는 Gemini 형식을 그대로 넘겨 준다. 즉 바깥에 contents 가 있어야 하는데
+     예전에는 parts 만 보내서, 서버가 «contents is not specified» 로 되돌려 보냈다.
+     필기뷰어(askAI)와 같은 모양으로 맞춘다. */
+  const body = {
+    contents: [{ role:"user", parts:[{ text: prompt }] }],
+    generationConfig: { temperature: 0.4, maxOutputTokens: 8192 }
+  };
   const tried = [];
   let last = "";
   for(let i = 0; i < ENDPOINTS.length; i++){
