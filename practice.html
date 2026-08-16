@@ -378,8 +378,13 @@ body.oneup .lead,body.oneup h1{display:none}
 
   <div id="main" hidden>
     <!-- 1 · 보기 --------------------------------------------------- -->
-    <div class="box">
-      <div class="eyebrow">1 · 문제 보기 <button class="ghost" id="logoutBtn" type="button" style="padding:6px 10px;font-size:11px">로그아웃</button></div>
+    <div class="box fold open" id="boxView">
+      <button class="eyebrow foldh" type="button" data-fold="boxView">
+        <span class="arw">◀</span>1 · 문제 보기</button>
+      <div class="foldb">
+      <div class="bar" style="margin:0 0 10px">
+        <button class="ghost" id="logoutBtn" type="button" style="padding:6px 10px;font-size:11px">로그아웃</button>
+      </div>
       <div class="filters">
         <select id="fSub"></select>
         <button class="chip" id="subAdd" type="button" title="실기 과목 새로 만들기">+ 과목</button>
@@ -405,6 +410,7 @@ body.oneup .lead,body.oneup h1{display:none}
         <button class="zb" type="button" data-step="-1">‹ 이전</button>
         <span id="pnavAt">—</span>
         <button class="zb" type="button" data-step="1">다음 ›</button>
+      </div>
       </div>
     </div>
 
@@ -460,9 +466,11 @@ body.oneup .lead,body.oneup h1{display:none}
         <div>
           <label>문제 머리글 모양</label>
           <select id="impHdr">
-            <option value="문제" selected>문제 01 · 문제 1</option>
+            <option value="자동" selected>자동으로 알아서 (권장)</option>
+            <option value="문제">문제 01 · 문제 1</option>
             <option value="번호">1. · 01. · 1)</option>
             <option value="Q">Q1 · Q 1 · [1]</option>
+            <option value="출제">01 ‣ 출제년도 : … (다산 문제집형)</option>
             <option value="항목">∎ · ■ 로 시작하는 단답 항목</option>
             <option value="쪽">머리글 없음 — 쪽마다 한 장</option>
             <option value="자유">직접 적기</option>
@@ -491,7 +499,10 @@ body.oneup .lead,body.oneup h1{display:none}
       </div>
       <div class="hint" style="margin-top:6px">
         단답 정리본처럼 <b>«2025년 제1회»</b> 가 쪽마다 안 적힌 PDF 는 여기 두 칸을 채워 주세요.
-        비워 두면 회차를 못 찾아 <b>문제 0개</b>로 끝납니다.
+        비워 두면 회차를 못 찾아 <b>문제 0개</b>로 끝납니다.<br>
+        <b>다산 문제집</b>(오고초려·핵심빈출)은 머리글을 <b>«01 ‣ 출제년도»</b> 로 고르세요.
+        회차가 아니라 <b>장(章)</b>으로 묶이므로 연도만 넣으면 되고, 비우면 표지에서 찾아 씁니다.<br>
+        <b>단답(25~01년)</b>은 머리글을 <b>«1. · 01. · 1)»</b> 로 고르세요. 회차는 본문에서 저절로 읽힙니다.
       </div>
 
       <div class="drop" id="drop" style="margin-top:12px">
@@ -1421,12 +1432,24 @@ const HDR_SET = {
 function hdrKey(){ return $("#impHdr")?.value || "문제"; }
 function hdrRe(){
   const k = hdrKey();
-  if(k === "쪽") return null;                     /* 머리글을 안 쓰고 쪽마다 한 장으로 자른다 */
+  if(k === "쪽" || k === "출제") return null;      /* 이 둘은 아래에서 따로 다룬다 */
   if(k !== "자유") return HDR_SET[k] || HDR_SET["문제"];
   const w = ($("#impHdrCustom")?.value || "").trim();
   if(!w) return HDR_SET["문제"];
   return new RegExp("^" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*(\\d{1,3})?\\b");
 }
+/* ── 다산 문제집형 머리글 ──
+   실제 PDF 를 뜯어보면 세 갈래다.
+     ① 오고초려   : «01» 이 한 줄, 바로 다음 줄에 «‣ 출제년도 : 13-1 / 13-3 …»
+     ② 핵심빈출   : «핵심 빈출 3 ▶ 출제년도 : 기사 04, 10, 19, 25» 한 줄
+     ③ 단답       : «2025년 1회 전기기사 실기» 아래로 «1.» «2.» … (기존 «번호» 로 처리)
+   ①②는 회차가 아니라 «장(章)» 으로 묶인다. 그래서 장 번호를 회차 자리에 넣는다. */
+const HDR_BOOK  = /^(?:핵심\s*빈출\s*)?(\d{1,3})?\s*[‣▶]\s*출제\s*년?도/;
+const HDR_NUMLN = /^(\d{1,3})$/;                  /* 번호만 덩그러니 있는 줄 */
+/* «1장. 송･배전선로» 또는 «01. 송･배전선로» — 두 자리로 못 박아
+   본문 속 «3. 변류기의 부담» 같은 목록 줄에 속지 않게 한다. */
+const CHAP = /^(?:제\s*)?(\d{1,2})\s*장[.\s]|^(0[1-9])\.\s*[가-힣A-Za-z]/;
+
 /* PDF 안에 «2025년 제1회» 가 없을 때 쓸 회차. 위 입력칸에서 읽는다. */
 function manualRound(){
   const y = parseInt($("#impYear")?.value, 10), n = parseInt($("#impSess")?.value, 10);
@@ -1570,6 +1593,39 @@ async function scanDoc(doc, name, MODE = 'qa'){
   const items = [];
   let cur = null, seen = null, autoNo = 0, hdrHits = 0, roundHits = 0;
   const MAN = manualRound();
+  /* 문제집형에서 쓰는 «장» 상태. 장이 바뀌면 문제 번호를 1부터 다시 센다. */
+  let chap = 0, bookYear = MAN?.year || 0;
+
+  /* ── 머리글 모양은 «파일마다» 정한다 ──
+     한 번에 여러 PDF 를 올리는데 오고초려·핵심빈출·단답은 생김새가 전부 다르다.
+     하나로 맞춰 두면 나머지는 반드시 0개가 나온다. */
+  let HK = HDRK, RE = HDR;
+  if(HK === "자동"){
+    const probe = [];
+    for(let q = 1; q <= Math.min(doc.numPages, 14); q++){
+      const c = await doc.getPage(q).then(pg => pg.getTextContent());
+      probe.push(c.items.map(x => x.str).join("\n"));
+    }
+    const T = probe.join("\n");
+    const cnt = re => (T.match(re) || []).length;
+    /* pdf.js 는 한 줄을 여러 조각으로 쪼개 준다. «‣» 가 따로 떨어져 나올 수 있어
+       화살표는 세지 않고 «출제년도» 라는 낱말만 센다. */
+    const nBook = cnt(/출제\s*년?\s*도/g);
+    const nQ    = cnt(/(^|\n)\s*문제\s*\d{1,3}\b/g);
+    const nNum  = cnt(/(^|\n)\s*\d{1,3}\s*[.)]\s*[가-힣(]/g);
+    const nRnd  = cnt(/\d{4}\s*년\s*제?\s*\d\s*회/g);
+    const nDot  = cnt(/(^|\n)\s*[∎■▪◼]/g);
+    if(nBook >= 3){ HK = "출제"; RE = null; }
+    else if(nQ >= 3){ HK = "문제"; RE = HDR_SET["문제"]; }
+    else if(nNum >= 8 && nRnd >= 1){ HK = "번호"; RE = HDR_SET["번호"]; }
+    else if(nDot >= 8){ HK = "항목"; RE = HDR_SET["항목"]; }
+    else if(nNum >= 8){ HK = "번호"; RE = HDR_SET["번호"]; }
+    else { HK = "쪽"; RE = null; }
+    const 이름 = { 출제:"01 ‣ 출제년도 (문제집형)", 문제:"문제 01", 번호:"1. · 01.",
+                   항목:"∎ 단답 항목", 쪽:"쪽마다 한 장" }[HK];
+    log(`   ${name} → 머리글을 «${이름}» 으로 잡았습니다`
+      + ` (출제년도 ${nBook} · 문제 ${nQ} · 번호 ${nNum} · 회차 ${nRnd} · ∎ ${nDot})`);
+  }
 
   for(let p = 1; p <= doc.numPages; p++){
     if(STOP) break;
@@ -1602,9 +1658,30 @@ async function scanDoc(doc, name, MODE = 'qa'){
     const rm = pageText.match(ROUND);
     if(rm){ seen = { year:+rm[1], session:+rm[2] }; roundHits++; }
 
+    /* ── 문제집형 : 장(章) 을 회차 자리에 넣는다 ── */
+    if(HK === "출제"){
+      if(!bookYear){
+        /* 표지·머리글의 «2026 전기기사 실기 …» 에서 연도를 줍는다 */
+        const y = pageText.match(/(20\d\d)\s*(?:년\s*)?전기|전기기사[^\n]{0,12}?(20\d\d)/);
+        if(y) bookYear = +(y[1] || y[2]);
+      }
+      for(const L of sorted){
+        const c = L.txt.trim().match(CHAP);
+        if(c){
+          const n = +(c[1] || c[2]);
+          /* 장은 앞으로만 간다. 본문 속 «10. …» 같은 목록 줄에 끌려가
+             없는 장이 하나 더 생기는 일을 막는다. */
+          if(n && n > chap && n <= chap + 2){ chap = n; autoNo = 0; }
+          break;                                   /* 그 쪽의 첫 장 표시만 본다 */
+        }
+      }
+      seen = { year: bookYear || new Date().getFullYear(), session: chap || 1 };
+      roundHits++;
+    }
+
     /* «머리글 없음 — 쪽마다 한 장» — 단답 정리본처럼 문제 번호가 아예 없는 자료용.
        한 쪽을 통째로 한 장으로 만든다. */
-    if(HDRK === "쪽"){
+    if(HK === "쪽"){
       /* 한 쪽 = 한 장. 시작과 끝을 그 쪽 안에서 바로 닫아 둔다
          (다음 문제 시작으로 끝을 잡는 뒤처리에 걸려 두 쪽이 붙어 버리지 않게). */
       cur = { no:++autoNo, seen, asked:"", points:null, source:name,
@@ -1614,17 +1691,33 @@ async function scanDoc(doc, name, MODE = 'qa'){
       continue;
     }
 
-    for(const L of sorted){
+    for(let li = 0; li < sorted.length; li++){
+      const L = sorted[li];
       const t = L.txt.replace(/\s+/g, " ").trim();
-      const top = L.y;                                /* 이미 위에서부터의 거리다 */
+      let top = L.y;                                  /* 이미 위에서부터의 거리다 */
       if(top < 60) continue;                          /* 머리글·워터마크 줄은 건너뛴다 */
 
-      const h = HDR ? t.match(HDR) : null;
+      let h = RE ? t.match(RE) : null;
+      let bookNo = 0;
+      if(HK === "출제"){
+        const b = t.match(HDR_BOOK);
+        if(b){
+          h = [t];
+          /* 오고초려는 번호가 «앞줄» 에 홀로 있다. 그 줄부터 오려야 번호가 안 잘린다. */
+          const prev = li > 0 ? sorted[li-1].txt.trim() : "";
+          if(!b[1] && HDR_NUMLN.test(prev)){ bookNo = +prev; top = sorted[li-1].y; }
+          else if(b[1]) bookNo = +b[1];
+        }
+      }
       if(h){
         hdrHits++;
         if(cur) cur.end = { page:p, top:top - 6 };
-        /* 번호를 못 뽑는 머리글(∎ 단답 항목 등)은 나온 순서대로 번호를 붙인다 */
-        const num = (h[1] && /^\d{1,3}$/.test(h[1])) ? +h[1] : ++autoNo;
+        /* ★ 문제집형은 «항상» 순서대로 다시 센다.
+           워터마크 글자가 번호 사이에 끼어들어 «핵심 빈출 1» 이 «14» 로,
+           «16» 이 «416» 으로 읽히는 일이 실제로 있다. 종이에 적힌 번호를 믿으면
+           문제 순서가 통째로 뒤엉킨다. 장이 바뀔 때 1부터 다시 센다. */
+        const num = HK === "출제" ? ++autoNo
+                  : (h[1] && /^\d{1,3}$/.test(h[1])) ? +h[1] : ++autoNo;
         cur = {
           no:num, seen,
           asked:(t.match(ASKED)?.[1] || "").trim().replace(/\s+/g," "),
@@ -1680,8 +1773,8 @@ async function scanDoc(doc, name, MODE = 'qa'){
   /* 0개로 끝났을 때 «왜» 인지 반드시 남긴다. 이게 없어서 그동안 캄캄했다. */
   if(!out.length){
     log(`   ── 왜 0개인지 ──`);
-    if(HDRK === "쪽") log(`   쪽마다 자르기인데도 0개면 PDF 가 안 열린 것입니다.`);
-    else log(`   머리글 «${HDRK}» 로 찾은 줄 ${hdrHits}개` +
+    if(HK === "쪽") log(`   쪽마다 자르기인데도 0개면 PDF 가 안 열린 것입니다.`);
+    else log(`   머리글 «${HK}» 로 찾은 줄 ${hdrHits}개` +
              (hdrHits ? "" : "  → 머리글 모양이 안 맞습니다. 위에서 다른 모양을 골라 보세요."));
     if(!roundHits && !MAN)
       log(`   «○○○○년 제○회» 표시를 한 번도 못 찾았습니다.` +
@@ -2444,7 +2537,11 @@ addEventListener("keydown", e => {
 /* ── 접었다 펴기 — 접은 상태를 기기에 기억해 둔다 ── */
 $$("[data-fold]").forEach(b => {
   const box = document.getElementById(b.dataset.fold);
-  if(localStorage.getItem("prac:fold:" + b.dataset.fold) === "1") box.classList.add("open");
+  /* 문제 보기는 펼친 채로 시작한다. 자료함·가져오기는 접은 채로.
+     한 번이라도 손대면 그 뒤로는 손댄 상태를 따른다. */
+  const saved = localStorage.getItem("prac:fold:" + b.dataset.fold);
+  const def = b.dataset.fold === "boxView";
+  box.classList.toggle("open", saved === null ? def : saved === "1");
   b.onclick = () => {
     const on = box.classList.toggle("open");
     localStorage.setItem("prac:fold:" + b.dataset.fold, on ? "1" : "0");
