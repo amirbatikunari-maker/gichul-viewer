@@ -20,13 +20,28 @@
 <style>
 :root{--paper:#E9ECE6;--card:#FCFCFA;--ink:#10233D;--ink-2:#5A6B7F;--rule:#D3D8CD;
       --accent:#1D4ED8;--stamp:#BE2B26;--ok:#137A4B;--warn:#9A6B00;
-      --font-d:"IBM Plex Sans KR",Pretendard,sans-serif;--font-m:"IBM Plex Mono",monospace}
+      --font-d:"IBM Plex Sans KR",Pretendard,sans-serif;--font-m:"IBM Plex Mono",monospace;
+      /* ── 글자 크기·줄간격을 여기 한 곳에서 다룬다 ──
+         화면마다 따로 흩어 놓으면 어디를 고쳐야 할지 알 수 없게 된다.
+         기본은 폰 기준으로 잡고, 화면이 넓어질수록 조금씩 키운다. */
+      --fs:13px;        /* 본문 */
+      --fs-ez:13px;     /* 해설 */
+      --lh:1.55;        /* 줄간격 — 1.75 는 화면에서 문단이 흩어져 보인다 */
+      --lh-ez:1.62;
+      --gap:9px}
 *{box-sizing:border-box}
-body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,sans-serif;font-size:14px;line-height:1.6}
-.wrap{max-width:960px;margin:0 auto;padding:20px 16px 90px}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,sans-serif;
+  font-size:var(--fs);line-height:var(--lh);-webkit-text-size-adjust:100%}
+.wrap{max-width:960px;margin:0 auto;padding:16px 14px 84px}
+
+/* 태블릿 */
+@media(min-width:760px){ :root{--fs:13.5px;--fs-ez:13.5px;--gap:10px} .wrap{padding:20px 18px 88px} }
+/* PC — 넓다고 글씨까지 키우면 한 줄이 너무 길어져 눈이 되돌아오기 힘들다.
+   글씨는 조금만 키우고 대신 폭을 넓힌다. */
+@media(min-width:1100px){ :root{--fs:14px;--fs-ez:13.5px} .wrap{max-width:1080px} }
 h1{font:700 20px/1.3 var(--font-d);margin:0 0 4px;letter-spacing:-.02em}
-.lead{color:var(--ink-2);font-size:13px;margin-bottom:20px}
-.box{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:18px;margin-bottom:14px}
+.lead{color:var(--ink-2);font-size:12.5px;margin-bottom:16px}
+.box{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:15px;margin-bottom:12px}
 .eyebrow{display:flex;align-items:baseline;gap:10px;font:600 11px/1 var(--font-d);letter-spacing:.14em;color:var(--ink-2);margin-bottom:14px}
 .eyebrow::after{content:"";flex:1;height:1px;background:var(--rule)}
 label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:0 0 5px}
@@ -42,7 +57,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .msg.ok{display:block;background:#E3F3EA;color:var(--ok)}
 .msg.err{display:block;background:#FBE9E8;color:var(--stamp)}
 .msg.info{display:block;background:#E4ECFD;color:var(--accent)}
-.hint{font-size:12px;color:var(--ink-2);margin-top:8px;line-height:1.75}
+.hint{font-size:11.5px;color:var(--ink-2);margin-top:8px;line-height:1.6}
 .hint b{color:var(--ink)}
 code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px;border-radius:4px}
 .drop{border:1.6px dashed var(--rule);border-radius:12px;padding:24px;text-align:center;color:var(--ink-2);cursor:pointer;transition:.15s}
@@ -82,16 +97,79 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
 .mkh b{width:19px;height:19px;border-radius:50%;background:var(--stamp);color:#fff;
   font:700 11px/19px var(--font-d);text-align:center}
 .mkh span{flex:1;font:600 11.5px/1 var(--font-d);color:var(--ink-2)}
-.mkb{padding:10px 12px;font-size:13.5px;line-height:1.7}
-.mkb p{margin:5px 0} .mkb ul{margin:5px 0;padding-left:19px} .mkb li{margin:3px 0}
+.mkb{padding:10px 12px;font-size:var(--fs-ez);line-height:var(--lh-ez)}
+.mkb p{margin:3px 0} .mkb ul{margin:3px 0;padding-left:17px} .mkb li{margin:1px 0}
 .mkb h4{font:700 13px/1.4 var(--font-d);margin:9px 0 4px}
-.easybox{margin-top:10px;padding:11px 13px;border-radius:10px;font-size:13.5px;line-height:1.75;
-  background:color-mix(in srgb,var(--accent) 6%,transparent);border:1px solid color-mix(in srgb,var(--accent) 22%,transparent)}
-.easybox p{margin:5px 0} .easybox ul{margin:5px 0;padding-left:19px}
-.easybox h4{font:700 13.5px/1.4 var(--font-d);margin:10px 0 4px;color:var(--accent)}
+.easybox{margin-top:9px;padding:11px 13px;border-radius:10px;
+  font-size:var(--fs-ez);line-height:var(--lh-ez);
+  background:color-mix(in srgb,var(--accent) 5%,transparent);border:1px solid color-mix(in srgb,var(--accent) 20%,transparent)}
+.easybox p{margin:3px 0} .easybox ul{margin:3px 0;padding-left:17px} .easybox li{margin:1px 0}
+.easybox h4{font:700 12.5px/1.35 var(--font-d);margin:11px 0 3px;color:var(--accent);
+  letter-spacing:-.01em}
+.easybox h4:first-child{margin-top:0}
+.easybox b,.easybox strong{font-weight:600}
+/* 계산식 줄은 붙여서 — 한 단계가 한 줄이라 넓으면 흐름이 끊긴다 */
+.easybox ul li{line-height:1.5}
 .easybox.empty{background:transparent;border-style:dashed;padding:9px 13px}
 .easybox .wait{display:block}
 .wait{font-size:12.5px;color:var(--ink-2)}
+
+
+/* ══════════════════════════════════════════════════════
+   한눈에 보기
+   ──────────────────────────────────────────────────────
+   확대·축소 단추를 찔끔거리며 누르는 대신, 화면을 통째로 써서
+   «문제 · 답안 · 해설» 을 한 번에 펴 놓는다.
+   PC·태블릿은 좌우 두 칸, 폰은 위아래로 나눈다.
+   ══════════════════════════════════════════════════════ */
+.ovl{position:fixed;inset:0;z-index:300;background:var(--paper);display:none;
+  flex-direction:column;padding-top:env(safe-area-inset-top)}
+.ovl.on{display:flex}
+body.ovlopen{overflow:hidden}
+.ovl .oh{display:flex;align-items:center;gap:8px;padding:9px 12px;flex-wrap:wrap;
+  border-bottom:1px solid var(--rule);background:var(--card)}
+.ovl .oh .ot{font:700 13.5px/1.3 var(--font-d);letter-spacing:-.01em;margin-right:auto;
+  display:flex;align-items:center;gap:8px;min-width:0}
+.ovl .oh .ot small{font:500 11px/1 var(--font-m);color:var(--ink-2);white-space:nowrap}
+.ovl .ob{flex:1;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);
+  gap:1px;background:var(--rule);overflow:hidden}
+.ovl .pane{background:var(--paper);overflow:auto;-webkit-overflow-scrolling:touch;
+  padding:12px;display:flex;flex-direction:column;gap:10px}
+.ovl .pane::-webkit-scrollbar{width:9px}
+.ovl .pane::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
+.ovl .plab{font:600 10.5px/1 var(--font-d);letter-spacing:.14em;color:var(--ink-2);
+  display:flex;align-items:center;gap:8px;position:sticky;top:-12px;z-index:2;
+  background:var(--paper);padding:6px 0 7px;margin:-6px 0 0}
+.ovl .plab::after{content:"";flex:1;height:1px;background:var(--rule)}
+.ovl img{display:block;width:100%;height:auto;border:1px solid var(--rule);
+  border-radius:9px;background:#fff}
+.ovl img.zoom{cursor:zoom-out;width:auto;max-width:none}
+.ovl .imgbox{overflow:auto}
+.ovl .imgbox img{cursor:zoom-in}
+.ovl .ez{font-size:var(--fs-ez);line-height:var(--lh-ez)}
+.ovl .ez h4{font:700 12.5px/1.35 var(--font-d);margin:12px 0 3px;color:var(--accent)}
+.ovl .ez h4:first-child{margin-top:0}
+.ovl .ez p{margin:3px 0} .ovl .ez ul{margin:3px 0;padding-left:17px} .ovl .ez li{margin:1px 0}
+.ovl .otabs{display:none;gap:5px;padding:7px 12px;border-bottom:1px solid var(--rule);background:var(--card)}
+.ovl .otabs button{flex:1;padding:9px 6px;border-radius:8px;font:600 12.5px/1 var(--font-d);
+  background:transparent;border:1.3px solid var(--rule);color:var(--ink-2)}
+.ovl .otabs button.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.ovl .miss{font-size:12.5px;color:var(--ink-2);padding:18px 0;text-align:center}
+
+/* 폰·좁은 태블릿 — 위아래로 나누고 아래는 탭으로 갈아 끼운다 */
+@media(max-width:900px){
+  .ovl .ob{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) minmax(0,1fr)}
+  .ovl .otabs{display:flex}
+  .ovl .pane.right > .seg{display:none}
+  .ovl .pane.right > .seg.on{display:block}
+}
+/* 아주 넓은 화면 — 오른쪽 칸을 다시 둘로 쪼개 답안과 해설을 나란히 */
+@media(min-width:1500px){
+  .ovl .ob{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)}
+  .ovl .pane.right{display:contents}
+  .ovl .pane.right > .seg{background:var(--paper);overflow:auto;padding:12px;
+    display:flex;flex-direction:column;gap:10px}
+}
 
 .hide{display:none !important}
 
@@ -168,13 +246,18 @@ body.oneup #list > .pcard.show{display:block}
   border:1.3px solid var(--rule);background:var(--card);color:var(--ink-2)}
 .chip.on{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
 .pcard{background:var(--card);border:1px solid var(--rule);border-radius:12px;margin-bottom:12px;overflow:hidden}
-.phead{display:flex;align-items:center;gap:9px;padding:11px 13px;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+.phead{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+.phead.ovhead{cursor:pointer}
+.phead .ovhint{margin-left:auto;font:600 10.5px/1 var(--font-d);color:var(--accent);
+  border:1.2px solid color-mix(in srgb,var(--accent) 35%,transparent);border-radius:999px;
+  padding:5px 8px;opacity:.55;transition:opacity .15s}
+.phead.ovhead:hover .ovhint{opacity:1}
 .pno{min-width:26px;height:26px;padding:0 7px;display:grid;place-items:center;border-radius:7px;
   background:var(--ink);color:var(--paper);font:600 12px/1 var(--font-m)}
 .pmeta{font:500 11.5px/1.4 var(--font-m);color:var(--ink-2)}
 .ppt{margin-left:auto;font:600 11px/1 var(--font-d);color:var(--accent);
   border:1.3px solid color-mix(in srgb,var(--accent) 35%,transparent);padding:5px 8px;border-radius:6px}
-.pbody{padding:10px}
+.pbody{padding:var(--gap)}
 .pz{position:relative;overflow:hidden;border-radius:8px;background:#fff;touch-action:none;border:1px solid var(--rule)}
 .pz-stage{transform-origin:0 0;will-change:transform;position:relative}
 .pz img{display:block;width:100%;height:auto}
@@ -217,6 +300,7 @@ body.oneup #list > .pcard.show{display:block}
   -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
   -webkit-user-select:none;user-select:none;touch-action:manipulation}
 body.oneup .edgenav{display:flex}
+body.ovlopen .edgenav{display:none}
 .edgenav.wake{opacity:.62}
 .edgenav:hover{opacity:.95;background:color-mix(in srgb,var(--ink) 62%,transparent)}
 .edgenav:disabled{opacity:.06;cursor:default}
@@ -250,6 +334,24 @@ body.oneup .lead,body.oneup h1{display:none}
 <!-- 화면 좌우 넘김 단추 — 반드시 <script> 보다 «앞» 에 있어야 한다.
      뒤에 두면 스크립트가 돌 때 이 요소가 아직 없어서 null 에서 터지고,
      그 아래 boot() 까지 통째로 안 돌아 화면이 텅 빈다. (실제로 그렇게 됐었다) -->
+<!-- 한눈에 보기 -->
+<div class="ovl" id="ovl">
+  <div class="oh">
+    <div class="ot"><span id="ovTitle">—</span><small id="ovSub"></small></div>
+    <button class="zb" type="button" id="ovPrev">‹ 이전</button>
+    <button class="zb" type="button" id="ovNext">다음 ›</button>
+    <button class="zb pick" type="button" id="ovClose">닫기 (Esc)</button>
+  </div>
+  <div class="otabs">
+    <button type="button" data-oseg="a" class="on">답안</button>
+    <button type="button" data-oseg="e">쉬운 풀이</button>
+  </div>
+  <div class="ob">
+    <div class="pane left" id="ovLeft"></div>
+    <div class="pane right" id="ovRight"></div>
+  </div>
+</div>
+
 <button class="edgenav prev" id="edgePrev" type="button" aria-label="이전 문제">‹</button>
 <button class="edgenav next" id="edgeNext" type="button" aria-label="다음 문제">›</button>
 
@@ -670,10 +772,11 @@ function drawList(){
         <canvas class="inkc"></canvas>${dots(t)}</div></div>`;
     return `
     <div class="pcard" data-id="${r.id}">
-      <div class="phead">
+      <div class="phead ovhead" data-ov="${r.id}" title="눌러서 한눈에 보기 (f)">
         <span class="pno">${r.no}</span>
         <span class="pmeta">${r.year}년 제${r.session}회${r.asked ? " · 출제 " + esc(r.asked) : ""}</span>
         ${r.points ? `<span class="ppt">${r.points}점</span>` : ""}
+        <span class="ovhint">⛶ 한눈에</span>
       </div>
       <div class="pbody">
         ${r.q_url ? img(r.q_url, `문제 ${r.no}`, "q") : `<div class="empty">문제 그림이 없습니다.</div>`}
@@ -700,6 +803,7 @@ function drawList(){
           r.easy_md ? mdLite(r.easy_md)
                     : `<span class="wait">${AUTO ? "이 문제를 보면 해설을 씁니다." : "자동 해설이 꺼져 있습니다. 아래 «해설 만들기» 를 누르세요."}</span>`}</div>
         <div class="ptools" style="margin-top:10px;border-top:1px solid var(--rule);padding-top:10px">
+          <button class="zb" type="button" data-ov="${r.id}">⛶ 한눈에 보기</button>
           <button class="zb pick" type="button" data-pick="${r.id}">✎ 막히는 곳 표시</button>
           <button class="zb${r.easy_md ? "" : " pick"}" type="button" data-easy="${r.id}">${
             r.easy_md ? "↻ 다시 해석하기" : "✎ 해설 만들기"}</button>
@@ -771,6 +875,7 @@ function drawList(){
     ezMake(r.id, true);
   });
   $$("#list [data-easydel]").forEach(b => b.onclick = () => ezDel(b.dataset.easydel));
+  $$("#list [data-ov]").forEach(b => b.onclick = () => ovOpen(b.dataset.ov));
 
   /* ── 고쳐 쓰기 ──
      AI 해설이 대체로 맞는데 한두 줄만 틀린 경우가 많다. 그때마다 통째로 다시
@@ -1813,6 +1918,7 @@ async function ezMake(id, force){
     /* 단추 줄(다시 해석하기 · 고쳐 쓰기 · 지우기)을 손으로 끼워 맞추면 손잡이가 어긋난다.
        한 번 다시 그리는 편이 확실하다. 필기는 저장돼 있으므로 그대로 되살아난다. */
     drawList();
+    if(String(OVID) === String(r.id)) ovDraw();   /* 한눈에 보기가 열려 있으면 거기도 갈아 끼운다 */
     drawRail?.();
   }catch(e){
     if(box) box.innerHTML = `<span class="wait">해설을 쓰지 못했습니다 — ${esc(e.message || e)}
@@ -2245,6 +2351,95 @@ async function putFiles(files){
   $("#aFile").value = "";
   loadFiles();
 }
+
+/* ══════════════════════════════════════════════════════
+   한눈에 보기
+   ──────────────────────────────────────────────────────
+   확대 단추를 «찔끔찔끔» 누르며 그림을 키우는 대신, 화면을 통째로 쓴다.
+   왼쪽에 문제, 오른쪽에 답안과 해설. 폰에서는 위아래로 나누고
+   아래를 탭으로 갈아 끼운다.
+   그림은 눌러서 원본 크기로 폈다가 다시 화면 폭에 맞출 수 있다.
+   ══════════════════════════════════════════════════════ */
+let OVID = null, OVSEG = "a";
+
+function ovIndex(){ return SHOWN.findIndex(x => String(x.id) === String(OVID)); }
+
+function ovOpen(id){
+  const r = ROWS.find(x => String(x.id) === String(id)); if(!r) return;
+  OVID = String(id);
+  document.body.classList.add("ovlopen");
+  $("#ovl").classList.add("on");
+  ovDraw();
+  /* 해설이 아직 없으면 여기서도 만들어 준다 — 보러 들어왔으니 필요한 것이다 */
+  if(!r.easy_md && r.q_url && AUTO) ezEnqueue(r.id);
+}
+function ovClose(){
+  $("#ovl").classList.remove("on");
+  document.body.classList.remove("ovlopen");
+  OVID = null;
+}
+function ovDraw(){
+  const r = ROWS.find(x => String(x.id) === String(OVID)); if(!r) return;
+  const rot = r.rotate ? `transform:rotate(${r.rotate}deg)` : "";
+  const i = ovIndex();
+  $("#ovTitle").textContent = `${r.year}년 제${r.session}회 ${r.no}번`;
+  $("#ovSub").textContent = (r.points ? `${r.points}점 · ` : "")
+    + (r.asked ? `출제 ${r.asked}` : "") + (i >= 0 ? `  ${i + 1}/${SHOWN.length}` : "");
+  $("#ovPrev").disabled = i <= 0;
+  $("#ovNext").disabled = i < 0 || i >= SHOWN.length - 1;
+
+  $("#ovLeft").innerHTML = `<div class="plab">문제</div>
+    <div class="imgbox">${r.q_url
+      ? `<img src="${esc(r.q_url)}" alt="문제" style="${rot}">`
+      : `<div class="miss">문제 그림이 없습니다.</div>`}</div>`;
+
+  $("#ovRight").innerHTML = `
+    <div class="seg${OVSEG === "a" ? " on" : ""}" data-seg="a">
+      <div class="plab">답안</div>
+      <div class="imgbox">${r.a_url
+        ? `<img src="${esc(r.a_url)}" alt="답안" style="${rot}">`
+        : `<div class="miss">답안 그림이 붙어 있지 않습니다.</div>`}</div>
+    </div>
+    <div class="seg${OVSEG === "e" ? " on" : ""}" data-seg="e">
+      <div class="plab">쉬운 풀이</div>
+      <div class="ez">${r.easy_md ? mdLite(r.easy_md)
+        : `<div class="miss">${AUTO ? "해설을 쓰는 중입니다… 20~40초쯤 걸립니다."
+            : "해설이 없습니다. 목록에서 «해설 만들기» 를 누르세요."}</div>`}</div>
+    </div>`;
+
+  /* 그림을 누르면 원본 크기로 폈다가 다시 화면 폭에 맞춘다 */
+  $("#ovl").querySelectorAll(".imgbox img").forEach(im => {
+    im.onclick = () => im.classList.toggle("zoom");
+  });
+  $$("#ovl .otabs button").forEach(b => b.classList.toggle("on", b.dataset.oseg === OVSEG));
+}
+function ovStep(d){
+  const i = ovIndex(); if(i < 0) return;
+  const nx = SHOWN[i + d]; if(!nx) return;
+  OVID = String(nx.id);
+  if(ONEUP) showAt(i + d);
+  ovDraw();
+  if(!nx.easy_md && nx.q_url && AUTO) ezEnqueue(nx.id);
+  $$("#ovl .pane").forEach(p => p.scrollTop = 0);
+}
+$("#ovClose")?.addEventListener("click", ovClose);
+$("#ovPrev")?.addEventListener("click", () => ovStep(-1));
+$("#ovNext")?.addEventListener("click", () => ovStep(1));
+$$("#ovl .otabs button").forEach(b => b.onclick = () => { OVSEG = b.dataset.oseg; ovDraw(); });
+addEventListener("keydown", e => {
+  if(!$("#ovl").classList.contains("on")) return;
+  if(e.key === "Escape"){ e.preventDefault(); return ovClose(); }
+  if(e.key === "ArrowRight"){ e.preventDefault(); return ovStep(1); }
+  if(e.key === "ArrowLeft"){ e.preventDefault(); return ovStep(-1); }
+});
+/* f 키로 지금 보고 있는 문제를 한눈에 편다 */
+addEventListener("keydown", e => {
+  if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName)) return;
+  if(e.key !== "f" && e.key !== "F") return;
+  if($("#ovl").classList.contains("on")) return ovClose();
+  const r = ONEUP ? SHOWN[ONEAT] : SHOWN[0];
+  if(r) ovOpen(r.id);
+});
 
 /* ── 접었다 펴기 — 접은 상태를 기기에 기억해 둔다 ── */
 $$("[data-fold]").forEach(b => {
