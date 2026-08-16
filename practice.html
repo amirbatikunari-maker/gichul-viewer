@@ -146,20 +146,45 @@ body.oneup #list > .pcard.show{display:block}
 .pmeta{font:500 11.5px/1.4 var(--font-m);color:var(--ink-2)}
 .ppt{margin-left:auto;font:600 11px/1 var(--font-d);color:var(--accent);
   border:1.3px solid color-mix(in srgb,var(--accent) 35%,transparent);padding:5px 8px;border-radius:6px}
-.pbody{padding:12px}
-.pz{position:relative;overflow:hidden;border-radius:10px;background:#fff;touch-action:none;border:1px solid var(--rule)}
-.pz-stage{transform-origin:0 0;will-change:transform}
+.pbody{padding:10px}
+.pz{position:relative;overflow:hidden;border-radius:8px;background:#fff;touch-action:none;border:1px solid var(--rule)}
+.pz-stage{transform-origin:0 0;will-change:transform;position:relative}
 .pz img{display:block;width:100%;height:auto}
 .pz.zoomed{cursor:grab}
-.ptools{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:9px}
-.ptools .zb{font:600 12px/1 var(--font-m);min-width:32px;padding:7px 9px;border-radius:8px;
+.ptools{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:6px}
+.ptools .zb{font:600 12px/1 var(--font-m);min-width:32px;padding:6px 9px;border-radius:8px;
   border:1.3px solid var(--rule);background:var(--card);color:var(--ink-2);cursor:pointer}
-.ptools .lv{font:500 11px/1 var(--font-m);color:var(--ink-2);min-width:42px;text-align:center}
-.ans{margin-top:12px}
+.ptools .zb.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.ptools .lv{font:500 11px/1 var(--font-m);color:var(--ink-2);min-width:40px;text-align:center}
+.ptools .sep{width:1px;height:18px;background:var(--rule);margin:0 2px}
+
+/* ── 답안 — 문제 바로 아래에 붙인다.
+   예전에는 큼직한 단추 하나가 사이를 갈라 놔서 «다른 첨부» 처럼 보였다. ── */
+.ans{margin-top:6px}
 .ans.hide .pz,.ans.hide .ptools{display:none}
-.ansbtn{font:600 12px/1 var(--font-d);padding:9px 13px;border-radius:9px;cursor:pointer;
-  border:1.4px solid var(--accent);background:var(--card);color:var(--accent)}
-.ansbtn.on{background:var(--accent);color:#fff}
+.ansbtn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;
+  font:600 11.5px/1 var(--font-d);letter-spacing:.06em;padding:8px 10px;border-radius:7px;cursor:pointer;
+  border:0;border-top:1px dashed var(--rule);background:transparent;color:var(--ink-2)}
+.ansbtn::before{content:"답안";font:600 10px/1 var(--font-m);letter-spacing:.14em;
+  border:1px solid var(--rule);border-radius:5px;padding:4px 6px}
+.ansbtn.on{color:var(--accent);border-top-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+
+/* ── 필기 ── */
+.inkc{position:absolute;inset:0;width:100%;height:100%;z-index:2;
+  touch-action:none;pointer-events:none}
+.pz[data-ink="1"] .inkc{pointer-events:auto;cursor:crosshair}
+.pz[data-ink="1"]{outline:2px solid var(--accent);outline-offset:-2px}
+.inkswatch{width:16px;height:16px;border-radius:50%;border:1.4px solid var(--rule);
+  padding:0;cursor:pointer;flex:none}
+.inkswatch.on{box-shadow:0 0 0 2px var(--ink)}
+
+/* ── 몰입 — 한 문항씩 볼 때는 상자·여백을 걷어내고 종이만 남긴다 ── */
+body.oneup .wrap{max-width:1180px;padding:10px 8px 70px}
+body.oneup .pcard{background:transparent;border:0;border-radius:0;margin-bottom:0}
+body.oneup .pbody{padding:0}
+body.oneup .phead{padding:6px 2px;border-bottom:0}
+body.oneup .pz{border-radius:6px}
+body.oneup .lead,body.oneup h1{display:none}
 .empty{text-align:center;color:var(--ink-2);padding:36px 10px;font-size:13px}
 .gate{text-align:center;padding:40px 16px}
 .gate .big{font:700 17px/1.4 var(--font-d);color:var(--ink);margin-bottom:8px}
@@ -278,6 +303,8 @@ body.oneup #list > .pcard.show{display:block}
             <option value="문제" selected>문제 01 · 문제 1</option>
             <option value="번호">1. · 01. · 1)</option>
             <option value="Q">Q1 · Q 1 · [1]</option>
+            <option value="항목">∎ · ■ 로 시작하는 단답 항목</option>
+            <option value="쪽">머리글 없음 — 쪽마다 한 장</option>
             <option value="자유">직접 적기</option>
           </select>
           <input id="impHdrCustom" class="hide" placeholder="예: 기출  →  «기출 03» 을 머리글로 봅니다" style="margin-top:7px">
@@ -290,6 +317,21 @@ body.oneup #list > .pcard.show{display:block}
             <option value="a">답안만 (이미 올린 문제에 붙이기)</option>
           </select>
         </div>
+      </div>
+
+      <div class="grid" style="margin-top:10px">
+        <div>
+          <label>회차가 PDF 에 안 적혀 있을 때 · 연도</label>
+          <input id="impYear" type="number" inputmode="numeric" placeholder="예: 2025">
+        </div>
+        <div>
+          <label>회차가 PDF 에 안 적혀 있을 때 · 회차</label>
+          <input id="impSess" type="number" inputmode="numeric" placeholder="예: 1">
+        </div>
+      </div>
+      <div class="hint" style="margin-top:6px">
+        단답 정리본처럼 <b>«2025년 제1회»</b> 가 쪽마다 안 적힌 PDF 는 여기 두 칸을 채워 주세요.
+        비워 두면 회차를 못 찾아 <b>문제 0개</b>로 끝납니다.
       </div>
 
       <div class="drop" id="drop" style="margin-top:12px">
@@ -546,7 +588,8 @@ function drawList(){
          style="left:${(m.x*100).toFixed(2)}%;top:${(m.y*100).toFixed(2)}%;width:${(m.w*100).toFixed(2)}%;height:${(m.h*100).toFixed(2)}%"
          title="${esc((m.note_md || m.memo || "").slice(0, 60))}"><i>${k+1}</i></button>`).join("");
     const img = (u, alt, t) => `<div class="pz" data-pz><div class="pz-stage" data-mkhost="${t}" data-qid="${r.id}">
-        <img src="${esc(u)}" loading="lazy" alt="${esc(alt)}" style="${rot}">${dots(t)}</div></div>`;
+        <img src="${esc(u)}" loading="lazy" alt="${esc(alt)}" style="${rot}">
+        <canvas class="inkc"></canvas>${dots(t)}</div></div>`;
     return `
     <div class="pcard" data-id="${r.id}">
       <div class="phead">
@@ -557,8 +600,8 @@ function drawList(){
       <div class="pbody">
         ${r.q_url ? img(r.q_url, `문제 ${r.no}`, "q") : `<div class="empty">문제 그림이 없습니다.</div>`}
         ${r.a_url ? `<div class="ans ${HIDE_ALL ? "hide" : ""}" data-ans>
-            <button class="ansbtn ${HIDE_ALL ? "" : "on"}" type="button" data-toggle>${HIDE_ALL ? "답안 보기" : "답안 가리기"}</button>
-            <div style="margin-top:9px">${img(r.a_url, "답안", "a")}</div>
+            <button class="ansbtn ${HIDE_ALL ? "" : "on"}" type="button" data-toggle>${HIDE_ALL ? "보기" : "가리기"}</button>
+            <div style="margin-top:4px">${img(r.a_url, "답안", "a")}</div>
           </div>`
         : `<div class="noans">
             <b>답안이 붙어 있지 않습니다.</b>
@@ -706,8 +749,8 @@ ${EASY_RULE}`, blob, 3000);
     const box = b.closest("[data-ans]");
     const hid = box.classList.toggle("hide");
     b.classList.toggle("on", !hid);
-    b.textContent = hid ? "답안 보기" : "답안 가리기";
-    if(!hid) box.querySelectorAll("[data-pz]").forEach(attachZoom);
+    b.textContent = hid ? "보기" : "가리기";
+    if(!hid) box.querySelectorAll("[data-pz]").forEach(attachZoom);   /* 안에서 중복을 막는다 */
   });
   $$("#list .pbody > [data-pz]").forEach(attachZoom);
 
@@ -929,17 +972,181 @@ function attachZoom(wrap){
     e.preventDefault(); zoomTo(k * (e.deltaY < 0 ? 1.12 : 0.89), e.clientX, e.clientY);
   }, { passive:false });
 
+  const qid = stage.dataset.qid, side = stage.dataset.mkhost;
+  const canInk = !!(qid && side && stage.querySelector("canvas.inkc"));
+
   const tools = document.createElement("div");
   tools.className = "ptools";
   tools.innerHTML = `<button class="zb" type="button" data-z="-">−</button><span class="lv">100%</span>
     <button class="zb" type="button" data-z="+">+</button>
-    <button class="zb" type="button" data-z="0">처음으로</button>`;
+    <button class="zb" type="button" data-z="0">처음</button>`
+    + (canInk ? `<span class="sep"></span>
+    <button class="zb" type="button" data-inkon title="손으로 쓰기">✎ 필기</button>
+    <button class="zb hide" type="button" data-inktool="pen">펜</button>
+    <button class="zb hide" type="button" data-inktool="hi">형광</button>
+    <button class="zb hide" type="button" data-inktool="er">지우개</button>
+    ${INK_COLORS.map(c => `<button class="inkswatch hide" type="button" data-inkcolor="${c}" style="background:${c}"></button>`).join("")}
+    <button class="zb hide" type="button" data-inkundo>되돌리기</button>
+    <button class="zb hide" type="button" data-inkclear>전부 지우기</button>` : "");
   wrap.after(tools);
   tools.onclick = e => {
-    const t = e.target.closest("[data-z]"); if(!t) return;
-    zoomTo(t.dataset.z === "+" ? k*1.35 : t.dataset.z === "-" ? k/1.35 : 1);
+    const t = e.target.closest("[data-z]");
+    if(t) return zoomTo(t.dataset.z === "+" ? k*1.35 : t.dataset.z === "-" ? k/1.35 : 1);
   };
   apply();
+  if(canInk) attachInk(wrap, stage, tools, qid, side);
+}
+
+/* ═══════════════════════════════════════════════
+   필기 — 그림 위에 직접 쓴다
+   ───────────────────────────────────────────────
+   좌표는 그림을 0~1 로 본 «비율» 로 저장한다.
+   확대하든, 폰이든 PC 든, 나중에 더 큰 해상도로 다시 뜨든 같은 자리에 남는다.
+   캔버스를 pz-stage 안에 두었으므로 확대하면 글씨도 같이 커진다.
+
+   저장은 두 군데. 브라우저(localStorage)에 바로 남기고,
+   practicals.ink 칸이 있으면 거기에도 조용히 올려 다른 기기에서도 보이게 한다.
+   (칸이 없으면 그냥 이 기기에만 남는다 — 오류를 띄우지 않는다)
+   ═══════════════════════════════════════════════ */
+const INK_COLORS = ["#BE2B26", "#1D4ED8", "#137A4B", "#10233D"];
+const INK = {};                                   /* `${qid}:${side}` → [stroke, …] */
+const inkKey = (qid, side) => `pink:${qid}:${side}`;
+let INK_TOOL = "pen", INK_COLOR = INK_COLORS[0];
+const inkQueue = new Map();
+
+function inkGet(qid, side){
+  const k = `${qid}:${side}`;
+  if(INK[k]) return INK[k];
+  let v = [];
+  try{ v = JSON.parse(localStorage.getItem(inkKey(qid, side)) || "[]"); }catch(e){}
+  if(!Array.isArray(v)) v = [];
+  /* 서버에 올려 둔 게 있으면 그걸 우선한다 */
+  const row = ROWS.find(r => String(r.id) === String(qid));
+  const srv = row?.ink?.[side];
+  if(Array.isArray(srv) && srv.length > v.length) v = srv;
+  return (INK[k] = v);
+}
+function inkStore(qid, side){
+  const k = `${qid}:${side}`, v = INK[k] || [];
+  try{ localStorage.setItem(inkKey(qid, side), JSON.stringify(v)); }catch(e){}
+  clearTimeout(inkQueue.get(qid));
+  inkQueue.set(qid, setTimeout(async () => {
+    const row = ROWS.find(r => String(r.id) === String(qid));
+    const bag = { ...(row?.ink || {}), [side]: v };
+    if(row) row.ink = bag;
+    /* ink 칸이 없으면 조용히 넘어간다 — 이 기기에는 이미 남아 있다 */
+    await sb.from("practicals").update({ ink: bag }).eq("id", qid);
+  }, 1200));
+}
+
+function attachInk(wrap, stage, tools, qid, side){
+  const cv = stage.querySelector("canvas.inkc");
+  const img = stage.querySelector("img");
+  if(!cv || !img) return;
+  const ctx = cv.getContext("2d");
+  let on = false, drawing = false, cur = null;
+
+  let DPR = 1;
+  function size(){
+    const w = stage.clientWidth, h = stage.clientHeight;
+    if(!w || !h) return false;
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    if(cv.width !== Math.round(w*DPR) || cv.height !== Math.round(h*DPR)){
+      cv.width = Math.round(w*DPR); cv.height = Math.round(h*DPR);
+    }
+    return true;
+  }
+  /* 비율(0~1)을 실제 픽셀로 바꿔 그린다.
+     좌표계를 통째로 늘리는 방법(setTransform)을 쓰면 세로로 긴 그림에서
+     펜 굵기까지 같이 늘어나 붓끝이 타원이 된다. 그래서 점만 손으로 환산한다. */
+  function stroke(st){
+    if(!st.pts.length) return;
+    ctx.save();
+    ctx.globalAlpha = st.a ?? 1;
+    ctx.strokeStyle = st.c;
+    ctx.lineWidth  = (st.w || 2.6) * DPR;
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.beginPath();
+    st.pts.forEach(([x,y], i) =>
+      i ? ctx.lineTo(x*cv.width, y*cv.height) : ctx.moveTo(x*cv.width, y*cv.height));
+    if(st.pts.length === 1) ctx.lineTo(st.pts[0][0]*cv.width + .6, st.pts[0][1]*cv.height);
+    ctx.stroke();
+    ctx.restore();
+  }
+  function redraw(){
+    if(!size()) return;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    inkGet(qid, side).forEach(stroke);
+  }
+  img.complete ? setTimeout(redraw, 0) : img.addEventListener("load", redraw, { once:true });
+  new ResizeObserver(redraw).observe(stage);
+
+  const at = e => {
+    const b = cv.getBoundingClientRect();
+    return [ Math.max(0, Math.min(1, (e.clientX - b.left) / b.width)),
+             Math.max(0, Math.min(1, (e.clientY - b.top)  / b.height)) ];
+  };
+  /* 지우개는 «지나간 자리에 걸린 획» 을 통째로 지운다 — 부분 지우기는 손가락으로 너무 어렵다 */
+  function erase(p){
+    const list = inkGet(qid, side);
+    const R = 0.02;
+    const keep = list.filter(st => !st.pts.some(([x,y]) => Math.hypot(x-p[0], y-p[1]) < R));
+    if(keep.length !== list.length){
+      INK[`${qid}:${side}`] = keep; inkStore(qid, side); redraw();
+    }
+  }
+  cv.addEventListener("pointerdown", e => {
+    if(!on) return;
+    e.preventDefault(); e.stopPropagation();
+    cv.setPointerCapture(e.pointerId);
+    drawing = true;
+    if(INK_TOOL === "er") return erase(at(e));
+    cur = INK_TOOL === "hi"
+      ? { c:"#FDE047", w:16, a:.42, pts:[at(e)] }
+      : { c:INK_COLOR, w:2.6, a:1,   pts:[at(e)] };
+    inkGet(qid, side).push(cur);
+    redraw();
+  });
+  cv.addEventListener("pointermove", e => {
+    if(!on || !drawing) return;
+    e.preventDefault(); e.stopPropagation();
+    if(INK_TOOL === "er") return erase(at(e));
+    if(!cur) return;
+    cur.pts.push(at(e));
+    stroke(cur);
+  });
+  ["pointerup","pointercancel","pointerleave"].forEach(t => cv.addEventListener(t, () => {
+    if(!drawing) return;
+    drawing = false; cur = null; inkStore(qid, side); redraw();
+  }));
+
+  const show = el => el.classList.remove("hide");
+  const hide = el => el.classList.add("hide");
+  const subs = () => tools.querySelectorAll("[data-inktool],[data-inkcolor],[data-inkundo],[data-inkclear]");
+  const paint = () => {
+    tools.querySelectorAll("[data-inktool]").forEach(b => b.classList.toggle("on", b.dataset.inktool === INK_TOOL));
+    tools.querySelectorAll("[data-inkcolor]").forEach(b => b.classList.toggle("on", b.dataset.inkcolor === INK_COLOR));
+  };
+  tools.addEventListener("click", e => {
+    const b = e.target.closest("button"); if(!b) return;
+    if(b.hasAttribute("data-inkon")){
+      on = !on;
+      wrap.dataset.ink = on ? "1" : "";
+      b.classList.toggle("on", on);
+      subs().forEach(x => on ? show(x) : hide(x));
+      paint();
+      return;
+    }
+    if(b.dataset.inktool){ INK_TOOL = b.dataset.inktool; return paint(); }
+    if(b.dataset.inkcolor){ INK_COLOR = b.dataset.inkcolor; INK_TOOL = "pen"; return paint(); }
+    if(b.hasAttribute("data-inkundo")){
+      inkGet(qid, side).pop(); inkStore(qid, side); return redraw();
+    }
+    if(b.hasAttribute("data-inkclear")){
+      if(!confirm("이 그림에 쓴 필기를 전부 지웁니다.")) return;
+      INK[`${qid}:${side}`] = []; inkStore(qid, side); return redraw();
+    }
+  });
 }
 
 /* ═══════════════════════════════════════════════
@@ -953,16 +1160,26 @@ function attachZoom(wrap){
 const HDR_SET = {
   "문제": /^문제\s*(\d{1,3})\b/,
   "번호": /^(\d{1,3})\s*[.)]\s*(?!\d)/,        /* 1. · 01) — 뒤에 숫자가 또 오면 소수점이니 제외 */
-  "Q":    /^(?:Q\s*|\[\s*)(\d{1,3})\s*\]?/i
+  "Q":    /^(?:Q\s*|\[\s*)(\d{1,3})\s*\]?/i,
+  /* 단답 정리본은 번호가 없다. «∎ 콘덴서의 시설 방법» 처럼 글머리표로만 나뉜다.
+     그래서 번호를 못 뽑으면 나온 순서대로 1, 2, 3 … 을 붙인다. */
+  "항목": /^[∎■▪◼◾□▣●•]\s*\S/
 };
+function hdrKey(){ return $("#impHdr")?.value || "문제"; }
 function hdrRe(){
-  const k = $("#impHdr")?.value || "문제";
+  const k = hdrKey();
+  if(k === "쪽") return null;                     /* 머리글을 안 쓰고 쪽마다 한 장으로 자른다 */
   if(k !== "자유") return HDR_SET[k] || HDR_SET["문제"];
   const w = ($("#impHdrCustom")?.value || "").trim();
   if(!w) return HDR_SET["문제"];
-  return new RegExp("^" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*(\\d{1,3})\\b");
+  return new RegExp("^" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*(\\d{1,3})?\\b");
 }
-let HDR = HDR_SET["문제"], IMPORT_MODE = "qa";
+/* PDF 안에 «2025년 제1회» 가 없을 때 쓸 회차. 위 입력칸에서 읽는다. */
+function manualRound(){
+  const y = parseInt($("#impYear")?.value, 10), n = parseInt($("#impSess")?.value, 10);
+  return (y && n) ? { year:y, session:n } : null;
+}
+let HDR = HDR_SET["문제"], HDRK = "문제", IMPORT_MODE = "qa";
 let FAILS = [];
 
 /* 서버가 JSON 대신 오류 페이지(<!DOCTYPE html …)를 돌려주면 원래 메시지가
@@ -1029,9 +1246,12 @@ $("#run").onclick = async () => {
   STOP = false; PARSED = []; DUPES = [];
   $("#run").disabled = true; $("#stop").disabled = false; $("#save").disabled = true;
   logEl.textContent = "";
-  HDR = hdrRe();
+  HDR = hdrRe(); HDRK = hdrKey();
   const MODE = IMPORT_MODE = $("#impMode")?.value || "qa";
+  const mr = manualRound();
   log(`머리글 «${$("#impHdr").value === "자유" ? $("#impHdrCustom").value.trim() : $("#impHdr").options[$("#impHdr").selectedIndex].text}» · ${ {qa:"문제+답안", q:"문제만", a:"답안만"}[MODE] }`);
+  log(mr ? `회차 직접 지정 — ${mr.year}년 제${mr.session}회 (PDF 에 회차가 없으면 이 값을 씁니다)`
+         : `회차는 PDF 안의 «○○○○년 제○회» 에서 읽습니다`);
   try{
     for(const f of PICKED){
       if(STOP) break;
@@ -1095,7 +1315,8 @@ $("#run").onclick = async () => {
    번호 리셋으로 먼저 묶고, 묶음 안에서 가장 많이 본 회차를 그 묶음의 회차로 삼는다. */
 async function scanDoc(doc, name, MODE = 'qa'){
   const items = [];
-  let cur = null, seen = null;
+  let cur = null, seen = null, autoNo = 0, hdrHits = 0, roundHits = 0;
+  const MAN = manualRound();
 
   for(let p = 1; p <= doc.numPages; p++){
     if(STOP) break;
@@ -1126,18 +1347,33 @@ async function scanDoc(doc, name, MODE = 'qa'){
     const pageText = sorted.map(l => l.txt).join("\n");
 
     const rm = pageText.match(ROUND);
-    if(rm) seen = { year:+rm[1], session:+rm[2] };
+    if(rm){ seen = { year:+rm[1], session:+rm[2] }; roundHits++; }
+
+    /* «머리글 없음 — 쪽마다 한 장» — 단답 정리본처럼 문제 번호가 아예 없는 자료용.
+       한 쪽을 통째로 한 장으로 만든다. */
+    if(HDRK === "쪽"){
+      /* 한 쪽 = 한 장. 시작과 끝을 그 쪽 안에서 바로 닫아 둔다
+         (다음 문제 시작으로 끝을 잡는 뒤처리에 걸려 두 쪽이 붙어 버리지 않게). */
+      cur = { no:++autoNo, seen, asked:"", points:null, source:name,
+              start:{ page:p, top:0 }, end:{ page:p, top:null }, ansAt:null,
+              lastPage:p, text:cleanText(pageText) };
+      items.push(cur);
+      continue;
+    }
 
     for(const L of sorted){
       const t = L.txt.replace(/\s+/g, " ").trim();
       const top = L.y;                                /* 이미 위에서부터의 거리다 */
       if(top < 60) continue;                          /* 머리글·워터마크 줄은 건너뛴다 */
 
-      const h = t.match(HDR);
+      const h = HDR ? t.match(HDR) : null;
       if(h){
+        hdrHits++;
         if(cur) cur.end = { page:p, top:top - 6 };
+        /* 번호를 못 뽑는 머리글(∎ 단답 항목 등)은 나온 순서대로 번호를 붙인다 */
+        const num = (h[1] && /^\d{1,3}$/.test(h[1])) ? +h[1] : ++autoNo;
         cur = {
-          no:+h[1], seen,
+          no:num, seen,
           asked:(t.match(ASKED)?.[1] || "").trim().replace(/\s+/g," "),
           points:+(t.match(POINT)?.[1] || 0) || null,
           source:name,
@@ -1175,7 +1411,10 @@ async function scanDoc(doc, name, MODE = 'qa'){
   for(const grp of groups){
     const tally = new Map();
     grp.forEach(x => { if(x.seen){ const k = `${x.seen.year}-${x.seen.session}`; tally.set(k, (tally.get(k) || 0) + 1); } });
-    const best = [...tally.entries()].sort((a,b) => b[1] - a[1])[0];
+    let best = [...tally.entries()].sort((a,b) => b[1] - a[1])[0];
+    /* PDF 어디에도 회차가 안 적혀 있으면, 위에서 직접 넣은 값을 쓴다.
+       예전에는 여기서 그냥 건너뛰어 «문제 0개» 로 끝났고, 이유도 안 알려 줬다. */
+    if(!best && MAN) best = [`${MAN.year}-${MAN.session}`, 1];
     if(!best) continue;
     const [year, session] = best[0].split("-").map(Number);
     if(seenKeys.has(best[0]))
@@ -1183,7 +1422,21 @@ async function scanDoc(doc, name, MODE = 'qa'){
     seenKeys.set(best[0], (seenKeys.get(best[0]) || 0) + 1);
     grp.forEach(x => { x.year = year; x.session = session; });
   }
-  return items.filter(it => it.year && it.session);
+  const out = items.filter(it => it.year && it.session);
+
+  /* 0개로 끝났을 때 «왜» 인지 반드시 남긴다. 이게 없어서 그동안 캄캄했다. */
+  if(!out.length){
+    log(`   ── 왜 0개인지 ──`);
+    if(HDRK === "쪽") log(`   쪽마다 자르기인데도 0개면 PDF 가 안 열린 것입니다.`);
+    else log(`   머리글 «${HDRK}» 로 찾은 줄 ${hdrHits}개` +
+             (hdrHits ? "" : "  → 머리글 모양이 안 맞습니다. 위에서 다른 모양을 골라 보세요."));
+    if(!roundHits && !MAN)
+      log(`   «○○○○년 제○회» 표시를 한 번도 못 찾았습니다.` +
+          `  → 위의 «연도 · 회차» 칸을 채우고 다시 훑어보기를 누르세요.`);
+  }else{
+    log(`   머리글 ${hdrHits}개 · 회차 표시 ${roundHits}쪽` + (MAN && !roundHits ? " (직접 지정값 사용)" : ""));
+  }
+  return out;
 }
 
 /* ═══════════════════════════════════════════════
@@ -1664,7 +1917,13 @@ async function putFiles(files){
   let done = 0, ok = 0;
   for(const f of list){
     try{
-      const safe = f.name.replace(/[^\w.\-가-힣]+/g, "_").slice(-80);
+      /* 보관함(Storage) 키에는 한글·공백·괄호를 넣을 수 없다.
+         예전에는 «가-힣» 을 살려 뒀다가 «Invalid key: …전기기사실기_단답….pdf» 로 통째로 거절당했다.
+         파일 이름은 표(practical_files.name)에 원래대로 남으니, 키만 영문·숫자로 바꾼다. */
+      const ext  = (f.name.match(/\.([A-Za-z0-9]{1,8})$/) || [,"bin"])[1].toLowerCase();
+      const stem = f.name.replace(/\.[^.]*$/, "").replace(/[^A-Za-z0-9._-]+/g, "-")
+                         .replace(/-{2,}/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+      const safe = (stem || "file") + "." + ext;
       const path = `prac/${sid}/files/${Date.now()}_${Math.random().toString(36).slice(2,7)}_${safe}`;
       const up = await sb.storage.from("qfig").upload(path, f, { contentType: f.type || "application/octet-stream", upsert:true });
       if(up.error) throw new Error("보관함 — " + (up.error.message || up.error));
