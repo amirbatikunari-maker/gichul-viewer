@@ -281,7 +281,7 @@ body.oneup #list > .pcard.show{display:block}
 .cvstat{font:500 11.5px/1.4 var(--font-m);color:var(--ink-2);flex:1;min-width:120px}
 .cvprog{flex-basis:100%;height:4px;border-radius:3px;background:var(--rule);overflow:hidden}
 .cvprog i{display:block;height:100%;width:0;background:var(--accent);transition:width .18s}
-#cvGap.on,#cvAll.on{border-color:var(--accent);background:var(--accent);color:#fff}
+#cvGap.on,#ezRun.on{border-color:var(--accent);background:var(--accent);color:#fff}
 
 /* ── 글자로 바꾼 문항 ──
    PDF 조각을 글로 옮기면 «줄이 주르륵» 흘러 오히려 못 읽는다.
@@ -420,6 +420,8 @@ body.oneup #list > .pcard.show{display:block}
 .ansbtn::before{content:"답안";font:600 10px/1 var(--font-m);letter-spacing:.14em;
   border:1px solid var(--rule);border-radius:5px;padding:4px 6px}
 .ansbtn.on{color:var(--accent);border-top-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+.ansbtn.ezb::before{content:"쉬운 풀이"}
+.ez.hide .easybox{display:none}
 
 /* ── 필기 ── */
 .inkc{position:absolute;inset:0;width:100%;height:100%;z-index:2;
@@ -439,6 +441,19 @@ body.oneup #list > .pcard.show{display:block}
   -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
   -webkit-user-select:none;user-select:none;touch-action:manipulation}
 body.oneup .edgenav{display:flex}
+/* 한 문항씩 볼 때는 가로 손짓을 우리가 받는다(세로 스크롤은 그대로) */
+body.oneup #list > .pcard.show{touch-action:pan-y;will-change:transform}
+/* ── 화면 크기별 마무리 ── */
+@media(max-width:560px){
+  .filters{gap:5px}
+  .chip{padding:8px 10px;font-size:11.5px}
+  .ptools .zb{padding:8px 10px}
+  .pnav{gap:6px}
+}
+@media(min-width:1024px){
+  /* 넓은 화면에서는 도구줄이 두 줄로 접히지 않게 여유를 준다 */
+  .cvbar{row-gap:6px}
+}
 body.ovlopen .edgenav{display:none}
 .edgenav.wake{opacity:.62}
 .edgenav:hover{opacity:.95;background:color-mix(in srgb,var(--ink) 62%,transparent)}
@@ -543,6 +558,7 @@ body.oneup .lead,body.oneup h1{display:none}
           </div>
         </div>
         <button class="chip" id="fAns" type="button">답안 모두 가리기</button>
+        <button class="chip" id="fEz" type="button">쉬운 풀이 모두 가리기</button>
         <button class="chip" id="fRand" type="button" title="지금 조건 안에서 무작위로 뽑습니다">🎲 랜덤</button>
         <select id="fRandN" title="한 번에 뽑을 문항 수">
           <option value="10">10문항</option>
@@ -551,7 +567,6 @@ body.oneup .lead,body.oneup h1{display:none}
           <option value="50">50문항</option>
         </select>
         <button class="chip on" id="fOne" type="button" title="한 화면에 한 문항만 보여 줍니다">한 문항씩</button>
-        <button class="chip" id="fAuto" type="button" title="문제를 볼 때 해설이 없으면 그 자리에서 씁니다">✎ 자동 해설</button>
       </div>
 
       <!-- ── 전체 변환 줄 ──
@@ -560,8 +575,8 @@ body.oneup .lead,body.oneup h1{display:none}
            글로 못 옮기는 도면만 그 자리를 오려 그림으로 끼워 넣는다. -->
       <div class="filters cvbar">
         <button class="chip" id="fText" type="button" title="그림 대신 «글자로 바꾼 것» 으로 봅니다">가 글자로 보기</button>
-        <button class="chip" id="cvGap" type="button" title="아직 글자로 안 바뀐 문항만 골라 변환합니다">⚡ 전체 변환 진행</button>
-        <button class="chip" id="cvAll" type="button" title="이미 변환된 것까지 처음부터 다시 합니다">↻ 전부 다시 변환</button>
+        <button class="chip" id="cvGap" type="button" title="아직 글자로 안 바뀐 문항을 골라 글자로 바꿉니다">⚡ 변환</button>
+        <button class="chip" id="ezRun" type="button" title="해설이 없는 문항의 쉬운 풀이를 한꺼번에 씁니다">✎ 자동 해설 진행</button>
         <button class="chip" id="cvStop" type="button" hidden>중지</button>
         <span class="cvsep"></span>
         <select id="fSize" title="글자 크기">
@@ -824,7 +839,7 @@ $("#subDel").onclick = async () => {
 /* ═══════════════════════════════════════════════
    목록 그리기
    ═══════════════════════════════════════════════ */
-let ROWS = [], HIDE_ALL = true, RAND = null;
+let ROWS = [], HIDE_ALL = true, EZ_HIDE = false, RAND = null;
 
 async function loadList(){
   const sid = +$("#fSub").value;
@@ -867,7 +882,7 @@ function applyOneUp(){
   document.body.classList.toggle("oneup", ONEUP);
   $("#fOne")?.classList.toggle("on", ONEUP);
   if(ONEUP) showAt(Math.min(ONEAT, Math.max(0, SHOWN.length - 1)));
-  else { $$("#list > .pcard").forEach(c => c.classList.add("show")); ezWatch(); }
+  else $$("#list > .pcard").forEach(c => c.classList.add("show"));
 }
 
 function drawRail(){
@@ -888,9 +903,66 @@ function showAt(i){
   $$("#list > .pcard").forEach(c => c.classList.toggle("show", c.dataset.id === want));
   const r = SHOWN[ONEAT];
   $("#pnavAt").textContent = `${ONEAT + 1} / ${SHOWN.length} · ${r.year}년 제${r.session}회 ${r.no}번`;
-  drawRail(); edgeSync(); ezWatch();
+  drawRail(); edgeSync();
   document.querySelector("#list > .pcard.show")?.scrollIntoView({ block:"start" });
+  swipeMark();
 }
+
+/* ══════════════════════════════════════════════════════
+   손가락으로 좌우 넘기기 — 필기뷰어와 같은 감각으로
+   ──────────────────────────────────────────────────────
+   스크롤만으로 죽 훑으면 지금 몇 번째를 보고 있는지 감이 안 온다.
+   한 문항씩 보기에서는 옆으로 밀어 넘긴다.
+
+   조심할 것 세 가지.
+   · 그림을 확대해 둔 상태에서는 «그림을 끄는 것» 이 우선이라 넘기지 않는다.
+   · 세로로 긋는 손짓은 스크롤이다. 가로가 세로보다 확실히 우세할 때만 넘김으로 본다.
+   · 마우스는 아예 안 받는다. 글자를 고르다 화면이 넘어가면 형광펜을 못 칠한다.
+   ══════════════════════════════════════════════════════ */
+let SW = null;
+function swipeMark(){
+  const card = document.querySelector("#list > .pcard.show");
+  if(card) card.style.transform = "";
+}
+(function attachSwipe(){
+  const host = $("#list"); if(!host) return;
+  host.addEventListener("pointerdown", e => {
+    if(!ONEUP || e.pointerType === "mouse") return;
+    if(e.target.closest("[data-pz].zoomed, .inkc, textarea, input, select, button, a, .qsrc")) return;
+    SW = { x:e.clientX, y:e.clientY, id:e.pointerId, lock:null, card:document.querySelector("#list > .pcard.show") };
+  }, { passive:true });
+
+  host.addEventListener("pointermove", e => {
+    if(!SW || e.pointerId !== SW.id) return;
+    const dx = e.clientX - SW.x, dy = e.clientY - SW.y;
+    if(SW.lock === null){
+      if(Math.abs(dx) < 16 && Math.abs(dy) < 16) return;
+      SW.lock = Math.abs(dx) > Math.abs(dy) * 1.5 ? "h" : "v";
+    }
+    if(SW.lock !== "h") return;
+    e.preventDefault();
+    /* 끄는 만큼 살짝 따라오게 — 넘어간다는 느낌이 있어야 손이 안 헛돈다.
+       끝에서는 절반만 움직여 «더 없다» 를 몸으로 알린다. */
+    const edge = (dx > 0 && ONEAT <= 0) || (dx < 0 && ONEAT >= SHOWN.length - 1);
+    if(SW.card) SW.card.style.transform = `translateX(${dx * (edge ? .25 : .55)}px)`;
+  }, { passive:false });
+
+  const end = e => {
+    if(!SW || (e.pointerId != null && e.pointerId !== SW.id)) return;
+    const dx = (e.clientX ?? SW.x) - SW.x;
+    const card = SW.card, lock = SW.lock;
+    SW = null;
+    if(card){ card.style.transition = "transform .16s"; card.style.transform = "";
+      setTimeout(() => { card.style.transition = ""; }, 200); }
+    if(lock !== "h") return;
+    if(Math.abs(dx) < 60) return;                  /* 살짝 스친 것은 넘김이 아니다 */
+    showAt(ONEAT + (dx < 0 ? 1 : -1));
+    edgeWake?.();
+  };
+  host.addEventListener("pointerup", end);
+  host.addEventListener("pointercancel", end);
+  host.addEventListener("pointerleave", end);
+})();
 
 /* ── 화면 좌우 넘김 단추 ──
    한 문항씩 보기일 때만 나온다. 스크롤할 때 잠깐 또렷해졌다가 다시 흐려진다. */
@@ -996,10 +1068,13 @@ function drawList(){
           <section class="pcol">
             <div class="plabel">답안</div>
             ${ansBlock}
-            <div class="plabel">쉬운 풀이</div>
-            <div class="easybox${r.easy_md ? "" : " empty"}">${
-              r.easy_md ? mdLite(r.easy_md)
-                        : `<span class="wait">${AUTO ? "이 문제를 보면 해설을 씁니다." : "자동 해설이 꺼져 있습니다. 아래 «해설 만들기» 를 누르세요."}</span>`}</div>
+            <div class="ez ${EZ_HIDE ? "hide" : ""}" data-ez>
+              <div class="plabel">쉬운 풀이</div>
+              <button class="ansbtn ezb ${EZ_HIDE ? "" : "on"}" type="button" data-eztoggle>${EZ_HIDE ? "보기" : "가리기"}</button>
+              <div class="easybox${r.easy_md ? "" : " empty"}">${
+                r.easy_md ? mdLite(r.easy_md)
+                          : `<span class="wait">아직 해설이 없습니다. 아래 «해설 만들기» 또는 위의 «✎ 자동 해설 진행».</span>`}</div>
+            </div>
           </section>
         </div>
         <div class="marknotes" data-notes="${r.id}">${marks.map((m, k) => `
@@ -1149,6 +1224,7 @@ function drawList(){
   });
 
   $$("#list [data-toggle]").forEach(b => b.onclick = () => ansToggle(b.closest(".pcard")));
+  $$("#list [data-eztoggle]").forEach(b => b.onclick = () => ezToggle(b.closest(".pcard")));
   $$("#list .pbody > [data-pz]").forEach(attachZoom);
   /* 접어 둔 «원본 그림» 은 펼칠 때 붙인다 — 안 보이는 상태에서 재면 크기가 0 이라 어긋난다 */
   $$("#list .qsrc").forEach(d => d.addEventListener("toggle", () => {
@@ -1177,6 +1253,7 @@ function drawList(){
   /* 새로 그린 뒤 한 문항씩 모드를 다시 적용한다 */
   if(ONEAT >= SHOWN.length) ONEAT = 0;
   applyOneUp();
+  setTimeout(cvCount, 0);
 }
 
 ["#fYear","#fSess"].forEach(k => $(k).onchange = () => { RAND = null; paintRand(); drawList(); });
@@ -1214,6 +1291,21 @@ $("#fAns").onclick = () => {
   drawList();
 };
 $("#fAns").classList.add("on");
+
+/* 쉬운 풀이도 답안과 똑같이 «모두» 와 «하나씩» 을 함께 둔다.
+   풀이를 먼저 보면 푼 게 아니라 읽은 것이 되어 버린다. */
+$("#fEz").onclick = () => {
+  EZ_HIDE = !EZ_HIDE;
+  $("#fEz").classList.toggle("on", EZ_HIDE);
+  $("#fEz").textContent = EZ_HIDE ? "쉬운 풀이 모두 가리기" : "쉬운 풀이 모두 보이기";
+  drawList();
+};
+function ezToggle(card){
+  const box = card?.querySelector("[data-ez]"); if(!box) return;
+  const hid = box.classList.toggle("hide");
+  const b = box.querySelector("[data-eztoggle]");
+  if(b){ b.textContent = hid ? "보기" : "가리기"; b.classList.toggle("on", !hid); }
+}
 
 /* ── 답안 그림 붙이기 ── */
 let ANS_TARGET = null, ANS_INPUT = null;
@@ -2304,7 +2396,10 @@ async function cvRow(r, force){
    force 가 false 면 «아직 안 바뀐 것» 만 골라 채운다 — 중간에 끊겨도 이어서 하면 된다. */
 async function cvRun(force){
   if(CVBUSY) return;
-  const pool = (SHOWN.length ? SHOWN : ROWS)
+  /* ★ 예전에는 «지금 화면에 걸린 것» 만 돌았다. 연도·회차를 걸어 둔 채 누르면
+     나머지가 통째로 빠지는데 화면에는 «완료» 로 보여 오해를 부른다.
+     «변환» 은 이 과목 전체를 본다. 한 문항만 다시 하려면 카드의 «↻ 다시 변환». */
+  const pool = ROWS
     .filter(r => (r.q_url || r.a_url) && (force || !r.q_md || (r.a_url && !r.a_md)));
   if(!pool.length){
     cvSay("변환할 문항이 없습니다 — 지금 조건 안은 모두 글자로 바뀌어 있습니다.");
@@ -2315,7 +2410,7 @@ async function cvRun(force){
   CVBUSY = true; CVSTOP = false;
   $("#cvStop").hidden = false;
   $("#cvProg").hidden = false;
-  $("#cvGap").disabled = $("#cvAll").disabled = true;
+  $("#cvGap").disabled = $("#ezRun").disabled = true;
 
   let ok = 0, bad = 0, n = 0;
   const fails = [];
@@ -2339,13 +2434,13 @@ async function cvRun(force){
 
   $("#cvStop").hidden = true;
   $("#cvProg").hidden = true;
-  $("#cvGap").disabled = $("#cvAll").disabled = false;
+  $("#cvGap").disabled = $("#ezRun").disabled = false;
   CVBUSY = false;
   cvSay((CVSTOP ? "중지했습니다. " : "") + `변환 ${ok}개 완료` + (bad ? ` · ${bad}개 실패` : "")
     + (bad ? "  (아래 기록을 보세요)" : ""));
   if(fails.length) log("[변환 실패]\n" + fails.join("\n"));
   if(!TEXTMODE && ok){ TEXTMODE = true; paintText(); }
-  drawList();
+  drawList(); cvCount();
 }
 
 /* ── 글자로 보기 ↔ 그림으로 보기 ── */
@@ -2383,7 +2478,6 @@ $("#fSplit")?.addEventListener("click", () => {
   paintView(); drawList();
 });
 $("#cvGap")?.addEventListener("click", () => cvRun(false));
-$("#cvAll")?.addEventListener("click", () => cvRun(true));
 $("#cvStop")?.addEventListener("click", () => { CVSTOP = true; cvSay("중지하는 중…"); });
 
 /* ── 그림에서 네모 부분만 잘라 낸다 (비율 좌표 → 실제 픽셀) ── */
@@ -2466,46 +2560,14 @@ ${EASY_RULE}`;
    한 번에 하나씩만 부른다 — 목록을 주르륵 넘길 때 요청이 몰리면
    서버가 죄다 거절해서 오히려 하나도 안 나온다.
    ══════════════════════════════════════════════════════ */
-let AUTO = localStorage.getItem("prac:auto") !== "0";
+/* ── 쉬운 풀이 ──
+   예전에는 «화면에 보이면 알아서 쓴다» 였다. 그런데 조금만 굴려도 요청이 우수수
+   나가서 서버가 죄다 거절하고, 결국 하나도 안 나오는 일이 잦았다.
+   그래서 지켜보는 것을 걷어내고, 누를 때 한꺼번에 도는 단추 하나만 남긴다. */
 let EZBUSY = false;
 const EZQUEUE = [];
 
-/* ★ 여기가 «해설이 안 나오던» 자리.
-   ezEnqueue 는 만들어만 두고 어디서도 부르지 않았다. 그래서 자동 해설이
-   한 번도 돌지 않았고, 사람이 «쉬운 해설» 단추를 눌러야만 나왔다.
-   이제 문제가 화면에 «보이면» 그때 줄을 세운다. */
-function ezWatch(){
-  if(!AUTO) return;
-  if(ONEUP){                                  /* 한 문항씩 — 지금 보고 있는 것만 */
-    const r = SHOWN[ONEAT];
-    if(r) ezEnqueue(r.id);
-    return;
-  }
-  /* 목록 — 화면에 들어온 카드만. 스크롤로 지나친 것까지 만들면 돈과 시간이 샌다 */
-  if(EZOBS) EZOBS.disconnect();
-  EZOBS = new IntersectionObserver(es => {
-    es.forEach(e => { if(e.isIntersecting) ezEnqueue(e.target.dataset.id); });
-  }, { rootMargin: "160px 0px" });
-  document.querySelectorAll("#list > .pcard").forEach(c => EZOBS.observe(c));
-}
-let EZOBS = null;
-
-/* 자동 해설 켜기·끄기 */
-function paintAuto(){
-  const b = $("#fAuto"); if(!b) return;
-  b.classList.toggle("on", AUTO);
-  b.textContent = AUTO ? "✎ 자동 해설 켬" : "✎ 자동 해설 끔";
-}
-$("#fAuto")?.addEventListener("click", () => {
-  AUTO = !AUTO;
-  localStorage.setItem("prac:auto", AUTO ? "1" : "0");
-  paintAuto();
-  if(AUTO) ezWatch(); else { EZQUEUE.length = 0; EZOBS?.disconnect(); }
-});
-paintAuto();
-
 function ezEnqueue(id){
-  if(!AUTO) return;
   const r = ROWS.find(x => String(x.id) === String(id));
   if(!r || r.easy_md || !r.q_url) return;
   if(EZQUEUE.includes(String(id))) return;
@@ -2522,7 +2584,7 @@ async function ezPump(){
 }
 
 /* force = true 면 이미 있는 해설도 갈아엎는다 (다시 해석하기) */
-async function ezMake(id, force){
+async function ezMake(id, force, quiet){
   const r = ROWS.find(x => String(x.id) === String(id));
   if(!r || !r.q_url) return;
   if(r.easy_md && !force) return;
@@ -2547,7 +2609,7 @@ async function ezMake(id, force){
     if(box) box.innerHTML = mdLite(md);
     /* 단추 줄(다시 해석하기 · 고쳐 쓰기 · 지우기)을 손으로 끼워 맞추면 손잡이가 어긋난다.
        한 번 다시 그리는 편이 확실하다. 필기는 저장돼 있으므로 그대로 되살아난다. */
-    drawList();
+    if(!quiet) drawList();
     if(String(OVID) === String(r.id)) ovDraw();   /* 한눈에 보기가 열려 있으면 거기도 갈아 끼운다 */
     drawRail?.();
   }catch(e){
@@ -2557,7 +2619,7 @@ async function ezMake(id, force){
 }
 async function ezDel(id){
   const r = ROWS.find(x => String(x.id) === String(id));
-  if(!confirm("이 해설을 지웁니다. 자동 해설이 켜져 있으면 다시 볼 때 새로 씁니다.")) return;
+  if(!confirm("이 해설을 지웁니다.")) return;
   await sb.from("practicals").update({ easy_md: null }).eq("id", r.id);
   r.easy_md = null; drawList();
 }
@@ -3004,7 +3066,7 @@ function ovOpen(id){
   $("#ovl").classList.add("on");
   ovDraw();
   /* 해설이 아직 없으면 여기서도 만들어 준다 — 보러 들어왔으니 필요한 것이다 */
-  if(!r.easy_md && r.q_url && AUTO) ezEnqueue(r.id);
+  if(!r.easy_md && r.q_url) ezEnqueue(r.id);
 }
 function ovClose(){
   $("#ovl").classList.remove("on");
@@ -3059,8 +3121,7 @@ function ovDraw(){
     <div class="seg${OVSEG === "e" ? " on" : ""}" data-seg="e">
       <div class="plab">쉬운 풀이</div>
       <div class="ez">${r.easy_md ? mdLite(r.easy_md)
-        : `<div class="miss">${AUTO ? "해설을 쓰는 중입니다… 20~40초쯤 걸립니다."
-            : "해설이 없습니다. 목록에서 «해설 만들기» 를 누르세요."}</div>`}</div>
+        : `<div class="miss">해설이 없습니다. 목록의 «해설 만들기» 또는 «✎ 자동 해설 진행» 을 누르세요.</div>`}</div>
     </div>`;
 
   /* 그림을 누르면 원본 크기로 폈다가 다시 화면 폭에 맞춘다 */
@@ -3084,7 +3145,7 @@ function ovStep(d){
   OVID = String(nx.id);
   if(ONEUP) showAt(i + d);
   ovDraw();
-  if(!nx.easy_md && nx.q_url && AUTO) ezEnqueue(nx.id);
+  if(!nx.easy_md && nx.q_url) ezEnqueue(nx.id);
   $$("#ovl .pane").forEach(p => p.scrollTop = 0);
 }
 $("#ovText")?.addEventListener("click", () => {
@@ -3182,15 +3243,50 @@ async function boot(){
   cvCount();
 }
 
-/* 지금 과목에 «아직 글자로 안 바뀐» 문항이 몇 개인지 알려 준다.
-   눌러 보기 전에 얼마나 걸릴 일인지 먼저 보이게. */
+/* 지금 과목에 «아직 안 된 것» 이 몇 개인지 알려 준다.
+   ★ 예전에는 이 줄이 처음 들어올 때 한 번만 돌았다. 그래서 변환을 다 돌린 뒤에도
+     «1061개가 아직 그림입니다» 가 그대로 남아 있었다. 이제 목록을 그릴 때마다 다시 센다. */
 function cvCount(){
-  if(CVBUSY) return;
-  const n = ROWS.filter(r => (r.q_url || r.a_url) && !r.q_md).length;
-  cvSay(!ROWS.length ? "" :
-    n ? `${ROWS.length}개 중 ${n}개가 아직 그림입니다 — «⚡ 전체 변환 진행» 을 누르면 글자로 바꿉니다.`
-      : `${ROWS.length}개 모두 글자로 바뀌어 있습니다.`);
+  if(CVBUSY || EZBUSY) return;
+  const has = ROWS.filter(r => r.q_url || r.a_url);
+  if(!has.length) return cvSay("");
+  const nCv = has.filter(r => !r.q_md).length;
+  const nEz = has.filter(r => !r.easy_md).length;
+  cvSay(`이 과목 ${has.length}개 — `
+    + (nCv ? `글자 변환 ${nCv}개 남음` : "글자 변환 다 됨") + " · "
+    + (nEz ? `쉬운 풀이 ${nEz}개 남음` : "쉬운 풀이 다 됨")
+    + (nCv || nEz ? "   (두 단추는 «남은 것만» 골라 돕니다)" : ""));
 }
+
+/* ── 쉬운 풀이 일괄 ── 변환과 같은 자리에서 같은 모양으로 돈다 */
+async function ezRunAll(){
+  if(CVBUSY || EZBUSY) return;
+  const pool = ROWS.filter(r => r.q_url && !r.easy_md);
+  if(!pool.length) return cvSay("이 과목은 쉬운 풀이가 다 돼 있습니다.");
+  if(!confirm(`해설이 없는 ${pool.length}개에 쉬운 풀이를 씁니다.\n`
+    + `한 개에 20~40초쯤 걸리므로 대략 ${Math.ceil(pool.length * 30 / 60)}분입니다.\n`
+    + `«중지» 를 눌러도 거기까지는 저장됩니다. 계속할까요?`)) return;
+
+  EZBUSY = true; CVSTOP = false;
+  $("#cvStop").hidden = false; $("#cvProg").hidden = false;
+  $("#cvGap").disabled = $("#ezRun").disabled = true;
+  let ok = 0, bad = 0, n = 0;
+  for(const r of pool){
+    if(CVSTOP) break;
+    n++;
+    cvSay(`쉬운 풀이 ${n}/${pool.length} — ${r.year}년 제${r.session}회 ${r.no}번 · 됨 ${ok}` + (bad ? ` · 실패 ${bad}` : ""));
+    $("#cvBar").style.width = (n / pool.length * 100) + "%";
+    try{ await ezMake(r.id, false, true); r.easy_md ? ok++ : bad++; }
+    catch(e){ bad++; log(`해설 실패 ${r.year}-${r.session} ${r.no}번 — ${e.message || e}`); }
+    await new Promise(x => setTimeout(x, 400));
+  }
+  $("#cvStop").hidden = true; $("#cvProg").hidden = true;
+  $("#cvGap").disabled = $("#ezRun").disabled = false;
+  EZBUSY = false;
+  cvSay((CVSTOP ? "중지했습니다. " : "") + `쉬운 풀이 ${ok}개 완료` + (bad ? ` · ${bad}개 실패` : ""));
+  drawList(); cvCount();
+}
+$("#ezRun")?.addEventListener("click", ezRunAll);
 (async () => { if(await gate()) boot(); })();
 sb?.auth?.onAuthStateChange?.(() => setTimeout(() => gate().then(on => on && boot()), 0));
 </script>
