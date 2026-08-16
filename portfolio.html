@@ -53,6 +53,12 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .row .rs{font-size:12.5px;color:var(--ink-2);margin-top:3px}
 .row .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
 .row .acts{display:flex;gap:5px;flex-wrap:wrap;margin-top:10px}
+/* 갈래 고르기 칩 — 학력·병역의 «구분» 처럼 값이 정해진 칸에 쓴다 */
+.pickrow{display:flex;flex-wrap:wrap;gap:6px}
+.pickchip{padding:8px 13px;border-radius:999px;border:1.4px solid var(--rule);
+  background:var(--paper);color:var(--ink-2);cursor:pointer;
+  font:600 12.5px/1 var(--font-d);min-height:34px}
+.pickchip.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--accent)}
 .tag{font:500 10.5px/1 var(--font-m);padding:5px 7px;border-radius:6px;background:var(--paper);color:var(--ink-2);border:1px solid var(--rule)}
 .tag.cat{border-color:var(--accent);color:var(--accent)}
 .tag.ok{border-color:#B7DEC8;background:#E3F3EA;color:var(--ok)}
@@ -253,8 +259,15 @@ const esc  = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt
    이렇게 하면 나중에 칸을 더 붙일 때 SQL 을 또 돌릴 필요가 없다.
    ═══════════════════════════════════════════════════════ */
 const T = {
-  text:"text", area:"area", md:"md", url:"url", date:"date"
+  text:"text", area:"area", md:"md", url:"url", date:"date",
+  /* pick — 미리 정해 둔 갈래 중 하나를 눌러 고른다.
+     학력·병역처럼 «값이 뻔한데 매번 손으로 적게 하면 표기가 제각각» 이 되는 칸에 쓴다. */
+  pick:"pick"
 };
+/* 학력·병역의 갈래. 순서가 곧 문서에서 줄 서는 순서다(위가 먼저). */
+const EDU_LEVELS = ["대학원","대학교","전문대학","고등학교","병역","기타"];
+const eduRank = v => { const i = EDU_LEVELS.indexOf(v); return i < 0 ? EDU_LEVELS.length : i; };
+
 const SECTIONS = [
   { kind:"profile", name:"프로필", one:true,
     desc:"문서 맨 위에 붙는 얼굴. 한 번만 채우면 됩니다.",
@@ -316,9 +329,10 @@ const SECTIONS = [
     ]},
 
   { kind:"edu", name:"학력 · 병역",
-    desc:"학교·전공·기간. 병역도 여기에 한 줄로.",
+    desc:"먼저 «구분» 을 골라 주세요. 문서에서는 대학원 → 대학교 → 전문대 → 고등학교 → 병역 순으로 저절로 줄을 섭니다.",
     fields:[
-      { k:"title",   label:"학교 · 구분", t:T.text, ph:"한국폴리텍1대학교 정수캠퍼스(서울)", req:true },
+      { k:"m.level", label:"구분", t:T.pick, opts:EDU_LEVELS, ph:"대학교" },
+      { k:"title",   label:"학교 · 기관", t:T.text, ph:"한국폴리텍1대학교 정수캠퍼스(서울)", req:true },
       { k:"category",label:"전공 · 과정", t:T.text, ph:"전기공학과(학사과정) / 편입졸업" },
       { k:"period",  label:"기간", t:T.text, ph:"2019.03 ~ 2021.02" }
     ]},
@@ -379,6 +393,12 @@ let ME = null, ITEMS = [], CUR = null, FILE = null, TAB = "profile", KIND = "pro
 const SHARE = new URLSearchParams(location.search).get("share");
 const RO = !!SHARE;
 
+/* «없음» 처럼 «빈칸이라고 적어 둔 값» 은 아예 안 보이게 한다.
+   빈칸으로 두면 알아서 사라지는데, 손으로 «없음» 을 적어 넣으면
+   [ Github ] 없음 같은 죽은 링크가 만들어져서 문서가 지저분해진다. */
+const NOVAL = /^(없음|없슴|없다|해당\s*없음|미보유|미해당|무|해당사항\s*없음|n\/?a|none|null|-{1,3}|\.)$/i;
+const vv = s => { const t = String(s ?? "").trim(); return NOVAL.test(t) ? "" : t; };
+
 /* 값 꺼내기·넣기 — "m.xxx" 는 meta 안, 나머지는 표의 칸 */
 const gv = (it, k) => k.startsWith("m.") ? ((it?.meta || {})[k.slice(2)] ?? "") : (it?.[k] ?? "");
 function sv(row, k, v){
@@ -423,6 +443,27 @@ $("#pw").addEventListener("keydown", e => { if(e.key === "Enter") $("#login").cl
    (실제 차단은 화면이 아니라 Supabase 의 pf_shared 함수가 한다.
     그 함수는 토큰에 걸린 사람의 항목만 «읽기» 로 돌려준다.)
    ══════════════════════════════════════════════════════ */
+/* 갈래(kind)가 비어 온 항목을 내용만 보고 되짚는다.
+   공유 함수가 kind 를 안 넘겨줄 때만 쓰인다 — 제대로 오면 그대로 통과. */
+function repairKinds(rows){
+  const known = new Set(SECTIONS.map(s => s.kind).concat("achieve"));
+  const hasProfile = rows.some(r => r.kind === "profile");
+  let takenProfile = hasProfile;
+  return rows.map(r => {
+    if(r.kind && known.has(r.kind)) return r;
+    const m = r.meta || {};
+    const looksProfile = !takenProfile &&
+      (m.github || m.linkedin || m.email || m.blog || (!r.period && !r.parent_id && rows.length === 1));
+    if(looksProfile){ takenProfile = true; return { ...r, kind:"profile" }; }
+    if(r.parent_id)                          return { ...r, kind:"achieve" };
+    if(m.no)                                 return { ...r, kind:"cert" };
+    if(m.level)                              return { ...r, kind:"edu" };
+    if(m.about || m.leave)                   return { ...r, kind:"career" };
+    if(m.type || m.sub)                      return { ...r, kind:"archive" };
+    return { ...r, kind:"project" };
+  });
+}
+
 async function bootShared(){
   document.body.classList.add("guest");
   const { data, error } = await sb.rpc("pf_shared", { p_token: SHARE });
@@ -440,7 +481,13 @@ async function bootShared(){
     return;
   }
 
-  ITEMS = (data || []).map(x => ({ ...x, kind:x.kind || "project", meta:x.meta || {} }));
+  /* ★ 여기가 «프로필 칸을 채우면 이름이 붙습니다» 가 계속 뜨던 자리.
+     pf_shared 함수가 kind 칸을 안 돌려주면 모든 항목이 «project» 로 떨어져서,
+     프로필이 문서 머리가 아니라 «프로젝트» 목록 안으로 들어가 버린다.
+     근본 해결은 SQL 쪽(pf_shared 반환값에 kind 추가)이지만,
+     화면에서도 되살릴 수 있게 갈래를 되짚어 준다. */
+  ITEMS = repairKinds((data || []).map(x =>
+    ({ ...x, kind:x.kind || null, meta:x.meta || {} })));
   drawDoc();
   $("#docView").className = "";
   $("#m").remove();
@@ -491,6 +538,10 @@ async function load(){
 }
 const of = k => ITEMS.filter(x => x.kind === k);
 const kidsOf = id => ITEMS.filter(x => x.kind === "achieve" && String(x.parent_id) === String(id));
+/* 학력·병역은 «구분» 순서로 줄을 세운다. 구분이 같으면 원래 순서 그대로. */
+const eduRows = () => of("edu").map((r, i) => ({ r, i }))
+  .sort((a, b) => eduRank(gv(a.r,"m.level")) - eduRank(gv(b.r,"m.level")) || a.i - b.i)
+  .map(x => x.r);
 
 function drawTabs(){
   $("#stabs").innerHTML = SECTIONS.filter(s => !s.hidden).map(s => {
@@ -516,7 +567,9 @@ function drawRows(){
     const kids = TAB === "career" ? kidsOf(it.id) : [];
     const sub = [gv(it,"category"), gv(it,"period")].filter(Boolean).join(" · ");
     return `<div class="row" data-id="${it.id}">
-      <div class="rt">${esc(it.title || "제목 없음")}</div>
+      <div class="rt">${gv(it,"m.level")
+        ? `<span class="tag cat" style="margin-right:7px;vertical-align:2px">${esc(gv(it,"m.level"))}</span>` : ""
+      }${esc(it.title || "제목 없음")}</div>
       ${sub ? `<div class="rs">${esc(sub)}</div>` : ""}
       ${it.summary ? `<div class="rs">${esc(it.summary)}</div>` : ""}
       ${gv(it,"m.about") ? `<div class="rs" style="margin-top:6px">${esc(gv(it,"m.about"))}</div>` : ""}
@@ -591,12 +644,31 @@ function drawForm(it, s){
   $("#eFields").innerHTML = s.fields.map(f => {
     const v = esc(gv(it, f.k) || (!it.id && f.skeleton === "star" ? STAR : ""));
     const lab = `<label>${esc(f.label)}${f.req ? " *" : ""}</label>`;
+    if(f.t === T.pick){
+      /* 값은 숨은 칸에 담는다 — 저장 쪽(#eFields [data-f])을 손대지 않아도 그대로 실린다 */
+      const cur = gv(it, f.k) || "";
+      return `<div style="margin-bottom:11px">${lab}
+        <div class="pickrow" data-pickfor="${f.k}">${(f.opts || []).map(o =>
+          `<button type="button" class="pickchip${o === cur ? " on" : ""}" data-v="${esc(o)}">${esc(o)}</button>`).join("")}</div>
+        <input type="hidden" data-f="${f.k}" value="${esc(cur)}"></div>`;
+    }
     if(f.t === T.md || f.t === T.area)
       return `<div style="margin-bottom:11px">${lab}<textarea data-f="${f.k}"
         style="min-height:${f.t === T.md ? 200 : 74}px" placeholder="${esc(f.ph || "")}">${v}</textarea></div>`;
     return `<div style="margin-bottom:11px">${lab}<input data-f="${f.k}"
       type="${f.t === T.url ? "url" : "text"}" placeholder="${esc(f.ph || "")}" value="${v}"></div>`;
   }).join("");
+
+  /* 갈래 고르기 — 한 번 더 누르면 선택이 풀린다(안 고른 상태로 두고 싶을 때) */
+  $$("#eFields .pickrow").forEach(row => {
+    const box = row.parentElement.querySelector('input[type="hidden"]');
+    row.querySelectorAll(".pickchip").forEach(b => b.onclick = () => {
+      const same = b.classList.contains("on");
+      row.querySelectorAll(".pickchip").forEach(x => x.classList.remove("on"));
+      if(!same) b.classList.add("on");
+      box.value = same ? "" : b.dataset.v;
+    });
+  });
 }
 
 $("#cancel").onclick = () => { CUR_PARENT = null; load(); };
@@ -661,11 +733,11 @@ function drawDoc(){
 
   const head = p ? `
     <div class="dh">${esc(p.title)}</div>
-    <div class="dsub">${esc(p.summary || "")}${p.category ? `<br>${esc(p.category)}` : ""}</div>
+    <div class="dsub">${esc(vv(p.summary))}${vv(p.category) ? `<br>${esc(vv(p.category))}` : ""}</div>
     <div class="dlinks">
-      ${L("Github", gv(p,"m.github"))}${L("LinkedIn", gv(p,"m.linkedin"))}
-      ${gv(p,"m.email") ? `<span>[ Email ] ${esc(gv(p,"m.email"))}</span>` : ""}
-      ${L("Blog", gv(p,"m.blog"))}
+      ${L("Github", vv(gv(p,"m.github")))}${L("LinkedIn", vv(gv(p,"m.linkedin")))}
+      ${vv(gv(p,"m.email")) ? `<span>[ Email ] ${esc(vv(gv(p,"m.email")))}</span>` : ""}
+      ${L("Blog", vv(gv(p,"m.blog")))}
     </div>
     ${p.body_md ? `<div class="body">${mdToHtml(p.body_md)}</div>` : ""}`
     : `<div class="dh">포트폴리오</div>
@@ -686,11 +758,15 @@ function drawDoc(){
       ${gv(c,"m.leave") ? `<div class="cd" style="margin-top:9px"><b>이직 사유</b> · ${esc(gv(c,"m.leave"))}</div>` : ""}
     </div>`).join("");
 
+  const cell = html => {
+    const plain = String(html).replace(/<[^>]+>/g, "").trim();
+    return NOVAL.test(plain) ? "" : html;
+  };
   const tbl = (cols, rows) => rows.length ? `<table><thead><tr>${
     cols.map(c => `<th>${esc(c[0])}</th>`).join("")}</tr></thead><tbody>${
-    rows.map(r => `<tr>${cols.map(c => `<td>${c[1](r)}</td>`).join("")}</tr>`).join("")}</tbody></table>` : "";
+    rows.map(r => `<tr>${cols.map(c => `<td>${cell(c[1](r))}</td>`).join("")}</tr>`).join("")}</tbody></table>` : "";
 
-  const link = r => r.link_url ? `<a href="${esc(r.link_url)}" target="_blank" rel="noopener">열기 ↗</a>` : "";
+  const link = r => vv(r.link_url) ? `<a href="${esc(r.link_url)}" target="_blank" rel="noopener">열기 ↗</a>` : "";
 
   const projects = of("project").map(pr => `
     <div class="co">
@@ -704,8 +780,9 @@ function drawDoc(){
   $("#docBody").innerHTML = head
     + sec("경력사항", careers)
     + sec("학력 · 병역", tbl(
-        [["구분", r => esc(r.title)], ["전공 · 과정", r => esc(r.category || "")], ["기간", r => esc(r.period || "")]],
-        of("edu")))
+        [["구분", r => esc(gv(r,"m.level") || "")], ["학교 · 기관", r => esc(r.title)],
+         ["전공 · 과정", r => esc(r.category || "")], ["기간", r => esc(r.period || "")]],
+        eduRows()))
     + sec("자격 · 면허", tbl(
         [["자격명", r => esc(r.title)], ["발급 기관", r => esc(r.category || "")],
          ["취득일 · 상태", r => esc(r.period || "")], ["등록번호", r => esc(gv(r,"m.no"))]],
@@ -756,7 +833,8 @@ function asText(){
     if(gv(c,"m.leave")) b.push(`이직사유: ${gv(c,"m.leave")}`);
     return b.join("\n");
   });
-  add("학력 · 병역", of("edu"), r => `- ${r.title} / ${r.category || ""} / ${r.period || ""}`);
+  add("학력 · 병역", eduRows(), r =>
+    `- [${gv(r,"m.level") || "구분없음"}] ${r.title} / ${r.category || ""} / ${r.period || ""}`);
   add("자격 · 면허", of("cert"), r => `- ${r.title} (${r.category || ""}) ${r.period || ""} ${gv(r,"m.no")}`);
   add("프로젝트", of("project"), r =>
     `### ${r.title} (${[r.category, r.period].filter(Boolean).join(" · ")})\n${r.summary || ""}\n${r.body_md || ""}`);
