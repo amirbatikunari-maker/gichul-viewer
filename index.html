@@ -612,13 +612,37 @@ mark.hl{
 }
 html[data-theme="dark"] mark.hl{background:color-mix(in srgb,#FDE047 24%,transparent)}
 /* 취소선 — 틀린 보기·지워야 할 조건에 빨간 중간줄 */
-mark.hlm{background:transparent;color:inherit}
+/* ★ 형광펜 배경이 지워지던 자리.
+   mark.hl 규칙이 이 줄보다 «위» 에 있어서, 같은 굵기의 규칙끼리는 나중 것이 이긴다.
+   그래서 <mark class="hlm hl"> 의 노란 배경이 여기서 투명으로 덮여 사라졌다.
+   (취소선은 이 줄보다 아래에 있어 멀쩡했다 — 취소선만 되던 이유다) */
+mark.hlm{color:inherit}
+mark.hlm:not(.hl){background:transparent}
 
 /* 문제에 딸린 그림 — 원본 PDF에서 오려낸 조각
    --figw 는 저장된 크기(%)다. 값이 없으면 예전처럼 100%로 편다. */
 .qfig{margin:12px 0 0;padding:0}
 .qfig img{display:block;width:var(--figw,100%);max-width:520px;height:auto;margin:0 auto;
   border:1px solid var(--rule);border-radius:10px;background:#fff}
+
+/* ── 화면 좌우 넘김 단추 ──
+   마우스로 끄는 넘김을 없앤 대신, 화면 양옆에 반투명 단추를 띄운다.
+   평소에는 흐릿하게 있다가 스크롤하거나 가까이 가면 또렷해진다. */
+.edgenav{position:fixed;top:50%;transform:translateY(-50%);z-index:55;
+  width:44px;height:76px;border:0;border-radius:12px;cursor:pointer;
+  display:none;align-items:center;justify-content:center;
+  background:color-mix(in srgb,var(--ink) 26%,transparent);color:#fff;
+  font:400 26px/1 var(--font-d);
+  opacity:.18;transition:opacity .22s,background .22s;
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
+  -webkit-user-select:none;user-select:none;touch-action:manipulation}
+body.reading .edgenav{display:flex}
+.edgenav.wake{opacity:.62}
+.edgenav:hover{opacity:.95;background:color-mix(in srgb,var(--ink) 62%,transparent)}
+.edgenav:disabled{opacity:.06;cursor:default}
+.edgenav.prev{left:6px} .edgenav.next{right:6px}
+@media(max-width:720px){ .edgenav{width:34px;height:60px;font-size:21px} }
+@media(hover:none){ .edgenav{opacity:.12} }
 #toast{position:fixed;left:50%;bottom:calc(56px + env(safe-area-inset-bottom));transform:translateX(-50%);
   z-index:80;padding:11px 16px;border-radius:999px;background:var(--ink);color:var(--paper);
   font:600 12.5px/1 var(--font-d);opacity:0;pointer-events:none;transition:opacity .18s;max-width:90vw;text-align:center}
@@ -1256,12 +1280,16 @@ function setupZoom(zoomwrap, zoomstage){
     }
 
     if(dragMode === null){
-      /* 넘김 감도 — 마우스로 글자를 고르다가 툭하면 다음 문항으로 넘어가서 문턱을 올렸다.
-         마우스는 손가락보다 미세하게 움직이므로 더 많이 끌어야 넘김으로 친다. */
-      const MIN = ev.pointerType === "mouse" ? 34 : 18;
+      /* ★ 마우스로 끄는 것은 «글자 고르기» 로만 쓴다.
+         예전에는 조금만 가로로 끌어도 다음 문항으로 넘어가서, 형광펜 칠하려고 문장을
+         끌면 화면이 넘어가 버렸다. 마우스는 이제 절대 넘김으로 읽지 않는다.
+         손가락 스와이프는 그대로 살려 둔다 — 폰에서는 그게 제일 편하다.
+         마우스로 넘길 때는 화면 좌우의 ‹ › 단추나 방향키를 쓰면 된다. */
+      if(ev.pointerType === "mouse"){ dragMode = "v"; return; }
+      const MIN = 18;
       if(Math.abs(dx) < MIN && Math.abs(dy) < MIN) return;
       if(track.classList.contains("vert")) dragMode = "v";
-      /* 가로가 세로보다 확실히 우세할 때만 넘김으로 본다 (1.15배 → 1.6배) */
+      /* 가로가 세로보다 확실히 우세할 때만 넘김으로 본다 */
       else dragMode = Math.abs(dx) > Math.abs(dy) * 1.6 ? "h" : "v";
     }
     if(dragMode === "h"){
@@ -1952,6 +1980,7 @@ async function route(){
   else if(a==="e")   await viewStudy(+b, c?+c:null);
   else if(a==="mix") await viewMix(+b, c || "random");
   else               await viewSubjects();
+  edgeSync();                     /* 화면 좌우 넘김 단추는 문항을 볼 때만 나온다 */
 }
 $("#back").onclick = ()=>{
   const h=(location.hash||"#/").slice(1).split("/");
@@ -3129,7 +3158,7 @@ function easyHTML(q){
     </div>`;
   return `<div class="easy" data-easybox="${q.id}">
       <div class="ez-h">이어서 · 비전공자용 상세 설명</div>
-      <div class="eb">${md(txt)}</div>
+      <div class="eb" data-hl="ez" data-qid="${q.id}">${md(txt)}</div>
       ${S.loggedIn ? `<div class="ebar">
         <button class="figbtn" data-easygen="${q.id}" type="button">다시 쓰기</button>
         <button class="figbtn del" data-easydel="${q.id}" type="button">지우기</button>
@@ -4216,6 +4245,7 @@ function hydrate(i){
 
 
 function setActive(i){
+  setTimeout(edgeSync, 0);
   if(S.idx===i && $(`#rail .bub.now`)) return;
   S.idx=i;
   const q=S.questions[i]; if(!q) return;
@@ -4249,6 +4279,32 @@ function jump(i,smooth=true){
     track.scrollTo({left:i*track.clientWidth, behavior:smooth?"smooth":"auto"});
   setActive(i);
 }
+
+/* ── 화면 좌우 넘김 단추 ──
+   마우스 드래그 넘김을 없앤 자리를 이 단추가 대신한다.
+   스크롤할 때마다 잠깐 또렷해졌다가 다시 흐려진다 — 읽는 데 방해되지 않게. */
+let EDGE_T = null;
+function edgeWake(){
+  const a = $("#edgePrev"), b = $("#edgeNext");
+  if(!a || !b) return;
+  a.classList.add("wake"); b.classList.add("wake");
+  clearTimeout(EDGE_T);
+  EDGE_T = setTimeout(() => { a.classList.remove("wake"); b.classList.remove("wake"); }, 1600);
+}
+function edgeSync(){
+  const a = $("#edgePrev"), b = $("#edgeNext");
+  if(!a || !b) return;
+  const n = S.questions?.length || 0;
+  document.body.classList.toggle("reading", n > 1 && !!$("#track"));
+  a.disabled = S.idx <= 0;
+  b.disabled = S.idx >= n - 1;
+}
+$("#edgePrev")?.addEventListener("click", () => { jump(Math.max(0, S.idx - 1)); edgeWake(); });
+$("#edgeNext")?.addEventListener("click", () => {
+  jump(Math.min((S.questions?.length || 1) - 1, S.idx + 1)); edgeWake();
+});
+addEventListener("scroll", edgeWake, true);
+addEventListener("wheel",  edgeWake, { passive:true });
 
 /* ── 가림판 ── */
 function applyVeil(){
@@ -4365,7 +4421,9 @@ route();
 
 /* 홈 화면 설치 + 오프라인 */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=42").catch(()=>{}));
+  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=44").catch(()=>{}));
 </script>
+<button class="edgenav prev" id="edgePrev" type="button" aria-label="이전 문항">‹</button>
+<button class="edgenav next" id="edgeNext" type="button" aria-label="다음 문항">›</button>
 </body>
 </html>
