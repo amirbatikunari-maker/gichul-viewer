@@ -285,6 +285,26 @@ button:disabled{opacity:.45;cursor:not-allowed}
 @media(min-width:1180px){
   .two{grid-template-columns:minmax(0,420px) minmax(0,1fr)}
 }
+/* ── 화면 크기별 마무리 ── */
+@media(max-width:560px){
+  .wrap{padding:14px 12px calc(90px + env(safe-area-inset-bottom))}
+  h1{font-size:19px}
+  .card{padding:14px;border-radius:12px}
+  .grid{grid-template-columns:1fr}          /* 폰에서 두 칸은 글자가 잘린다 */
+  .subtabs{margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px}
+  .stb{padding:9px 11px;font-size:12px}
+  .rounds{flex-direction:column}
+  .bar > button{flex:1 1 auto}
+  .foldb{padding-top:11px}
+  #flash{left:10px;right:10px;transform:none;max-width:none}
+}
+@media(min-width:561px) and (max-width:1023px){
+  .wrap{max-width:820px}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(min-width:1024px){
+  .cases{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+}
 /* 마우스가 있는 환경에서만 hover */
 @media(hover:hover){
   .cs:hover,.tc:hover{border-color:var(--accent)}
@@ -301,6 +321,21 @@ button:disabled{opacity:.45;cursor:not-allowed}
   .noprint{display:none !important}
 }
 .print-only{display:none}
+
+/* ══ 줄마다 접기 ══
+   면접 탭은 한 화면에 담을 것이 너무 많다. 전부 펼쳐 두면 지금 무엇을 하는지
+   놓치고 스크롤만 하게 된다. 그래서 기본을 «접힘» 으로 두고 필요한 줄만 편다. */
+.eyebrow.foldh{width:100%;background:none;border:0;padding:0;cursor:pointer;text-align:left;
+  font:600 11px/1 var(--font-d);letter-spacing:.14em;color:var(--ink-2);
+  display:flex;align-items:center;gap:9px;margin-bottom:0}
+.eyebrow.foldh .arw{font-size:10px;color:var(--accent);transition:transform .18s;flex:none}
+.eyebrow.foldh .cum{letter-spacing:0}
+.foldb{display:none;padding-top:14px}
+.fold.open > .foldb{display:block}
+.fold.open > .eyebrow.foldh .arw{transform:rotate(-90deg)}
+.card.fold{padding-bottom:16px}
+.card.fold:not(.open){padding-bottom:16px}
+.foldall{display:flex;gap:7px;margin:0 0 12px}
 
 /* 화면 아래에 붙어 따라오는 알림 띠 — 어디까지 내려가 있어도 보인다 */
 #flash{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);
@@ -368,6 +403,19 @@ button:disabled{opacity:.45;cursor:not-allowed}
 
     <div class="eyebrow">진행 중인 건</div>
     <div class="cases" id="cases"></div>
+
+    <div class="eyebrow" style="margin-top:26px">받았던 질문 모아보기
+      <span class="cum" id="allRevN"></span></div>
+    <div class="card" id="allRevCard">
+      <div class="lead" style="margin-bottom:12px">회사를 가리지 않고, 실제 면접에서 받았던 질문을 한자리에 모읍니다.
+        회사가 달라도 묻는 것은 겹칩니다 — 같은 데서 두 번 막히지 않게.</div>
+      <div class="chips" id="allRevChips"></div>
+      <div class="bar" style="margin-bottom:12px">
+        <input id="allRevQ" placeholder="검색" style="flex:1;min-width:130px">
+        <button class="ghost sm" id="allRevCopy">전부 복사</button>
+      </div>
+      <div id="allRevList"></div>
+    </div>
 
     <div class="eyebrow" style="margin-top:26px">마음 다지기</div>
 
@@ -517,6 +565,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
           <button class="chip" data-s="weak">약한 것만</button>
           <button class="chip" data-s="term">용어 카드</button>
           <button class="chip" data-s="bad">복기에서 막힌 것</button>
+          <button class="chip" data-s="base">기본 문항 (인성·회사·근무조건)</button>
+          <button class="chip" data-s="near">비슷한 직무 다른 회사<span class="cnt" id="nearN"></span></button>
           <button class="chip" data-s="ai">AI 즉석 출제</button>
         </div>
         <div class="grid" style="margin-bottom:12px">
@@ -555,8 +605,9 @@ button:disabled{opacity:.45;cursor:not-allowed}
         <div class="eyebrow">20초 안에 답할 용어</div>
         <div class="chips" id="termChips"></div>
         <div class="bar" style="margin-bottom:12px">
-          <button class="ghost sm" id="tSeed">기본 30개 넣기</button>
+
           <button class="ghost sm" id="tGen">공고에서 용어 뽑기</button>
+          <button class="ghost sm" id="tWipe">골라 지우기</button>
           <button class="ghost sm" id="tDrill">암기 훈련</button>
           <button class="ghost sm" id="tAdd">직접 추가</button>
         </div>
@@ -738,7 +789,93 @@ $("#authBtn").onclick = async () => {
     if(!confirm("로그아웃할까요?")) return;
     await sb.auth.signOut();
     CASES = []; CUR = null; DOCS = []; PREP = {}; hideMsg();
-    return boot();
+    return /* ══════════════════════════════════════════════════════
+   줄마다 접기 — 손으로 마크업을 열다섯 군데 고치는 대신 여기서 한 번에 감싼다
+   ──────────────────────────────────────────────────────
+   규칙은 둘.
+   · 상자(.card) 안의 «줄 제목(.eyebrow)» 이면 그 상자의 나머지를 감싼다.
+   · 상자 밖에 홀로 있는 줄 제목이면 다음 줄 제목 직전까지를 감싼다.
+   로그인 화면(#gate)은 건드리지 않는다 — 거긴 접을 것이 없다.
+   ══════════════════════════════════════════════════════ */
+function foldify(){
+  const OPEN_BY_DEFAULT = ["지금 당장 할 것"];      /* 이 줄만 펴 둔다 */
+  document.querySelectorAll(".eyebrow").forEach(eb => {
+    if(eb.closest("#gate") || eb.classList.contains("foldh")) return;
+    if(eb.closest(".foldb")) return;                /* 이미 감싼 것 안 */
+    const label = (eb.textContent || "").trim().split("\n")[0].trim();
+    if(!label) return;
+
+    const parent = eb.parentElement;
+    const inCard = parent.classList.contains("card");
+    const host = inCard ? parent : document.createElement("div");
+    const body = document.createElement("div");
+    body.className = "foldb";
+
+    /* 감쌀 것을 모은다 */
+    const take = [];
+    let n = eb.nextElementSibling;
+    while(n){
+      if(!inCard && (n.classList.contains("eyebrow") || n.classList.contains("card"))) break;
+      take.push(n); n = n.nextElementSibling;
+    }
+    if(!take.length) return;
+
+    if(!inCard){
+      parent.insertBefore(host, eb);
+      host.appendChild(eb);
+      host.className = "fold";
+    }
+    take.forEach(x => body.appendChild(x));
+    eb.after(body);
+    host.classList.add("fold");
+
+    /* 줄 제목을 단추로 바꾼다 */
+    eb.classList.add("foldh");
+    eb.insertAdjacentHTML("afterbegin", `<span class="arw">◀</span>`);
+    eb.setAttribute("role", "button");
+    eb.tabIndex = 0;
+
+    const key = "iv:fold:" + label.replace(/\s+/g, "");
+    const saved = localStorage.getItem(key);
+    const def = OPEN_BY_DEFAULT.some(t => label.startsWith(t));
+    host.classList.toggle("open", saved === null ? def : saved === "1");
+
+    const flip = () => {
+      const on = host.classList.toggle("open");
+      localStorage.setItem(key, on ? "1" : "0");
+    };
+    eb.addEventListener("click", flip);
+    eb.addEventListener("keydown", e => { if(e.key === "Enter" || e.key === " "){ e.preventDefault(); flip(); } });
+  });
+}
+/* 화면을 바꿔 그릴 때마다 새로 생긴 줄도 감싼다 */
+["listView","caseView"].forEach(id => {
+  const v = document.getElementById(id);
+  if(v) new MutationObserver(() => { clearTimeout(foldify._t); foldify._t = setTimeout(foldify, 60); })
+    .observe(v, { childList:true });
+});
+
+/* 한 번에 펴고 접는 단추 */
+function foldAllBar(where, label){
+  const host = document.getElementById(where); if(!host || host.querySelector(".foldall")) return;
+  const bar = document.createElement("div");
+  bar.className = "foldall noprint";
+  bar.innerHTML = `<button class="ghost sm" data-foldall="1">모두 펼치기</button>
+                   <button class="ghost sm" data-foldall="0">모두 접기</button>`;
+  const first = host.querySelector(".fold");
+  if(first) host.insertBefore(bar, first); else host.appendChild(bar);
+  bar.onclick = e => {
+    const b = e.target.closest("[data-foldall]"); if(!b) return;
+    const on = b.dataset.foldall === "1";
+    host.querySelectorAll(".fold").forEach(f => {
+      f.classList.toggle("open", on);
+      const lb = (f.querySelector(".eyebrow")?.textContent || "").replace("◀","").trim().split("\n")[0].trim();
+      if(lb) localStorage.setItem("iv:fold:" + lb.replace(/\s+/g, ""), on ? "1" : "0");
+    });
+  };
+}
+
+boot();
   }
   $("#em").focus();
 };
@@ -774,6 +911,8 @@ async function loadCases(){
   });
   $("#listView").className = "";
   $("#caseView").className = "hide";
+  loadAllRev();
+  setTimeout(() => { foldify(); foldAllBar("listView"); }, 0);
   $("#cases").innerHTML = CASES.length
     ? CASES.map(c => {
         const dd = dday(c.interview_on);
@@ -789,6 +928,69 @@ async function loadCases(){
     : `<div class="hint">아직 없습니다. 위에서 업체명과 직무명을 넣고 추가하세요.</div>`;
   $$("#cases .cs").forEach(b => b.onclick = () => openCase(b.dataset.id));
 }
+/* ══════════════════════════════════════════════════════
+   받았던 질문 모아보기 — 회사를 가로질러
+   ──────────────────────────────────────────────────────
+   복기는 원래 «그 회사 안» 에만 있었다. 그런데 실제로 도움이 되는 건
+   «지난번에 어디선가 이걸 물었다» 는 기억이다. 회사가 달라도 겹친다.
+   그래서 첫 화면에 전부 모아 둔다.
+   ══════════════════════════════════════════════════════ */
+let ALLREV = [], ALLREV_F = "전체";
+async function loadAllRev(){
+  const { data } = await sb.from("iv_review").select("*").order("created_at", { ascending:false });
+  ALLREV = (data || []).map(r => ({ ...r,
+    _co: CASES.find(c => c.id === r.case_id)?.company || "지난 건" }));
+  drawAllRev();
+}
+function drawAllRev(){
+  const n = $("#allRevN");
+  if(n) n.textContent = ALLREV.length ? `${ALLREV.length}개` : "";
+  const box = $("#allRevList"); if(!box) return;
+
+  const chip = $("#allRevChips");
+  if(chip && !chip.dataset.on){
+    chip.dataset.on = "1";
+    chips(chip, ["전체","막힘","애매","잘 답함"], k => { ALLREV_F = k; drawAllRev(); }, "전체");
+  }
+  const map = { "막힘":"bad", "애매":"mid", "잘 답함":"good" };
+  const q = ($("#allRevQ")?.value || "").trim();
+  const list = ALLREV.filter(r =>
+    (ALLREV_F === "전체" || r.react === map[ALLREV_F]) &&
+    (!q || (r.q + " " + (r.my_a || "") + " " + r._co).includes(q)));
+
+  if(!ALLREV.length){
+    box.innerHTML = `<div class="hint" style="margin:0">아직 없습니다.
+      면접이 끝나면 그 건에 들어가 <b>복기</b> 탭에 질문부터 적어 두세요 — 하루 지나면 절반은 사라집니다.</div>`;
+    return;
+  }
+  box.innerHTML = list.length ? list.map(r => `
+    <div class="rv ${r.react}">
+      <div class="rq">${esc(r.q)}</div>
+      <div class="hint" style="margin-top:4px">
+        <b>${esc(r._co)}</b> · ${r.on_date || (r.created_at || "").slice(0,10)}
+        · ${r.stage_key === "r2" ? "2차" : r.stage_key === "r1" ? "1차" : "기타"}
+        · ${{good:"잘 답함",mid:"애매",bad:"막힘"}[r.react]}</div>
+      ${r.my_a ? `<div class="rm">그때 답: ${esc(r.my_a)}</div>` : ""}
+      ${r.better_md ? `<details class="qa" style="margin-top:8px">
+          <summary><span class="qt">다시 쓴 답 보기</span></summary>
+          <div class="qb">${mdToHtml(r.better_md)}</div></details>` : ""}
+      <div class="bar" style="margin-top:9px">
+        <button class="ghost sm" data-goc="${r.case_id}">그 건으로 가기</button>
+      </div>
+    </div>`).join("")
+    : `<div class="hint" style="margin:0">그 조건에 맞는 질문이 없습니다.</div>`;
+
+  $$("#allRevList [data-goc]").forEach(b => b.onclick = () => openCase(b.dataset.goc));
+}
+$("#allRevQ")?.addEventListener("input", drawAllRev);
+$("#allRevCopy")?.addEventListener("click", () => {
+  if(!ALLREV.length) return say("복사할 것이 없습니다.", "err");
+  const t = ALLREV.map(r =>
+    `[${r._co}] (${{good:"잘 답함",mid:"애매",bad:"막힘"}[r.react]}) ${r.q}`
+    + (r.my_a ? `\n  → 그때 답: ${r.my_a}` : "")).join("\n");
+  copyText(t);
+});
+
 $("#add").onclick = async () => {
   const company = $("#nCo").value.trim(), role = $("#nRo").value.trim();
   if(!company || !role) return say("업체명과 직무명을 넣어주세요.", "err");
@@ -815,7 +1017,11 @@ async function openCase(id){
   window.scrollTo(0, 0);
   loadDraft("#aQ","aq"); loadDraft("#aA","aa"); loadDraft("#rQ","rq"); loadDraft("#rA","ra");
   await Promise.all([loadDocs(), loadPrep(), loadStages(), loadAnswers(), loadTerms(), loadReviews(), loadDrills()]);
+  await loadNear();
+  const nn = $("#nearN");
+  if(nn) nn.textContent = NEAR.length || "";
   drawTL(); drawBrief();
+  setTimeout(() => { foldify(); foldAllBar("caseView"); }, 0);
 }
 $("#back").onclick = loadCases;
 $("#del").onclick = async () => {
@@ -1950,6 +2156,45 @@ function drawDrillHist(){
   });
 }
 
+/* ══════════════════════════════════════════════════════
+   어느 회사에서든 반드시 나오는 문항
+   ──────────────────────────────────────────────────────
+   인성·회사 이해도·장기근속·근무조건은 «준비 안 해도 되는 것» 처럼 보이지만
+   실제로는 여기서 사람이 갈린다. 특히 근무지·교대·통근은 임원이 반드시 확인한다.
+   답을 미리 안 만들어 두면 그 자리에서 말이 꼬인다.
+   ══════════════════════════════════════════════════════ */
+const BASE_Q = [
+  ["인성","1분 자기소개를 해 주세요.",1],
+  ["인성","본인의 강점과, 그것을 증명하는 사례 하나를 말해 주세요.",1],
+  ["인성","본인의 약점은 무엇이고, 지금 어떻게 보완하고 있습니까?",2],
+  ["인성","동료와 의견이 부딪혔을 때 어떻게 풀었는지 사례로 말해 주세요.",2],
+  ["인성","가장 힘들었던 순간과, 그때 무엇을 해서 넘겼는지 말해 주세요.",2],
+  ["인성","실수를 했던 경험과 그 뒤에 무엇을 바꿨는지 말해 주세요.",1],
+  ["인성","스트레스가 몰릴 때 본인만의 관리 방법이 있습니까?",2],
+  ["인성","혼자 하는 일과 여럿이 하는 일 중 어느 쪽이 편합니까? 그 이유는?",2],
+
+  ["회사","왜 우리 회사입니까? 다른 회사가 아니라 여기여야 하는 이유를 말해 주세요.",2],
+  ["회사","우리 회사가 어떤 일을 하는 회사인지 아는 대로 말해 보세요.",2],
+  ["회사","최근 우리 회사 소식 중 인상 깊었던 것이 있습니까?",2],
+  ["회사","우리 회사가 속한 산업이 앞으로 어떻게 갈 것 같습니까?",2],
+  ["회사","이 직무가 회사에서 어떤 역할을 한다고 생각합니까?",2],
+  ["회사","입사하면 첫 3개월 동안 무엇을 하시겠습니까?",2],
+  ["회사","3년 뒤 본인의 모습을 한 문장으로 말해 주세요.",2],
+  ["회사","우리 회사에 오래 다닐 수 있다고 보는 근거가 무엇입니까?",2],
+  ["회사","전 직장을 떠나는 이유가 무엇입니까?",2],
+  ["회사","우리 회사가 본인을 뽑아야 하는 이유를 한 문장으로 말해 주세요.",2],
+
+  ["기타","근무지가 ○○인데 통근이 가능하십니까? 편도 몇 분 걸립니까?",2],
+  ["기타","필요하면 이사도 가능하십니까?",2],
+  ["기타","교대 근무 · 야간 당직이 있는데 괜찮으십니까?",2],
+  ["기atr","호출 대기(온콜)나 주말 출근이 생길 수 있는데 어떻습니까?",2],
+  ["기타","희망 연봉이 어느 정도입니까?",2],
+  ["기타","입사 가능 시기가 언제입니까?",2],
+  ["기타","다른 곳에도 지원 중이십니까? 진행 상황은 어떻습니까?",2],
+  ["기타","건강상 업무에 지장이 되는 부분이 있습니까?",2],
+  ["기타","마지막으로 하고 싶은 말이 있습니까?",2]
+].map(([cat,q,round]) => ({ cat: cat === "기atr" ? "기타" : cat, q, round }));
+
 function poolFor(src){
   const r = +$("#mockR").value;
   const okR = a => !r || !a.round || a.round === r || a.round === 0;
@@ -1961,11 +2206,66 @@ function poolFor(src){
     ...ANS.filter(a => okR(a) && (!a.score || a.score <= 1)).map(a => ({ q:a.q, ref:a.a_md, kind:"ans", id:a.id })),
     ...TERMS.filter(t => t.mastery === 0).map(t => ({ q:`${t.term} 에 대해 설명해 보세요.`, ref:t.answer, kind:"term", id:t.id }))
   ];
+  if(src === "base") return BASE_Q.filter(b => !r || b.round === r || b.round === 0)
+    .map(b => ({ q:b.q.replace("○○", CUR?.company || "○○"), ref:"", kind:"base" }));
+  if(src === "near") return NEAR.map(a => ({ q:a.q, ref:a.a_md, kind:"near", id:a.id, from:a._from }));
   return [
     ...ANS.filter(okR).map(a => ({ q:a.q, ref:a.a_md, kind:"ans", id:a.id })),
     ...MANS.filter(okR).map(a => ({ q:a.q, ref:a.a_md, kind:"ans", id:a.id })),
+    ...NEAR.map(a => ({ q:a.q, ref:a.a_md, kind:"near", id:a.id, from:a._from })),
+    ...BASE_Q.filter(b => !r || b.round === r).map(b =>
+      ({ q:b.q.replace("○○", CUR?.company || "○○"), ref:"", kind:"base" })),
     ...TERMS.filter(t => t.mastery < 2).map(t => ({ q:`${t.term} 에 대해 설명해 보세요.`, ref:t.answer, kind:"term", id:t.id }))
   ];
+}
+
+/* ══════════════════════════════════════════════════════
+   비슷한 직무의 «다른 회사» 에서 쌓아 둔 질문 끌어오기
+   ──────────────────────────────────────────────────────
+   회사가 달라도 직무가 비슷하면 묻는 것은 거의 같다.
+   앞선 면접에서 실제로 받았던 질문이 특히 그렇다.
+   그걸 새 회사에서 다시 안 쓰면, 같은 데서 또 막힌다.
+   ══════════════════════════════════════════════════════ */
+let NEAR = [];
+/* 직무명을 낱말로 쪼개 겹치는 정도를 본다. «IDC Architect» 와 «데이터센터 아키텍트» 는
+   글자로는 안 겹치므로, 자주 쓰는 말을 같은 뜻으로 묶어 준다. */
+const ROLE_SYN = [
+  ["idc","데이터센터","데이타센터","dc","전산실"],
+  ["architect","아키텍트","설계","구축"],
+  ["운영","operation","o&m","om","시설","facility","fm"],
+  ["전기","electrical","수변전","power"],
+  ["기계","mechanical","공조","hvac","냉동"],
+  ["안전","safety","ehs"],
+  ["커미셔닝","commissioning","cx"],
+  ["엔지니어","engineer"]
+];
+function roleKeys(role){
+  const raw = String(role || "").toLowerCase().split(/[^a-z가-힣0-9]+/).filter(w => w.length > 1);
+  const out = new Set(raw);
+  raw.forEach(w => ROLE_SYN.forEach((g, i) => { if(g.some(x => w.includes(x) || x.includes(w))) out.add("g" + i); }));
+  return out;
+}
+function roleNear(a, b){
+  const A = roleKeys(a), B = roleKeys(b);
+  if(!A.size || !B.size) return 0;
+  let hit = 0; A.forEach(x => { if(B.has(x)) hit++; });
+  return hit / Math.min(A.size, B.size);
+}
+
+/* 지금 건과 직무가 비슷한 다른 건의 답변을 모은다 */
+async function loadNear(){
+  NEAR = [];
+  if(!CUR) return;
+  const near = CASES.filter(c => c.id !== CUR.id && roleNear(c.role, CUR.role) >= 0.34);
+  if(!near.length) return;
+  const { data } = await sb.from("iv_answer").select("*")
+    .in("case_id", near.map(c => c.id)).order("asked", { ascending:false });
+  const have = new Set([...ANS, ...MANS].map(a => a.q));
+  const seen = new Set();
+  NEAR = (data || []).filter(a => {
+    if(have.has(a.q) || seen.has(a.q)) return false;
+    seen.add(a.q); return true;
+  }).map(a => ({ ...a, _from: near.find(c => c.id === a.case_id)?.company || "" }));
 }
 $("#mockGo").onclick = async () => {
   MLIM = +$("#mockT").value;
@@ -2253,15 +2553,28 @@ function drawTerms(){
 }
 chips($("#termChips"), ["전체","모름","애매","됨"], k => { TERM_F = k; drawTerms(); }, "전체");
 
-$("#tSeed").onclick = async () => {
-  const have = new Set(TERMS.map(t => t.term));
-  const rows = SEED_TERMS.filter(t => !have.has(t[1]))
-    .map(t => ({ user_id:ME.id, case_id:null, cat:t[0], term:t[1], answer:t[2], keys:t[3] }));
-  if(!rows.length) return say("이미 다 들어 있습니다.", "ok");
-  const { error } = await sb.from("iv_term").insert(rows);
-  if(error) return say("실패 — " + error.message, "err");
-  say(`${rows.length}개를 넣었습니다. 모든 채용 건에서 같이 보입니다.`, "ok"); loadTerms();
+/* ── 용어 골라 지우기 ──
+   미리 채워 두던 «기본 30개» 를 없앴다. 남의 회사 용어가 섞여 있으면
+   외울 것이 늘기만 하고 정작 이 공고에 나올 것은 묻힌다.
+   대신 이미 쌓인 것을 한 번에 걷어낼 수 있게 한다. */
+$("#tWipe").onclick = async () => {
+  const list = TERMS.filter(t => TERM_F === "전체"
+    || (TERM_F === "모름" && t.mastery === 0)
+    || (TERM_F === "애매" && t.mastery === 1)
+    || (TERM_F === "됨"   && t.mastery >= 2));
+  if(!list.length) return say("지울 것이 없습니다.", "err");
+  const what = TERM_F === "전체" ? "지금 보이는 용어 전부" : `«${TERM_F}» 로 표시한 용어`;
+  if(!confirm(`${what} ${list.length}개를 지웁니다.\n되돌릴 수 없습니다. 계속할까요?`)) return;
+  say("지우는 중…");
+  const ids = list.map(t => t.id);
+  for(let i = 0; i < ids.length; i += 50){
+    const { error } = await sb.from("iv_term").delete().in("id", ids.slice(i, i + 50));
+    if(error) return say("지우지 못했습니다 — " + error.message, "err");
+  }
+  say(`${ids.length}개를 지웠습니다.`, "ok");
+  loadTerms();
 };
+
 $("#tAdd").onclick = async () => {
   const term = prompt("용어 이름"); if(!term) return;
   const answer = prompt("20초 답변"); if(answer === null) return;
@@ -2668,38 +2981,6 @@ function drawStages(){
 }
 
 /* ══ 기본 용어 30장 — 데이터센터 기계·전기 운영에서 바로 나오는 것들 ══ */
-const SEED_TERMS = [
-["운영","SOP (표준운영절차)","정상 상태에서의 운전·점검·순회 절차를 정의한 문서입니다. 누가 근무해도 같은 판단과 같은 결과가 나오도록 만드는 게 목적이고, 일상 점검표와 운전 기준값이 여기 들어갑니다.","정상 운전 · 점검 기준 · 균질성"],
-["운영","MOP (작업절차서)","정비나 개조처럼 설비 상태에 변경이 생기는 작업의 순서·안전조치·복구 절차를 구체화한 문서입니다. 작업 전 승인과 변경관리 대상이고, 이중화 계통에서는 어느 쪽을 죽이고 어느 쪽으로 부하를 넘길지까지 적습니다.","변경 작업 · 사전 승인 · 복구 절차"],
-["운영","EOP (비상운영절차)","정전, 냉동기 정지, 누수, 화재처럼 비상상황이 났을 때의 초동조치와 연락체계를 정한 문서입니다. 판단할 시간이 없기 때문에 조건별로 행동이 이미 정해져 있어야 합니다.","비상 대응 · 초동조치 · 연락체계"],
-["운영","변경관리 (MOC)","설비나 절차를 바꿀 때 위험성 평가 → 승인 → 시행 → 검증 → 문서 반영까지 밟는 절차입니다. 데이터센터 사고의 상당수가 작업 중 변경에서 나기 때문에 MOP와 짝으로 돌아갑니다.","위험성 평가 · 승인 · 문서 반영"],
-["안전","LOTO (잠금·표찰)","정비 전에 전기·유체·압력 같은 에너지원을 차단하고 잠근 뒤 표찰을 붙이는 절차입니다. 잔류 에너지 방전까지 확인하고, 해제는 잠근 본인이 하는 게 원칙입니다.","에너지 차단 · 잔류 확인 · 본인 해제"],
-["전기","UPS","상용전원이 끊겨도 발전기가 물릴 때까지 무정전으로 부하를 받쳐주는 설비입니다. 보통 이중변환 방식을 쓰고, 배터리 자립시간과 부하율, 바이패스 구성이 운영에서 제일 중요한 항목입니다.","무정전 · 자립시간 · 바이패스"],
-["전기","UPS 배터리","자립시간을 실제로 만들어주는 부분입니다. 납축은 온도가 10도 오르면 수명이 절반으로 줄기 때문에 실온 관리가 핵심이고, 셀 내부저항과 단자 온도를 주기적으로 보고 방전시험으로 실제 용량을 확인합니다.","온도 관리 · 내부저항 · 방전시험"],
-["전기","ATS / STS","ATS는 상용과 발전기 사이를 자동으로 절체하는 스위치로 전환 시간이 존재합니다. STS는 이중 교류 전원 사이를 반도체로 매우 짧은 시간에 넘기는 장치라 단일전원 장비를 이중화할 때 씁니다.","전원 절체 · 전환 시간 · 이중화"],
-["전기","비상발전기","상용 정전 시 부하를 이어받는 설비로, 기동해서 전압·주파수가 잡히기까지 보통 십여 초가 걸립니다. 그 사이를 UPS가 메우고, 연료 저장량과 무부하 시운전 주기가 운영 관리 항목입니다.","기동 시간 · 연료 저장 · 정기 시운전"],
-["기계","CRAC / CRAH","CRAC는 압축기를 안에 갖고 직접 냉매로 냉각하는 항온항습기이고, CRAH는 압축기 없이 칠러에서 온 냉수를 코일로 받아 송풍만 하는 방식입니다. 대형 센터는 대부분 CRAH입니다.","직팽 · 냉수코일 · 항온항습"],
-["기계","냉수 1차·2차 펌프","1차는 칠러 증발기 유량을 지키기 위해 정유량으로 돌리고, 2차는 부하에 맞춰 인버터로 유량을 바꿉니다. 말단 차압을 기준으로 2차 유량을 제어하는 게 일반적입니다.","정유량 · 변유량 · 차압 제어"],
-["기계","메카니컬 씰","회전축에서 물이 새지 않게 막는 부품으로, 고정링과 회전링의 밀착면으로 밀봉합니다. 무부하 건조운전이 제일 큰 적이고, 미세 누설·이상 진동·발열이 교체 신호입니다.","밀착면 · 건조운전 금지 · 누설 감시"],
-["기계","VFD (인버터)","전동기 회전수를 바꿔 유량을 조절하는 장치입니다. 팬과 펌프는 상사법칙에 따라 동력이 회전수의 세제곱에 비례해서, 회전수를 조금만 낮춰도 절감 효과가 큽니다.","회전수 제어 · 상사법칙 · 에너지 절감"],
-["기계","냉각탑","응축열을 대기로 버리는 설비로, 물의 증발잠열을 씁니다. 습구온도가 성능을 좌우하고, 운영에서는 농축배수 관리와 레지오넬라·스케일 관리가 핵심입니다.","증발잠열 · 습구온도 · 수질 관리"],
-["기계","프리쿨링","외기가 찰 때 냉동기를 세우거나 부분 부하로 돌리고 냉각탑 물이나 외기로 직접 냉방하는 운전입니다. 국내 기후에서 연간 운전비를 크게 줄이는 항목이라 전환 온도 설정이 중요합니다.","외기 이용 · 냉동기 정지 · 전환 온도"],
-["전기","MCC","전동기를 모아 제어하는 반입니다. 차단기·전자접촉기·과부하계전기가 한 세트로 들어가고, 현장에서는 과부하 트립 이력과 결선 상태를 먼저 확인합니다.","전동기 제어 · 과부하 보호 · 집중 관리"],
-["전기","누전차단기","지락 전류를 감지해 회로를 끊는 차단기입니다. 인체 감전 보호용은 정격감도전류 30밀리암페어에 동작시간 0.03초 이내가 기준입니다.","지락 감지 · 30mA · 0.03초"],
-["전기","접지","고장전류에 안전한 귀로를 만들고 기기 외함 전위를 낮추는 조치입니다. 데이터센터는 계통·기기·통신 접지를 따로 두기보다 공통접지에 등전위 본딩을 하는 방향으로 갑니다.","전위 안정 · 공통접지 · 등전위 본딩"],
-["전기","절연저항","절연물이 얼마나 건전한지를 직류 전압을 걸어 재는 시험입니다. 저압 회로는 회로 전압에 따라 시험전압과 기준값이 나뉘고, 측정 전에 반드시 무전압 상태와 잔류전하 방전을 확인합니다.","메거 시험 · 무전압 확인 · 기준값 구분"],
-["안전","가스계 소화설비","전산실은 물을 쓸 수 없어 청정소화약제나 불활성가스로 소화합니다. 방출 전 대피 지연시간과 자동·수동 절환, 그리고 방출 시 급격한 압력 상승을 빼주는 과압배출구가 중요합니다.","청정약제 · 지연시간 · 과압배출"],
-["안전","공기흡입형 감지기","공기를 빨아들여 연기 입자를 상시 감지하는 조기감지 설비입니다. 기류가 빠른 전산실에서 일반 감지기보다 훨씬 빨리 잡아내서 초기 대응 시간을 벌어줍니다.","조기 감지 · 상시 흡입 · 대응시간 확보"],
-["구축","커미셔닝(Cx)","설계 의도대로 실제로 만들어지고 작동하는지를 단계별로 검증하는 절차입니다. 설계검토부터 공장검사, 설치확인, 단독시험, 통합시험까지 문서로 남기고 운영에 넘깁니다.","설계 의도 검증 · 단계별 · 문서화"],
-["구축","FAT (공장검사)","장비를 현장에 들이기 전에 제작 공장에서 사양대로 만들어졌는지 시험하는 단계입니다. 여기서 걸러야 현장에서 재작업 비용과 공기 손실을 막을 수 있습니다.","공장 시험 · 반입 전 · 재작업 방지"],
-["구축","SAT (현장 단독시험)","현장에 설치한 뒤 장비 하나하나를 단독으로 돌려 성능과 인터록을 확인하는 단계입니다. 통합시험 전에 단독에서 문제를 다 털어내는 게 목적입니다.","설치 후 · 단독 성능 · 인터록"],
-["구축","IST (통합가동시험)","여러 설비를 묶어 실제 시나리오로 돌려보는 최종 시험입니다. 부하뱅크를 걸고 상용 정전을 모의해 발전기·UPS·냉방이 끊김 없이 이어지는지를 확인합니다.","통합 시나리오 · 부하뱅크 · 무중단 확인"],
-["구축","TAB","공조·배관 계통의 풍량과 유량을 시험하고 조정해 설계값에 맞추는 작업입니다. 성적서가 있어야 운영 단계에서 기준값을 갖고 판단할 수 있습니다.","시험 · 조정 · 성적서"],
-["운영","인수인계 · 운영전환","커미셔닝이 끝난 설비를 운영 조직이 받는 단계입니다. 준공도면, 시운전 성적서, 예비품, SOP·MOP·EOP, 교육 이수까지 확인하고 넘겨야 나중에 사고가 나지 않습니다.","성적서 · 절차서 · 교육 이수"],
-["운영","PUE","전체 소비전력을 IT 장비 소비전력으로 나눈 효율 지표입니다. 1에 가까울수록 좋고, 계절과 부하율에 따라 달라지기 때문에 연간 평균으로 보는 게 맞습니다.","전력효율 · 연간 평균 · 부하율 영향"],
-["운영","N+1 과 2N","N+1은 필요한 대수에 예비 한 대를 더 두는 구성이고, 2N은 계통 자체를 통째로 두 벌 두는 구성입니다. 비용과 정지 위험 사이에서 어디까지 갈지를 정하는 문제입니다.","예비 대수 · 계통 이중화 · 비용 균형"],
-["운영","핫아일 캡슐화","더운 배기 통로를 막아 찬 공기와 섞이지 않게 하는 구성입니다. 급기 온도를 올릴 수 있어 냉동기 운전시간이 줄고, 랙 사이 빈 자리는 블랭킹 패널로 반드시 막아야 효과가 납니다.","기류 분리 · 급기온도 상승 · 블랭킹"]
-];
 
 /* ══ 초기화 ══ */
 chips($("#selfChips"),  Object.keys(SELF),  k => { SELF_KEY = k;  rollSelf(); },  SELF_KEY);
