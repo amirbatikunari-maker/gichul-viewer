@@ -782,14 +782,19 @@ mark.st{
 [data-hl]{-webkit-user-select:text;user-select:text}
 
 .hlbar{
-  position:fixed;left:0;top:0;z-index:60;display:none;gap:2px;padding:4px;
+  position:fixed;left:0;top:0;z-index:9999;display:none;gap:2px;padding:4px;
   background:var(--card);border:1px solid var(--rule);border-radius:999px;
   box-shadow:0 8px 26px -10px rgba(16,35,61,.5);
+  /* 손가락으로 누를 때 이 안에서 글자가 다시 선택되거나 iOS 확대 메뉴가 뜨면
+     탭이 통째로 먹혀 버린다. 그래서 이 상자 안에서는 선택·콜아웃을 끈다. */
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+  touch-action:manipulation;
 }
 .hlbar.on{display:flex}
 .hlbar button{
-  display:flex;align-items:center;gap:7px;padding:9px 14px;border-radius:999px;
-  font:600 12.5px/1 var(--font-d);color:var(--ink);white-space:nowrap;
+  display:flex;align-items:center;gap:7px;padding:12px 16px;border-radius:999px;
+  font:600 13px/1 var(--font-d);color:var(--ink);white-space:nowrap;
+  min-height:44px;touch-action:manipulation;   /* 손가락 표준 타깃 크기 */
 }
 .hlbar button:active{background:var(--accent-soft)}
 .hlbar button[hidden]{display:none}
@@ -1820,7 +1825,8 @@ function hlApply(root){
 }
 
 /* ── 말풍선 ── */
-let HLSEL = null;
+let HLSEL = null, HLSHOWN = 0, HLTOUCH = false;
+addEventListener("pointerdown", e => { if(!e.target.closest?.(".hlbar")) HLTOUCH = e.pointerType !== "mouse"; }, true);
 function hlHide(){ $("#hlbar")?.classList.remove("on"); HLSEL = null; }
 function hlShow(rect, canDelete, canAdd = true){
   const bar = $("#hlbar"); if(!bar) return;
@@ -1831,9 +1837,14 @@ function hlShow(rect, canDelete, canAdd = true){
   const w = bar.offsetWidth, h = bar.offsetHeight;
   let x = rect.left + rect.width/2 - w/2;
   x = Math.max(10, Math.min(innerWidth - w - 10, x));
-  /* 기본은 선택 영역 아래 — 브라우저 기본 메뉴(복사·공유)는 보통 위에 뜨므로 겹치지 않게 */
-  let y = rect.bottom + 10;
-  if(y + h > innerHeight - 12) y = Math.max(10, rect.top - h - 10);
+  /* 기본은 선택 영역 아래 — 브라우저 기본 메뉴(복사·공유)는 보통 위에 뜨므로 겹치지 않게.
+     손가락으로 고르면 선택 끝에 동그란 손잡이가 붙는데, 그게 우리 단추를 덮어
+     아무리 눌러도 안 먹었다. 그래서 터치일 때는 더 아래로 내린다. */
+  const vh = (window.visualViewport?.height) || innerHeight;
+  let y = rect.bottom + (HLTOUCH ? 30 : 10);
+  if(y + h > vh - 12) y = Math.max(10, rect.top - h - (HLTOUCH ? 30 : 10));
+  if(y < 8) y = Math.min(vh - h - 8, rect.bottom + 30);
+  HLSHOWN = Date.now();
   bar.style.left = x + "px";
   bar.style.top  = y + "px";
 }
@@ -1883,33 +1894,36 @@ document.addEventListener("pointerdown", e=>{
   if(e.pointerType === "mouse") e.preventDefault();   // 데스크톱은 선택을 그대로 둔 채 누를 수 있다
 }, true);
 document.addEventListener("pointerup", ()=>{ setTimeout(()=>{ HLBUSY = false; }, 350); }, true);
-addEventListener("scroll", ()=>{ if(HLSEL && !HLBUSY) hlHide(); }, true);
+/* 스크롤로 닫을 때도 잠깐 기다린다.
+   폰에서는 글자를 고르는 동안에도 화면이 살짝 흔들려 scroll 이 뜨는데,
+   그때마다 말풍선이 사라져서 누를 틈이 없었다. */
+addEventListener("scroll", ()=>{ if(HLSEL && !HLBUSY && Date.now() - HLSHOWN > 700) hlHide(); }, true);
 addEventListener("resize", hlHide);
 
-$("#hlAdd")?.addEventListener("click", ()=>{
+/* 형광펜·취소선·지우기를 한 곳에서 처리한다.
+   예전에는 click 만 듣고 있었는데, 폰에서는 단추를 누르는 순간 글자 선택이 풀리면서
+   click 이 아예 오지 않는 경우가 많았다(브라우저마다 다르다).
+   그래서 pointerup 에서 먼저 처리하고, click 은 중복만 걸러 낸다. */
+let HLACT = 0;
+function hlDo(id){
   if(!HLSEL) return;
+  if(Date.now() - HLACT < 400) return;      /* pointerup 과 click 이 겹쳐 두 번 도는 것 방지 */
+  HLACT = Date.now();
   const {qid,key,s,e,block} = HLSEL;
-  hlSet(qid, key, hlMerge([...hlGet(qid,key), [s,e]]));
+  if(id === "hlAdd")         hlSet(qid, key, hlMerge([...hlGet(qid,key), [s,e]]));
+  else if(id === "hlStrike") hlSet(qid, key, hlMerge([...hlGet(qid,key), [s,e,"s"]]));
+  else if(id === "hlDel")    hlSet(qid, key, hlSubtract(hlGet(qid,key), s, e));
+  else return;
   hlPaint(block, hlGet(qid,key));
   getSelection()?.removeAllRanges();
   hlHide();
-});
-$("#hlStrike")?.addEventListener("click", ()=>{
-  if(!HLSEL) return;
-  const {qid,key,s,e,block} = HLSEL;
-  hlSet(qid, key, hlMerge([...hlGet(qid,key), [s,e,"s"]]));
-  hlPaint(block, hlGet(qid,key));
-  getSelection()?.removeAllRanges();
-  hlHide();
-});
-$("#hlDel")?.addEventListener("click", ()=>{
-  if(!HLSEL) return;
-  const {qid,key,s,e,block} = HLSEL;
-  hlSet(qid, key, hlSubtract(hlGet(qid,key), s, e));
-  hlPaint(block, hlGet(qid,key));
-  getSelection()?.removeAllRanges();
-  hlHide();
-});
+}
+["pointerup","click"].forEach(ev =>
+  $("#hlbar")?.addEventListener(ev, e => {
+    const b = e.target.closest("button"); if(!b) return;
+    e.preventDefault(); e.stopPropagation();
+    hlDo(b.id);
+  }));
 
 /* ═══════════════════════════════════════════════
    라우팅
@@ -1948,6 +1962,38 @@ $("#back").onclick = ()=>{
 /* ═══════════════════════════════════════════════
    1. 과목
    ═══════════════════════════════════════════════ */
+/* 과목 목록을 읽는다.
+   subject_list 는 «뷰» 라서, SQL 을 손대다 뷰가 깨지면 여기서 통째로 막힌다.
+   그럴 때 화면이 텅 비어 버리면 원인을 알 수 없으므로,
+   뷰가 안 되면 원본 표(subjects)로 한 번 더 시도하고 회차·문항 수는 직접 세어 붙인다. */
+async function loadSubjectRows(){
+  const v = await sb.from("subject_list").select("*").order("sort_order").order("name");
+  if(!v.error && v.data?.length) return { rows:v.data, error:null };
+  const firstErr = v.error?.message || null;
+
+  for(const t of ["subjects","subject"]){
+    const b = await sb.from(t).select("*");
+    if(b.error || !b.data) continue;
+    const rows = b.data.slice().sort((x,y) =>
+      (x.sort_order ?? 0) - (y.sort_order ?? 0) || String(x.name||"").localeCompare(String(y.name||"")));
+    const ex = await sb.from("exam_list").select("id,subject_id,question_count");
+    if(!ex.error && ex.data){
+      const cnt = {};
+      ex.data.forEach(e => {
+        const c = cnt[e.subject_id] || (cnt[e.subject_id] = { e:0, q:0 });
+        c.e++; c.q += (e.question_count || 0);
+      });
+      rows.forEach(r => {
+        r.exam_count     = r.exam_count     ?? (cnt[r.id]?.e || 0);
+        r.question_count = r.question_count ?? (cnt[r.id]?.q || 0);
+      });
+    }
+    rows.forEach(r => { r.exam_count = r.exam_count || 0; r.question_count = r.question_count || 0; });
+    if(rows.length) return { rows, error:null };
+  }
+  return { rows:[], error: firstErr };
+}
+
 async function viewSubjects(){
   show("v-subjects");
   $("#ttl").textContent = CFG.APP_TITLE || "기출 해설 노트";
@@ -1957,9 +2003,11 @@ async function viewSubjects(){
     "<code>config.js</code> 파일을 열어 Project URL 과 anon 키를 넣어주세요.");
 
   if(!S.subjects.length){
-    const {data,error} = await sb.from("subject_list").select("*").order("sort_order").order("name");
-    if(error) return fail($("#subjects"),"과목을 불러오지 못했습니다.",esc(error.message));
-    S.subjects = data||[];
+    const r = await loadSubjectRows();
+    if(r.error) return fail($("#subjects"), "과목을 불러오지 못했습니다.",
+      esc(r.error) + "<br><br>SQL Editor 에서 <code>select * from subject_list limit 1;</code> 을 돌려"
+      + " 오류 문구를 확인해 주세요.");
+    S.subjects = r.rows;
   }
   $("#sCount").textContent = S.subjects.length ? `${S.subjects.length}` : "";
   if(!S.subjects.length) return fail($("#subjects"),
@@ -1970,7 +2018,7 @@ async function viewSubjects(){
       <span class="bar"></span>
       <span class="tag">${esc(s.category||"기타")}</span>
       <span class="nm">${esc(s.name)}</span>
-      <span class="meta"><span>${s.exam_count}회차</span><span>${s.question_count}문항</span>
+      <span class="meta"><span>${s.exam_count ?? 0}회차</span><span>${s.question_count ?? 0}문항</span>
         <span class="delx" data-delsubj="${s.id}" style="margin-left:auto">과목 삭제</span></span>
     </button>`).join("");
   $$("#subjects .subj").forEach(b=>b.onclick=e=>{
@@ -2004,10 +2052,7 @@ function sessBadge(e){
 
 async function viewExams(subjectId){
   show("v-exams");
-  if(!S.subjects.length){
-    const {data} = await sb.from("subject_list").select("*").order("sort_order");
-    S.subjects = data||[];
-  }
+  if(!S.subjects.length) S.subjects = (await loadSubjectRows()).rows;
   S.subject = S.subjects.find(s=>s.id===subjectId);
   $("#ttl").textContent = S.subject?.name || "회차";
   $("#sub").textContent = S.subject?.category || "";
@@ -2178,4 +2223,2149 @@ async function buildExamInfo(subjectId, box){
     b.rows++;
     if(q.number != null) b.nums.push(+q.number);
     const p = partOf(q.subject_part);
-    if(p) b.parts.set(p.i
+    if(p) b.parts.set(p.i, p.name);
+  });
+  byExam.forEach(b => {
+    b.uniq  = new Set(b.nums).size;
+    b.maxNo = b.nums.length ? Math.max(...b.nums) : 0;
+    b.dup   = b.rows - b.uniq;
+  });
+
+  /* ── 과목 구성이 같은 연도끼리 묶는다. 갈라지는 지점이 곧 제도가 바뀐 해다 ── */
+  const sig = b => [...b.parts.keys()].sort((x,y) => x-y).map(i => `${i}:${b.parts.get(i)}`).join(" / ");
+  const chrono = [...byExam.values()].sort((a,b) => (a.year - b.year) || (a.session - b.session));
+  const eras = [];
+  chrono.forEach(b => {
+    const s = sig(b);
+    if(!s) return;                       /* 과목 정보가 없는 회차는 판단에서 뺀다 */
+    const last = eras[eras.length - 1];
+    if(last && last.sig === s){ last.to = b; last.ex.push(b); }
+    else eras.push({ sig:s, from:b, to:b, ex:[b], parts:b.parts });
+  });
+
+  const newest = eras[eras.length - 1] || null;
+  const eraCeil = e => Math.max(...e.ex.map(b => b.maxNo), 0);
+
+  const eraHTML = [...eras].reverse().map(e => {
+    const names = [...e.parts.keys()].sort((x,y) => x-y).map(i => esc(e.parts.get(i)));
+    const span = e.from.year === e.to.year ? `${e.from.year}년` : `${e.from.year} ~ ${e.to.year}년`;
+    return `<div class="era ${e === newest ? "now" : ""}">
+      <div class="lab">${span}${e === newest ? `<span class="flag">지금 형식</span>` : ""}</div>
+      <div class="txt"><b>${names.length}과목</b> · 번호는 <b>${eraCeil(e)}번</b>까지 확인됩니다<br>${names.join(" / ")}</div>
+    </div>`;
+  }).join("");
+
+  const changed = eras.length > 1
+    ? `<p><b>형식이 바뀐 해 — ${eras[eras.length-1].from.year}년.</b>
+        그 이전 회차는 과목 구성 자체가 달라서 지금 시험과 그대로 맞물리지 않습니다.
+        내용을 복습하는 데는 여전히 쓸모가 있지만, <b>과목별 비중과 문항 수는 다릅니다.</b>
+        범위를 지금 시험에 맞추고 싶다면 ${eras[eras.length-1].from.year}년 이후 회차만 보시면 됩니다.</p>`
+    : `<p>올려둔 회차 안에서는 과목 구성이 바뀐 적이 없습니다.</p>`;
+
+  /* ── 빠진 번호 · 겹친 번호 ── */
+  const ceilOf = b => {
+    const e = eras.find(x => x.ex.includes(b));
+    return Math.max(b.maxNo, e ? eraCeil(e) : 0);
+  };
+  const flawed = chrono.filter(b => b.rows).map(b => {
+    const miss = missingRanges(b.nums, ceilOf(b));
+    return { b, miss };
+  }).filter(x => x.miss.length || x.b.dup > 0).reverse();
+
+  const gapHTML = flawed.length
+    ? flawed.map(({b, miss}) => `<div class="gapline"><b>${esc(b.label)}</b> — ${b.uniq}/${ceilOf(b)}번
+        ${miss.length ? `· 빠짐 <span class="miss">${miss.join(", ")}</span>` : ""}
+        ${b.dup > 0 ? `· 겹침 <span class="miss">${b.dup}개</span>` : ""}</div>`).join("")
+    : `<p>빠지거나 겹친 번호가 없습니다.</p>`;
+
+  /* ── 출제경향 — 지금 형식 회차만 본다 ── */
+  let trendHTML = `<p>지금 형식의 회차가 아직 없습니다.</p>`;
+  if(newest){
+    const eraIds = new Set(newest.ex.map(b => b.id));
+    const cnt = new Map();
+    (qs || []).forEach(q => {
+      if(!eraIds.has(q.exam_id)) return;
+      const p = partOf(q.subject_part);
+      if(p) cnt.set(p.i, (cnt.get(p.i) || 0) + 1);
+    });
+    const tot = [...cnt.values()].reduce((a, b) => a + b, 0) || 1;
+    const bars = [...cnt.keys()].sort((x,y) => x-y).map(i => {
+      const v = cnt.get(i), pc = v / tot * 100;
+      return `<div class="barrow">
+        <span class="nm">${esc(newest.parts.get(i) || i + "과목")}</span>
+        <span class="tr"><span class="fl" style="width:${pc.toFixed(1)}%"></span></span>
+        <span class="vv">${v}문항</span>
+      </div>`;
+    }).join("");
+
+    /* 주제 묶음은 섞어보기가 이미 만들어 둔 것을 그대로 쓴다 — 같은 기준이어야 헷갈리지 않는다 */
+    const ix = S._mix?.[subjectId];
+    let chips = `<p>주제를 세려면 목록을 한 번 더 불러와야 합니다. 회차 목록으로 나갔다 들어와 주세요.</p>`;
+    if(ix?.rows?.length){
+      const g = new Map();
+      ix.rows.forEach(r => {
+        if(!eraIds.has(r.exam_id) || !r._key) return;
+        const o = g.get(r._gid) || g.set(r._gid, { key:r._key, ex:new Set(), n:0 }).get(r._gid);
+        o.ex.add(r.exam_id); o.n++;
+      });
+      const top = [...g.values()].filter(o => o.ex.size >= 2)
+        .sort((a, b) => b.ex.size - a.ex.size || b.n - a.n).slice(0, 14);
+      chips = top.length
+        ? `<div class="topics">${top.map(o =>
+            `<span class="topic">${esc(o.key)}<i>${o.ex.size}회차 · ${o.n}문항</i></span>`).join("")}</div>
+           <p style="margin-top:9px">여러 회차에 되풀이해 나온 주제를 <b>회차 수</b> 순으로 세웠습니다.
+             주제어는 그 묶음에서 가장 특징적인 낱말이라 어색해 보일 수 있는데, 묶음 자체는 문항끼리 실제로
+             겹치는 낱말로 만들어집니다. 섞어보기의 금·은·동과 같은 기준입니다.</p>`
+        : `<p>아직 되풀이해 나온 주제를 잡을 만큼 회차가 모이지 않았습니다.</p>`;
+    }
+    trendHTML = bars + `<div style="height:12px"></div>` + chips;
+  }
+
+  box.innerHTML = `
+    <section>
+      <h4>시험 형식</h4>
+      ${eraHTML || `<p>과목 정보가 있는 회차가 없습니다.</p>`}
+      ${changed}
+    </section>
+    <section>
+      <h4>회차 점검</h4>
+      ${gapHTML}
+      <p style="margin-top:9px">빠진 번호는 아직 안 올라온 문항입니다. 자동 변환에서 그 쪽수만 다시 돌리면 채워집니다.
+        겹침은 같은 번호가 두 번 들어간 것이라, 정리 모드에서 지워 주셔야 합니다.</p>
+    </section>
+    <section>
+      <h4>출제경향 · 지금 형식 기준</h4>
+      ${trendHTML}
+    </section>`;
+}
+
+/* ═══════════════════════════════════════════════
+   핵심개념 자료
+   주기율표·위험물 총정리처럼 회차와 상관없이 늘 옆에 두고 보는 자료다.
+   문항에 붙는 그림과 달리 과목에 붙고, 여러 장이 쌓이므로 하나씩 접어 둔다.
+   파일은 이미 쓰고 있는 qfig 보관함의 notes/ 아래에 넣어 정책을 새로 만들지 않는다.
+   ═══════════════════════════════════════════════ */
+/* 자료는 로그인 없이도 보게 두되, 손대려 하면 그 자리에서 로그인 창을 띄운다.
+   단추를 아예 감추면 "왜 안 되지" 하고 헤매게 되고, 무턱대고 눌러도 서버(RLS)가 막으므로
+   이유를 바로 알려 주는 편이 낫다. */
+function needLogin(){
+  if(S.loggedIn) return true;
+  /* 바깥을 누르면 로그인 창을 닫는 처리가 문서 전체에 걸려 있어서, 지금 이 클릭이
+     끝나기 전에 열면 열자마자 다시 닫힌다. 한 박자 뒤로 미룬다. */
+  setTimeout(() => $("#inkPop")?.classList.add("on"), 0);
+  toast("로그인해야 자료를 넣거나 고칠 수 있습니다.");
+  return false;
+}
+
+const NOTE_MAX_W = 1800;     /* 표가 촘촘한 자료라 문항 그림(1000)보다 크게 남긴다 */
+
+async function countNotes(subjectId){
+  try{
+    const { count, error } = await sb.from("subject_notes")
+      .select("id", { count:"exact", head:true }).eq("subject_id", subjectId);
+    return error ? null : (count ?? 0);
+  }catch(e){ return null; }
+}
+
+/* ═══════════════════════════════════════════════
+   찍어 온 자료를 다시 짜기
+   노트를 비스듬히 찍은 사진은 그대로 두면 읽기가 괴롭다.
+   AI 에게 사진을 보내 표는 표로, 목록은 목록으로 옮겨 적게 하고
+   그 결과를 원본 사진과 함께 보관한다. 사진은 절대 지우지 않는다 —
+   옮겨 적다 틀릴 수 있으므로 언제든 원본과 대조할 수 있어야 한다.
+   ═══════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════
+   사진을 스캔본처럼 펴기
+
+   폰으로 찍은 종이는 그늘이 한쪽에 지고 전체가 누렇다.
+   글자를 옮겨 적는 게 아니라 밝기만 손보므로 숫자가 틀릴 위험이 없다.
+
+   방법: 사진을 크게 흐린 것이 곧 "조명 지도"다.
+        원본을 그 조명 지도로 나누면 그늘이 통째로 사라지고 종이가 하얘진다.
+        (스캐너 앱들이 쓰는 것과 같은 원리다. 원근 왜곡은 못 편다 — 그건 따로 찍어야 한다)
+   ═══════════════════════════════════════════════ */
+
+/* 넓은 범위 평균을 빠르게 구하려고 누적합 표를 쓴다. 픽셀 수와 상관없이 한 번만 훑는다. */
+function boxBlurGray(gray, w, h, r){
+  const sum = new Float64Array((w+1) * (h+1));
+  for(let y = 0; y < h; y++){
+    let rowSum = 0;
+    for(let x = 0; x < w; x++){
+      rowSum += gray[y*w + x];
+      sum[(y+1)*(w+1) + (x+1)] = sum[y*(w+1) + (x+1)] + rowSum;
+    }
+  }
+  const out = new Float32Array(w*h);
+  for(let y = 0; y < h; y++){
+    const y0 = Math.max(0, y-r), y1 = Math.min(h-1, y+r);
+    for(let x = 0; x < w; x++){
+      const x0 = Math.max(0, x-r), x1 = Math.min(w-1, x+r);
+      const area = (x1-x0+1) * (y1-y0+1);
+      const s = sum[(y1+1)*(w+1) + (x1+1)] - sum[y0*(w+1) + (x1+1)]
+              - sum[(y1+1)*(w+1) + x0]     + sum[y0*(w+1) + x0];
+      out[y*w + x] = s / area;
+    }
+  }
+  return out;
+}
+
+/* opts: { rotate: 도, strength: 0~100, mono: true/false } */
+async function flattenPhoto(blob, opts){
+  const { rotate = 0, strength = 55, mono = false } = opts || {};
+  const bmp = await createImageBitmap(blob);
+  const MAXW = 1800;
+  const scale = Math.min(1, MAXW / Math.max(bmp.width, bmp.height));
+  const bw = Math.round(bmp.width * scale), bh = Math.round(bmp.height * scale);
+
+  const rad = rotate * Math.PI / 180;
+  const cos = Math.abs(Math.cos(rad)), sin = Math.abs(Math.sin(rad));
+  const cw = Math.round(bw*cos + bh*sin), ch = Math.round(bw*sin + bh*cos);
+
+  const cv = document.createElement("canvas");
+  cv.width = cw; cv.height = ch;
+  const ctx = cv.getContext("2d", { willReadFrequently: true });
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cw, ch);
+  ctx.translate(cw/2, ch/2); ctx.rotate(rad);
+  ctx.drawImage(bmp, -bw/2, -bh/2, bw, bh);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  bmp.close?.();
+
+  const img = ctx.getImageData(0, 0, cw, ch), d = img.data;
+  const n = cw * ch;
+  const gray = new Float32Array(n);
+  for(let i = 0; i < n; i++){
+    const j = i*4;
+    gray[i] = 0.299*d[j] + 0.587*d[j+1] + 0.114*d[j+2];
+  }
+
+  /* 조명 지도 — 글자보다 훨씬 넓게 흐려야 글자가 배경에 섞이지 않는다 */
+  const r = Math.max(12, Math.round(Math.max(cw, ch) / 22));
+  const bg = boxBlurGray(gray, cw, ch, r);
+
+  /* 원본을 조명 지도로 나누면 종이는 1.0 근처, 글자는 그보다 작다.
+     그 구간을 0~255 로 곧게 펴 준다.
+     ★ 예전 방식(밝으면 무조건 흰색)은 흐린 글자까지 지워 대비가 오히려 반토막 났다.
+       실제 사진으로 재보니 대비 130 → 47 로 떨어졌다. 지금 방식은 130 → 246 으로 오른다. */
+  const span = 0.18 + (strength / 100) * 0.32;
+  const lo = 1.0 - span;
+  for(let i = 0; i < n; i++){
+    const norm = gray[i] / Math.max(bg[i], 1);
+    let v = (norm - lo) / (1.0 - lo) * 255;
+    v = v < 0 ? 0 : v > 255 ? 255 : v;
+    if(mono) v = v > 128 ? 255 : 0;
+    const j = i*4;
+    d[j] = d[j+1] = d[j+2] = v;
+    d[j+3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return await new Promise(res => cv.toBlob(res, "image/jpeg", 0.9));
+}
+
+/* ── 다듬기 창 ── */
+let FLAT = null;      // { id, subjectId, box, blob, rotate, strength, mono }
+
+async function noteFlatOpen(id, subjectId, box){
+  if(!needLogin()) return;
+  const row = box.querySelector(`[data-note="${id}"]`);
+  const url = row?.dataset.url;
+  if(!url) return toast("사진 주소를 찾지 못했습니다.");
+  toast("사진을 여는 중…");
+  try{
+    const blob = await fetch(url).then(r => r.blob());
+    FLAT = { id, subjectId, box, blob, rotate:0, strength:55, mono:false };
+    const ov = document.createElement("div");
+    ov.className = "flatov on"; ov.id = "flatOv";
+    ov.innerHTML = `<div class="flatbox">
+      <div class="flathead">사진 다듬기 <button class="figbtn" data-flatclose type="button">닫기</button></div>
+      <div class="flatimg"><img id="flatPrev" alt="미리보기"></div>
+      <div class="flatctl">
+        <div class="fr"><span>돌리기</span>
+          <button class="figbtn" data-rot="-90">↺ 90°</button>
+          <button class="figbtn" data-rot="90">↻ 90°</button>
+          <input type="range" id="flatRot" min="-8" max="8" step="0.5" value="0">
+          <b id="flatRotV">0°</b>
+        </div>
+        <div class="fr"><span>또렷하게</span>
+          <input type="range" id="flatStr" min="10" max="90" step="5" value="55">
+          <b id="flatStrV">55</b>
+        </div>
+        <label class="fr chk"><input type="checkbox" id="flatMono"> 흑백 두 값으로만 (글자가 더 진해집니다)</label>
+        <div class="fr end">
+          <button class="figbtn" data-flatclose type="button">취소</button>
+          <button class="figbtn save" data-flatsave type="button">이걸로 저장</button>
+        </div>
+        <div class="fhint">원본 사진은 그대로 남습니다. 언제든 되돌릴 수 있습니다.
+          기울어진 건 조금 펼 수 있지만, 비스듬히 찍힌 원근은 못 폅니다.</div>
+      </div>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.querySelectorAll("[data-flatclose]").forEach(b => b.onclick = noteFlatClose);
+    ov.querySelector("[data-flatsave]").onclick = noteFlatSave;
+    ov.querySelectorAll("[data-rot]").forEach(b => b.onclick = () => {
+      FLAT.rotate = ((FLAT.rotate + +b.dataset.rot) % 360 + 360) % 360;
+      flatPreview();
+    });
+    const rot = ov.querySelector("#flatRot"), str = ov.querySelector("#flatStr"), mono = ov.querySelector("#flatMono");
+    const fine = () => { FLAT.fine = +rot.value; ov.querySelector("#flatRotV").textContent = rot.value + "°"; flatPreview(); };
+    rot.oninput = fine;
+    str.oninput = () => { FLAT.strength = +str.value; ov.querySelector("#flatStrV").textContent = str.value; flatPreview(); };
+    mono.onchange = () => { FLAT.mono = mono.checked; flatPreview(); };
+    flatPreview();
+  }catch(e){ toast("사진을 열지 못했습니다 — " + e.message); }
+}
+
+let FLAT_BUSY = false, FLAT_AGAIN = false;
+async function flatPreview(){
+  if(!FLAT) return;
+  if(FLAT_BUSY){ FLAT_AGAIN = true; return; }      /* 슬라이더를 끌면 요청이 쌓인다 — 한 번에 하나만 */
+  FLAT_BUSY = true;
+  try{
+    const out = await flattenPhoto(FLAT.blob, {
+      rotate: FLAT.rotate + (FLAT.fine || 0), strength: FLAT.strength, mono: FLAT.mono
+    });
+    FLAT.out = out;
+    const img = document.getElementById("flatPrev");
+    if(img){ if(img.src.startsWith("blob:")) URL.revokeObjectURL(img.src); img.src = URL.createObjectURL(out); }
+  }catch(e){ toast("미리보기를 만들지 못했습니다 — " + e.message); }
+  FLAT_BUSY = false;
+  if(FLAT_AGAIN){ FLAT_AGAIN = false; flatPreview(); }
+}
+
+function noteFlatClose(){
+  const img = document.getElementById("flatPrev");
+  if(img?.src.startsWith("blob:")) URL.revokeObjectURL(img.src);
+  document.getElementById("flatOv")?.remove();
+  FLAT = null;
+}
+
+async function noteFlatSave(){
+  if(!FLAT?.out) return;
+  const { id, subjectId, box, out } = FLAT;
+  toast("저장하는 중…");
+  try{
+    const path = `notes/flat/${id}_${Date.now()}.jpg`;
+    const up = await sb.storage.from("qfig").upload(path, out, { contentType:"image/jpeg", upsert:true });
+    if(up.error) throw up.error;
+    const flat_url = sb.storage.from("qfig").getPublicUrl(path).data.publicUrl;
+    const r = await sb.from("subject_notes").update({ flat_url }).eq("id", id);
+    if(r.error) throw new Error(/flat_url|schema cache/i.test(r.error.message)
+      ? "flat_url 칸이 아직 없습니다 — supabase-자료정리.sql 을 다시 돌려 주세요."
+      : r.error.message);
+    noteFlatClose();
+    toast("다듬은 사진으로 바꿨습니다.");
+    drawNotes(subjectId, box);
+  }catch(e){ toast("저장하지 못했습니다 — " + (e.message || e)); }
+}
+
+async function noteFlatDel(id, subjectId, box){
+  if(!needLogin()) return;
+  if(!confirm("다듬은 사진을 지우고 원본으로 되돌립니다.")) return;
+  const r = await sb.from("subject_notes").update({ flat_url: null }).eq("id", id);
+  if(r.error) return toast("되돌리지 못했습니다 — " + r.error.message);
+  toast("원본으로 되돌렸습니다.");
+  drawNotes(subjectId, box);
+}
+
+function cleanPrompt(){
+  return `너는 인쇄된 학습 자료 사진을 보고, 화면에서 읽기 좋게 다시 옮겨 적는 사람이다.
+
+[할 일]
+- 사진에 보이는 내용을 마크다운으로 옮겨라. 새로 만들어 내지 말고, 보이는 것만 옮긴다.
+- 표는 반드시 마크다운 파이프 표로 옮겨라.
+  | 머리1 | 머리2 |
+  |---|---|
+  | 값 | 값 |
+- 제목은 **굵게** 로, 항목 나열은 - 로 옮겨라.
+
+[글자 규칙 — 이걸 어기면 화면에서 글자가 깨진다]
+- LaTeX 를 절대 쓰지 마라. \$ 기호로 감싸지 마라. \\frac, \\times, ^, _ 도 쓰지 마라.
+- 화학식 아래첨자는 유니코드 문자를 그대로 써라: H₂O, CS₂, NaClO₂, C₆H₅CH₃, K₂Cr₂O₇
+  (₀₁₂₃₄₅₆₇₈₉ 를 쓴다. H_2O 나 \$H_2O\$ 는 금지)
+- 윗첨자가 필요하면 ⁺ ⁻ ⁰¹²³⁴⁵⁶⁷⁸⁹ 를 그대로 써라. 곱셈은 × 를 쓴다.
+- HTML 태그를 쓰지 마라. <br> 은 특히 금지다.
+  한 칸 안에서 줄을 나누고 싶으면 <br> 대신 슬래시로 이어 써라: H / 수소
+- 표 한 칸이 길어지면 쉼표로 이어 쓰고, 칸을 쪼개지 마라.
+
+[지켜야 할 것]
+- 숫자를 절대 고치거나 반올림하지 마라. 흐려서 확신이 없는 칸은 값 대신 ? 를 적고,
+  맨 아래에 "※ 흐려서 못 읽은 곳: (어디)" 로 남겨라. 지어내는 것이 가장 나쁘다.
+- 사진에 없는 설명·해설·요약을 덧붙이지 마라. 옮겨 적기만 한다.
+- 표가 아니라 그림(회로도·선도·장치도)이면 옮기지 말고
+  "※ 이 자료는 그림이라 옮겨 적지 않았습니다. 원본 사진을 보세요." 한 줄만 써라.
+- 마크다운 본문만 출력한다. \`\`\` 로 감싸지 마라.`;
+}
+
+/* ── 받은 글을 화면용으로 다듬는다 ──
+   프롬프트로 아무리 막아도 모델은 \$CS_2\$ 나 <br> 을 섞어 보낸다.
+   그래서 받는 쪽에서도 한 번 더 걸러 낸다. 프롬프트는 부탁이고, 이건 강제다. */
+const SUB = { "0":"₀","1":"₁","2":"₂","3":"₃","4":"₄","5":"₅","6":"₆","7":"₇","8":"₈","9":"₉",
+              "+":"₊","-":"₋","x":"ₓ","n":"ₙ" };
+const SUP = { "0":"⁰","1":"¹","2":"²","3":"³","4":"⁴","5":"⁵","6":"⁶","7":"⁷","8":"⁸","9":"⁹",
+              "+":"⁺","-":"⁻" };
+const toMark = (str, map) => [...String(str)].map(c => map[c] || c).join("");
+
+function cleanFix(txt){
+  let t = String(txt || "").trim();
+  t = t.replace(/^```(markdown|md)?\s*/i, "").replace(/```\s*$/, "");
+
+  /* $ … $ 로 감싼 수식은 겉껍질만 벗긴다 — 어차피 안쪽은 화학식인 경우가 대부분이다 */
+  t = t.replace(/\$\$?([^$\n]+?)\$\$?/g, "$1");
+
+  /* _{12} · _2 → 아래첨자,  ^{2} · ^2 → 윗첨자 */
+  t = t.replace(/_\{([^}]{1,6})\}/g, (_, g) => toMark(g, SUB))
+       .replace(/_([0-9+\-xn])/g,    (_, g) => toMark(g, SUB))
+       .replace(/\^\{([^}]{1,6})\}/g, (_, g) => toMark(g, SUP))
+       .replace(/\^([0-9+\-])/g,      (_, g) => toMark(g, SUP));
+
+  /* 남은 LaTeX 명령과 HTML 태그를 걷어낸다 */
+  t = t.replace(/\\times/g, "×").replace(/\\cdot/g, "·")
+       .replace(/\\left|\\right|\\mathrm|\\text/g, "")
+       .replace(/<br\s*\/?>/gi, " / ")
+       .replace(/<\/?[a-z][^>]*>/gi, "");
+
+  /* 표 칸 안에 남은 파이프는 표를 깨뜨리므로 슬래시로 바꾼다 */
+  t = t.split("\n").map(line => line.trim()).join("\n");
+  return t.trim();
+}
+
+async function noteClean(id, subjectId, box){
+  if(!needLogin()) return;
+  const row = box.querySelector(`[data-note="${id}"]`);
+  const slot = row?.querySelector("[data-cleanslot]");
+  if(slot) slot.innerHTML = `<div class="wait">사진을 읽어 다시 옮겨 적는 중… 20~40초쯤 걸립니다.</div>`;
+  try{
+    const url = row?.dataset.url;
+    if(!url) throw new Error("사진 주소를 찾지 못했습니다");
+    const blob = await fetch(url).then(r => r.blob());
+    if(blob.size > 5 * 1024 * 1024) throw new Error("사진이 너무 큽니다(5MB 초과)");
+    let txt = cleanFix(await askAIWithImage(cleanPrompt(), blob));
+    if(!txt) throw new Error("빈 응답이 왔습니다");
+    const r = await sb.from("subject_notes").update({ clean_md: txt }).eq("id", id);
+    if(r.error) throw new Error(/clean_md|schema cache/i.test(r.error.message)
+      ? "clean_md 칸이 아직 없습니다 — supabase-자료정리.sql 을 돌려 주세요."
+      : r.error.message);
+    toast("정리했습니다.");
+    drawNotes(subjectId, box);
+  }catch(e){
+    if(slot) slot.innerHTML = `<div class="wait">정리하지 못했습니다 — ${esc(e.message || String(e))}</div>`;
+    else toast("정리하지 못했습니다 — " + (e.message || e));
+  }
+}
+
+async function noteCleanDel(id, subjectId, box){
+  if(!needLogin()) return;
+  if(!confirm("정리본만 지웁니다. 원본 사진은 그대로 남습니다.")) return;
+  const r = await sb.from("subject_notes").update({ clean_md: null }).eq("id", id);
+  if(r.error) return toast("지우지 못했습니다 — " + r.error.message);
+  drawNotes(subjectId, box);
+}
+
+/* ── 자료 확대·이동 ────────────────────────────────────────
+   두 손가락으로 넓히고 좁히고, 넓힌 뒤에는 끌어서 아무 방향으로나 옮긴다.
+   손가락이 하나뿐이면(마우스) 확대했을 때만 끌기로 잡는다 — 안 그러면
+   보통 스크롤이 안 먹는다. 두 번 두드리면 처음으로 돌아온다. */
+function attachNoteZoom(wrap){
+  const stage = wrap.querySelector(".nz-stage");
+  if(!stage || wrap.dataset.zon === "1") return;
+  wrap.dataset.zon = "1";
+
+  let k = 1, tx = 0, ty = 0;
+  const pts = new Map();
+  let start = null, lastTap = 0;
+
+  const apply = () => {
+    const zoomed = k > 1.01;
+    if(!zoomed){ tx = 0; ty = 0; }
+    else {
+      /* 빈 곳이 보이지 않게 이동 범위를 눌러 준다 */
+      const w = wrap.clientWidth, h = wrap.clientHeight;
+      tx = Math.min(0, Math.max(w - stage.offsetWidth * k, tx));
+      ty = Math.min(0, Math.max(h - stage.offsetHeight * k, ty));
+    }
+    stage.style.transform = `translate(${tx}px,${ty}px) scale(${k})`;
+    wrap.classList.toggle("zoomed", zoomed);
+    wrap.style.height = zoomed ? wrap.clientHeight + "px" : "";
+    const lv = wrap.parentElement.querySelector(".lv");
+    if(lv) lv.textContent = Math.round(k * 100) + "%";
+  };
+
+  const zoomTo = (nk, cx, cy) => {
+    const b = wrap.getBoundingClientRect();
+    const px = (cx ?? b.width / 2) - b.left, py = (cy ?? b.height / 2) - b.top;
+    const old = k;
+    k = Math.min(6, Math.max(1, nk));
+    tx = px - (px - tx) * (k / old);
+    ty = py - (py - ty) * (k / old);
+    apply();
+  };
+
+  wrap.addEventListener("pointerdown", e => {
+    pts.set(e.pointerId, { x:e.clientX, y:e.clientY });
+    if(pts.size === 1){
+      const now = Date.now();
+      if(now - lastTap < 300){ k = k > 1.01 ? 1 : 2.4; zoomTo(k, e.clientX, e.clientY); lastTap = 0; return; }
+      lastTap = now;
+      if(k > 1.01){ start = { x:e.clientX, y:e.clientY, tx, ty }; wrap.setPointerCapture(e.pointerId); }
+    } else if(pts.size === 2){
+      const [a, b] = [...pts.values()];
+      start = { d: Math.hypot(a.x-b.x, a.y-b.y), k, cx:(a.x+b.x)/2, cy:(a.y+b.y)/2 };
+    }
+  });
+
+  wrap.addEventListener("pointermove", e => {
+    if(!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x:e.clientX, y:e.clientY });
+    if(pts.size === 2 && start?.d){
+      const [a, b] = [...pts.values()];
+      const d = Math.hypot(a.x-b.x, a.y-b.y);
+      zoomTo(start.k * (d / start.d), start.cx, start.cy);
+      e.preventDefault();
+    } else if(pts.size === 1 && start && k > 1.01){
+      tx = start.tx + (e.clientX - start.x);
+      ty = start.ty + (e.clientY - start.y);
+      apply();
+      e.preventDefault();
+    }
+  });
+
+  const up = e => { pts.delete(e.pointerId); if(pts.size < 2) start = null; };
+  ["pointerup","pointercancel","pointerleave"].forEach(t => wrap.addEventListener(t, up));
+
+  wrap.addEventListener("wheel", e => {
+    if(!e.ctrlKey && !e.metaKey) return;      /* 보통 스크롤은 그대로 둔다 */
+    e.preventDefault();
+    zoomTo(k * (e.deltaY < 0 ? 1.12 : 0.89), e.clientX, e.clientY);
+  }, { passive:false });
+
+  /* 단추 줄 — 손가락을 못 쓰는 환경과, 두 손가락이 어색한 분들을 위해 */
+  const tools = document.createElement("div");
+  tools.className = "nz-tools";
+  tools.innerHTML = `<button class="zb" type="button" data-z="-">−</button>
+    <span class="lv">100%</span>
+    <button class="zb" type="button" data-z="+">+</button>
+    <button class="zb" type="button" data-z="0">처음으로</button>
+    <span class="sep"></span>
+    <button class="zb" type="button" data-z="s-">가 작게</button>
+    <button class="zb" type="button" data-z="s+">가 크게</button>`;
+  wrap.after(tools);
+  tools.addEventListener("click", e => {
+    const t = e.target.closest("[data-z]"); if(!t) return;
+    const cmd = t.dataset.z;
+    if(cmd === "+") zoomTo(k * 1.35);
+    else if(cmd === "-") zoomTo(k / 1.35);
+    else if(cmd === "0") zoomTo(1);
+    else {
+      const cl = wrap.querySelector(".clean") || wrap.querySelector("img");
+      if(!cl) return;
+      const cur = parseFloat(getComputedStyle(cl).fontSize) || 14;
+      cl.style.fontSize = Math.min(26, Math.max(10, cur + (cmd === "s+" ? 1.5 : -1.5))) + "px";
+    }
+  });
+  if(!wrap.querySelector(".clean")) tools.querySelectorAll('[data-z^="s"]').forEach(b => b.remove());
+  apply();
+}
+
+/* ── 옮긴 글 고치기 ──
+   AI 가 옮긴 글에는 잘못 읽은 글자가 섞인다. 다시 옮기면 돈이 들고 결과가 또 달라지므로,
+   틀린 곳만 손으로 고치는 길을 둔다. 표는 마크다운 문법 그대로 보여 준다. */
+function editClean(id, subjectId, box, cur){
+  const slot = box.querySelector(`[data-note="${id}"] [data-cleanslot]`);
+  if(!slot || slot.querySelector("textarea")) return;
+  const keep = slot.innerHTML;
+  slot.innerHTML = `<textarea class="qtextedit" spellcheck="false"
+      style="width:100%;min-height:260px;resize:vertical;display:block;font:400 12.5px/1.7 var(--font-m);
+             color:var(--ink);background:var(--paper);border:1.4px solid var(--accent);
+             border-radius:10px;padding:11px 12px;outline:0"></textarea>
+    <div class="nbar">
+      <button class="figbtn save" data-cok type="button">저장</button>
+      <button class="figbtn" data-cno type="button">취소</button>
+      <span class="fighint">표는 마크다운 그대로입니다. <b>Ctrl+Enter</b> 저장, <b>Esc</b> 취소</span>
+    </div>`;
+  const ta = slot.querySelector("textarea");
+  ta.value = cur || "";
+  ta.focus();
+
+  const cancel = () => { slot.innerHTML = keep; slot.querySelectorAll("[data-nz]").forEach(attachNoteZoom); };
+  const save = async () => {
+    const val = ta.value;
+    const btn = slot.querySelector("[data-cok]");
+    btn.disabled = true; btn.textContent = "저장 중…";
+    const r = await sb.from("subject_notes").update({ clean_md: val }).eq("id", id);
+    if(r.error){ btn.disabled = false; btn.textContent = "저장"; return toast("저장하지 못했습니다 — " + r.error.message); }
+    toast("글을 고쳤습니다.");
+    drawNotes(subjectId, box);
+  };
+  slot.querySelector("[data-cno]").addEventListener("click", cancel);
+  slot.querySelector("[data-cok]").addEventListener("click", save);
+  ta.addEventListener("keydown", e => {
+    if(e.key === "Escape"){ e.preventDefault(); cancel(); }
+    else if(e.key === "Enter" && (e.ctrlKey || e.metaKey)){ e.preventDefault(); save(); }
+  });
+}
+
+async function drawNotes(subjectId, box){
+  box.innerHTML = `<p>자료를 불러오는 중…</p>`;
+  const { data, error } = await sb.from("subject_notes").select("*")
+    .eq("subject_id", subjectId).order("sort_order").order("id");
+
+  if(error){
+    const missing = /subject_notes|schema cache/i.test(error.message || "");
+    return void (box.innerHTML = `<p>${missing
+      ? "자료 표가 아직 없습니다 — <b>supabase-핵심개념.sql</b> 을 SQL Editor 에서 한 번 돌려 주세요."
+      : "자료를 불러오지 못했습니다 — " + esc(error.message)}</p>`);
+  }
+
+  const rows = data || [];
+  const el = $("#noteN"); if(el) el.textContent = rows.length ? ` · ${rows.length}개` : "";
+
+  const adder = `<div class="noteadd">
+      <button class="figbtn" data-noteimg type="button">+ 사진 넣기</button>
+      <button class="figbtn" data-notepdf type="button">+ PDF 넣기</button>
+      <div class="pastebox" data-notepaste tabindex="0" role="button">여기를 누르고 <b>Ctrl+V</b> · 끌어다 놓아도 됩니다</div>
+    </div>`;
+
+  const list = rows.length ? rows.map((r, i) => `
+    <details class="note" data-note="${r.id}" data-url="${esc(r.url)}">
+      <summary>
+        <span class="ni">${i + 1}</span>
+        <span class="nt">${r.pinned ? "★ " : ""}${esc(r.title || "이름 없는 자료")}</span>
+        ${r.flat_url ? `<span class="nk ok">다듬음</span>` : ""}${r.clean_md ? `<span class="nk">글</span>` : ""}
+        <span class="nk">${r.kind === "pdf" ? "PDF" : (r.url || r.flat_url) ? "사진" : "글만"}</span>
+        <span class="nx" data-notedel="${r.id}" role="button" title="이 자료 삭제">×</span>
+      </summary>
+      <div class="nb">
+        <div data-cleanslot>${r.clean_md ? `<div class="nz" data-nz><div class="nz-stage"><div class="clean">${md(cleanFix(r.clean_md)).replace(/<p>(※[^<]*)<\/p>/g, '<div class="warnline">$1</div>')}</div></div></div>` : ""}</div>
+
+        ${!r.url && !r.flat_url
+          ? ""                                  /* 사진을 지운 자료 — 옮겨 적은 글만 남는다 */
+          : r.kind === "pdf"
+          ? `<iframe src="${esc(r.url)}" title="${esc(r.title || "자료")}" loading="lazy"></iframe>`
+          : `<div class="nz" data-nz><div class="nz-stage"><img src="${esc(r.flat_url || r.url)}" alt="${esc(r.title || "자료")}" loading="lazy" decoding="async"></div></div>
+             ${r.flat_url && r.url ? `<details class="rawwrap"><summary>원본 사진 보기</summary>
+                 <img src="${esc(r.url)}" alt="원본" loading="lazy" decoding="async"></details>` : ""}`}
+
+        <div class="nbar">
+          ${(r.kind !== "pdf" && (r.url || r.flat_url)) ? `<button class="figbtn save" data-noteflat="${r.id}" type="button">${r.flat_url ? "다시 다듬기" : "✦ 사진 다듬기"}</button>` : ""}
+          ${r.flat_url ? `<button class="figbtn" data-noteflatdel="${r.id}" type="button">원본으로</button>` : ""}
+          ${r.url && r.clean_md ? `<button class="figbtn del" data-notephotodel="${r.id}" type="button">사진만 지우기</button>` : ""}
+          ${(r.kind !== "pdf" && (r.url || r.flat_url))
+            ? `<button class="figbtn" data-noteclean="${r.id}" type="button">${r.clean_md ? "글 다시 옮기기" : "글로 옮기기"}</button>` : ""}
+          ${r.clean_md ? `<button class="figbtn" data-notecleanedit="${r.id}" type="button">글 고치기</button>` : ""}
+          ${r.clean_md ? `<button class="figbtn" data-notecleandel="${r.id}" type="button">옮긴 글 지우기</button>` : ""}
+          ${(r.url || r.flat_url) ? `<a class="figbtn" href="${esc(r.flat_url || r.url)}" target="_blank" rel="noopener">새 창에서 크게</a>` : ""}
+          <button class="figbtn ${r.pinned ? "save" : ""}" data-notepin="${r.id}" type="button">${r.pinned ? "★ 즐겨찾기 해제" : "☆ 즐겨찾기"}</button>
+          <button class="figbtn" data-noteren="${r.id}" type="button">이름 고치기</button>
+          <button class="figbtn del" data-notedel="${r.id}" type="button">삭제</button>
+        </div>
+      </div>
+    </details>`).join("")
+    : `<p>아직 자료가 없습니다. 위에서 사진이나 PDF를 넣어 주세요.</p>`;
+
+  box.innerHTML = adder + list
+    + `<p style="margin-top:10px">회차와 상관없이 이 과목에 늘 붙어 있는 자료입니다.
+        사진이든 옮긴 글이든 <b>두 손가락으로 넓혀서 끌어</b> 볼 수 있고,
+        두 번 두드리면 처음으로 돌아옵니다. 마우스는 아래 <b>+ / −</b> 단추나 Ctrl+휠을 쓰세요.<br>
+        <b>☆ 즐겨찾기</b>로 표시해 두면 문제를 푸는 중에 문항 번호 줄의 <b>책갈피 단추</b>나
+        <b>N</b> 키로 곧바로 꺼내 볼 수 있습니다. 주기율표처럼 계속 들춰 보는 자료에 걸어 두세요.</p>`;
+
+  box.querySelectorAll("[data-nz]").forEach(attachNoteZoom);
+  box.querySelectorAll("[data-notecleanedit]").forEach(b => b.addEventListener("click", () => {
+    if(!needLogin()) return;
+    const r = rows.find(x => String(x.id) === b.dataset.notecleanedit);
+    editClean(r.id, subjectId, box, r.clean_md);
+  }));
+
+  box.querySelector("[data-noteimg]")?.addEventListener("click",
+    () => { if(needLogin()) notePick(subjectId, box, "image"); });
+  box.querySelector("[data-notepdf]")?.addEventListener("click",
+    () => { if(needLogin()) notePick(subjectId, box, "pdf"); });
+
+  const pb = box.querySelector("[data-notepaste]");
+  if(pb){
+    pb.addEventListener("click", () => { if(needLogin()) pb.focus(); });
+    pb.addEventListener("focus", () => { if(S.loggedIn) NOTE_PASTE = { subjectId, box }; });
+    pb.addEventListener("blur",  () => { NOTE_PASTE = null; });
+    ["dragenter","dragover"].forEach(t =>
+      pb.addEventListener(t, e => { e.preventDefault(); pb.classList.add("over"); }));
+    ["dragleave","dragend"].forEach(t => pb.addEventListener(t, () => pb.classList.remove("over")));
+    pb.addEventListener("drop", e => {
+      e.preventDefault(); pb.classList.remove("over");
+      if(!needLogin()) return;
+      const fs = [...(e.dataTransfer?.files || [])].filter(f => /^image\/|pdf$/.test(f.type));
+      if(fs.length) noteUpload(subjectId, box, fs);
+      else toast("사진이나 PDF만 넣을 수 있습니다.");
+    });
+  }
+
+  box.querySelectorAll("[data-notephotodel]").forEach(b => b.addEventListener("click", async e => {
+    e.preventDefault(); e.stopPropagation();
+    if(!needLogin()) return;
+    const r = rows.find(x => String(x.id) === b.dataset.notephotodel);
+    if(!r) return;
+    if(!confirm(`"${r.title || "이 자료"}" 의 사진만 지웁니다.\n옮겨 적은 글은 그대로 남습니다. 사진은 되돌릴 수 없습니다.`)) return;
+    /* 글은 남기고 사진 주소만 비운다. 보관함 파일도 같이 치운다. */
+    const up = await sb.from("subject_notes")
+      .update({ url: null, flat_url: null, path: null }).eq("id", r.id);
+    if(up.error) return toast(/null value|not-null/i.test(up.error.message)
+      ? "supabase-사진만지우기.sql 을 한 번 돌려 주세요."
+      : "지우지 못했습니다 — " + up.error.message);
+    const paths = [r.path].filter(Boolean);
+    if(paths.length) await sb.storage.from("qfig").remove(paths).catch(() => {});
+    toast("사진을 지웠습니다. 글은 남아 있습니다.");
+    drawNotes(subjectId, box);
+  }));
+  box.querySelectorAll("[data-noteflat]").forEach(b => b.addEventListener("click", e => {
+    e.preventDefault(); e.stopPropagation();
+    noteFlatOpen(b.dataset.noteflat, subjectId, box);
+  }));
+  box.querySelectorAll("[data-noteflatdel]").forEach(b => b.addEventListener("click", e => {
+    e.preventDefault(); e.stopPropagation();
+    noteFlatDel(b.dataset.noteflatdel, subjectId, box);
+  }));
+  box.querySelectorAll("[data-noteclean]").forEach(b => b.addEventListener("click", e => {
+    e.preventDefault(); e.stopPropagation();
+    noteClean(b.dataset.noteclean, subjectId, box);
+  }));
+  box.querySelectorAll("[data-notecleandel]").forEach(b => b.addEventListener("click", e => {
+    e.preventDefault(); e.stopPropagation();
+    noteCleanDel(b.dataset.notecleandel, subjectId, box);
+  }));
+  box.querySelectorAll("[data-notepin]").forEach(b => b.addEventListener("click", async () => {
+    if(!needLogin()) return;
+    const r = rows.find(x => String(x.id) === b.dataset.notepin);
+    const up = await sb.from("subject_notes").update({ pinned: !r.pinned }).eq("id", r.id);
+    if(up.error) return toast(/pinned|schema cache/i.test(up.error.message)
+      ? "pinned 칸이 아직 없습니다 — supabase-핵심개념.sql 을 다시 한 번 돌려 주세요."
+      : "바꾸지 못했습니다 — " + up.error.message);
+    S._pins = null;                       /* 다음에 문제 풀 때 다시 읽도록 */
+    toast(r.pinned ? "즐겨찾기에서 뺐습니다." : "즐겨찾기에 넣었습니다.");
+    drawNotes(subjectId, box);
+  }));
+
+  box.querySelectorAll("[data-noteren]").forEach(b => b.addEventListener("click", async () => {
+    if(!needLogin()) return;
+    const r = rows.find(x => String(x.id) === b.dataset.noteren);
+    const t = prompt("자료 이름", r?.title || "");
+    if(t === null) return;
+    const up = await sb.from("subject_notes").update({ title: t.trim() || null }).eq("id", r.id);
+    if(up.error) return toast("이름을 바꾸지 못했습니다 — " + up.error.message);
+    drawNotes(subjectId, box);
+  }));
+
+  box.querySelectorAll("[data-notedel]").forEach(b => b.addEventListener("click", async e => {
+    /* 접힌 줄의 × 는 summary 안에 있어서, 막지 않으면 지우면서 동시에 펼쳐진다 */
+    e.preventDefault(); e.stopPropagation();
+    if(!needLogin()) return;
+    const r = rows.find(x => String(x.id) === b.dataset.notedel);
+    if(!confirm(`"${r?.title || "이 자료"}" 를 지웁니다.`)) return;
+    const del = await sb.from("subject_notes").delete().eq("id", r.id);
+    if(del.error) return toast("지우지 못했습니다 — " + del.error.message);
+    if(r.path) await sb.storage.from("qfig").remove([r.path]).catch(() => {});
+    toast("지웠습니다.");
+    drawNotes(subjectId, box);
+  }));
+}
+
+let NOTE_PASTE = null, NOTE_INPUT = null;
+function notePick(subjectId, box, kind){
+  if(!NOTE_INPUT){
+    NOTE_INPUT = document.createElement("input");
+    NOTE_INPUT.type = "file"; NOTE_INPUT.multiple = true;
+    NOTE_INPUT.style.display = "none";
+    document.body.appendChild(NOTE_INPUT);
+  }
+  NOTE_INPUT.value = "";
+  NOTE_INPUT.accept = kind === "pdf" ? "application/pdf,.pdf" : "image/*";
+  NOTE_INPUT.onchange = e => {
+    const fs = [...e.target.files];
+    if(fs.length) noteUpload(subjectId, box, fs);
+  };
+  NOTE_INPUT.click();
+}
+
+async function noteUpload(subjectId, box, files){
+  toast(`${files.length}개를 올리는 중…`);
+  const { data:last } = await sb.from("subject_notes")
+    .select("sort_order").eq("subject_id", subjectId)
+    .order("sort_order", { ascending:false }).limit(1);
+  let order = (last?.[0]?.sort_order ?? 0) + 1;
+
+  for(const f of files){
+    try{
+      const isPdf = /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name);
+      const blob = isPdf ? f : await figShrink(f, NOTE_MAX_W);
+      const ext  = isPdf ? "pdf" : "jpg";
+      const path = `notes/${subjectId}/${Date.now()}_${Math.random().toString(36).slice(2,7)}.${ext}`;
+      const up = await sb.storage.from("qfig").upload(path, blob, {
+        contentType: isPdf ? "application/pdf" : "image/jpeg", upsert:true });
+      if(up.error) throw up.error;
+      const url = sb.storage.from("qfig").getPublicUrl(path).data.publicUrl;
+      const title = (f.name || "").replace(/\.[^.]+$/, "") || "붙여넣은 자료";
+      const ins = await sb.from("subject_notes").insert({
+        subject_id: subjectId, title, kind: isPdf ? "pdf" : "image",
+        url, path, sort_order: order++ });
+      if(ins.error) throw ins.error;
+    }catch(e){
+      toast(`"${f.name || "파일"}" 을 넣지 못했습니다 — ${e.message || e}`);
+    }
+  }
+  toast("자료를 넣었습니다.");
+  drawNotes(subjectId, box);
+}
+
+/* ── 즐겨찾기한 자료를 문제 위에 덮어 띄우기 ─────────────────
+   과목이 바뀌기 전까지는 한 번만 읽어 둔다. 여러 장이면 위쪽 탭으로 갈아 끼운다. */
+async function loadPins(subjectId){
+  if(!subjectId){ S._pins = []; }
+  else if(!S._pins || S._pinsFor !== subjectId){
+    try{
+      const { data, error } = await sb.from("subject_notes").select("*")
+        .eq("subject_id", subjectId).eq("pinned", true).order("sort_order").order("id");
+      S._pins = error ? [] : (data || []);
+    }catch(e){ S._pins = []; }
+    S._pinsFor = subjectId;
+  }
+  document.body.classList.toggle("haspin", !!S._pins?.length);
+  return S._pins;
+}
+
+let PIN_I = 0;
+function pinEl(){
+  let el = document.getElementById("noteOv");
+  if(el) return el;
+  el = document.createElement("div");
+  el.id = "noteOv"; el.className = "noteov";
+  el.innerHTML = `<div class="noteov-card">
+      <div class="noteov-bar"></div><div class="noteov-body"></div>
+    </div>`;
+  el.addEventListener("click", e => { if(e.target === el) pinClose(); });
+  document.body.appendChild(el);
+  return el;
+}
+
+function pinOpen(i){
+  const pins = S._pins || [];
+  if(!pins.length) return toast("즐겨찾기한 자료가 없습니다 — 과목 화면의 핵심개념 자료에서 ☆를 눌러 두세요.");
+  const el = pinEl();
+  if(el.classList.contains("on") && i == null) return pinClose();
+  PIN_I = Math.min(Math.max(i ?? PIN_I, 0), pins.length - 1);
+  const r = pins[PIN_I];
+
+  el.querySelector(".noteov-bar").innerHTML =
+    pins.map((p, k) => `<button class="ntab ${k === PIN_I ? "on" : ""}" data-pin="${k}" type="button">${esc(p.title || `자료 ${k+1}`)}</button>`).join("")
+    + `<button class="x" data-pinx type="button">닫기</button>`;
+
+  el.querySelector(".noteov-body").innerHTML = r.kind === "pdf"
+    ? `<iframe src="${esc(r.url)}" title="${esc(r.title || "자료")}"></iframe>`
+    : `<img src="${esc(r.url)}" alt="${esc(r.title || "자료")}">
+       <p class="zoomhint">가로로 꽉 채워 띄웠습니다. 더 크게 보시려면 화면을 두 손가락으로 벌리거나
+         <a href="${esc(r.url)}" target="_blank" rel="noopener">새 창에서 여세요</a>.</p>`;
+
+  el.querySelectorAll("[data-pin]").forEach(b =>
+    b.addEventListener("click", () => pinOpen(+b.dataset.pin)));
+  el.querySelector("[data-pinx]").addEventListener("click", pinClose);
+
+  el.classList.add("on");
+  document.querySelectorAll(".qnote").forEach(b => b.classList.add("on"));
+  el.querySelector(".noteov-body").scrollTop = 0;
+}
+
+function pinClose(){
+  document.getElementById("noteOv")?.classList.remove("on");
+  document.querySelectorAll(".qnote").forEach(b => b.classList.remove("on"));
+}
+
+/* ═══════════════════════════════════════════════
+   비전공자용 쉬운 풀이
+   기존 해설은 "아는 사람에게 상기시키는" 글이라, 화학식이나 전기 공식이 처음이면
+   어디서부터 막힌 건지조차 잡히지 않는다. 그래서 같은 문항을 처음 보는 사람 기준으로
+   다시 풀어 쓴 글을 한 칸 더 붙인다. 자동 변환이 쓰는 서버를 그대로 부르고,
+   한 번 만든 것은 DB에 남겨 두 번 만들지 않는다.
+   ═══════════════════════════════════════════════ */
+const AI_ENDPOINTS = [CFG.WORKER_URL, CFG.WORKER_BACKUP_URL].filter(Boolean);
+
+/* 사진을 함께 보내는 호출. 워커는 Gemini 형식을 그대로 받으므로 inline_data 로 넣는다. */
+async function askAIWithImage(prompt, blob, maxTokens = 4096){
+  const b64 = await new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).split(",")[1]);
+    r.onerror = () => rej(new Error("사진을 읽지 못했습니다"));
+    r.readAsDataURL(blob);
+  });
+  return askAI(prompt, maxTokens, [{ inline_data: { mime_type: blob.type || "image/jpeg", data: b64 } }]);
+}
+
+async function askAI(prompt, maxTokens = 2600, extraParts = []){
+  if(!AI_ENDPOINTS.length) throw new Error("config.js 에 WORKER_URL 이 없습니다");
+  const body = {
+    contents: [{ role:"user", parts:[...extraParts, { text: prompt }] }],
+    generationConfig: { temperature:0.35, maxOutputTokens:maxTokens }
+  };
+  let last = "";
+  for(const base of AI_ENDPOINTS){
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 150000);
+    try{
+      const res = await fetch(base.replace(/\/$/,"") + "/get-data", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(body), signal: ac.signal });
+      const d = await res.json();
+      if(!res.ok){ last = d.detail || `HTTP ${res.status}`; continue; }
+      const txt = d.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      if(txt.trim()) return txt.trim();
+      last = "빈 응답이 왔습니다";
+    }catch(e){
+      last = e.name === "AbortError" ? "2분 30초 안에 응답이 없었습니다" : e.message;
+    }finally{ clearTimeout(timer); }
+  }
+  throw new Error(last || "서버에 닿지 못했습니다");
+}
+
+function easyHTML(q){
+  const txt = (q.explanation_easy || "").trim();
+  if(!txt && !S.loggedIn) return "";
+  if(!txt) return `<div class="easy" data-easybox="${q.id}">
+      <button class="figbtn" data-easygen="${q.id}" type="button">여기서부터 비전공자용으로 더 풀어 쓰기</button>
+    </div>`;
+  return `<div class="easy" data-easybox="${q.id}">
+      <div class="ez-h">이어서 · 비전공자용 상세 설명</div>
+      <div class="eb">${md(txt)}</div>
+      ${S.loggedIn ? `<div class="ebar">
+        <button class="figbtn" data-easygen="${q.id}" type="button">다시 쓰기</button>
+        <button class="figbtn del" data-easydel="${q.id}" type="button">지우기</button>
+      </div>` : ""}
+    </div>`;
+}
+
+function easyPrompt(q){
+  const chs = (Array.isArray(q.choices) ? q.choices : [])
+    .map((c, i) => `${i+1}) ${c}`).join("\n");
+  return `너는 자격증 기출문제를 비전공자에게 설명하는 선생이다.
+
+아래 문항에는 이미 해설이 붙어 있다. 그 해설은 <이미 아는 사람에게 상기시키는 글>이라,
+배경 지식이 없는 사람은 어디서 막혔는지조차 모른다.
+너의 일은 해설을 다시 쓰는 것이 아니라, <그 해설 바로 뒤에 이어 붙일 글>을 쓰는 것이다.
+독자는 방금 위의 해설을 읽고 내려온 상태다. 그 사람에게 말을 건네듯 이어서 써라.
+
+[과목] ${S.subject?.name || ""} ${q.subject_part || ""}
+[문제] ${q.question_text || ""}
+[보기]
+${chs}
+[정답] ${q.answer || "?"}번
+[이미 붙어 있는 해설 — 이 내용을 되풀이하지 마라]
+${(q.explanation_md || q.explanation_html || "").replace(/<[^>]+>/g, " ").slice(0, 1500)}
+
+이어서 쓸 내용을 한국어 마크다운으로, 아래 흐름대로 써라.
+제목은 ### 로 시작한다. 인사말이나 "위 해설에서 보듯" 같은 군더더기 없이 바로 본론으로 들어간다.
+
+### 여기서 막혔다면
+위 해설에서 그냥 지나간 용어를 골라, 하나씩 그 자리에서 뜻을 풀어 준다.
+화학이면 그 물질이 무엇이고 어떤 성질 때문에 그렇게 분류되는지, 반응식이 나오면 좌변·우변이 각각 무슨 뜻인지.
+전기면 그 공식이 왜 그렇게 생겼는지, 기호 하나하나가 무엇을 가리키고 단위가 무엇인지 표로 정리한다.
+
+### 계산을 한 줄씩
+해설이 한 줄로 건너뛴 계산을 걸음마다 끊어서 다시 보여 준다. 단위 환산이 있으면 그것도 한 줄로 따로 잡는다.
+숫자를 어디서 가져왔는지 매번 밝힌다.
+
+### 다른 보기는 왜 아닌가
+정답이 아닌 보기를 각각. "틀렸다"로 끝내지 말고, 어떤 착각을 하면 그 보기를 고르게 되는지 짚어라.
+
+### 이것만 외우면
+다음에 비슷한 문제가 나왔을 때 알아보는 신호와, 외울 것 한두 줄.
+
+규칙:
+- 수식은 반드시 $ ... $ 로 감싼다. 예: $E^\\circ_{cell} = 0.34 - (-0.76)$
+- 화학식도 수식으로 쓴다. 예: $\\mathrm{KClO_3}$
+- 그림을 그리려 하지 말고 tikzpicture 같은 것은 절대 쓰지 마라.
+- 이미 붙어 있는 해설에 있는 문장을 그대로 옮기지 마라. 그 해설이 생략한 것만 채워라.
+- 압축해서 아는 척하지 말고, 길어져도 좋으니 끊어서 설명해라.
+- 이 문항에 딱히 더 풀어 쓸 것이 없다면(단순 암기·법규 조항 등) 억지로 늘리지 말고
+  "### 이것만 외우면" 한 토막만 써라.`;
+}
+
+async function easyGen(qid, root){
+  const q = S.questions.find(x => String(x.id) === String(qid));
+  const box = root.querySelector(`[data-easybox="${qid}"]`);
+  if(!q || !box) return;
+  box.innerHTML = `<div class="wait">해설 뒤에 이어 붙일 설명을 쓰는 중… 30초쯤 걸립니다. 다른 문항을 보고 계셔도 됩니다.</div>`;
+  try{
+    const txt = await askAI(easyPrompt(q));
+    const r = await sb.from("questions").update({ explanation_easy: txt }).eq("id", q.id);
+    if(r.error) throw new Error(/explanation_easy|schema cache/i.test(r.error.message)
+      ? "explanation_easy 칸이 아직 없습니다 — supabase-핵심개념.sql 을 다시 돌려 주세요."
+      : r.error.message);
+    q.explanation_easy = txt;
+    redrawCard(q.id);
+    toast("해설 뒤에 이어 붙였습니다.");
+  }catch(e){
+    box.innerHTML = `<div class="wait">만들지 못했습니다 — ${esc(e.message || String(e))}</div>
+      <div class="ebar"><button class="figbtn" data-easygen="${qid}" type="button">다시 시도</button></div>`;
+    box.querySelector("[data-easygen]")?.addEventListener("click", () => easyGen(qid, root));
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   3. 학습 뷰
+   ═══════════════════════════════════════════════ */
+async function viewStudy(examId, num){
+  if(S.exam?._mix) S.exam = null;      // 섞어 보기에서 실제 회차로 넘어오면 표식을 지운다
+  show("v-study");
+  const track=$("#track"), rail=$("#rail");
+  if(S.exam?.id !== examId){
+    track.innerHTML=""; rail.innerHTML="";
+    const {data:ex} = await sb.from("exam_list").select("*").eq("id",examId).single();
+    S.exam = ex;
+    if(ex && S.subject?.id !== ex.subject_id){
+      const {data:sj} = await sb.from("subject_list").select("*").eq("id",ex.subject_id).single();
+      S.subject = sj;
+    }
+    const {data,error} = await sb.from("questions").select("*").eq("exam_id",examId).order("number");
+    if(error){ show("v-exams"); return fail($("#exams"),"문항을 불러오지 못했습니다.",esc(error.message)); }
+    S.questions = data||[];
+    if(!S.questions.length){
+      $("#track").innerHTML = `<div class="slide"><div class="sheet-body"><div class="empty"><div class="big">이 회차에 등록된 문항이 없습니다.</div><div>업로더에서 문항을 올려주세요.</div></div></div></div>`;
+      $("#ttl").textContent = S.subject?.name||""; $("#sub").textContent = S.exam?.label||"";
+      $("#foot").textContent=""; return;
+    }
+    await loadAnnotations(S.questions.map(q=>q.id));
+    build();
+  }
+  $("#ttl").textContent = S.subject?.name || "";
+  $("#sub").textContent = S.exam?.label || "";
+  loadPins(S.subject?.id);          /* 즐겨찾기 자료는 화면을 막지 않고 뒤따라 붙는다 */
+  const start = num!=null ? S.questions.findIndex(q=>q.number===num)
+                          : LS.get(`pos:${examId}`,0);
+  jump(Math.max(0, start), false);
+}
+
+
+/* ═══════════════════════════════════════════════
+   3.5 섞어 보기 — 랜덤 · 금 / 은 / 동 / 나머지
+
+   등급 기준 (감이 아니라 세어서 매긴다)
+     문항마다 "대표 낱말"을 하나 고른 뒤, 그 낱말이
+       R = 몇 개 회차에 나왔는지,  C = 전체 몇 문항에 나왔는지 를 센다.
+       금   R ≥ 3   세 회차 이상에서 되풀이된 주제
+       은   R = 2   두 회차에서 되풀이된 주제
+       동   R = 1 이고 C ≥ 2   한 회차 안에서만 여러 문항으로 나온 주제
+       나머지  R = 1, C = 1   딱 한 번만 나온 주제
+   저장된 회차를 읽어 그때그때 다시 계산하므로,
+   회차를 추가하면 다음에 들어올 때 등급이 바뀐다.
+   ═══════════════════════════════════════════════ */
+/* 한 번에 뽑는 문항 수. 0 이면 그 등급 전체를 다 편다.
+   과목마다 문항 수가 크게 다르므로(회차 모음 238문항 vs 6년 합본 1000문항) 과목별로 기억한다. */
+const MIX_SIZES = [10, 20, 30, 50, 100, 0];
+const mixSizeKey = sid => `mixSize:${sid}`;
+const mixSize = sid => {
+  const v = LS.get(mixSizeKey(sid), 20);
+  return MIX_SIZES.includes(v) ? v : 20;
+};
+const mixSizeLabel = n => n === 0 ? "전체" : `${n}문항`;
+const MIX_LABEL = { random:"🎲 랜덤", gold:"금", silver:"은", bronze:"동", rest:"나머지" };
+const MIX_RULE = {
+  gold:"세 회차 이상에서 되풀이된 주제", silver:"두 회차에서 되풀이된 주제",
+  bronze:"한 회차 안에서 여러 문항으로 나온 주제", rest:"딱 한 번만 나온 주제"
+};
+const STOP = new Set(["다음","것은","무엇","경우","가장","옳은","틀린","아닌","대한","설명","계산",
+  "얼마","이때","구하","때의","중에서","해당","관한","위한","다음중","값은","것을","하는","되는",
+  "이란","무엇인가","적합","적절","거리가","고르","구하시오","때에","의해","하기","있는","없는",
+  "이상","이하","사용","방법","특징","종류","조건","기준","보기","문제","다음의","얼마인가"]);
+
+function tokens(q){
+  const src = ((q.summary || "") + " " + (q.question_text || "").slice(0, 80));
+  return [...new Set((src.match(/[가-힣A-Za-z]{2,}/g) || [])
+    .map(w => w.replace(/(으로|에서|에는|이다|한다|인가|하면|보다|까지|부터|에게|에서의|에서는)$/, ""))
+    .filter(w => w.length >= 2 && !STOP.has(w)))];
+}
+
+/* ── 같은 주제끼리 묶기 ──
+   앞선 방식은 "그 문항의 낱말 중 가장 여러 회차에 나온 낱말"을 대표로 삼았다.
+   그런데 그런 낱말은 "냉동·공기·온도"처럼 아무 문항에나 들어 있는 흔한 말이라
+   거의 모든 문항이 R=10 이 되어 800문항 중 793개가 금으로 나왔다. 정반대였다.
+   이제는 흔한 말을 버리고, 드문 낱말을 함께 쓰는 문항끼리 묶어 "주제 덩어리"를 만든 뒤
+   그 덩어리가 몇 회차(R)·몇 문항(C)에 걸쳐 있는지를 센다. */
+function clusterTopics(rows){
+  const N = rows.length;
+  const toks = rows.map(tokens);
+  const df = new Map();
+  toks.forEach(ts => ts.forEach(t => df.set(t, (df.get(t) || 0) + 1)));
+
+  const COMMON = Math.max(6, Math.floor(N * 0.05));    // 전체의 5% 넘게 나오면 주제어로 안 씀
+  const RARE   = Math.max(2, Math.floor(N * 0.012));   // 이보다 드물면 하나만 겹쳐도 같은 주제
+  const keys = toks.map(ts => ts.filter(t => { const d = df.get(t); return d >= 2 && d <= COMMON; }));
+
+  const inv = new Map();
+  keys.forEach((ks, i) => ks.forEach(t => { (inv.get(t) || inv.set(t, []).get(t)).push(i); }));
+
+  const pair = new Map(), strong = new Map();
+  inv.forEach((list, t) => {
+    if(list.length > 40) return;                        // 너무 퍼진 낱말은 쌍 만들기에서 제외(속도)
+    const rare = df.get(t) <= RARE;
+    for(let a = 0; a < list.length; a++)
+      for(let b = a + 1; b < list.length; b++){
+        const k = list[a] + "|" + list[b];
+        pair.set(k, (pair.get(k) || 0) + 1);
+        if(rare) strong.set(k, true);
+      }
+  });
+
+  const par = [...Array(N).keys()];
+  const find = x => par[x] === x ? x : (par[x] = find(par[x]));
+  const uni = (a, b) => { a = find(a); b = find(b); if(a !== b) par[b] = a; };
+  pair.forEach((n, k) => {
+    /* 드문 낱말 2개를 함께 쓰거나, 아주 드문 낱말 하나를 공유하면 같은 주제로 본다 */
+    if(n >= 2 || strong.get(k)){ const [a, b] = k.split("|").map(Number); uni(a, b); }
+  });
+
+  const groups = new Map();
+  for(let i = 0; i < N; i++){ const r = find(i); (groups.get(r) || groups.set(r, []).get(r)).push(i); }
+
+  groups.forEach(idxs => {
+    const R = new Set(idxs.map(i => rows[i].exam_id)).size, C = idxs.length;
+    const freq = new Map();
+    idxs.forEach(i => keys[i].forEach(t => freq.set(t, (freq.get(t) || 0) + 1)));
+    const key = [...freq.entries()]
+      .sort((a, b) => b[1] - a[1] || (df.get(a[0]) - df.get(b[0])))[0]?.[0] || "";
+    const gid = idxs[0];   /* 덩어리 고유 번호 — 이게 없으면 주제 없는 단발 문항들이
+                              전부 같은 열쇠("|1|1")로 묶여 한 덩어리가 되어 버린다 */
+    idxs.forEach(i => { rows[i]._R = R; rows[i]._C = C; rows[i]._key = key; rows[i]._gid = gid; });
+  });
+  return rows;
+}
+
+/* 과목 전체를 가볍게(요약·문제 앞부분만) 한 번 읽어 등급표를 만든다 */
+/* Supabase(PostgREST)는 한 요청에 최대 1000줄만 돌려준다. 그보다 많으면 오류도 없이
+   조용히 잘려서, 문항이 1038개여도 화면에는 늘 "1000문항"으로 멈춰 보인다.
+   1000줄씩 끝까지 이어 받는다. 페이지가 어긋나지 않게 id 로 정렬해서 받는다. */
+async function fetchAllRows(table, cols, apply, page = 1000){
+  const out = [];
+  for(let from = 0; from < 200000; from += page){
+    let q = sb.from(table).select(cols).order("id").range(from, from + page - 1);
+    if(apply) q = apply(q);
+    const { data, error } = await q;
+    if(error) throw error;
+    out.push(...(data || []));
+    if(!data || data.length < page) break;
+  }
+  return out;
+}
+
+async function mixIndex(subjectId, force){
+  S._mix ||= {};
+  if(S._mix[subjectId] && !force) return S._mix[subjectId];
+
+  const {data:exams} = await sb.from("exam_list").select("id,label,year,session").eq("subject_id", subjectId);
+  const ids = (exams || []).map(e => e.id);
+  if(!ids.length) return (S._mix[subjectId] = { rows:[], tiers:{}, N:0, label:{} });
+
+  let rows = [];
+  try{
+    rows = await fetchAllRows("questions", "id,exam_id,number,summary,question_text",
+                              q => q.in("exam_id", ids));
+  }catch(e){ rows = []; }
+
+  clusterTopics(rows || []);
+
+  /* ── 합격 기여도 점수 ──────────────────────────────────────
+     "얼마나 자주 나왔나"만 보면 이미 완벽히 아는 주제도 계속 위로 올라온다.
+     실제로 점수를 올려 주는 건  [또 나올 확률] × [지금 내가 약한 정도]  다.
+
+       출제력 = 0.55·빈도(몇 %의 회차에 나왔나)
+              + 0.30·최근성(최근 회차일수록 가중, 회차당 0.8배씩 감쇠)
+              + 0.15·비중(한 주제에 문항이 몇 개나 걸려 있나)
+       약한정도 = 별표 ×1.8 · 아직 안 본 문항 ×1.25 · 이미 본 문항 ×0.85 (최소 0.4)
+
+     이 점수로 줄 세운 뒤, 등급은 개수가 아니라 "점수 총합의 몫"으로 끊는다.
+     금 = 전체 기여도의 위 25%를 만들어내는 문항들 → 수는 적고 밀도는 높다.
+     기준을 사람이 정하지 않으므로, 회차를 더 넣으면 경계도 알아서 움직인다. */
+  const rank = {};                       // 회차 id → 최신이 0
+  [...(exams || [])]
+    .sort((x, y) => (numOf(y.year) - numOf(x.year)) || (numOf(y.session) - numOf(x.session)))
+    .forEach((e, i) => rank[e.id] = i);
+
+  const N = Math.max(1, (exams || []).length);
+  const gid = new Map();
+  (rows || []).forEach(q => { (gid.get(q._gid) || gid.set(q._gid, []).get(q._gid)).push(q); });
+
+  gid.forEach(pack => {
+    const freshest = Math.min(...pack.map(q => rank[q.exam_id] ?? N));
+    const exposure = 0.55 * (pack[0]._R / N)
+                   + 0.30 * Math.pow(0.8, freshest)
+                   + 0.15 * (pack[0]._C / (pack[0]._C + 2));
+    pack.forEach(q => {
+      let need = 1;
+      if(S.stars[q.id]) need *= 1.8;          // 내가 별표한 것 = 아직 안 잡힌 것
+      need *= S.seen[q.id] ? 0.85 : 1.25;     // 이미 본 것은 조금 뒤로
+      q._exp = exposure;
+      q._need = Math.max(0.4, need);
+      q._score = exposure * q._need;
+    });
+  });
+
+  const ordered = [...(rows || [])].sort((a, b) => b._score - a._score);
+  const totalScore = ordered.reduce((t, q) => t + q._score, 0) || 1;
+  const tiers = { gold:[], silver:[], bronze:[], rest:[] };
+  const order = ["gold", "silver", "bronze", "rest"];
+  let acc = 0, bucket = 0;
+  for(const q of ordered){
+    while(bucket < 3 && acc >= totalScore * (bucket + 1) / 4) bucket++;
+    q._tier = order[bucket];
+    tiers[order[bucket]].push(q);
+    acc += q._score;
+  }
+  const label = {}; (exams||[]).forEach(e => label[e.id] = e.label);
+  return (S._mix[subjectId] = { rows: rows || [], tiers, N: ids.length, label });
+}
+
+async function viewMix(subjectId, mode){
+  show("v-study");
+  const track = $("#track"), rail = $("#rail");
+  track.innerHTML = `<div class="slide"><div class="sheet-body"><div class="empty"><div class="big">문항을 모으는 중…</div></div></div></div>`;
+  rail.innerHTML = ""; mountReroll(null);
+
+  if(!S.subjects.length){
+    const {data} = await sb.from("subject_list").select("*").order("sort_order");
+    S.subjects = data || [];
+  }
+  S.subject = S.subjects.find(x => x.id === subjectId) || S.subject;
+
+  /* 랜덤은 매번 새로 뽑아야 하므로 캐시를 다시 만든다(회차를 추가했을 때도 바로 반영) */
+  const ix = await mixIndex(subjectId, true);
+  if(!ix.rows.length){ go(`#/s/${subjectId}`); return; }
+
+  const band = mode === "random" ? ix.rows : (ix.tiers[mode] || []);
+  let note = mode === "random"
+    ? `${ix.N}개 회차 ${ix.rows.length}문항에서 무작위`
+    : `${MIX_LABEL[mode]} · ${MIX_RULE[mode]} — ${band.length}문항`;
+
+  if(!band.length){
+    track.innerHTML = `<div class="slide"><div class="sheet-body"><div class="empty">
+      <div class="big">${MIX_LABEL[mode]} 등급에 해당하는 문항이 없습니다.</div>
+      <div>${esc(MIX_RULE[mode])}가 기준입니다. 회차가 ${ix.N}개뿐이라 아직 안 잡힐 수 있습니다.</div></div></div></div>`;
+    $("#ttl").textContent = S.subject?.name || ""; $("#sub").textContent = note; $("#foot").textContent = "";
+    return;
+  }
+
+  const size = mixSize(subjectId);
+  const shuffled = [...band].sort(() => Math.random() - .5);
+  const pickIds = (size === 0 ? shuffled : shuffled.slice(0, size)).map(q => q.id);
+  note += size === 0 ? ` · 전체 ${pickIds.length}문항` : ` · ${pickIds.length}문항`;
+  const meta = new Map(band.map(q => [q.id, q]));
+  /* 전체보기는 수백 문항이 될 수 있어 한 번에 다 못 받는다(요청당 1000줄 한도) */
+  const full = [];
+  for(let i = 0; i < pickIds.length; i += 500){
+    const { data } = await sb.from("questions").select("*").in("id", pickIds.slice(i, i + 500));
+    full.push(...(data || []));
+  }
+  const deck = pickIds.map(id => full.find(q => q.id === id)).filter(Boolean);
+  if(!deck.length){ go(`#/s/${subjectId}`); return; }
+
+  deck.forEach(q => {
+    const m = meta.get(q.id) || {};
+    const badge = { gold:"금", silver:"은", bronze:"동", rest:"나머지" }[m._tier] || "";
+    q.subject_part = `${ix.label[q.exam_id] || "회차"} ${q.number}번`
+      + (badge ? ` · ${badge}` : "")
+      + (m._key ? ` · ${m._key}` : "")
+      + (m._R ? ` (${m._R}/${ix.N}회차 · ${m._C}문항${S.stars[q.id] ? " · 별표" : ""})` : "");
+  });
+
+  S.exam = { id:`mix:${subjectId}:${mode}`, label:note, _mix:true, _sid:subjectId, _mode:mode };
+  S.questions = deck;
+  await loadAnnotations(deck.map(q => q.id));
+  loadPins(subjectId);
+  build();
+  $("#ttl").textContent = S.subject?.name || "";
+  $("#sub").textContent = `${note} 중 ${deck.length}문항`;
+  jump(0, false);
+  mountReroll(S.exam);
+}
+
+/* 문제 푸는 중에도 바로 다시 뽑을 수 있게 떠 있는 버튼.
+   HTML 에 있는 붙박이 버튼의 글자와 동작만 바꾼다. */
+function mountReroll(exam){
+  const b = document.getElementById("reroll");
+  if(!b) return;
+  const t = document.getElementById("mixall");
+  if(!exam?._mix){
+    b.hidden = true; b.onclick = null;
+    if(t){ t.hidden = true; t.onclick = null; }
+    return;
+  }
+  b.textContent = `${MIX_LABEL[exam._mode] || "섞기"} 다시 뽑기`;
+  b.onclick = () => viewMix(exam._sid, exam._mode);
+  b.hidden = false;
+
+  /* 뽑은 만큼만 볼 것인가, 그 등급을 통째로 볼 것인가.
+     한 단추로 오가되 고른 값은 과목에 남겨, 다음에 들어올 때도 같은 모드로 열린다. */
+  if(t){
+    const all = mixSize(exam._sid) === 0;
+    t.textContent = all ? `${mixSizeLabel(t.dataset.prev ? +t.dataset.prev : 20)}만 보기` : "문항 전체 보기";
+    t.classList.toggle("on", all);
+    t.hidden = false;
+    t.onclick = () => {
+      if(mixSize(exam._sid) === 0){
+        LS.set(mixSizeKey(exam._sid), t.dataset.prev ? +t.dataset.prev : 20);
+      }else{
+        t.dataset.prev = String(mixSize(exam._sid));
+        LS.set(mixSizeKey(exam._sid), 0);
+      }
+      viewMix(exam._sid, exam._mode);
+    };
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   문항 고르기 창
+   238문항짜리 합본은 두 줄로 접어도 한참 밀어야 한다.
+   번호 배지를 누르면 전체를 격자로 펼쳐, 한눈에 보고 바로 뛴다.
+   본 문항·별표·필기가 색으로 구분되니 "어디까지 했더라"도 같이 해결된다.
+   ═══════════════════════════════════════════════ */
+/* 레일 줄 수 — 기본은 두 줄.
+   세로로 채우므로 윗줄이 101·103·105…, 아랫줄이 102·104·106… 으로 갈린다.
+   대신 스크롤 길이가 절반이고, 한 칸 위아래가 곧 연속 번호라 위치를 잡기 쉽다.
+   한 줄이 편하면 문항 고르기 창에서 끌 수 있다. */
+/* 연도·회차 칸에 "2021~2026" 이나 "합본" 같은 글자가 들어와도
+   묶고 줄 세울 때는 첫 숫자만 본다. 숫자가 없으면 0. */
+const numOf = v => { const m = String(v ?? "").match(/\d+/); return m ? +m[0] : 0; };
+
+const railTwo = () => LS.get("railTwo", 1) === 1;
+function applyRailRows(){
+  const rail = $("#rail"); if(!rail) return;
+  rail.classList.toggle("two", railTwo() && S.questions.length > 40);
+  sizeCols();
+}
+
+/* 2단 배치에서 각 칸이 쓸 수 있는 실제 높이를 재서 --colh 로 넘긴다.
+   dvh 로 계산하면 태블릿 주소창이 접혔다 펴질 때마다 어긋나서, 화면 밖으로 밀려난
+   해설 아랫부분에 손이 닿지 않는 일이 생긴다. 재서 넣으면 그런 일이 없다. */
+function sizeCols(){
+  const track = $("#track");
+  if(!track) return;
+  const h = track.clientHeight || 0;
+  if(h < 120) return;
+  const qh = document.querySelector(".qhead")?.offsetHeight || 52;
+  document.documentElement.style.setProperty("--colh", Math.max(240, h - qh - 28) + "px");
+}
+addEventListener("resize", sizeCols);
+addEventListener("orientationchange", () => setTimeout(sizeCols, 250));
+window.visualViewport?.addEventListener("resize", sizeCols);
+
+/* ═══════════════════════════════════════════════
+   회차 정보 고치기 — 이름 · 연도(묶음) · 회차(순서)
+   exam_list 는 뷰라 직접 못 고친다. 전용 함수(set_exam_meta)를 부른다.
+   ═══════════════════════════════════════════════ */
+function editExam(examId, subjectId){
+  if(!S.loggedIn) return needLoginPop();
+  const e = S.exams.find(x => String(x.id) === String(examId));
+  if(!e) return;
+  document.getElementById("exOv")?.remove();
+
+  const ov = document.createElement("div");
+  ov.className = "jumpov on"; ov.id = "exOv";
+  ov.innerHTML = `<div class="jumpbox" style="max-width:460px">
+    <div class="jtop"><b>회차 고치기</b><span class="jstat">#${e.id}</span>
+      <button class="figbtn" data-exclose type="button">닫기</button></div>
+    <div style="padding:14px 16px">
+      <label class="exl">화면에 보일 이름</label>
+      <input class="exi" id="exLabel" value="${esc(e.label || "")}" placeholder="예: 2021~2026 합본">
+      <div class="exh">목록에 크게 보이는 글입니다.</div>
+
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <div style="flex:1">
+          <label class="exl">연도 (묶음 제목)</label>
+          <input class="exi" id="exYear" value="${esc(e.year ?? "")}" placeholder="2021 · 2021~2026 · 합본">
+        </div>
+        <div style="flex:1">
+          <label class="exl">회차</label>
+          <input class="exi" id="exSess" value="${esc(e.session ?? "")}" placeholder="1 · 1~4회 · 개념정리">
+        </div>
+      </div>
+      <div class="exh">셋 다 <b>숫자·한글·기호 아무거나</b> 됩니다.
+        <b>연도</b>는 목록을 묶는 제목 줄, <b>회차</b>는 왼쪽 <b>동그란 배지</b>에 그대로 나옵니다
+        (숫자만 적으면 «3» → «3회»).<br>
+        줄 세울 때만 적으신 글 속 <b>첫 숫자</b>를 보고, 숫자가 없으면 맨 위에 놓습니다.</div>
+
+      <div class="bar" style="justify-content:flex-end;margin-top:16px">
+        <button class="figbtn" data-exclose type="button">취소</button>
+        <button class="figbtn save" data-exsave type="button">저장</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelectorAll("[data-exclose]").forEach(b => b.onclick = close);
+  ov.addEventListener("click", ev => { if(ev.target === ov) close(); });
+
+  ov.querySelector("[data-exsave]").onclick = async () => {
+    const label = document.getElementById("exLabel").value.trim();
+    const y = document.getElementById("exYear").value.trim();
+    const n = document.getElementById("exSess").value.trim();
+    const r = await sb.rpc("set_exam_meta", {
+      p_exam_id: e.id,
+      p_label: label || null,
+      p_year: y || null,
+      p_session: n || null
+    });
+    if(r.error){
+      return toast(/set_exam_meta|schema cache/i.test(r.error.message)
+        ? "supabase-회차이름.sql 을 한 번 돌려 주세요."
+        : "고치지 못했습니다 — " + r.error.message);
+    }
+    close(); toast("고쳤습니다.");
+    S.exams = [];                 /* 목록을 새로 읽어 온다 */
+    viewExams(subjectId);
+  };
+  document.getElementById("exLabel").focus();
+}
+
+function needLoginPop(){
+  setTimeout(() => $("#inkPop")?.classList.add("on"), 0);
+  toast("로그인해야 고칠 수 있습니다.");
+}
+
+function jumpGridClose(){ document.getElementById("jumpOv")?.remove(); }
+
+function jumpGridOpen(){
+  jumpGridClose();
+  if(!S.questions.length) return;
+  const ov = document.createElement("div");
+  ov.className = "jumpov on"; ov.id = "jumpOv";
+
+  /* 20개씩 묶어 구간 머리글을 달아 준다 — 번호가 200을 넘으면 눈이 길을 잃는다 */
+  const CH = 20;
+  let body = "";
+  for(let s0 = 0; s0 < S.questions.length; s0 += CH){
+    const part = S.questions.slice(s0, s0 + CH);
+    body += `<div class="jsec"><div class="jhead">${part[0].number} – ${part[part.length-1].number}</div>
+      <div class="jgrid">` + part.map((q, k) => {
+        const i = s0 + k;
+        const cls = [
+          i === S.idx ? "now" : "",
+          S.seen[q.id] ? "seen" : "",
+          S.stars[q.id] ? "star" : "",
+          S.anno[q.id]?.strokes?.length ? "ink" : ""
+        ].filter(Boolean).join(" ");
+        return `<button class="jb ${cls}" data-i="${i}">${q.number}</button>`;
+      }).join("") + `</div></div>`;
+  }
+
+  const seen = S.questions.filter(q => S.seen[q.id]).length;
+  const star = S.questions.filter(q => S.stars[q.id]).length;
+  ov.innerHTML = `<div class="jumpbox">
+    <div class="jtop">
+      <b>문항 고르기</b>
+      <span class="jstat">${S.questions.length}문항 · 본 것 ${seen} · 별표 ${star}</span>
+      <button class="figbtn" data-jclose type="button">닫기</button>
+    </div>
+    <div class="jfind">
+      <input id="jumpNum" type="number" inputmode="numeric" placeholder="번호 입력 후 Enter">
+      <button class="figbtn save" data-jgo type="button">가기</button>
+      <span class="jlegend"><i class="star"></i>별표 <i class="ink"></i>필기 <i class="seen"></i>본 것</span>
+      <label class="jrow2"><input type="checkbox" id="jRow2"> 번호줄 두 줄 (끄면 한 줄)</label>
+    </div>
+    <div class="jbody">${body}</div>
+  </div>`;
+  document.body.appendChild(ov);
+
+  ov.querySelector("[data-jclose]").onclick = jumpGridClose;
+  ov.addEventListener("click", e => { if(e.target === ov) jumpGridClose(); });
+  ov.querySelectorAll(".jb").forEach(b => b.onclick = () => { jumpGridClose(); jump(+b.dataset.i); });
+
+  const go = () => {
+    const n = +document.getElementById("jumpNum").value;
+    const i = S.questions.findIndex(q => +q.number === n);
+    if(i < 0) return toast(`${n}번을 찾지 못했습니다.`);
+    jumpGridClose(); jump(i);
+  };
+  ov.querySelector("[data-jgo]").onclick = go;
+  const r2 = document.getElementById("jRow2");
+  r2.checked = railTwo();
+  r2.onchange = () => { LS.set("railTwo", r2.checked ? 1 : 0); applyRailRows(); };
+  const inp = document.getElementById("jumpNum");
+  inp.addEventListener("keydown", e => { if(e.key === "Enter"){ e.preventDefault(); go(); } });
+
+  /* 지금 문항이 화면 가운데 오게 */
+  ov.querySelector(".jb.now")?.scrollIntoView({ block:"center" });
+}
+
+function build(){
+  const track=$("#track"), rail=$("#rail");
+  /* 10문항마다 세로 칸막이를 끼워 넣는다. 두 줄일 때는 두 줄을 가로질러 그어져
+     "여기까지 10개" 가 한눈에 잡힌다. 50단위는 더 진하게 그어 큰 눈금으로 쓴다. */
+  rail.innerHTML = S.questions.map((q,i)=>{
+    const cls = [
+      S.seen[q.id] ? "seen" : "",
+      S.stars[q.id] ? "star" : "",
+      S.anno[q.id]?.strokes?.length ? "ink" : "",
+      (+q.number % 10 === 0) ? "tick" : ""
+    ].filter(Boolean).join(" ");
+    const bub = `<button class="bub ${cls}" data-i="${i}">${q.number}</button>`;
+    const last = i === S.questions.length - 1;
+    const edge = (+q.number % 10 === 0) && !last;
+    return bub + (edge ? `<span class="sep${+q.number % 50 === 0 ? " big" : ""}"
+      ${+q.number % 50 === 0 ? `data-n="${q.number}"` : ""}></span>` : "");
+  }).join("");
+  $$("#rail .bub").forEach(b=>b.onclick=()=>jump(+b.dataset.i));
+  /* 가장 큰 번호의 자릿수로 동그라미 폭을 정한다 (2자리 30px, 3자리 38px, 4자리 46px) */
+  const digits = String(Math.max(...S.questions.map(q => +q.number || 0), 0)).length;
+  rail.style.setProperty("--bubw", (digits <= 2 ? 30 : digits === 3 ? 38 : 46) + "px");
+  applyRailRows();
+
+  track.innerHTML = S.questions.map((q,i)=>`
+    <article class="slide" data-i="${i}"><div class="sheet-body" data-h="0"></div></article>`).join("");
+  applyVeil();
+  applyLayout(false);
+
+  const io = new IntersectionObserver(es=>{
+    es.forEach(e=>{ if(e.isIntersecting && e.intersectionRatio>.55) setActive(+e.target.dataset.i); });
+  },{root:track,threshold:[.55]});
+  $$("#track .slide").forEach(s=>io.observe(s));
+}
+
+/* 저장된 그림 크기(%). 없거나 이상하면 예전 그대로 100% */
+const figW = q => Math.min(100, Math.max(20, +q?.figure_width || 100));
+
+/* 문항 화면(qhead 뒤에 오는 카드+해설)의 HTML. 필기 없는 문항은 이 그대로가 최종 렌더링이다 */
+function cardHTML(q){
+  const chs = (Array.isArray(q.choices)?q.choices:[]).map((c,k)=>`
+    <div class="ch ${q.answer===k+1?"ok":""}">
+      <span class="b">${k+1}</span><span class="t" data-hl="c${k}" data-qid="${q.id}">${md(autoMath(String(c))).replace(/^<p>|<\/p>$/g,"")}</span>
+    </div>`).join("");
+
+  const expInner = q.explanation_html
+    ? `<div class="sheet-host">${q.explanation_html}</div>`
+    : md(q.explanation_md || "");
+
+  return `
+    <div class="splitcols">
+    <div class="qcard">
+      ${q.subject_part?`<div class="part">${esc(q.subject_part)}</div>`:""}
+      <div class="qtext" data-hl="q" data-qid="${q.id}">${md(stripQNo(q.question_text)).replace(/^<p>|<\/p>$/g,"")}</div>
+      ${q.figure_url?`<figure class="qfig" style="--figw:${figW(q)}%">
+        <img src="${esc(q.figure_url)}" alt="${esc(q.figure_note||"문제 그림")}" loading="lazy" decoding="async">
+        ${q.figure_note?`<figcaption>${esc(q.figure_note)}</figcaption>`:""}
+      </figure>`:""}
+      ${S.loggedIn?`<div class="figbar">
+        <button class="figbtn" data-edittext="${q.id}" type="button">본문 고치기</button>
+        <button class="figbtn" data-figadd="${q.id}" type="button">${q.figure_url?"그림 바꾸기":"+ 그림 추가"}</button>
+        ${q.figure_url?`<button class="figbtn del" data-figdel="${q.id}" type="button">그림 삭제</button>`:""}
+        <span class="pastebox mini" data-pasteq="${q.id}" tabindex="0" role="button"
+             aria-label="여기를 누르고 Ctrl+V 로 그림 붙여넣기"><b>Ctrl+V</b> · 끌어다 놓기</span>
+        ${q.figure_url?`<div class="figsize" data-figsize="${q.id}">
+          <span class="figlbl">크기</span>
+          <input type="range" min="20" max="100" step="5" value="${figW(q)}" aria-label="그림 크기">
+          <span class="figpct">${figW(q)}%</span>
+          <button class="figbtn save" type="button" disabled>저장</button>
+        </div>`:""}
+      </div>`:""}
+      ${chs?`<div class="choices">${chs}</div>`:""}
+    </div>
+    ${(expInner||q.answer)?`
+    <div class="answer">
+      <button class="cover" type="button">
+        <svg viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 10.6a3 3 0 004.2 4.2"/><path d="M9.4 5.2A9.6 9.6 0 0112 5c6.4 0 10 7 10 7a17 17 0 01-3.2 4M6.2 6.2A17 17 0 002 12s3.6 7 10 7a9.7 9.7 0 004.3-1"/></svg>
+        가림판 내림 — 눌러서 이 문항만 확인
+      </button>
+      <div class="inner">
+        <div class="exp">
+          <div class="exp-h">해설${q.answer?` · 정답 ${q.answer}번`:""}</div>
+          <div class="exp-b" data-hl="x" data-qid="${q.id}">${expInner||"<p>등록된 해설이 없습니다.</p>"}</div>
+        ${easyHTML(q)}
+        </div>
+      </div>
+    </div>`:""}
+    </div>`;
+}
+
+function wireCard(root, slide){
+  root.querySelector(".cover")?.addEventListener("click",()=>slide.classList.add("peek"));
+  root.querySelector("[data-figadd]")?.addEventListener("click", e => figPick(e.currentTarget.dataset.figadd));
+  root.querySelector("[data-figdel]")?.addEventListener("click", e => figRemove(e.currentTarget.dataset.figdel));
+  root.querySelector("[data-edittext]")?.addEventListener("click", e => editQText(e.currentTarget.dataset.edittext, root));
+  root.querySelector("[data-easygen]")?.addEventListener("click", e => easyGen(e.currentTarget.dataset.easygen, root));
+  root.querySelector("[data-easydel]")?.addEventListener("click", async e => {
+    const id = e.currentTarget.dataset.easydel;
+    if(!confirm("이 문항에 이어 붙인 설명을 지웁니다. 원래 해설은 그대로 남습니다.")) return;
+    const r = await sb.from("questions").update({ explanation_easy: null }).eq("id", id);
+    if(r.error) return toast("지우지 못했습니다 — " + r.error.message);
+    const q = S.questions.find(x => String(x.id) === String(id));
+    if(q) q.explanation_easy = null;
+    redrawCard(id);
+  });
+  wirePasteBox(root);
+  wireFigSize(root);
+}
+
+/* 문제 본문 고쳐 쓰기 — 자동 변환이 뱉은 원문을 그대로 보여주고 손보게 한다.
+   그려진 결과가 아니라 저장된 원문이어야, 수식이 안 그려지고 raw 로 새어 나올 때
+   그 자리에서 지우거나 고칠 수 있다. 여러 줄이므로 저장·취소를 명시적으로 누른다
+   — 칸 밖을 눌렀다고 저장해 버리면 길게 고치다가 사고가 난다. */
+function editQText(qid, root){
+  if(!S.loggedIn) return;
+  const q = S.questions.find(x => String(x.id) === String(qid));
+  const el = root.querySelector(".qtext");
+  if(!q || !el || root.querySelector(".qtextedit")) return;
+
+  const wrap = document.createElement("div");
+  wrap.className = "qtextedit";
+  wrap.innerHTML = `<textarea spellcheck="false"></textarea>
+    <div class="qtebar">
+      <button class="figbtn save" type="button" data-save>저장</button>
+      <button class="figbtn" type="button" data-cancel>취소</button>
+      <span class="fighint">저장하면 수식·마크다운으로 다시 그립니다 · <b>Ctrl+Enter</b> 저장, <b>Esc</b> 취소</span>
+    </div>`;
+  const ta = wrap.querySelector("textarea");
+  ta.value = q.question_text || "";
+  el.replaceWith(wrap);
+
+  const grow = () => { ta.style.height = "auto"; ta.style.height = (ta.scrollHeight + 4) + "px"; };
+  ta.addEventListener("input", grow);
+  grow(); ta.focus();
+
+  const cancel = () => wrap.replaceWith(el);
+  const save = async () => {
+    const val = ta.value;
+    if(val === (q.question_text || "")) return cancel();
+    const btn = wrap.querySelector("[data-save]");
+    btn.disabled = true; btn.textContent = "저장 중…";
+    const r = await sb.from("questions").update({ question_text: val }).eq("id", q.id);
+    if(r.error){
+      btn.disabled = false; btn.textContent = "저장";
+      return toast("본문을 저장하지 못했습니다 — " + r.error.message);
+    }
+    q.question_text = val;
+    redrawCard(q.id);        /* 마크다운·수식을 다시 그려야 하므로 이 문항만 새로 그린다 */
+    toast("본문을 저장했습니다.");
+  };
+
+  wrap.querySelector("[data-cancel]").addEventListener("click", cancel);
+  wrap.querySelector("[data-save]").addEventListener("click", save);
+  ta.addEventListener("keydown", e => {
+    if(e.key === "Escape"){ e.preventDefault(); cancel(); }
+    else if(e.key === "Enter" && (e.ctrlKey || e.metaKey)){ e.preventDefault(); save(); }
+  });
+}
+
+/* 붙여넣기 칸 — 초점을 쥐면 PASTE_TARGET 에 그 문항을 걸어둔다.
+   초점이 없는 div 에는 paste 가 안 오는 브라우저가 있어서, 실제 처리는 창 전체의
+   paste 처리기가 맡고 여기서는 "어느 문항이냐"만 넘긴다. 끌어다 놓기도 같이 받는다. */
+let PASTE_TARGET = null;
+function wirePasteBox(root){
+  const box = root.querySelector("[data-pasteq]");
+  if(!box) return;
+  const qid = box.dataset.pasteq;
+  box.addEventListener("focus", () => { PASTE_TARGET = qid; });
+  box.addEventListener("blur",  () => { if(PASTE_TARGET === qid) PASTE_TARGET = null; });
+  box.addEventListener("click", () => box.focus());
+  ["dragenter","dragover"].forEach(t =>
+    box.addEventListener(t, e => { e.preventDefault(); box.classList.add("over"); }));
+  ["dragleave","dragend"].forEach(t =>
+    box.addEventListener(t, () => box.classList.remove("over")));
+  box.addEventListener("drop", e => {
+    e.preventDefault(); box.classList.remove("over");
+    const f = [...(e.dataTransfer?.files || [])].find(x => /^image\//.test(x.type));
+    if(!f) return toast("이미지 파일만 붙일 수 있습니다.");
+    figReplaceGuard(qid, f);
+  });
+}
+
+/* 이미 그림이 있으면 한 번 물어보고 바꾼다 — 붙여넣기·끌어놓기 양쪽이 같이 쓴다 */
+function figReplaceGuard(qid, file){
+  const q = S.questions.find(x => String(x.id) === String(qid));
+  if(!q) return;
+  if(q.figure_url && !confirm(`${q.number}번에 이미 그림이 있습니다. 바꿀까요?`)) return;
+  figAttach(q.id, file);
+}
+
+/* 그림 크기 — 슬라이더는 바로 눈에 보이게만 바꾸고, 저장을 눌러야 DB 에 남는다.
+   미리 보고 되돌릴 수 있어야 해서 자동 저장으로 만들지 않았다. */
+function wireFigSize(root){
+  const bar = root.querySelector("[data-figsize]");
+  if(!bar) return;
+  const q = S.questions.find(x => String(x.id) === String(bar.dataset.figsize));
+  if(!q) return;
+  const range = bar.querySelector("input[type=range]");
+  const pct   = bar.querySelector(".figpct");
+  const save  = bar.querySelector(".save");
+  const fig   = root.querySelector(".qfig");
+
+  const paint = () => {
+    const v = +range.value;
+    pct.textContent = v + "%";
+    fig?.style.setProperty("--figw", v + "%");
+    save.disabled = (v === figW(q));
+  };
+  range.addEventListener("input", paint);
+  save.addEventListener("click", async () => {
+    const v = +range.value;
+    save.disabled = true;
+    const r = await sb.from("questions").update({ figure_width: v }).eq("id", q.id);
+    if(r.error){
+      save.disabled = false;
+      /* 칸을 방금 만들었는데도 이 오류가 나는 일이 흔하다. Supabase 의 API 계층이
+         표 구조를 따로 외워두고 있어서, 칸을 추가해도 바로 알아채지 못한다.
+         이때는 SQL 을 다시 돌릴 게 아니라 그 기억을 새로 고쳐줘야 한다. */
+      const m = r.error.message || String(r.error);
+      const cache = r.error.code === "PGRST204" || /schema cache/i.test(m);
+      return toast(cache
+        ? "Supabase API 가 아직 figure_width 칸을 모릅니다 — SQL Editor 에서 notify pgrst, 'reload schema'; 를 한 번 돌리세요."
+        : /figure_width/.test(m)
+          ? "figure_width 칸이 없습니다 — supabase-그림크기-제목.sql 의 1번을 돌리세요. (" + m + ")"
+          : "크기를 저장하지 못했습니다 — " + m);
+    }
+    q.figure_width = v;
+    toast(`그림 크기를 ${v}% 로 저장했습니다.`);
+  });
+  paint();
+}
+
+/* 문제 제목(summary) 고쳐 쓰기 — 자동 요약이 엉뚱하게 잡힌 문항을 손으로 바로잡는다.
+   Enter 나 칸 밖 누르기로 저장, Esc 로 취소. 저장에 실패하면 원래 제목으로 되돌린다. */
+function editSummary(qid, head){
+  if(!S.loggedIn) return;
+  const q = S.questions.find(x => String(x.id) === String(qid));
+  const span = head?.querySelector(".qsum");
+  if(!q || !span || head.querySelector(".qsumin")) return;
+
+  const rateTail = () => q.correct_rate != null ? ` · 정답률 ${q.correct_rate}%` : "";
+  const input = document.createElement("input");
+  input.className = "qsumin";
+  input.type = "text";
+  input.maxLength = 120;
+  input.value = stripQNo(q.summary || "");
+  input.placeholder = "이 문제를 한 줄로 — 예: 습공기선도 상태변화";
+  span.replaceWith(input);
+  input.focus(); input.select();
+
+  let done = false;
+  const close = async val => {
+    if(done) return; done = true;
+    input.replaceWith(span);
+    if(val == null) return;
+    const before = q.summary;
+    if(val === stripQNo(before || "")) return;
+    q.summary = val;
+    span.textContent = val + rateTail();
+    const r = await sb.from("questions").update({ summary: val || null }).eq("id", q.id);
+    if(r.error){
+      q.summary = before;
+      span.textContent = stripQNo(before || "") + rateTail();
+      return toast("제목을 저장하지 못했습니다 — " + r.error.message);
+    }
+    toast("제목을 저장했습니다.");
+  };
+  input.addEventListener("keydown", e => {
+    if(e.key === "Enter"){ e.preventDefault(); close(input.value.trim()); }
+    else if(e.key === "Escape"){ e.preventDefault(); close(null); }
+  });
+  input.addEventListener("blur", () => close(input.value.trim()));
+}
+
+/* ═══════════════════════════════════════════════
+   문제 그림 직접 붙이기
+   자동 변환이 놓친 그림을 여기서 바로 채운다.
+   파일을 고르거나, 캡처해서 복사해 둔 이미지를 Ctrl+V 로 붙이면 된다.
+   ═══════════════════════════════════════════════ */
+const FIG_MAX_W = 1000;
+
+/* 어떤 이미지든 정해진 폭·JPEG 로 줄여서 올린다 — 원본 그대로 올리면 몇 MB 씩 쌓인다 */
+async function figShrink(file, maxW = FIG_MAX_W){
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, maxW / bmp.width);
+  const cv = document.createElement("canvas");
+  cv.width = Math.round(bmp.width * scale);
+  cv.height = Math.round(bmp.height * scale);
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height);   // 투명 배경(PNG)은 흰색으로
+  ctx.drawImage(bmp, 0, 0, cv.width, cv.height);
+  bmp.close?.();
+  return await new Promise(r => cv.toBlob(r, "image/jpeg", 0.85));
+}
+
+async function figAttach(qid, file){
+  const q = S.questions.find(x => String(x.id) === String(qid));
+  if(!q) return;
+  if(!file || !/^image\//.test(file.type)) return toast("이미지 파일만 붙일 수 있습니다.");
+  toast("그림을 올리는 중…");
+  try{
+    const blob = await figShrink(file);
+    const path = `manual/${q.exam_id || "x"}/q${q.number}_${Date.now()}.jpg`;
+    const up = await sb.storage.from("qfig").upload(path, blob, { contentType:"image/jpeg", upsert:true });
+    if(up.error) throw up.error;
+    const url = sb.storage.from("qfig").getPublicUrl(path).data.publicUrl;
+    const r = await sb.from("questions").update({ figure_url:url }).eq("id", q.id);
+    if(r.error) throw r.error;
+    q.figure_url = url;
+    redrawCard(q.id);
+    toast("그림을 붙였습니다.");
+  }catch(e){ toast("붙이지 못했습니다 — " + e.message); }
+}
+
+async function figRemove(qid){
+  const q = S.questions.find(x => String(x.id) === String(qid));
+  if(!q || !confirm("이 문항의 그림을 지웁니다.")) return;
+  const r = await sb.from("questions").update({ figure_url:null, figure_note:null }).eq("id", q.id);
+  if(r.error) return toast("지우지 못했습니다 — " + r.error.message);
+  q.figure_url = null; q.figure_note = null;
+  redrawCard(q.id);
+  toast("지웠습니다.");
+}
+
+/* 그 문항 슬라이드만 다시 그린다 — 전체를 다시 만들면 스크롤 위치가 튄다 */
+function redrawCard(qid){
+  const i = S.questions.findIndex(x => String(x.id) === String(qid));
+  if(i < 0) return;
+  const body = document.querySelector(`#track .slide[data-i="${i}"] .sheet-body`);
+  if(!body) return;
+  body.dataset.h = "0";          /* hydrate 가 "이미 그렸다"고 판단하는 표시를 지운다 */
+  body.__ink = null; body.__zoom = null;
+  hydrate(i);
+}
+
+let FIG_INPUT = null;
+function figPick(qid){
+  if(!FIG_INPUT){
+    FIG_INPUT = document.createElement("input");
+    FIG_INPUT.type = "file"; FIG_INPUT.accept = "image/*"; FIG_INPUT.style.display = "none";
+    document.body.appendChild(FIG_INPUT);
+  }
+  FIG_INPUT.value = "";
+  FIG_INPUT.onchange = e => { const f = e.target.files[0]; if(f) figAttach(qid, f); };
+  FIG_INPUT.click();
+}
+
+/* 붙여넣기 — 붙여넣기 칸에 초점이 있으면 그 문항으로, 아니면 지금 보고 있는 문항으로 */
+addEventListener("paste", e => {
+  if(!S.loggedIn) return;
+  if(/^(INPUT|TEXTAREA)$/.test(e.target?.tagName)) return;
+  const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith("image/"));
+
+  /* 핵심개념 자료 칸이 초점을 쥐고 있으면 그쪽이 먼저다 — 회차 목록 화면에서도 붙는다 */
+  if(NOTE_PASTE){
+    if(!item) return toast("클립보드에 이미지가 없습니다.");
+    e.preventDefault();
+    const f = item.getAsFile();
+    if(f) noteUpload(NOTE_PASTE.subjectId, NOTE_PASTE.box, [f]);
+    return;
+  }
+
+  if(!$("#v-study").classList.contains("on")) return;
+  if(!item){ if(PASTE_TARGET) toast("클립보드에 이미지가 없습니다."); return; }
+  const q = PASTE_TARGET
+    ? S.questions.find(x => String(x.id) === String(PASTE_TARGET))
+    : S.questions[S.idx];
+  if(!q) return;
+  e.preventDefault();
+  const file = item.getAsFile();
+  if(file) figReplaceGuard(q.id, file);
+});
+
+let TOAST_T = 0;
+function toast(msg){
+  let el = document.getElementById("toast");
+  if(!el){
+    el = document.createElement("div");
+    el.id = "toast";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.classList.add("on");
+  clearTimeout(TOAST_T);
+  TOAST_T = setTimeout(() => el.classList.remove("on"), 2200);
+}
+
+/* 필기 모드로 들어가기 — 처음이면 그 자리에서 qcard/answer 를 가상 페이지로 바꿔 끼운다 */
+function onInkClick(q, body, i){
+  if(!S.loggedIn){ $("#inkPop").classList.add("on"); return; }
+  const qinkBtn = body.querySelector(".qink");
+  /* 이미 필기 중이면 같은 버튼으로 빠져나온다 — 도구모음의 "닫기"를 못 찾아도 갇히지 않게 */
+  if(body.__ink && body.__ink.editing){
+    body.__ink.setEditing(false);
+    maybeRestoreCard(q, body, i);
+    return;
+  }
+  if(!body.__ink){
+    const oldZoomwrap = body.querySelector(".zoomwrap");
+    const inner = oldZoomwrap.querySelector(".qcard").outerHTML +
+                  (oldZoomwrap.querySelector(".answer")?.outerHTML || "");
+    const tmp = document.createElement("div");
+    tmp.innerHTML = inkToolsHTML() + wrapZoom(inkPageHTML(q, inner));
+    const head = body.querySelector(".qhead");
+    [...tmp.children].reverse().forEach(el => head.after(el));
+    oldZoomwrap.remove();
+
+    const zoomwrap = body.querySelector(".zoomwrap");
+    const zoomstage = body.querySelector(".zoomstage");
+    const wrap = body.querySelector(".inkwrap");
+    const page = body.querySelector(".inkpage");
+    const canvas = body.querySelector(".inkcanvas");
+    const tools = body.querySelector(".inktools");
+    wireCard(page, body.closest(".slide"));
+    body.__zoom = setupZoom(zoomwrap, zoomstage);
+    body.__ink = setupInkPage(q.id, wrap, page, canvas, tools,
+                              editing => {
+                                body.__inkEditing = editing;
+                                qinkBtn.classList.toggle("on", editing);
+                                /* 도구모음의 "닫기"로 빠져나온 경우에도 원래 카드로 되돌린다 */
+                                if(!editing) setTimeout(()=> maybeRestoreCard(q, body, i), 0);
+                              }, body.__zoom);
+    tex(page);
+    hlApply(page);
+    requestAnimationFrame(()=> body.__ink?.resize?.());
+  }
+  body.__ink.setEditing(true);
+}
+
+/* 필기를 닫았는데 그린 획이 하나도 없으면, 문항을 원래의 반응형 카드로 되돌린다.
+   필기 모드는 잉크와 글자를 맞추려고 고정폭(400px) 가상 페이지를 쓰는데, 이 구조가 그대로
+   남아 있으면 넓은 화면에서 한 단으로 굳어 좌우 2단 배치가 먹지 않기 때문이다.
+   획이 하나라도 있으면 좌표를 지켜야 하므로 가상 페이지를 유지한다. */
+function maybeRestoreCard(q, body, i){
+  if(body.__ink?.editing) return;             // 아직 필기 중이면 손대지 않는다
+  const strokes = S.anno[q.id]?.strokes;
+  if(strokes && strokes.length) return;      // 필기가 있으면 그대로 둔다
+  if(!body.querySelector(".inkpage")) return; // 이미 일반 카드면 할 일 없음
+  delete body.__ink; delete body.__zoom; body.__inkEditing = false;
+  body.dataset.h = "0";
+  hydrate(i);
+}
+
+/* 근처 문항만 실제로 그린다 (60문항 한 번에 안 그림) */
+function hydrate(i){
+  const slide = $(`#track .slide[data-i="${i}"]`); if(!slide) return;
+  const body = slide.firstElementChild;
+  if(body.dataset.h==="1") return;
+  body.dataset.h="1";
+  const q = S.questions[i];
+  const starred = !!S.stars[q.id];
+  const anno = S.anno[q.id];
+  const hasInk = !!(anno && anno.strokes && anno.strokes.length);
+
+  const headHTML = `
+    <div class="qhead">
+      <button class="qno" data-jumpopen type="button" title="문항 고르기 (G)">${q.number}</button>
+      <span class="qsum">${esc(stripQNo(q.summary||""))}${q.correct_rate!=null?` · 정답률 ${q.correct_rate}%`:""}</span>
+      ${S.loggedIn?`<button class="qedit" data-editsum="${q.id}" type="button" aria-label="제목 고치기" title="제목 고치기 (본문은 카드 안 '본문 고치기')">
+        <svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 11h9"/><path d="M4 16h5"/><path d="M14.5 19.5l5.5-5.5 2 2-5.5 5.5H14.5z"/></svg>
+      </button>`:""}
+      <button class="qink ${hasInk?"has":""}" aria-label="필기">
+        <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+      </button>
+      <button class="qnote" data-qnote type="button" aria-label="핵심개념 바로 보기" title="즐겨찾기한 핵심개념 자료 (N)">
+        <svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg>
+      </button>
+      <button class="qstar ${starred?"on":""}" data-id="${q.id}" aria-label="북마크">
+        <svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6 .8-4.4 4.2 1.1 6.1L12 16.9 6.7 19.7l1.1-6.1L3.4 9.4l6-.8z"/></svg>
+      </button>
+      <button class="delx" data-delq="${q.id}">삭제</button>
+    </div>`;
+
+  const content = cardHTML(q);
+  body.innerHTML = headHTML + (hasInk
+    ? inkToolsHTML() + wrapZoom(inkPageHTML(q, content))
+    : wrapZoom(content));
+
+  body.querySelector(".qstar")?.addEventListener("click",e=>{
+    const el=e.currentTarget, id=el.dataset.id;
+    S.stars[id] = !S.stars[id]; if(!S.stars[id]) delete S.stars[id];
+    LS.set("stars",S.stars); el.classList.toggle("on",!!S.stars[id]);
+    $(`#rail .bub[data-i="${i}"]`)?.classList.toggle("star",!!S.stars[id]);
+  });
+  body.querySelector("[data-jumpopen]")?.addEventListener("click", jumpGridOpen);
+  body.querySelector(".qink")?.addEventListener("click", ()=> onInkClick(q, body, i));
+  body.querySelector("[data-qnote]")?.addEventListener("click", () => pinOpen());
+  body.querySelector("[data-editsum]")?.addEventListener("click", e =>
+    editSummary(e.currentTarget.dataset.editsum, body.querySelector(".qhead")));
+  body.querySelector("[data-delq]")?.addEventListener("click", ()=>
+    confirmDelete(`${q.number}번 문항을 지웁니다.`, ()=>deleteQuestion(q.id), ()=>{
+      S.questions = S.questions.filter(x=>x.id !== q.id);
+      if(!S.questions.length){ S.exam=null; return go(`#/s/${S.subject.id}`); }
+      build();
+      jump(Math.min(i, S.questions.length-1), false);
+    }));
+
+  const zoomwrap = body.querySelector(".zoomwrap");
+  const zoomstage = body.querySelector(".zoomstage");
+  body.__zoom = setupZoom(zoomwrap, zoomstage);
+
+  if(hasInk){
+    const wrap = body.querySelector(".inkwrap");
+    const page = body.querySelector(".inkpage");
+    const canvas = body.querySelector(".inkcanvas");
+    const tools = body.querySelector(".inktools");
+    const qinkBtn = body.querySelector(".qink");
+    wireCard(page, slide);
+    body.__ink = setupInkPage(q.id, wrap, page, canvas, tools,
+                              editing => {
+                                body.__inkEditing = editing;
+                                qinkBtn.classList.toggle("on", editing);
+                                /* 도구모음의 "닫기"로 빠져나온 경우에도 원래 카드로 되돌린다 */
+                                if(!editing) setTimeout(()=> maybeRestoreCard(q, body, i), 0);
+                              }, body.__zoom);
+    tex(page);
+    hlApply(page);
+    requestAnimationFrame(()=> body.__ink?.resize?.());
+  }else{
+    wireCard(zoomstage, slide);
+    tex(zoomstage);
+    hlApply(zoomstage);
+  }
+  $(`#rail .bub[data-i="${i}"]`)?.classList.toggle("star",starred);
+}
+
+
+
+function setActive(i){
+  if(S.idx===i && $(`#rail .bub.now`)) return;
+  S.idx=i;
+  const q=S.questions[i]; if(!q) return;
+  S.seen[q.id]=1; LS.set("seen",S.seen);
+  /* 섞어 보기 덱은 회차가 아니라 임시 묶음이다 —
+     이어보기 위치를 저장하면 실제 회차 진도가 망가지고, 주소도 #/e/mix:… 로 깨진다. */
+  if(!S.exam?._mix){
+    LS.set(`pos:${S.exam.id}`,i);
+    history.replaceState(null,"",`#/e/${S.exam.id}/${q.number}`);
+  }
+
+  [i-2,i-1,i,i+1,i+2].forEach(k=>{ if(k>=0&&k<S.questions.length) hydrate(k); });
+  $$("#rail .bub").forEach((b,k)=>{
+    b.classList.toggle("now",k===i);
+    b.classList.toggle("seen",!!S.seen[S.questions[k].id]);
+  });
+  const chip=$(`#rail .bub[data-i="${i}"]`);
+  chip?.scrollIntoView({behavior:"smooth",block:"nearest",inline:"center"});
+  $("#foot").textContent = `${q.number} / ${S.questions[S.questions.length-1].number}`;
+}
+
+function jump(i,smooth=true){
+  const slide=$(`#track .slide[data-i="${i}"]`); if(!slide) return;
+  hydrate(i);
+  requestAnimationFrame(sizeCols);   /* 헤더 높이가 문항마다 달라질 수 있어 그릴 때마다 다시 잰다 */
+  const track=$("#track");
+  /* 세로 넘김 모드에서는 스크롤 축이 위아래로 바뀐다 */
+  if(track.classList.contains("vert"))
+    track.scrollTo({top:i*track.clientHeight, behavior:smooth?"smooth":"auto"});
+  else
+    track.scrollTo({left:i*track.clientWidth, behavior:smooth?"smooth":"auto"});
+  setActive(i);
+}
+
+/* ── 가림판 ── */
+function applyVeil(){
+  $("#track")?.classList.toggle("veiled",S.veil);
+  $$("#track .slide").forEach(s=>s.classList.remove("peek"));
+  $("#veilBtn").classList.toggle("on",S.veil);
+  $("#veilTxt").textContent = S.veil ? "해설 가림" : "해설 보임";
+  $("#veilIcon").innerHTML = S.veil
+    ? '<path d="M3 3l18 18M10.6 10.6a3 3 0 004.2 4.2"/><path d="M9.4 5.2A9.6 9.6 0 0112 5c6.4 0 10 7 10 7a17 17 0 01-3.2 4M6.2 6.2A17 17 0 002 12s3.6 7 10 7a9.7 9.7 0 004.3-1"/>'
+    : '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>';
+}
+$("#veilBtn").onclick = ()=>{ S.veil=!S.veil; LS.set("veil",S.veil); applyVeil(); };
+
+/* ── 화면 배치 (세로 넘김 / 가로 넘김 / 좌우 2단) ──
+   세 가지를 버튼 하나로 돌려 쓴다. 고른 값은 기기에 저장돼 다음에 열 때도 그대로다. */
+const LAYOUTS = [
+  { id:"swipe-x", label:"가로 넘김",
+    icon:'<path d="M4 5h16v14H4z"/><path d="M9 12h6M13 9l3 3-3 3"/>' },
+  { id:"swipe-y", label:"세로 넘김",
+    icon:'<path d="M4 5h16v14H4z"/><path d="M12 9v6M9 13l3 3 3-3"/>' },
+  { id:"split",   label:"좌우 2단",
+    icon:'<path d="M4 5h16v14H4z"/><path d="M12 5v14"/>' },
+];
+function applyLayout(restore = true){
+  const track = $("#track"); if(!track) return;
+  const cur = LAYOUTS.find(l => l.id === S.layout) || LAYOUTS[0];
+  track.classList.toggle("vert",  cur.id === "swipe-y");
+  track.classList.toggle("split", cur.id === "split");
+  $("#layoutIcon").innerHTML = cur.icon;
+  $("#layoutBtn").title = `화면 배치 — 지금은 "${cur.label}" (눌러서 바꾸기)`;
+  /* 배치를 바꾸면 스크롤 좌표계가 달라지므로 현재 문항 위치를 다시 잡아준다.
+     (build 직후에는 아직 이동할 위치가 정해지지 않았으므로 건너뛴다) */
+  if(!restore) return;
+  requestAnimationFrame(()=>{
+    jump(S.idx, false);
+    $$("#track .slide").forEach(s => s.firstElementChild?.__ink?.resize?.());
+  });
+}
+$("#layoutBtn").onclick = ()=>{
+  const i = LAYOUTS.findIndex(l => l.id === S.layout);
+  S.layout = LAYOUTS[(i + 1) % LAYOUTS.length].id;
+  LS.set("layout", S.layout);
+  applyLayout();
+};
+
+/* ── F9 가림막 ──
+   화면 전체를 흰색으로 덮는다. 어느 화면에서든(과목·회차·문항) 동작하고,
+   덮인 동안에는 어떤 조작도 아래로 통과하지 않는다.
+   아무 키·클릭·터치로 해제. 자리를 비울 때 어깨너머 시선을 막는 용도. */
+const blankEl = $("#blank");
+function setBlank(on){
+  blankEl.classList.toggle("on", on);
+  if(on) blankEl.focus?.();
+}
+const blankOn = () => blankEl.classList.contains("on");
+addEventListener("keydown", e=>{
+  if(e.key === "F9"){ e.preventDefault(); setBlank(!blankOn()); return; }
+  if(blankOn()){ e.preventDefault(); e.stopPropagation(); setBlank(false); }
+}, true);   // capture 단계 — 다른 단축키보다 먼저 가로챈다
+["pointerdown","wheel","touchstart"].forEach(ev =>
+  blankEl.addEventListener(ev, e=>{ e.preventDefault(); setBlank(false); }, {passive:false}));
+
+/* ── 키보드 ── */
+addEventListener("keydown",e=>{
+  if(!$("#v-study").classList.contains("on")) return;
+  if(/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+
+  /* 자료가 떠 있으면 Esc 로 닫는 것부터. 다른 단축키가 뒤에서 끼어들지 않게 여기서 끝낸다 */
+  if(document.getElementById("noteOv")?.classList.contains("on")){
+    if(e.key === "Escape" || e.key === "n" || e.key === "N"){ e.preventDefault(); pinClose(); }
+    return;
+  }
+
+  if(document.getElementById("jumpOv")){
+    if(e.key === "Escape"){ e.preventDefault(); jumpGridClose(); }
+    return;                       /* 고르기 창이 떠 있으면 뒤쪽 단축키는 먹지 않게 */
+  }
+  if((e.key === "g" || e.key === "G") && !e.ctrlKey && !e.metaKey
+     && !$(`#track .slide[data-i="${S.idx}"] .sheet-body`)?.__ink?.editing){
+    e.preventDefault(); jumpGridOpen(); return;
+  }
+
+  /* 필기 중이면 포토샵처럼 알파벳 한 글자로 도구를 바꾼다 (V=이동, P=펜, H=형광펜, U=밑줄, E=지우개) */
+  const ink = $(`#track .slide[data-i="${S.idx}"] .sheet-body`)?.__ink;
+  if(ink?.editing && !e.ctrlKey && !e.metaKey){
+    const map = {v:"move", p:"pen", h:"hi", u:"ul", e:"er"};
+    const t = map[e.key.toLowerCase()];
+    if(t){ e.preventDefault(); ink.setTool(t); return; }
+    if(e.key==="Escape"){ e.preventDefault(); ink.setEditing(false); return; }
+  }
+
+  if(e.key==="n" || e.key==="N"){ e.preventDefault(); pinOpen(); return; }
+  if(e.key==="ArrowRight" || e.key==="PageDown") jump(Math.min(S.idx+1,S.questions.length-1));
+  if(e.key==="ArrowLeft"  || e.key==="PageUp")   jump(Math.max(S.idx-1,0));
+  if(e.key==="L" || e.key==="l"){ e.preventDefault(); $("#layoutBtn").click(); }
+  if(e.key===" "){ e.preventDefault(); $("#veilBtn").click(); }
+});
+
+function fail(el,big,sub){
+  el.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="big">${big}</div><div>${sub}</div></div>`;
+}
+inkRefresh();
+/* 세션은 새로고침 직후 조금 늦게 살아나고, 시간이 지나면 만료되기도 한다.
+   그때마다 고치기 단추가 알아서 나타나고 사라지도록 붙여 둔다.
+
+   ★ supabase-js v2 의 이 콜백은 인증 잠금을 쥔 채로 불린다. 그 안에서 getSession() 이나
+     sb.from(...) 을 부르면 같은 잠금을 다시 기다리다 영영 굳는다. 화면 전체가 로딩
+     상태로 멈춰버리므로, 잠금 밖으로 빠져나온 뒤(setTimeout 0)에 처리하고
+     세션도 다시 묻지 않고 콜백이 준 값을 그대로 쓴다. */
+sb?.auth?.onAuthStateChange?.((_evt, session) => {
+  setTimeout(() => inkRefresh(session ?? null), 0);
+});
+route();
+
+/* 홈 화면 설치 + 오프라인 */
+if("serviceWorker" in navigator && location.protocol.startsWith("http"))
+  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=42").catch(()=>{}));
+</script>
+</body>
+</html>
