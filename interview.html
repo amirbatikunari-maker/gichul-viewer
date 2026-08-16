@@ -114,6 +114,95 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .stage.open .sb{display:block}
 .stage .sb li{margin:5px 0}
 .hide{display:none}
+/* ══ 서브탭 ══ */
+.subtabs{display:flex;gap:4px;overflow-x:auto;margin:16px 0 13px;padding-bottom:3px;-webkit-overflow-scrolling:touch}
+.subtabs::-webkit-scrollbar{display:none}
+.stb{flex:none;background:transparent;border:1.3px solid transparent;color:var(--ink-2);
+  padding:9px 13px;border-radius:999px;font:600 12.5px/1 var(--font-d)}
+.stb.on{background:var(--card);border-color:var(--rule);color:var(--ink)}
+.stb .cnt{font-family:var(--font-m);font-size:10px;opacity:.65;margin-left:5px}
+
+/* ══ 전형 타임라인 ══ */
+.tl{display:flex;overflow-x:auto;padding:4px 0 2px;-webkit-overflow-scrolling:touch}
+.tl::-webkit-scrollbar{display:none}
+.tn{flex:1;min-width:80px;position:relative;background:none;border:0;padding:8px 3px 6px;cursor:pointer;text-align:center}
+.tn+.tn::before{content:"";position:absolute;left:-50%;right:50%;top:31px;height:2px;background:var(--rule);z-index:0}
+.tn.done+.tn::before,.tn.done::before{background:var(--ok)}
+.tn .ring{position:relative;z-index:1;width:46px;height:46px;margin:0 auto 7px;border-radius:50%;
+  background:conic-gradient(var(--accent) calc(var(--p,0)*1%),var(--rule) 0);display:grid;place-items:center}
+.tn .ring i{width:37px;height:37px;border-radius:50%;background:var(--card);display:grid;place-items:center;
+  font:600 12px/1 var(--font-m);font-style:normal;color:var(--ink)}
+.tn.pass .ring{background:var(--ok)} .tn.pass .ring i{color:var(--ok)}
+.tn.fail .ring{background:var(--stamp)} .tn.fail .ring i{color:var(--stamp)}
+.tn .lb{font:600 11.5px/1.25 var(--font-d);color:var(--ink-2);display:block}
+.tn.on .lb{color:var(--accent)}
+.tn.on .ring{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+.tn .stt{display:block;margin-top:3px;font:500 10px/1 var(--font-m)}
+.tn.pass .stt{color:var(--ok)} .tn.fail .stt{color:var(--stamp)} .tn .stt{color:var(--ink-2)}
+.cum{font:600 11px/1 var(--font-m);color:var(--accent);letter-spacing:0}
+
+.pnl{border-top:1px solid var(--rule);margin-top:12px;padding-top:13px}
+.pnl h4{font:700 14px/1.3 var(--font-d);margin:0 0 3px}
+.sbtn{display:flex;gap:5px;flex-wrap:wrap;margin:11px 0}
+.sbtn button{padding:8px 12px;font-size:12px;background:transparent;border:1.3px solid var(--rule);color:var(--ink-2)}
+.sbtn button.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.sbtn button.on[data-s="pass"]{background:var(--ok);border-color:var(--ok)}
+.sbtn button.on[data-s="fail"]{background:var(--stamp);border-color:var(--stamp)}
+.fac{display:grid;gap:7px;margin:11px 0}
+.fr{display:flex;align-items:center;gap:9px;font-size:12.5px}
+.fr .fn{flex:none;width:118px;color:var(--ink-2)}
+.fr .fb{flex:1;height:6px;border-radius:3px;background:var(--rule);overflow:hidden}
+.fr .fb i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.fr .fp{flex:none;width:62px;text-align:right;font:500 11px/1 var(--font-m);color:var(--ink-2)}
+.fr.full .fp{color:var(--ok)}
+.ftip{font-size:11.5px;color:var(--warn);margin:-2px 0 4px 127px;line-height:1.45}
+@media(max-width:520px){
+  .fr .fn{width:84px;font-size:11.5px}
+  .fr .fp{width:54px}
+  .ftip{margin-left:93px}
+  .tn{min-width:72px}
+}
+
+/* ══ 답변 은행 ══ */
+.qa{border:1px solid var(--rule);border-radius:12px;background:var(--card);margin-bottom:8px;overflow:hidden}
+.qa>summary{padding:12px 13px;cursor:pointer;list-style:none;display:flex;gap:8px;align-items:flex-start}
+.qa>summary::-webkit-details-marker{display:none}
+.qa .qt{flex:1;font:600 13.5px/1.45 var(--font-d)}
+.qa .qb{padding:0 13px 13px}
+.ansbox{background:var(--paper);border-radius:10px;padding:11px 13px;font-size:13.5px;line-height:1.7;margin-bottom:8px}
+.ansbox.blur{filter:blur(5px);cursor:pointer;user-select:none}
+.kv{display:flex;gap:7px;font-size:12.5px;margin:5px 0}
+.kv b{flex:none;font:600 10.5px/1.7 var(--font-d);letter-spacing:.06em;color:var(--ink-2)}
+.stars{display:flex;gap:3px}
+.stars button{padding:5px 8px;font-size:11px;background:transparent;border:1.2px solid var(--rule);color:var(--ink-2)}
+.stars button.on{background:var(--ok);border-color:var(--ok);color:#fff}
+
+/* ══ 용어 카드 ══ */
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px}
+.tc{background:var(--card);border:1.4px solid var(--rule);border-radius:13px;padding:13px;cursor:pointer}
+.tc .tt{font:700 14.5px/1.3 var(--font-d);letter-spacing:-.01em}
+.tc .tcat{font:500 10px/1 var(--font-m);color:var(--ink-2);margin-top:4px;display:block}
+.tc .ta{display:none;margin-top:9px;padding-top:9px;border-top:1px dashed var(--rule);font-size:13px;line-height:1.65}
+.tc.open .ta{display:block}
+.tc .tk{display:block;margin-top:7px;font:500 11px/1.5 var(--font-m);color:var(--accent)}
+.tc.m0{border-color:var(--rule)} .tc.m1{border-color:#E0C27A} .tc.m2{border-color:#9CCDB3}
+.tc .mrow{display:flex;gap:4px;margin-top:10px}
+.tc .mrow button{flex:1;padding:6px 0;font-size:11px;background:transparent;border:1.2px solid var(--rule);color:var(--ink-2)}
+.tc .mrow button.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.flip{text-align:center;padding:22px 16px;font-size:15px;line-height:1.7}
+.flip .fq{font:700 19px/1.35 var(--font-d);margin-bottom:12px}
+
+/* ══ 복기 ══ */
+.rv{border:1px solid var(--rule);border-left:3px solid var(--rule);border-radius:0 11px 11px 0;background:var(--card);
+  padding:12px 13px;margin-bottom:8px}
+.rv.good{border-left-color:var(--ok)} .rv.mid{border-left-color:var(--warn)} .rv.bad{border-left-color:var(--stamp)}
+.rv .rq{font:600 13.5px/1.45 var(--font-d)}
+.rv .rm{margin-top:7px;font-size:13px;color:var(--ink-2);white-space:pre-wrap}
+.st8{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px}
+.st8 .n{background:var(--card);border:1px solid var(--rule);border-radius:11px;padding:9px 13px;flex:1;min-width:88px}
+.st8 .n b{display:block;font:700 19px/1.2 var(--font-m)}
+.st8 .n span{font-size:11px;color:var(--ink-2)}
+
 /* ── 로그인 잠금 화면 ── */
 .nav3 .authbtn{flex:none;padding:7px 11px;border-radius:8px;border:0;cursor:pointer;
   background:color-mix(in srgb,var(--paper) 15%,transparent);color:var(--paper);
@@ -217,7 +306,24 @@ button:disabled{opacity:.45;cursor:not-allowed}
     <h1 id="cTitle">—</h1>
     <div class="lead" id="cSub">—</div>
 
-    <!-- 자료 -->
+    <!-- 전형 타임라인 -->
+    <div class="card">
+      <div class="eyebrow">전형 타임라인 <span class="cum" id="cumTxt"></span></div>
+      <div class="tl" id="tl"></div>
+      <div id="tlPanel"></div>
+    </div>
+
+    <!-- 서브탭 -->
+    <div class="subtabs" id="subtabs">
+      <button class="stb on" data-t="prep">준비</button>
+      <button class="stb" data-t="bank">답변 은행<span class="cnt" id="cBank">0</span></button>
+      <button class="stb" data-t="term">용어 카드<span class="cnt" id="cTerm">0</span></button>
+      <button class="stb" data-t="review">복기<span class="cnt" id="cRev">0</span></button>
+      <button class="stb" data-t="docs">자료<span class="cnt" id="cDoc">0</span></button>
+    </div>
+
+    <!-- ── 자료 ── -->
+    <div class="pane hide" id="pane-docs">
     <div class="card">
       <div class="eyebrow">첨부 자료</div>
       <div id="docs"></div>
@@ -245,8 +351,10 @@ button:disabled{opacity:.45;cursor:not-allowed}
       <div class="hint">PDF는 글자를 뽑아 본문에 넣고 원본도 같이 보관합니다.
         글자가 안 뽑히는 스캔본은 직접 붙여넣어 주세요 — AI에는 본문 텍스트만 보냅니다.</div>
     </div>
+    </div>
 
-    <!-- 면접 준비 -->
+    <!-- ── 준비 ── -->
+    <div class="pane" id="pane-prep">
     <div class="card">
       <div class="eyebrow">면접 준비</div>
       <div class="rounds">
@@ -258,6 +366,85 @@ button:disabled{opacity:.45;cursor:not-allowed}
         <button class="ghost sm" id="genOne">비어 있는 것만</button>
       </div>
       <div id="blocks"></div>
+      <div class="hint">모든 답변은 <b>[면접 답변] 20~30초 구어체 → [핵심] 키워드 3개 → [꼬리질문]</b> 형식으로만 나옵니다.</div>
+    </div>
+    </div>
+
+    <!-- ── 답변 은행 ── -->
+    <div class="pane hide" id="pane-bank">
+    <div class="card">
+      <div class="eyebrow">답변 등록 · 수정</div>
+      <div class="grid" style="margin-bottom:10px">
+        <div><label>분류</label><select id="aCat"></select></div>
+        <div><label>회차</label><select id="aRound">
+          <option value="1">1차 실무</option><option value="2">2차 임원</option><option value="0">공통</option></select></div>
+      </div>
+      <label>질문</label><input id="aQ" placeholder="예: 실제로 작성해 본 MOP 하나 말해보세요">
+      <label style="margin-top:10px">[면접 답변] — 20~30초 구어체</label>
+      <textarea id="aA" style="min-height:96px" placeholder="실제 면접에서 그대로 입 밖으로 낼 문장으로."></textarea>
+      <div class="grid" style="margin-top:10px">
+        <div><label>[핵심] 키워드 3개</label><input id="aK" placeholder="SOP · MOP · EOP"></div>
+        <div><label>[꼬리질문]</label><input id="aF" placeholder="그럼 EOP는 누가 승인합니까?"></div>
+      </div>
+      <div class="bar" style="margin-top:11px">
+        <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;letter-spacing:0">
+          <input type="checkbox" id="aAsked" style="width:auto"> 실제로 받았던 질문</label>
+        <button class="sm" id="aSave" style="margin-left:auto">저장</button>
+        <button class="ghost sm hide" id="aCancel">취소</button>
+      </div>
+      <div class="bar" style="margin-top:11px">
+        <button class="ghost sm" id="aGen">공고 기반 예상질문 뽑기</button>
+        <button class="ghost sm" id="aPolish">내 답변 20초로 다듬기</button>
+      </div>
+      <div class="hint">뽑기는 공고·자소서·경력기술서를 근거로 20개를 만들어 아래에 바로 쌓습니다.</div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">내 답변</div>
+      <div class="chips" id="bankChips"></div>
+      <div class="bar" style="margin-bottom:11px">
+        <input id="bankQ" placeholder="검색" style="flex:1;min-width:130px">
+        <button class="ghost sm" id="bankAsked">받은 질문만</button>
+        <button class="ghost sm" id="bankBlur">답 가리기</button>
+      </div>
+      <div id="bankList"></div>
+    </div>
+    </div>
+
+    <!-- ── 용어 카드 ── -->
+    <div class="pane hide" id="pane-term">
+    <div class="card">
+      <div class="eyebrow">20초 안에 답할 용어</div>
+      <div class="chips" id="termChips"></div>
+      <div class="bar" style="margin-bottom:12px">
+        <button class="ghost sm" id="tSeed">기본 26개 넣기</button>
+        <button class="ghost sm" id="tGen">공고에서 용어 뽑기</button>
+        <button class="ghost sm" id="tDrill">암기 훈련</button>
+        <button class="ghost sm" id="tAdd">직접 추가</button>
+      </div>
+      <div id="drill" class="hide"></div>
+      <div class="tgrid" id="termList"></div>
+    </div>
+    </div>
+
+    <!-- ── 복기 ── -->
+    <div class="pane hide" id="pane-review">
+    <div class="card">
+      <div class="eyebrow">면접 복기 기록</div>
+      <div class="st8" id="rvStat"></div>
+      <div class="grid" style="margin-bottom:10px">
+        <div><label>어느 면접</label><select id="rStage"></select></div>
+        <div><label>내 반응</label><select id="rReact">
+          <option value="good">잘 답했다</option><option value="mid" selected>애매했다</option>
+          <option value="bad">막혔다 · 못 답했다</option></select></div>
+      </div>
+      <label>받았던 질문</label><input id="rQ" placeholder="면접관이 실제로 물었던 문장 그대로">
+      <label style="margin-top:10px">그때 내가 한 답변</label>
+      <textarea id="rA" style="min-height:80px" placeholder="기억나는 대로. 말 못 했으면 '못 답함'이라고 적어도 됩니다."></textarea>
+      <div class="bar" style="margin-top:11px"><button class="sm" id="rSave">복기 저장</button>
+        <button class="ghost sm" id="rBad">막힌 질문만 보기</button></div>
+      <div class="hint">저장한 질문은 다음 회차 예상질문·전략을 만들 때 AI가 근거로 씁니다.</div>
+    </div>
+    <div class="card"><div class="eyebrow">기록</div><div id="rvList"></div></div>
     </div>
   </div>
 </div>
@@ -321,6 +508,18 @@ async function loadCases(){
   const { data, error } = await sb.from("iv_case").select("*").order("created_at", { ascending:false });
   if(error) return say("불러오지 못했습니다 — " + error.message + "\nSQL을 먼저 실행하셨나요?", "err");
   CASES = data || [];
+  /* 목록에서도 어디까지 갔는지 한눈에 보이게 단계를 같이 읽는다 */
+  const { data: sg } = await sb.from("iv_stage").select("*");
+  const byCase = {};
+  (sg || []).forEach(s => { (byCase[s.case_id] = byCase[s.case_id] || []).push(s); });
+  CASES.forEach(c => {
+    const mine = byCase[c.id] || [];
+    const nm = { doc:"서류", r1:"1차", r2:"2차", offer:"처우" };
+    const done = ["offer","r2","r1","doc"].map(k => mine.find(s => s.stage_key === k))
+      .find(s => s && (s.status === "pass" || s.status === "fail"));
+    c._badge = done ? `${nm[done.stage_key]} ${done.status === "pass" ? "합격" : "탈락"}` : "";
+    c._fail  = done?.status === "fail";
+  });
   $("#listView").className = "";
   $("#caseView").className = "hide";
   $("#cases").innerHTML = CASES.length
@@ -328,6 +527,7 @@ async function loadCases(){
         <div class="co">${esc(c.company)}</div>
         <div class="ro">${esc(c.role)}</div>
         <div class="meta"><span class="tag st">${STATUS[c.status] || c.status}</span>
+          ${c._badge ? `<span class="tag${c._fail ? "" : " on"}">${c._badge}</span>` : ""}
           ${c.applied_on ? `<span class="tag">${c.applied_on}</span>` : ""}</div></button>`).join("")
     : `<div class="hint">아직 없습니다. 위에서 업체명과 직무명을 넣고 추가하세요.</div>`;
   $("#cases").querySelectorAll(".cs").forEach(b => b.onclick = () => openCase(b.dataset.id));
@@ -349,7 +549,8 @@ async function openCase(id){
   $("#cTitle").textContent = CUR.company;
   $("#cSub").textContent = CUR.role + " · " + (STATUS[CUR.status] || CUR.status);
   window.scrollTo(0, 0);
-  await Promise.all([loadDocs(), loadPrep()]);
+  await Promise.all([loadDocs(), loadPrep(), loadStages(), loadAnswers(), loadTerms(), loadReviews()]);
+  drawTL();
 }
 $("#back").onclick = loadCases;
 $("#del").onclick = async () => {
@@ -433,13 +634,15 @@ $("#dSave").onclick = async () => {
 
 /* ══ 면접 준비 ══ */
 const BLOCKS = [
+  { key:"direction", name:"내가 가야 할 방향성",
+    sub:"이 공고에 나를 어떤 사람으로 세울 것인가" },
   { key:"basics",  name:"공고 기본 개념 정리",
-    sub:"공고에 나온 설비·용어·업무를 바닥부터" },
+    sub:"공고에 나온 설비·용어를 20초 답변으로" },
   { key:"audit",   name:"내 서류 검증 질문",
     sub:"자소서·경력기술서·포폴을 파고드는 질문과 답" },
   { key:"qa",      name:"예상 질문 & 베스트 답변",
     sub:"이 회차에서 실제로 나올 질문" },
-  { key:"company", name:"기업 조언",
+  { key:"company", name:"기업 조언 · 역질문",
     sub:"회사 성격·분위기·조심할 점" }
 ];
 
@@ -528,6 +731,9 @@ function buildPrompt(blockKey){
 답변은 한국어 마크다운으로 쓰고, 지어내지 마라.
 자료에 없는 사실은 절대 사실인 양 쓰지 말고, 필요하면 "자료에 없음 — 확인 필요"라고 표시해라.
 
+${FORMAT}
+${reviewText()}
+
 [채용공고]
 ${posting || "(없음)"}
 
@@ -545,30 +751,64 @@ ${review || "(없음)"}
 `;
 
   const tail = {
+direction:
+`[할 일] 이 공고에 나를 "어떤 사람으로 세울 것인가"를 정하는 문서를 써라. 이건 질문·답변이 아니라 전략이다.
+아래 순서를 그대로 지켜라.
+
+## 한 문장 포지셔닝
+이 회사가 나를 뽑아야 하는 이유를 한 문장으로. "○○을 직접 해봤기 때문에 ○○ 단계에서 ○○을 잡을 수 있는 사람" 꼴로 써라.
+"가서 배우겠다 / 흡수력이 좋다"류는 절대 메인으로 쓰지 마라 — 경력직 면접에서 안 먹힌다. 보조로만 한 줄.
+
+## 공고가 원하는 것 vs 내가 가진 것
+표로 만들어라. 열: 공고 요구 | 내 근거(자료 인용) | 강함/보통/약함 | 약하면 어떻게 메울지.
+자료에 근거가 없는 칸은 "근거 없음 — 만들어 말하지 말 것"이라고 적어라.
+
+## 내 무기 3개
+각각 ▸한 줄 요약 ▸이걸 증명하는 숫자·사례 ▸어느 질문에 끼워 넣을지.
+
+## 내 약점 2~3개와 방어선
+약점은 "경력 부족"이 아니라 "경력의 방향 차이"로 프레이밍해라.
+각 약점마다 [면접 답변] 형식으로 방어 문장을 그대로 써줘라.
+
+## 이번 주 준비 우선순위 5개
+지금 당장 외우거나 만들어야 할 것을 순서대로. 각 항목에 왜 그게 1순위인지 한 줄.`,
+
 basics:
-`[할 일] 이 공고를 이해하기 위한 "기본 개념"을 바닥부터 정리해라.
-- 공고에 나온 설비·시스템·용어를 뽑아 각각 ① 무엇인지 ② 왜 쓰는지 ③ 면접에서 물으면 몇 문장으로 답할지 순으로 정리
-- 이 직무가 실제로 하루/한 달 단위로 무슨 일을 하는지
-- 이 업계에서 지금 중요한 흐름(에너지·자동화·안전·법규 등) 중 공고와 맞닿은 것
-- 지원자가 모르면 바로 티 나는 "기초 구멍" 목록
-너무 넓게 가지 말고 공고에 실제로 적힌 것 위주로 깊게 파라.`,
+`[할 일] 공고에 나온 설비·시스템·용어를 뽑아 "면접관이 물으면 20초 안에 답하는 카드"로 만들어라.
+- 12~18개. 공고에 실제로 적힌 것 위주로. 넓게 가지 말고 깊게.
+- 각 항목은 반드시 이 꼴로:
+  ### 용어
+  [면접 답변] (20~30초 구어체 정의 — 무엇이고 왜 쓰는지까지)
+  [핵심] 키워드 3개
+  [꼬리질문] 1~2개 + 각각 한 줄 대응
+- 마지막에 "모르면 바로 티 나는 기초 구멍" 목록을 따로.`,
 
 audit:
-`[할 일] 자기소개서·경력기술서·포트폴리오를 면접관 눈으로 파고드는 질문을 만들어라.
-핵심은 "진짜로 해봤는가"를 가려내는 질문이다. 다음 축으로 만들어라.
-1) 실제로 손으로 해본 것인가 — 절차·수치·장비명·트러블을 되물어 확인하는 질문
-2) 만들어보고 기획해본 적 있는가 — 설비나 업무를 새로 세우거나 표준을 만든 경험
-3) 생각해본 적 있는가 — 개선안을 떠올렸지만 실행 못 한 것, 그 이유와 대안
-4) 숫자로 말할 수 있는가 — 성과를 정량으로 되묻는 질문
-각 질문마다 ▸질문 ▸면접관이 확인하려는 것 ▸내 자료를 근거로 한 답변 뼈대(STAR)
-▸꼬리질문 2개와 그 대응을 함께 써라.
-자료에 근거가 약한 항목은 "근거 약함 — 답변 전에 사실 확인 필요"라고 분명히 표시해라. 8~10개.`,
+`[할 일] 자기소개서·경력기술서·포트폴리오를 면접관 눈으로 파고드는 질문을 만들어라. 8~10개.
+핵심은 "진짜로 해봤는가"를 가려내는 질문이다. 다음 축을 골고루 섞어라.
+1) 실제로 손으로 해본 것인가 — 절차·수치·장비명·트러블을 되묻는 질문
+2) 만들어본 적 있는가 — 설비·업무 표준이나 문서를 새로 세운 경험
+3) 숫자로 말할 수 있는가 — 성과를 정량으로 되묻는 질문
+각 항목은 이 꼴로:
+  ### Q. 질문
+  ▸면접관이 확인하려는 것 (한 줄)
+  [면접 답변] (내 자료의 사실만 써서 20~30초 구어체)
+  [핵심] 키워드 3개
+  [꼬리질문] 2개 + 각각 한 줄 대응
+자료에 근거가 약하면 "근거 약함 — 답변 전에 사실 확인 필요"라고 그 항목 맨 앞에 표시해라.`,
 
 qa:
-`[할 일] 이 회차에서 실제로 나올 질문과 베스트 답변을 만들어라.
-- 질문 10~12개. 이 회차 성격에 맞는 것만 (실무진 자리에 임원용 질문을 섞지 마라)
-- 각 질문마다 ▸의도 ▸베스트 답변(내 자료의 사실만 써서 30초~1분 분량) ▸피해야 할 답변
-- 마지막에 "내가 되물을 질문" 5개 — 성의 있고 실무를 아는 티가 나는 것으로`,
+`[할 일] 이 회차에서 실제로 나올 질문과 답변을 만들어라. 12개.
+- 이 회차 성격에 맞는 것만 (실무진 자리에 임원용 질문을 섞지 마라)
+- 실무 회차라면 절차문서·설비 디테일을 바로 꺼내야 하는 질문을 반드시 3개 이상 넣어라
+  (예: 직접 작성한 절차서, 분해·정비 순서, 이격거리·기준값 같은 것)
+- 각 항목은 이 꼴로:
+  ### Q. 질문
+  [면접 답변] (20~30초 구어체, 200~300자)
+  [핵심] 키워드 3개
+  [꼬리질문] 1~2개 + 각각 한 줄 대응
+  ▸이러면 감점 (한 줄)
+- 마지막에 "내가 되물을 질문" 5개 — 실무를 아는 티가 나는 것으로.`,
 
 company:
 `[할 일] 이 회사를 지원자 입장에서 어떻게 봐야 하는지 정리해라.
@@ -830,6 +1070,538 @@ function drawStages(){
   $("#stages").querySelectorAll(".stage .sh").forEach(b => b.onclick = () =>
     b.parentElement.classList.toggle("open"));
 }
+
+/* ══════════════════════════════════════════════════════════
+   전형 타임라인 · 답변 은행 · 용어 카드 · 복기
+   ══════════════════════════════════════════════════════════ */
+
+/* 모든 AI 산출물이 지켜야 할 답변 형식 — 여기 한 곳만 고치면 전부 바뀐다 */
+const FORMAT =
+`[답변 형식 — 반드시 지켜라]
+면접에서 말할 답은 아래 세 덩어리로만 써라. 배경 설명·장황한 서술 금지.
+[면접 답변] 실제 면접에서 그대로 입 밖으로 낼 구어체 문장. 20~30초(200~300자). 존댓말.
+[핵심] 키워드 3개를 " · " 로 이어 한 줄.
+[꼬리질문] 1~2개. 각각 바로 뒤에 한 줄짜리 대응까지.
+설명을 더 붙이고 싶어도 붙이지 마라. 사용자는 외워서 말할 문장만 필요하다.`;
+
+const CATS = ["직무","기술","경험","인성","회사","역질문","기타"];
+let ANS = [], TERMS = [], REV = [], STG = {}, SEL = "doc", EDIT_ID = null;
+let BANK_CAT = "전체", BANK_ASKED = false, BANK_BLUR = false, TERM_F = "전체", REV_BAD = false;
+
+/* ── 서브탭 ── */
+document.querySelectorAll(".stb").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".stb").forEach(x => x.classList.toggle("on", x === b));
+  ["prep","bank","term","review","docs"].forEach(t =>
+    $("#pane-" + t).className = "pane" + (t === b.dataset.t ? "" : " hide"));
+});
+function counts(){
+  $("#cBank").textContent = ANS.length; $("#cTerm").textContent = TERMS.length;
+  $("#cRev").textContent  = REV.length;  $("#cDoc").textContent  = DOCS.length;
+}
+
+/* ══ 전형 타임라인 ══ */
+const TLS = [
+  { key:"doc",   name:"서류",      base:40 },
+  { key:"r1",    name:"1차 실무",  base:45 },
+  { key:"r2",    name:"2차 임원",  base:55 },
+  { key:"offer", name:"처우·최종", base:85 }
+];
+const SNAME = { todo:"대기", doing:"진행 중", pass:"합격", fail:"불합격" };
+
+async function loadStages(){
+  const { data } = await sb.from("iv_stage").select("*").eq("case_id", CUR.id);
+  STG = {}; (data || []).forEach(s => STG[s.stage_key] = s);
+}
+
+/* 준비도를 점수로 바꾼다. 근거를 그대로 보여줘야 "뭘 더 하면 오르는지" 가 보인다. */
+function factorsFor(key){
+  const has = k => DOCS.some(d => d.kind === k && (d.body || "").length > 80);
+  const P = k => PREP[`1:${k}`] || PREP[`2:${k}`];
+  const termOk = TERMS.filter(t => t.mastery >= 2).length;
+  const ansOk  = ANS.filter(a => (a.a_md || "").length > 40).length;
+  const f = (label, got, max, tip) => ({ label, pt: Math.min(Math.round(got), max), max, tip });
+
+  if(key === "doc") return [
+    f("채용공고 첨부", has("posting") ? 10 : 0, 10, "자료 탭에 공고 원문을 넣으세요"),
+    f("경력기술서·자소서", has("career") || has("cover") ? 10 : 0, 10, "내 서류가 있어야 매칭이 나옵니다"),
+    f("방향성 정리", P("direction") ? 8 : 0, 8, "준비 탭 · 방향성 블록을 만드세요"),
+    f("공고 개념 정리", P("basics") ? 5 : 0, 5, "")
+  ];
+  if(key === "r1") return [
+    f("용어 20초 답변", termOk * 0.7, 16, "용어 카드에서 '됨' 을 늘리세요 — 실무 면접은 여기서 갈립니다"),
+    f("답변 은행", ansOk * 0.6, 12, "질문·답변을 쌓을수록 오릅니다"),
+    f("서류 검증 준비", P("audit") ? 8 : 0, 8, "준비 탭 · 서류 검증 질문"),
+    f("예상 질문 준비", P("qa") ? 6 : 0, 6, ""),
+    f("복기 기록", REV.length * 1.2, 5, "")
+  ];
+  if(key === "r2") return [
+    f("방향성 정리", P("direction") ? 12 : 0, 12, "임원은 '왜 우리회사' 를 봅니다"),
+    f("답변 은행", ansOk * 0.5, 10, ""),
+    f("기업 조사", has("review") ? 8 : 0, 8, "현직자 글·후기를 자료로 넣으세요"),
+    f("역질문 준비", P("company") ? 7 : 0, 7, ""),
+    f("복기 기록", REV.length * 1.5, 6, "1차에서 받은 질문을 복기해두면 임원 면접이 편합니다")
+  ];
+  return [
+    f("처우 기준 정리", P("company") ? 5 : 0, 5, "희망 연봉 범위를 숫자로 정해두세요"),
+    f("복기 기록", REV.length * 1, 4, "")
+  ];
+}
+function prob(key){
+  const st = STG[key];
+  if(st?.status === "pass") return 100;
+  if(st?.status === "fail") return 0;
+  const base = TLS.find(t => t.key === key).base;
+  const add  = factorsFor(key).reduce((a, b) => a + b.pt, 0);
+  return Math.max(8, Math.min(92, Math.round(base + add)));
+}
+function cumProb(){
+  let p = 1;
+  for(const t of TLS){
+    const st = STG[t.key];
+    if(st?.status === "fail") return 0;
+    p *= st?.status === "pass" ? 1 : prob(t.key) / 100;
+  }
+  return Math.round(p * 100);
+}
+function drawTL(){
+  if(!CUR) return;
+  counts();
+  $("#tl").innerHTML = TLS.map(t => {
+    const st = STG[t.key]?.status || "todo", p = prob(t.key);
+    return `<button class="tn ${st} ${st === "pass" ? "done" : ""} ${SEL === t.key ? "on" : ""}" data-k="${t.key}" style="--p:${p}">
+      <span class="ring"><i>${st === "pass" ? "합격" : st === "fail" ? "탈락" : p + "%"}</i></span>
+      <span class="lb">${t.name}</span>
+      <span class="stt">${SNAME[st]}${STG[t.key]?.on_date ? " · " + STG[t.key].on_date.slice(5) : ""}</span>
+    </button>`;
+  }).join("");
+  $("#tl").querySelectorAll(".tn").forEach(b => b.onclick = () => { SEL = b.dataset.k; drawTL(); });
+  const c = cumProb();
+  $("#cumTxt").textContent = c === 0 ? "이번 건 종료" : `최종 입사까지 누적 ${c}%`;
+  drawPanel();
+}
+function drawPanel(){
+  const t = TLS.find(x => x.key === SEL), st = STG[SEL] || {}, fs = factorsFor(SEL);
+  const md = st.strategy_md;
+  $("#tlPanel").innerHTML = `<div class="pnl">
+    <h4>${t.name} · 합격 확률 ${prob(SEL)}%</h4>
+    <div class="hint" style="margin:0">기본 ${t.base}% 에 아래 준비도를 더해 계산합니다. 확정된 단계는 100%/0% 로 고정됩니다.</div>
+    <div class="sbtn">
+      ${["todo","doing","pass","fail"].map(s =>
+        `<button data-s="${s}" class="${(st.status || "todo") === s ? "on" : ""}">${SNAME[s]}</button>`).join("")}
+      <input type="date" id="sDate" value="${st.on_date || ""}" style="width:auto;padding:7px 9px;font-size:12px">
+    </div>
+    <div class="fac">${fs.map(f => `
+      <div class="fr ${f.pt >= f.max ? "full" : ""}">
+        <span class="fn">${esc(f.label)}</span>
+        <span class="fb"><i style="width:${Math.round(f.pt / f.max * 100)}%"></i></span>
+        <span class="fp">+${f.pt} / ${f.max}</span>
+      </div>${f.pt < f.max && f.tip ? `<div class="ftip">→ ${esc(f.tip)}</div>` : ""}`).join("")}</div>
+    <div class="bar" style="margin-bottom:10px">
+      <button class="sm" id="stGen">이 단계 전략 만들기</button>
+      <button class="ghost sm" id="stEdit">${md ? "직접 고치기" : "직접 쓰기"}</button>
+    </div>
+    <div class="body" id="stBody">${md ? mdToHtml(md) : `<div class="hint">아직 전략이 없습니다.</div>`}</div>
+  </div>`;
+  $("#tlPanel").querySelectorAll(".sbtn button").forEach(b => b.onclick = () => setStatus(b.dataset.s));
+  $("#sDate").onchange = e => saveStage({ on_date: e.target.value || null });
+  $("#stGen").onclick  = genStrategy;
+  $("#stEdit").onclick = () => {
+    const cur = (STG[SEL] || {}).strategy_md || "";
+    const box = document.createElement("textarea");
+    box.value = cur; box.style.minHeight = "220px";
+    $("#stBody").replaceWith(box);
+    const bar = document.createElement("div"); bar.className = "bar"; bar.style.marginTop = "9px";
+    bar.innerHTML = `<button class="sm">저장</button>`;
+    box.after(bar);
+    bar.firstChild.onclick = async () => { await saveStage({ strategy_md: box.value }); drawTL(); };
+  };
+}
+async function saveStage(patch){
+  const row = { case_id:CUR.id, user_id:ME.id, stage_key:SEL, ...(STG[SEL] || {}), ...patch };
+  delete row.id; delete row.created_at;
+  const { data, error } = await sb.from("iv_stage")
+    .upsert(row, { onConflict:"case_id,stage_key" }).select().single();
+  if(error) return say("저장 실패 — " + error.message, "err");
+  STG[SEL] = data;
+}
+async function setStatus(s){
+  await saveStage({ status:s, on_date:(STG[SEL]||{}).on_date || new Date().toISOString().slice(0,10) });
+  /* 채용 건 상태도 같이 움직인다 */
+  let cs = "prep";
+  if(Object.values(STG).some(x => x.status === "fail")) cs = "closed";
+  else if(STG.r2?.status === "pass" || STG.offer?.status === "pass") cs = "offer";
+  else if(STG.r1?.status === "pass") cs = "round2";
+  else if(STG.doc?.status === "pass") cs = "round1";
+  await sb.from("iv_case").update({ status:cs }).eq("id", CUR.id);
+  CUR.status = cs; $("#cSub").textContent = CUR.role + " · " + (STATUS[cs] || cs);
+  drawTL();
+  if(s === "fail") say("복기 탭에 받았던 질문을 남겨두면 다음 건에서 그대로 씁니다.", "ok");
+}
+async function genStrategy(){
+  const t = TLS.find(x => x.key === SEL);
+  const weak = factorsFor(SEL).filter(f => f.pt < f.max).map(f => f.label).join(", ") || "없음";
+  $("#stGen").disabled = true; say(`${t.name} 전략 만드는 중…`);
+  try{
+    const md = await ask(buildPrompt("qa").split("[할 일]")[0] +
+`[할 일] "${CUR.company} · ${CUR.role}" 의 [${t.name}] 단계 전략만 써라. 다른 단계 이야기는 하지 마라.
+현재 이 지원자가 아직 못 채운 준비 항목: ${weak}
+
+## 이 단계에서 떨어지는 사람의 이유 3개
+## 그래서 나는 이렇게 간다 (한 문장 포지셔닝)
+## 이 단계 필살 질문 5개와 답
+각각 ### Q. 질문 / [면접 답변] / [핵심] / [꼬리질문] 형식으로.
+## 당일 체크리스트 6줄
+## 이 단계에서 절대 하면 안 되는 말 3개`);
+    await saveStage({ strategy_md: md }); drawTL(); say("전략을 만들었습니다.", "ok");
+  }catch(e){ say("실패 — " + e.message, "err"); }
+  finally{ const b = $("#stGen"); if(b) b.disabled = false; }
+}
+
+/* AI 에게 JSON 을 받아온다 — 목록을 통째로 넣을 때 쓴다 */
+async function askJSON(prompt){
+  const raw = await ask(prompt + "\n\n[출력] 머리말·설명·코드펜스 없이 JSON 배열만 출력해라.");
+  const s = raw.replace(/```json|```/g, "").trim();
+  const i = s.indexOf("["), j = s.lastIndexOf("]");
+  if(i < 0 || j < 0) throw new Error("형식이 이상합니다. 다시 눌러주세요");
+  return JSON.parse(s.slice(i, j + 1));
+}
+/* 복기 기록을 프롬프트에 얹는다 — 실제로 받은 질문이 가장 강한 근거다 */
+function reviewText(){
+  if(!REV.length) return "";
+  return "\n[이 지원자가 실제 면접에서 받았던 질문과 그때의 반응]\n" +
+    REV.slice(0, 40).map(r => `- (${{good:"잘 답함",mid:"애매",bad:"막힘"}[r.react]}) ${r.q}`).join("\n") +
+    "\n※ 막힌 질문 유형은 반드시 다시 다뤄라.\n";
+}
+
+/* ══ 답변 은행 ══ */
+$("#aCat").innerHTML = CATS.map(c => `<option>${c}</option>`).join("");
+async function loadAnswers(){
+  const { data } = await sb.from("iv_answer").select("*").eq("case_id", CUR.id)
+    .order("created_at", { ascending:false });
+  ANS = data || []; drawBank();
+}
+function drawBank(){
+  counts();
+  let list = ANS.filter(a =>
+    (BANK_CAT === "전체" || a.cat === BANK_CAT) &&
+    (!BANK_ASKED || a.asked) &&
+    (!$("#bankQ").value.trim() || (a.q + " " + (a.a_md || "") + " " + (a.keys || "")).includes($("#bankQ").value.trim())));
+  $("#bankList").innerHTML = list.length ? list.map(a => `
+    <details class="qa">
+      <summary>
+        <span class="qt">${a.asked ? "🔴 " : ""}${esc(a.q)}</span>
+        <span class="tag">${esc(a.cat)}</span>
+      </summary>
+      <div class="qb">
+        <div class="ansbox ${BANK_BLUR ? "blur" : ""}">${esc(a.a_md || "아직 답변 없음")}</div>
+        ${a.keys   ? `<div class="kv"><b>핵심</b><span>${esc(a.keys)}</span></div>` : ""}
+        ${a.follow ? `<div class="kv"><b>꼬리</b><span>${esc(a.follow)}</span></div>` : ""}
+        <div class="bar" style="margin-top:10px">
+          <div class="stars">${[1,2,3].map(n =>
+            `<button data-sc="${a.id}:${n}" class="${a.score >= n ? "on" : ""}">${["","막힘","애매","됨"][n]}</button>`).join("")}</div>
+          <button class="ghost sm" data-ed="${a.id}" style="margin-left:auto">수정</button>
+          <button class="ghost sm" data-rm="${a.id}">삭제</button>
+        </div>
+      </div>
+    </details>`).join("")
+    : `<div class="hint">아직 없습니다. 위에서 직접 넣거나 "공고 기반 예상질문 뽑기"를 누르세요.</div>`;
+
+  $("#bankList").querySelectorAll(".ansbox.blur").forEach(x =>
+    x.onclick = () => x.classList.remove("blur"));
+  $("#bankList").querySelectorAll("[data-sc]").forEach(b => b.onclick = async () => {
+    const [id, n] = b.dataset.sc.split(":");
+    const a = ANS.find(x => x.id === id); a.score = a.score === +n ? 0 : +n;
+    await sb.from("iv_answer").update({ score:a.score }).eq("id", id); drawBank(); drawTL();
+  });
+  $("#bankList").querySelectorAll("[data-rm]").forEach(b => b.onclick = async () => {
+    if(!confirm("이 답변을 지웁니다.")) return;
+    await sb.from("iv_answer").delete().eq("id", b.dataset.rm); loadAnswers(); drawTL();
+  });
+  $("#bankList").querySelectorAll("[data-ed]").forEach(b => b.onclick = () => {
+    const a = ANS.find(x => x.id === b.dataset.ed);
+    EDIT_ID = a.id; $("#aCat").value = a.cat; $("#aRound").value = a.round;
+    $("#aQ").value = a.q; $("#aA").value = a.a_md || ""; $("#aK").value = a.keys || "";
+    $("#aF").value = a.follow || ""; $("#aAsked").checked = !!a.asked;
+    $("#aCancel").className = "ghost sm"; $("#aSave").textContent = "수정 저장";
+    $("#aQ").scrollIntoView({ behavior:"smooth", block:"center" });
+  });
+}
+function clearForm(){
+  EDIT_ID = null; $("#aQ").value = $("#aA").value = $("#aK").value = $("#aF").value = "";
+  $("#aAsked").checked = false; $("#aCancel").className = "ghost sm hide"; $("#aSave").textContent = "저장";
+}
+$("#aCancel").onclick = clearForm;
+$("#aSave").onclick = async () => {
+  const q = $("#aQ").value.trim();
+  if(!q) return say("질문을 넣어주세요.", "err");
+  const row = { case_id:CUR.id, user_id:ME.id, cat:$("#aCat").value, round:+$("#aRound").value,
+    q, a_md:$("#aA").value.trim(), keys:$("#aK").value.trim(), follow:$("#aF").value.trim(),
+    asked:$("#aAsked").checked };
+  const { error } = EDIT_ID
+    ? await sb.from("iv_answer").update(row).eq("id", EDIT_ID)
+    : await sb.from("iv_answer").insert(row);
+  if(error) return say("저장 실패 — " + error.message, "err");
+  clearForm(); say("저장했습니다.", "ok"); await loadAnswers(); drawTL();
+};
+$("#bankQ").oninput   = drawBank;
+$("#bankAsked").onclick = e => { BANK_ASKED = !BANK_ASKED;
+  e.target.className = BANK_ASKED ? "sm" : "ghost sm"; drawBank(); };
+$("#bankBlur").onclick  = e => { BANK_BLUR = !BANK_BLUR;
+  e.target.className = BANK_BLUR ? "sm" : "ghost sm"; drawBank(); };
+chips($("#bankChips"), ["전체", ...CATS], k => { BANK_CAT = k; drawBank(); });
+
+$("#aGen").onclick = async () => {
+  if(!DOCS.some(d => d.kind === "posting")) return say("채용공고부터 넣어주세요.", "err");
+  $("#aGen").disabled = true; say("예상질문 20개 만드는 중…");
+  try{
+    const arr = await askJSON(buildPrompt("qa").split("[할 일]")[0] +
+`[할 일] 이 공고에서 실제로 나올 질문 20개를 만들어 JSON 배열로 내라.
+분류(cat)는 ${CATS.join("/")} 중 하나. 실무 절차·설비 디테일을 묻는 질문을 6개 이상 섞어라.
+각 원소: {"cat":"...","round":1 또는 2,"q":"질문","a":"20~30초 구어체 답변","keys":"키워드 · 키워드 · 키워드","follow":"꼬리질문 — 대응"}`);
+    const rows = arr.slice(0, 25).map(x => ({ case_id:CUR.id, user_id:ME.id,
+      cat:CATS.includes(x.cat) ? x.cat : "기타", round:+x.round || 1,
+      q:String(x.q || "").slice(0, 300), a_md:String(x.a || ""),
+      keys:String(x.keys || ""), follow:String(x.follow || "") }));
+    const { error } = await sb.from("iv_answer").insert(rows);
+    if(error) throw new Error(error.message);
+    say(`${rows.length}개를 넣었습니다.`, "ok"); await loadAnswers(); drawTL();
+  }catch(e){ say("실패 — " + e.message, "err"); }
+  finally{ $("#aGen").disabled = false; }
+};
+$("#aPolish").onclick = async () => {
+  const q = $("#aQ").value.trim(), a = $("#aA").value.trim();
+  if(!q) return say("질문을 먼저 넣어주세요.", "err");
+  $("#aPolish").disabled = true; say("20초 답변으로 다듬는 중…");
+  try{
+    const arr = await askJSON(buildPrompt("qa").split("[할 일]")[0] +
+`[할 일] 아래 질문에 대한 답변을 면접에서 그대로 말할 수 있게 다듬어라.
+질문: ${q}
+지원자가 쓴 답: ${a || "(비어 있음 — 자료를 근거로 새로 써라)"}
+JSON 배열에 원소 1개만: [{"a":"20~30초 구어체 답변","keys":"키워드 · 키워드 · 키워드","follow":"꼬리질문 — 대응"}]`);
+    const x = arr[0] || {};
+    $("#aA").value = x.a || a; $("#aK").value = x.keys || ""; $("#aF").value = x.follow || "";
+    say("다듬었습니다. 확인하고 저장하세요.", "ok");
+  }catch(e){ say("실패 — " + e.message, "err"); }
+  finally{ $("#aPolish").disabled = false; }
+};
+
+/* ══ 용어 카드 ══ */
+async function loadTerms(){
+  const { data } = await sb.from("iv_term").select("*")
+    .or(`case_id.eq.${CUR.id},case_id.is.null`).order("created_at");
+  TERMS = data || []; drawTerms();
+}
+function drawTerms(){
+  counts();
+  const list = TERMS.filter(t => TERM_F === "전체"
+    || (TERM_F === "모름" && t.mastery === 0)
+    || (TERM_F === "애매" && t.mastery === 1)
+    || (TERM_F === "됨"   && t.mastery >= 2));
+  $("#termList").innerHTML = list.length ? list.map(t => `
+    <div class="tc m${Math.min(t.mastery,2)}" data-id="${t.id}">
+      <div class="tt">${esc(t.term)}</div>
+      <span class="tcat">${esc(t.cat || "운영")}</span>
+      <div class="ta">${esc(t.answer || "")}
+        ${t.keys ? `<span class="tk">${esc(t.keys)}</span>` : ""}
+        <div class="mrow">${[0,1,2].map(n =>
+          `<button data-m="${t.id}:${n}" class="${t.mastery === n ? "on" : ""}">${["모름","애매","됨"][n]}</button>`).join("")}
+          <button data-rm="${t.id}">×</button></div>
+      </div>
+    </div>`).join("")
+    : `<div class="hint">비어 있습니다. "기본 26개 넣기"부터 눌러보세요 — 면접에서 바로 나오는 것들입니다.</div>`;
+
+  $("#termList").querySelectorAll(".tc").forEach(c => c.onclick = e => {
+    if(e.target.closest("button")) return;
+    c.classList.toggle("open");
+  });
+  $("#termList").querySelectorAll("[data-m]").forEach(b => b.onclick = async () => {
+    const [id, n] = b.dataset.m.split(":");
+    const t = TERMS.find(x => x.id === id); t.mastery = +n;
+    await sb.from("iv_term").update({ mastery:+n }).eq("id", id); drawTerms(); drawTL();
+  });
+  $("#termList").querySelectorAll("[data-rm]").forEach(b => b.onclick = async () => {
+    if(!confirm("이 카드를 지웁니다.")) return;
+    await sb.from("iv_term").delete().eq("id", b.dataset.rm); loadTerms();
+  });
+}
+chips($("#termChips"), ["전체","모름","애매","됨"], k => { TERM_F = k; drawTerms(); });
+
+$("#tSeed").onclick = async () => {
+  const have = new Set(TERMS.map(t => t.term));
+  const rows = SEED_TERMS.filter(t => !have.has(t[1]))
+    .map(t => ({ user_id:ME.id, case_id:null, cat:t[0], term:t[1], answer:t[2], keys:t[3] }));
+  if(!rows.length) return say("이미 다 들어 있습니다.", "ok");
+  const { error } = await sb.from("iv_term").insert(rows);
+  if(error) return say("실패 — " + error.message, "err");
+  say(`${rows.length}개를 넣었습니다. 모든 채용 건에서 같이 보입니다.`, "ok"); loadTerms();
+};
+$("#tAdd").onclick = async () => {
+  const term = prompt("용어 이름"); if(!term) return;
+  const answer = prompt("20초 답변"); if(answer === null) return;
+  await sb.from("iv_term").insert({ user_id:ME.id, case_id:null, cat:"직접", term, answer });
+  loadTerms();
+};
+$("#tGen").onclick = async () => {
+  if(!DOCS.some(d => d.kind === "posting")) return say("채용공고부터 넣어주세요.", "err");
+  $("#tGen").disabled = true; say("공고에서 용어 뽑는 중…");
+  try{
+    const arr = await askJSON(buildPrompt("basics").split("[할 일]")[0] +
+`[할 일] 이 공고에 나오는 설비·시스템·문서·법규 용어 중 면접관이 물을 만한 것 15개를 뽑아라.
+각 원소: {"cat":"전기/기계/운영/안전/법규 중 하나","term":"용어","answer":"면접에서 20초 안에 말할 구어체 정의(120~180자)","keys":"키워드 · 키워드 · 키워드"}`);
+    const have = new Set(TERMS.map(t => t.term));
+    const rows = arr.filter(x => x.term && !have.has(x.term)).slice(0, 20)
+      .map(x => ({ user_id:ME.id, case_id:CUR.id, cat:String(x.cat || "운영"),
+        term:String(x.term), answer:String(x.answer || ""), keys:String(x.keys || "") }));
+    if(!rows.length) return say("새로 넣을 게 없습니다.", "ok");
+    await sb.from("iv_term").insert(rows);
+    say(`${rows.length}개를 넣었습니다.`, "ok"); loadTerms();
+  }catch(e){ say("실패 — " + e.message, "err"); }
+  finally{ $("#tGen").disabled = false; }
+};
+/* 암기 훈련 — 모르는 것부터 무작위로 한 장씩 */
+let DRILL = [], DI = 0;
+$("#tDrill").onclick = () => {
+  const pool = TERMS.filter(t => t.mastery < 2);
+  DRILL = (pool.length ? pool : TERMS).sort(() => Math.random() - .5);
+  if(!DRILL.length) return say("카드가 없습니다.", "err");
+  DI = 0; $("#drill").className = ""; drawDrill();
+};
+function drawDrill(){
+  if(DI >= DRILL.length){
+    $("#drill").innerHTML = `<div class="flip"><div class="fq">한 바퀴 끝</div>
+      <button class="ghost sm" id="dClose">닫기</button></div>`;
+    $("#dClose").onclick = () => { $("#drill").className = "hide"; drawTerms(); drawTL(); };
+    return;
+  }
+  const t = DRILL[DI];
+  $("#drill").innerHTML = `<div class="card" style="background:var(--paper)">
+    <div class="flip"><div class="fq">${esc(t.term)}</div>
+      <div id="dA" class="hint" style="cursor:pointer">눌러서 답 보기 (${DI+1}/${DRILL.length})</div></div>
+    <div class="sbtn" style="justify-content:center">
+      ${[0,1,2].map(n => `<button data-d="${n}">${["모름","애매","됨"][n]}</button>`).join("")}
+      <button class="ghost" id="dQuit">그만</button></div></div>`;
+  $("#dA").onclick = () => $("#dA").outerHTML =
+    `<div style="font-size:14px;line-height:1.7">${esc(t.answer || "")}
+      ${t.keys ? `<div class="tk" style="color:var(--accent);font-family:var(--font-m);font-size:12px;margin-top:8px">${esc(t.keys)}</div>` : ""}</div>`;
+  $("#drill").querySelectorAll("[data-d]").forEach(b => b.onclick = async () => {
+    await sb.from("iv_term").update({ mastery:+b.dataset.d }).eq("id", t.id);
+    const x = TERMS.find(v => v.id === t.id); if(x) x.mastery = +b.dataset.d;
+    DI++; drawDrill();
+  });
+  $("#dQuit").onclick = () => { $("#drill").className = "hide"; drawTerms(); drawTL(); };
+}
+
+/* ══ 복기 ══ */
+$("#rStage").innerHTML = `<option value="r1">1차 실무 면접</option>
+  <option value="r2">2차 임원 면접</option><option value="doc">서류·기타</option>`;
+async function loadReviews(){
+  const { data } = await sb.from("iv_review").select("*").eq("case_id", CUR.id)
+    .order("created_at", { ascending:false });
+  REV = data || []; drawRev();
+}
+function drawRev(){
+  counts();
+  const bad = REV.filter(r => r.react === "bad").length;
+  $("#rvStat").innerHTML = `
+    <div class="n"><b>${REV.length}</b><span>기록한 질문</span></div>
+    <div class="n"><b style="color:var(--stamp)">${bad}</b><span>막힌 질문</span></div>
+    <div class="n"><b style="color:var(--ok)">${REV.filter(r => r.react === "good").length}</b><span>잘 답한 질문</span></div>
+    <div class="n"><b>${REV.filter(r => r.better_md).length}</b><span>다시 쓴 답</span></div>`;
+  const list = REV.filter(r => !REV_BAD || r.react === "bad");
+  $("#rvList").innerHTML = list.length ? list.map(r => `
+    <div class="rv ${r.react}">
+      <div class="rq">${esc(r.q)}</div>
+      <div class="hint" style="margin-top:4px">${r.on_date || ""} · ${r.stage_key === "r2" ? "2차" : r.stage_key === "r1" ? "1차" : "기타"}
+        · ${{good:"잘 답함",mid:"애매",bad:"막힘"}[r.react]}</div>
+      ${r.my_a ? `<div class="rm">그때 답: ${esc(r.my_a)}</div>` : ""}
+      ${r.better_md ? `<div class="ansbox" style="margin-top:9px">${mdToHtml(r.better_md)}</div>` : ""}
+      <div class="bar" style="margin-top:9px">
+        <button class="ghost sm" data-fix="${r.id}">${r.better_md ? "다시 만들기" : "모범답변 만들기"}</button>
+        ${r.better_md ? `<button class="ghost sm" data-bank="${r.id}">답변 은행에 넣기</button>` : ""}
+        <button class="ghost sm" data-rvrm="${r.id}" style="margin-left:auto">삭제</button>
+      </div>
+    </div>`).join("")
+    : `<div class="hint">아직 기록이 없습니다. 면접 끝나고 나오자마자 질문부터 적어두세요 — 하루 지나면 절반은 사라집니다.</div>`;
+
+  $("#rvList").querySelectorAll("[data-rvrm]").forEach(b => b.onclick = async () => {
+    if(!confirm("이 기록을 지웁니다.")) return;
+    await sb.from("iv_review").delete().eq("id", b.dataset.rvrm); loadReviews(); drawTL();
+  });
+  $("#rvList").querySelectorAll("[data-fix]").forEach(b => b.onclick = () => fixReview(b.dataset.fix, b));
+  $("#rvList").querySelectorAll("[data-bank]").forEach(b => b.onclick = async () => {
+    const r = REV.find(x => x.id === b.dataset.bank);
+    const m = (r.better_md || "").match(/\[면접 답변\]([\s\S]*?)(\[핵심\]|$)/);
+    const k = (r.better_md || "").match(/\[핵심\]([\s\S]*?)(\[꼬리질문\]|$)/);
+    const f = (r.better_md || "").match(/\[꼬리질문\]([\s\S]*)$/);
+    await sb.from("iv_answer").insert({ case_id:CUR.id, user_id:ME.id, cat:"경험",
+      round:r.stage_key === "r2" ? 2 : 1, q:r.q, asked:true,
+      a_md:(m ? m[1] : r.better_md).trim(), keys:(k ? k[1] : "").trim(), follow:(f ? f[1] : "").trim() });
+    say("답변 은행에 넣었습니다.", "ok"); loadAnswers(); drawTL();
+  });
+}
+$("#rBad").onclick = e => { REV_BAD = !REV_BAD; e.target.className = REV_BAD ? "sm" : "ghost sm"; drawRev(); };
+$("#rSave").onclick = async () => {
+  const q = $("#rQ").value.trim();
+  if(!q) return say("받았던 질문을 넣어주세요.", "err");
+  const { error } = await sb.from("iv_review").insert({ case_id:CUR.id, user_id:ME.id,
+    stage_key:$("#rStage").value, round:$("#rStage").value === "r2" ? 2 : 1,
+    q, my_a:$("#rA").value.trim(), react:$("#rReact").value });
+  if(error) return say("저장 실패 — " + error.message, "err");
+  $("#rQ").value = $("#rA").value = ""; say("기록했습니다.", "ok");
+  await loadReviews(); drawTL();
+};
+async function fixReview(id, btn){
+  const r = REV.find(x => x.id === id);
+  btn.disabled = true; say("모범답변 만드는 중…");
+  try{
+    const md = await ask(buildPrompt("qa").split("[할 일]")[0] +
+`[할 일] 아래는 지원자가 실제 면접에서 받은 질문과 그때의 답이다.
+질문: ${r.q}
+그때 한 답: ${r.my_a || "(못 답했음)"}
+반응: ${{good:"무난했음",mid:"애매했음",bad:"막혔음"}[r.react]}
+
+다음 순서로만 써라. 위로하지 말고 바로 본론으로.
+▸왜 이 질문이 나왔는가 (한 줄)
+▸그때 답의 문제 (한 줄, 없으면 '문제 없음')
+[면접 답변]
+[핵심]
+[꼬리질문]
+▸이 답을 하려면 미리 외워둘 것 3개`);
+    await sb.from("iv_review").update({ better_md:md }).eq("id", id);
+    r.better_md = md; drawRev(); say("만들었습니다.", "ok");
+  }catch(e){ say("실패 — " + e.message, "err"); }
+  finally{ btn.disabled = false; }
+}
+
+/* ══ 기본 용어 26장 — 데이터센터 기계·전기 운영에서 바로 나오는 것들 ══ */
+const SEED_TERMS = [
+["운영","SOP (표준운영절차)","정상 상태에서의 운전·점검·순회 절차를 정의한 문서입니다. 누가 근무해도 같은 판단과 같은 결과가 나오도록 만드는 게 목적이고, 일상 점검표와 운전 기준값이 여기 들어갑니다.","정상 운전 · 점검 기준 · 균질성"],
+["운영","MOP (작업절차서)","정비나 개조처럼 설비 상태에 변경이 생기는 작업의 순서·안전조치·복구 절차를 구체화한 문서입니다. 작업 전 승인과 변경관리 대상이고, 이중화 계통에서는 어느 쪽을 죽이고 어느 쪽으로 부하를 넘길지까지 적습니다.","변경 작업 · 사전 승인 · 복구 절차"],
+["운영","EOP (비상운영절차)","정전, 냉동기 정지, 누수, 화재처럼 비상상황이 났을 때의 초동조치와 연락체계를 정한 문서입니다. 판단할 시간이 없기 때문에 조건별로 행동이 이미 정해져 있어야 합니다.","비상 대응 · 초동조치 · 연락체계"],
+["안전","LOTO (잠금·표찰)","정비 전에 전기·유체·압력 같은 에너지원을 차단하고 잠근 뒤 표찰을 붙이는 절차입니다. 잔류 에너지 방전까지 확인하고, 해제는 잠근 본인이 하는 게 원칙입니다.","에너지 차단 · 잔류 확인 · 본인 해제"],
+["전기","UPS","상용전원이 끊겨도 발전기가 물릴 때까지 무정전으로 부하를 받쳐주는 설비입니다. 보통 이중변환 방식을 쓰고, 배터리 자립시간과 부하율, 바이패스 구성이 운영에서 제일 중요한 항목입니다.","무정전 · 자립시간 · 바이패스"],
+["전기","UPS 배터리","자립시간을 실제로 만들어주는 부분입니다. 납축은 온도가 10도 오르면 수명이 절반으로 줄기 때문에 실온 관리가 핵심이고, 셀 내부저항과 단자 온도를 주기적으로 보고 방전시험으로 실제 용량을 확인합니다.","온도 관리 · 내부저항 · 방전시험"],
+["전기","ATS / STS","ATS는 상용과 발전기 사이를 자동으로 절체하는 스위치로 전환 시간이 존재합니다. STS는 이중 교류 전원 사이를 반도체로 매우 짧은 시간에 넘기는 장치라 단일전원 장비를 이중화할 때 씁니다.","전원 절체 · 전환 시간 · 이중화"],
+["기계","CRAC / CRAH","CRAC는 압축기를 안에 갖고 직접 냉매로 냉각하는 항온항습기이고, CRAH는 압축기 없이 칠러에서 온 냉수를 코일로 받아 송풍만 하는 방식입니다. 대형 센터는 대부분 CRAH입니다.","직팽 · 냉수코일 · 항온항습"],
+["기계","냉수 1차·2차 펌프","1차는 칠러 증발기 유량을 지키기 위해 정유량으로 돌리고, 2차는 부하에 맞춰 인버터로 유량을 바꿉니다. 말단 차압을 기준으로 2차 유량을 제어하는 게 일반적입니다.","정유량 · 변유량 · 차압 제어"],
+["기계","메카니컬 씰","회전축에서 물이 새지 않게 막는 부품으로, 고정링과 회전링의 밀착면으로 밀봉합니다. 무부하 건조운전이 제일 큰 적이고, 미세 누설·이상 진동·발열이 교체 신호입니다.","밀착면 · 건조운전 금지 · 누설 감시"],
+["기계","VFD (인버터)","전동기 회전수를 바꿔 유량을 조절하는 장치입니다. 팬과 펌프는 상사법칙에 따라 동력이 회전수의 세제곱에 비례해서, 회전수를 조금만 낮춰도 절감 효과가 큽니다.","회전수 제어 · 상사법칙 · 에너지 절감"],
+["전기","MCC","전동기를 모아 제어하는 반입니다. 차단기·전자접촉기·과부하계전기가 한 세트로 들어가고, 현장에서는 과부하 트립 이력과 결선 상태를 먼저 확인합니다.","전동기 제어 · 과부하 보호 · 집중 관리"],
+["전기","누전차단기","지락 전류를 감지해 회로를 끊는 차단기입니다. 인체 감전 보호용은 정격감도전류 30밀리암페어에 동작시간 0.03초 이내가 기준입니다.","지락 감지 · 30mA · 0.03초"],
+["전기","접지","고장전류에 안전한 귀로를 만들고 기기 외함 전위를 낮추는 조치입니다. 데이터센터는 계통·기기·통신 접지를 따로 두기보다 공통접지에 등전위 본딩을 하는 방향으로 갑니다.","전위 안정 · 공통접지 · 등전위 본딩"],
+["전기","절연저항","절연물이 얼마나 건전한지를 직류 전압을 걸어 재는 시험입니다. 저압 회로는 회로 전압에 따라 시험전압과 기준값이 나뉘고, 측정 전에 반드시 무전압 상태와 잔류전하 방전을 확인합니다.","메거 시험 · 무전압 확인 · 기준값 구분"],
+["안전","가스계 소화설비","전산실은 물을 쓸 수 없어 청정소화약제나 불활성가스로 소화합니다. 방출 전 대피 지연시간과 자동·수동 절환, 그리고 방출 시 급격한 압력 상승을 빼주는 과압배출구가 중요합니다.","청정약제 · 지연시간 · 과압배출"],
+["안전","공기흡입형 감지기","공기를 빨아들여 연기 입자를 상시 감지하는 조기감지 설비입니다. 기류가 빠른 전산실에서 일반 감지기보다 훨씬 빨리 잡아내서 초기 대응 시간을 벌어줍니다.","조기 감지 · 상시 흡입 · 대응시간 확보"],
+["구축","커미셔닝(Cx)","설계 의도대로 실제로 만들어지고 작동하는지를 단계별로 검증하는 절차입니다. 설계검토부터 공장검사, 설치확인, 단독시험, 통합시험까지 문서로 남기고 운영에 넘깁니다.","설계 의도 검증 · 단계별 · 문서화"],
+["구축","FAT (공장검사)","장비를 현장에 들이기 전에 제작 공장에서 사양대로 만들어졌는지 시험하는 단계입니다. 여기서 걸러야 현장에서 재작업 비용과 공기 손실을 막을 수 있습니다.","공장 시험 · 반입 전 · 재작업 방지"],
+["구축","SAT (현장 단독시험)","현장에 설치한 뒤 장비 하나하나를 단독으로 돌려 성능과 인터록을 확인하는 단계입니다. 통합시험 전에 단독에서 문제를 다 털어내는 게 목적입니다.","설치 후 · 단독 성능 · 인터록"],
+["구축","IST (통합가동시험)","여러 설비를 묶어 실제 시나리오로 돌려보는 최종 시험입니다. 부하뱅크를 걸고 상용 정전을 모의해 발전기·UPS·냉방이 끊김 없이 이어지는지를 확인합니다.","통합 시나리오 · 부하뱅크 · 무중단 확인"],
+["구축","TAB","공조·배관 계통의 풍량과 유량을 시험하고 조정해 설계값에 맞추는 작업입니다. 성적서가 있어야 운영 단계에서 기준값을 갖고 판단할 수 있습니다.","시험 · 조정 · 성적서"],
+["운영","인수인계 · 운영전환","커미셔닝이 끝난 설비를 운영 조직이 받는 단계입니다. 준공도면, 시운전 성적서, 예비품, SOP·MOP·EOP, 교육 이수까지 확인하고 넘겨야 나중에 사고가 나지 않습니다.","성적서 · 절차서 · 교육 이수"],
+["운영","PUE","전체 소비전력을 IT 장비 소비전력으로 나눈 효율 지표입니다. 1에 가까울수록 좋고, 계절과 부하율에 따라 달라지기 때문에 연간 평균으로 보는 게 맞습니다.","전력효율 · 연간 평균 · 부하율 영향"],
+["운영","N+1 과 2N","N+1은 필요한 대수에 예비 한 대를 더 두는 구성이고, 2N은 계통 자체를 통째로 두 벌 두는 구성입니다. 비용과 정지 위험 사이에서 어디까지 갈지를 정하는 문제입니다.","예비 대수 · 계통 이중화 · 비용 균형"],
+["운영","핫아일 캡슐화","더운 배기 통로를 막아 찬 공기와 섞이지 않게 하는 구성입니다. 급기 온도를 올릴 수 있어 냉동기 운전시간이 줄고, 랙 사이 빈 자리는 블랭킹 패널로 반드시 막아야 효과가 납니다.","기류 분리 · 급기온도 상승 · 블랭킹"]
+];
 
 chips($("#selfChips"),  Object.keys(SELF),  k => { SELF_KEY = k;  rollSelf(); });
 chips($("#quoteChips"), Object.keys(QUOTE), k => { QUOTE_KEY = k; rollQuote(); });
