@@ -17,6 +17,10 @@
 <title>실기 · 기출 해설 노트</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.css">
+<!-- 글자로 변환한 문항에는 수식이 그대로 들어온다. 필기뷰어와 같은 방식으로 그린다. -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 <style>
 :root{--paper:#E9ECE6;--card:#FCFCFA;--ink:#10233D;--ink-2:#5A6B7F;--rule:#D3D8CD;
       --accent:#1D4ED8;--stamp:#BE2B26;--ok:#137A4B;--warn:#9A6B00;
@@ -179,6 +183,22 @@ body.ovlopen{overflow:hidden}
 
 .hide{display:none !important}
 
+/* ── «자동 변환» 탭 안에 끼워 넣었을 때 ──
+   ?only=import 로 열면 자료함과 PDF 가져오기만 남긴다.
+   실기뷰어 본화면에서는 이 둘을 아예 걷어내고, 자동 변환 탭으로 가라고만 적어 둔다. */
+body.onlyimport .nav3,
+body.onlyimport h1,
+body.onlyimport .lead,
+body.onlyimport #boxView,
+body.onlyimport .edgenav,
+body.onlyimport .ovl{display:none !important}
+body.onlyimport .wrap{padding:14px 12px 40px}
+body.onlyimport .box.fold{margin-bottom:12px}
+.movednote{background:var(--card);border:1px dashed var(--rule);border-radius:12px;
+  padding:13px 15px;margin-bottom:14px;font-size:12.5px;color:var(--ink-2)}
+.movednote b{color:var(--ink)}
+.movednote a{display:inline-block;margin-top:7px;color:var(--accent);font-weight:600;text-decoration:none}
+
 /* ── 한 문항씩 보기 ──
    실기 문제는 통짜 그림이라, 여러 장을 세로로 늘어놓으면 폰에서 전부 찌부러진다.
    필기 뷰어처럼 한 화면에 한 문항만 두고 번호줄로 건너뛴다. */
@@ -251,6 +271,45 @@ body.oneup #list > .pcard.show{display:block}
 .chip{font:600 11.5px/1 var(--font-m);padding:8px 10px;border-radius:8px;cursor:pointer;
   border:1.3px solid var(--rule);background:var(--card);color:var(--ink-2)}
 .chip.on{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+
+/* ── 전체 변환 줄 ── */
+.cvbar{margin:-4px 0 12px;padding:9px 10px;border:1px dashed var(--rule);border-radius:10px;
+  background:color-mix(in srgb,var(--accent) 4%,transparent)}
+.cvstat{font:500 11.5px/1.4 var(--font-m);color:var(--ink-2);flex:1;min-width:120px}
+.cvprog{flex-basis:100%;height:4px;border-radius:3px;background:var(--rule);overflow:hidden}
+.cvprog i{display:block;height:100%;width:0;background:var(--accent);transition:width .18s}
+#cvGap.on,#cvAll.on{border-color:var(--accent);background:var(--accent);color:#fff}
+
+/* ── 글자로 바꾼 문항 ──
+   필기뷰어의 해설칸과 같은 결로 맞춘다. 표는 표로, 식은 KaTeX 로. ── */
+.qmd{font-size:14.5px;line-height:1.72;color:var(--ink)}
+.qmd p{margin:0 0 8px}
+.qmd h4{font:700 13.5px/1.4 var(--font-d);margin:14px 0 5px;color:var(--accent)}
+.qmd h4:first-child{margin-top:0}
+.qmd ul,.qmd ol{margin:0 0 8px;padding-left:19px}
+.qmd li{margin:2px 0}
+.qmd strong{font-weight:700}
+.qmd code{font-family:var(--font-m);font-size:.9em;background:color-mix(in srgb,var(--accent) 8%,transparent);
+  padding:1px 5px;border-radius:5px}
+.qmd table{border-collapse:collapse;width:100%;margin:9px 0;font-size:13px}
+.qmd th,.qmd td{border:1px solid var(--rule);padding:6px 8px;text-align:center;vertical-align:middle}
+.qmd th{background:color-mix(in srgb,var(--accent) 8%,transparent);font-weight:700}
+.qmd figure{margin:10px 0}
+.qmd figure img{display:block;max-width:100%;border:1px solid var(--rule);border-radius:9px;background:#fff}
+.qmd figcaption{font:500 11px/1.4 var(--font-m);color:var(--ink-2);margin-top:4px;text-align:center}
+.qmd .figwait{font:500 11.5px/1.4 var(--font-m);color:var(--ink-2);
+  border:1px dashed var(--rule);border-radius:9px;padding:14px;text-align:center}
+.qmd .katex{font-size:1.06em}
+.qmd .katex-display{overflow-x:auto;overflow-y:hidden;margin:8px 0}
+.qsrc{margin-top:10px}
+.qsrc summary{font:600 11px/1 var(--font-m);color:var(--ink-2);cursor:pointer;
+  padding:6px 0;list-style:none}
+.qsrc summary::-webkit-details-marker{display:none}
+.qsrc summary::before{content:"▸ ";}
+.qsrc[open] summary::before{content:"▾ ";}
+.cvbadge{font:600 9.5px/1 var(--font-m);padding:4px 6px;border-radius:5px;
+  border:1px solid var(--ok);color:var(--ok);background:color-mix(in srgb,var(--ok) 8%,transparent)}
+.cvbadge.no{border-color:var(--rule);color:var(--ink-2);background:transparent}
 
 /* ── 배경 음악 단추 · 작은 차림표 ── */
 .bgm{position:relative;flex:none}
@@ -440,6 +499,19 @@ body.oneup .lead,body.oneup h1{display:none}
         <button class="chip on" id="fOne" type="button" title="한 화면에 한 문항만 보여 줍니다">한 문항씩</button>
         <button class="chip" id="fAuto" type="button" title="문제를 볼 때 해설이 없으면 그 자리에서 씁니다">✎ 자동 해설</button>
       </div>
+
+      <!-- ── 전체 변환 줄 ──
+           오려낸 그림은 여백이 크고 폰에서 찌부러진다. 한 번 글자로 바꿔 두면
+           그 다음부터는 필기뷰어와 똑같이 읽힌다. 표는 표로, 식은 수식으로,
+           글로 못 옮기는 도면만 그 자리를 오려 그림으로 끼워 넣는다. -->
+      <div class="filters cvbar">
+        <button class="chip" id="fText" type="button" title="그림 대신 «글자로 바꾼 것» 으로 봅니다">가 글자로 보기</button>
+        <button class="chip" id="cvGap" type="button" title="아직 글자로 안 바뀐 문항만 골라 변환합니다">⚡ 전체 변환 진행</button>
+        <button class="chip" id="cvAll" type="button" title="이미 변환된 것까지 처음부터 다시 합니다">↻ 전부 다시 변환</button>
+        <button class="chip" id="cvStop" type="button" hidden>중지</button>
+        <span class="cvstat" id="cvStat"></span>
+        <div class="cvprog" id="cvProg" hidden><i id="cvBar"></i></div>
+      </div>
       <div class="prail" id="prail"></div>
       <div id="list"><div class="empty">과목을 고르세요.</div></div>
       <div class="pnav" id="pnav">
@@ -582,6 +654,9 @@ body.oneup .lead,body.oneup h1{display:none}
 <script>
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
+/* «자동 변환» 탭이 이 쪽을 ?only=import 로 불러 쓴다.
+   그때는 자료함·PDF 가져오기만 남기고 나머지를 걷어낸다. */
+const IMPORT_ONLY = new URLSearchParams(location.search).get("only") === "import";
 const CFG = window.APP_CONFIG || {};
 const sb = (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY)
   ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY) : null;
@@ -817,19 +892,26 @@ function drawList(){
     const img = (u, alt, t) => `<div class="pz" data-pz><div class="pz-stage" data-mkhost="${t}" data-qid="${r.id}">
         <img src="${esc(u)}" loading="lazy" alt="${esc(alt)}" style="${rot}">
         <canvas class="inkc"></canvas>${dots(t)}</div></div>`;
+    /* 글자로 보기 — 바꿔 둔 것이 있으면 그림 대신 글로 보여 준다.
+       원본이 궁금할 때를 위해 접어 둔 «원본 그림» 을 아래에 남긴다. */
+    const asText = (u, md, t, alt) => `<div class="qmd" data-qmd="${t}" data-src="${esc(u)}">${mdRich(md)}</div>
+      <details class="qsrc"><summary>원본 그림 보기</summary>${img(u, alt, t)}</details>`;
+    const useText = t => TEXTMODE && (t === "a" ? !!r.a_md : !!r.q_md);
+    const block = (u, md, t, alt) => useText(t) ? asText(u, md, t, alt) : img(u, alt, t);
     return `
     <div class="pcard" data-id="${r.id}">
       <div class="phead ovhead" data-ov="${r.id}" title="눌러서 한눈에 보기 (f)">
         <span class="pno">${r.no}</span>
         <span class="pmeta">${r.year}년 제${r.session}회${r.asked ? " · 출제 " + esc(r.asked) : ""}</span>
-        ${r.points ? `<span class="ppt">${r.points}점</span>` : ""}
+        <span class="ppt">${r.points ? r.points + "점" : ""}</span>
+        <span class="cvbadge${r.q_md ? "" : " no"}" title="${r.q_md ? "글자로 바꿔 둔 문항" : "아직 그림만 있습니다"}">${r.q_md ? "가 변환됨" : "그림"}</span>
         <span class="ovhint">⛶ 한눈에</span>
       </div>
       <div class="pbody">
-        ${r.q_url ? img(r.q_url, `문제 ${r.no}`, "q") : `<div class="empty">문제 그림이 없습니다.</div>`}
+        ${r.q_url ? block(r.q_url, r.q_md, "q", `문제 ${r.no}`) : `<div class="empty">문제 그림이 없습니다.</div>`}
         ${r.a_url ? `<div class="ans ${HIDE_ALL ? "hide" : ""}" data-ans>
             <button class="ansbtn ${HIDE_ALL ? "" : "on"}" type="button" data-toggle>${HIDE_ALL ? "보기" : "가리기"}</button>
-            <div style="margin-top:4px">${img(r.a_url, "답안", "a")}</div>
+            <div style="margin-top:4px">${block(r.a_url, r.a_md, "a", "답안")}</div>
           </div>`
         : `<div class="noans">
             <b>답안이 붙어 있지 않습니다.</b>
@@ -856,6 +938,7 @@ function drawList(){
             r.easy_md ? "↻ 다시 해석하기" : "✎ 해설 만들기"}</button>
           ${r.easy_md ? `<button class="zb" type="button" data-easyedit="${r.id}">고쳐 쓰기</button>` : ""}
           ${r.easy_md ? `<button class="zb" type="button" data-easydel="${r.id}">해설 지우기</button>` : ""}
+          <button class="zb" type="button" data-cv="${r.id}" title="이 문항만 다시 글자로 바꿉니다">${r.q_md ? "↻ 다시 변환" : "가 글자로 변환"}</button>
           <button class="zb" type="button" data-rot="${r.id}" title="90° 씩 돌립니다">↻ 회전${r.rotate ? " " + r.rotate + "°" : ""}</button>
           <button class="zb" type="button" data-swap="${r.id}" title="문제와 답안이 뒤바뀌었을 때">문제 ↔ 답안</button>
           <button class="zb" type="button" data-qdel="${r.id}">삭제</button>
@@ -989,6 +1072,27 @@ function drawList(){
 
   $$("#list [data-toggle]").forEach(b => b.onclick = () => ansToggle(b.closest(".pcard")));
   $$("#list .pbody > [data-pz]").forEach(attachZoom);
+  /* 접어 둔 «원본 그림» 은 펼칠 때 붙인다 — 안 보이는 상태에서 재면 크기가 0 이라 어긋난다 */
+  $$("#list .qsrc").forEach(d => d.addEventListener("toggle", () => {
+    if(!d.open) return;
+    d.querySelectorAll("[data-pz]:not([data-zoomed])").forEach(el => {
+      el.dataset.zoomed = "1";
+      try{ attachZoom(el); }catch(e){}
+    });
+  }));
+
+  /* ── 이 문항만 글자로 변환 ── */
+  $$("#list [data-cv]").forEach(b => b.onclick = async () => {
+    const r = ROWS.find(x => String(x.id) === b.dataset.cv);
+    if(!r?.q_url && !r?.a_url) return log("그림이 없습니다.");
+    if(r.q_md && !confirm("지금 글자를 버리고 처음부터 다시 옮깁니다. 계속할까요?")) return;
+    const old = b.textContent; b.disabled = true; b.textContent = "옮기는 중…";
+    try{ await cvRow(r, true); TEXTMODE = true; paintText(); drawList(); }
+    catch(e){ b.disabled = false; b.textContent = old; alert("변환하지 못했습니다 — " + (e.message || e)); }
+  });
+
+  /* 수식을 그리고, [[그림]] 자리를 원본에서 오려 채운다 */
+  $$("#list .qmd").forEach(el => { tex(el); figFill(el, el.dataset.src); });
 
   /* 새로 그린 뒤 한 문항씩 모드를 다시 적용한다 */
   if(ONEAT >= SHOWN.length) ONEAT = 0;
@@ -1891,6 +1995,220 @@ function mdLite(t){
 const inl = x => x.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
                   .replace(/\$\$?([^$\n]+?)\$\$?/g, "$1");
 
+/* ══════════════════════════════════════════════════════════════
+   글자로 변환 — 실기 문항을 «그림» 이 아니라 «글» 로 읽는다
+
+   오려낸 PDF 조각은 원본 여백까지 그대로 들고 온다. 폰에서는 찌부러지고,
+   확대해도 표가 안 읽히고, 찾기도 안 되고, 형광펜도 못 긋는다.
+   그래서 한 번만 AI 로 훑어 «마크다운 + 수식 + 표» 로 옮겨 두고,
+   그 다음부터는 필기뷰어와 똑같이 글로 읽는다.
+
+   글로 옮길 수 없는 것 — 결선도·시퀀스도·래더·그래프 — 은 억지로 쓰지 않는다.
+   그 자리에 [[그림 x0,y0,x1,y1]] 만 남기게 하고, 화면에서 그 네모만
+   원본에서 오려 «글 중간에» 끼워 넣는다.
+
+   결과는 practicals.q_md · a_md 에 남는다(추가SQL_실기변환.sql).
+   ══════════════════════════════════════════════════════════════ */
+
+/* 마크다운 — 표·제목·목록·굵게·코드·수식까지. 필기뷰어 해설칸과 같은 결. */
+function mdRich(src){
+  const lines = esc(String(src || "")).split("\n");
+  let out = "", ul = false, ol = false, i = 0;
+  const close = () => { if(ul){ out += "</ul>"; ul = false; } if(ol){ out += "</ol>"; ol = false; } };
+  const isRow = t => /^\|.*\|/.test(t);
+  const cells = t => t.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+
+  while(i < lines.length){
+    const t = lines[i].trim();
+    if(!t){ close(); i++; continue; }
+
+    /* 표 — 둘째 줄이 |---|---| 모양이면 표로 본다 */
+    if(isRow(t) && isRow((lines[i+1] || "").trim()) && /^\|[\s:\-|]+\|?$/.test((lines[i+1] || "").trim())){
+      close();
+      const head = cells(lines[i]); i += 2;
+      const body = [];
+      while(i < lines.length && isRow(lines[i].trim())){ body.push(cells(lines[i])); i++; }
+      out += `<table><thead><tr>${head.map(h => `<th>${inlR(h)}</th>`).join("")}</tr></thead><tbody>`
+           + body.map(r => `<tr>${r.map(c => `<td>${inlR(c)}</td>`).join("")}</tr>`).join("")
+           + "</tbody></table>";
+      continue;
+    }
+    /* 글로 못 옮기는 그림 자리 — 나중에 원본에서 오려 채운다 */
+    const fig = t.match(/^\[\[\s*그림\s*([0-9.,\s]*)\]\]\s*(.*)$/);
+    if(fig){
+      close();
+      const nums = (fig[1] || "").split(",").map(v => parseFloat(v)).filter(v => !isNaN(v));
+      const box = nums.length === 4 ? nums.join(",") : "";
+      out += `<figure data-fig="${box}"><div class="figwait">그림을 오려 오는 중…</div>`
+           + (fig[2] ? `<figcaption>${inlR(fig[2])}</figcaption>` : "") + `</figure>`;
+      i++; continue;
+    }
+    if(/^#{1,6}\s/.test(t)){ close(); out += `<h4>${inlR(t.replace(/^#+\s/, ""))}</h4>`; i++; continue; }
+    if(/^[-*]\s/.test(t)){ if(ol){ out += "</ol>"; ol = false; } if(!ul){ out += "<ul>"; ul = true; }
+      out += `<li>${inlR(t.replace(/^[-*]\s/, ""))}</li>`; i++; continue; }
+    if(/^\d+[.)]\s/.test(t)){ if(ul){ out += "</ul>"; ul = false; } if(!ol){ out += "<ol>"; ol = true; }
+      out += `<li>${inlR(t.replace(/^\d+[.)]\s/, ""))}</li>`; i++; continue; }
+    close(); out += `<p>${inlR(t)}</p>`; i++;
+  }
+  close(); return out;
+}
+/* 줄 안쪽 — 수식은 KaTeX 가 나중에 그리도록 $…$ 를 그대로 둔다 */
+const inlR = x => x.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+                   .replace(/`([^`]+)`/g, "<code>$1</code>");
+
+function tex(el){
+  if(!el || !window.renderMathInElement) return;
+  try{ renderMathInElement(el, { delimiters:[
+    { left:"$$", right:"$$", display:true }, { left:"$", right:"$", display:false },
+    { left:"\\[", right:"\\]", display:true }, { left:"\\(", right:"\\)", display:false }
+  ], throwOnError:false, ignoredTags:["script","style","textarea","pre","code"] }); }catch(e){}
+}
+
+/* [[그림 …]] 자리를 원본에서 오려 채운다. 좌표가 없으면 그림 전체를 넣는다. */
+const FIGCACHE = new Map();
+async function figFill(root, url){
+  if(!root || !url) return;
+  const jobs = [...root.querySelectorAll("figure[data-fig]")].filter(f => !f.dataset.done);
+  for(const f of jobs){
+    f.dataset.done = "1";
+    const nums = (f.dataset.fig || "").split(",").map(v => parseFloat(v)).filter(v => !isNaN(v));
+    try{
+      let src;
+      if(nums.length === 4){
+        const [x0, y0, x1, y1] = nums;
+        const rect = { x:Math.min(x0,x1), y:Math.min(y0,y1),
+                       w:Math.abs(x1-x0), h:Math.abs(y1-y0) };
+        /* 너무 작게 잡히면 잘못 읽은 것이다 — 그럴 땐 통째로 보여 준다 */
+        if(rect.w < 0.06 || rect.h < 0.03) throw new Error("small");
+        const key = `${url}|${nums.map(n => n.toFixed(3)).join(",")}`;
+        if(!FIGCACHE.has(key)){
+          const blob = await cropRect(url, rect);
+          FIGCACHE.set(key, URL.createObjectURL(blob));
+        }
+        src = FIGCACHE.get(key);
+      }else src = url;
+      const im = document.createElement("img");
+      im.src = src; im.loading = "lazy"; im.alt = "원본에서 오려 온 그림";
+      f.querySelector(".figwait")?.replaceWith(im);
+    }catch(e){
+      const im = document.createElement("img");
+      im.src = url; im.loading = "lazy"; im.alt = "원본 그림";
+      f.querySelector(".figwait")?.replaceWith(im);
+    }
+  }
+}
+
+/* ── 변환 프롬프트 ── */
+const CV_PROMPT = (what) =>
+`너는 전기기사 실기 기출문제집을 «글자» 로 옮기는 사람이다.
+첨부한 그림은 기출 PDF 에서 오려 낸 ${what} 한 덩어리다. 보이는 그대로 한국어 마크다운으로 옮겨라.
+
+[반드시 지켜라]
+1. 없는 내용을 지어내지 마라. 안 보이면 안 보인다고 두고 넘어가라. 풀이·해설을 새로 쓰지도 마라.
+2. 문제 번호·머리글(«문제 01», «출제년도», «점수», «답안작성»)은 옮기지 마라. 본문만 옮긴다.
+3. 수식은 LaTeX 로 쓰고 $ … $ 로 감싼다. 여러 줄로 크게 보여야 하는 식은 $$ … $$ 로 감싼다.
+   예) $P_s=\\sqrt{3}\\,V I_s$ , $\\dfrac{22900}{\\sqrt{3}}=13221.32$
+4. 표는 반드시 마크다운 표로 옮긴다. 표를 글로 풀어쓰지 마라.
+   | 동별 | 세대당면적[m²] | 세대수 |
+   |---|---|---|
+   | 1동 | 50 | 30 |
+5. ①②③ · (1)(2)(3) · 가나다 같은 번호 매김은 원문 그대로 살린다.
+6. ★ 글로 옮길 수 없는 그림 — 단선결선도 · 시퀀스도 · 래더 · 논리회로 · 철탑 배치도 ·
+   부하곡선 그래프 · 계기 배치 그림 — 은 «절대 글로 설명하지 마라».
+   그 자리에 아래 한 줄만 넣어라.
+       [[그림 x0,y0,x1,y1]] 짧은 이름
+   x0,y0,x1,y1 은 그림 전체를 가로 0~1 · 세로 0~1 로 봤을 때
+   그 도면이 차지하는 네모의 왼쪽위·오른쪽아래 좌표다. 소수 둘째 자리까지.
+   넉넉하게 잡아라 — 잘려 나가는 것보다 여백이 좀 붙는 편이 낫다.
+   예) [[그림 0.10,0.22,0.92,0.58]] 특고압 수전설비 단선결선도
+7. 마크다운 코드펜스(\`\`\`)로 감싸지 마라. 머리말·맺음말도 쓰지 마라. 옮긴 본문만 출력한다.`;
+
+let CVSTOP = false, CVBUSY = false;
+const cvSay = t => { const el = $("#cvStat"); if(el) el.textContent = t; };
+
+async function cvOne(r, side){
+  const url = side === "a" ? r.a_url : r.q_url;
+  if(!url) return null;
+  const blob = await fetch(url).then(x => x.blob());
+  const raw = await askAI(CV_PROMPT(side === "a" ? "답안" : "문제"), blob, 4096);
+  const md = String(raw || "").replace(/```[a-z]*\n?/gi, "").trim();
+  return md || null;
+}
+
+async function cvRow(r, force){
+  const patch = {};
+  if(r.q_url && (force || !r.q_md)){ const m = await cvOne(r, "q"); if(m) patch.q_md = m; }
+  if(r.a_url && (force || !r.a_md)){ const m = await cvOne(r, "a"); if(m) patch.a_md = m; }
+  if(!Object.keys(patch).length) return false;
+  const up = await sb.from("practicals").update(patch).eq("id", r.id);
+  if(up.error) throw new Error(/q_md|a_md|schema cache/i.test(up.error.message)
+    ? "q_md · a_md 칸이 아직 없습니다 — 추가SQL_실기변환.sql 을 먼저 돌려 주세요."
+    : up.error.message);
+  Object.assign(r, patch);
+  return true;
+}
+
+/* 지금 화면에 걸린 조건 안의 문항을 죽 훑는다.
+   force 가 false 면 «아직 안 바뀐 것» 만 골라 채운다 — 중간에 끊겨도 이어서 하면 된다. */
+async function cvRun(force){
+  if(CVBUSY) return;
+  const pool = (SHOWN.length ? SHOWN : ROWS)
+    .filter(r => (r.q_url || r.a_url) && (force || !r.q_md || (r.a_url && !r.a_md)));
+  if(!pool.length){
+    cvSay("변환할 문항이 없습니다 — 지금 조건 안은 모두 글자로 바뀌어 있습니다.");
+    return;
+  }
+  if(force && !confirm(`${pool.length}개를 처음부터 다시 변환합니다.\n이미 바꿔 둔 글자는 새 것으로 덮어씁니다. 계속할까요?`)) return;
+
+  CVBUSY = true; CVSTOP = false;
+  $("#cvStop").hidden = false;
+  $("#cvProg").hidden = false;
+  $("#cvGap").disabled = $("#cvAll").disabled = true;
+
+  let ok = 0, bad = 0, n = 0;
+  const fails = [];
+  for(const r of pool){
+    if(CVSTOP) break;
+    n++;
+    cvSay(`변환 중 ${n}/${pool.length} — ${r.year}년 제${r.session}회 ${r.no}번 · 됨 ${ok} · 실패 ${bad}`);
+    $("#cvBar").style.width = (n / pool.length * 100) + "%";
+    try{
+      if(await cvRow(r, force)) ok++;
+    }catch(e){
+      bad++;
+      const why = e.message || String(e);
+      fails.push(`${r.year}-${r.session} ${r.no}번 — ${why}`);
+      log(`변환 실패 ${r.year}-${r.session} ${r.no}번 — ${why}`);
+      if(/추가SQL_실기변환/.test(why)) break;      /* 칸이 없으면 더 돌려 봐야 소용없다 */
+    }
+    /* 서버가 몰려서 죄다 거절하는 일을 막는다 */
+    await new Promise(s => setTimeout(s, 350));
+  }
+
+  $("#cvStop").hidden = true;
+  $("#cvProg").hidden = true;
+  $("#cvGap").disabled = $("#cvAll").disabled = false;
+  CVBUSY = false;
+  cvSay((CVSTOP ? "중지했습니다. " : "") + `변환 ${ok}개 완료` + (bad ? ` · ${bad}개 실패` : "")
+    + (bad ? "  (아래 기록을 보세요)" : ""));
+  if(fails.length) log("[변환 실패]\n" + fails.join("\n"));
+  if(!TEXTMODE && ok){ TEXTMODE = true; paintText(); }
+  drawList();
+}
+
+/* ── 글자로 보기 ↔ 그림으로 보기 ── */
+let TEXTMODE = (()=>{ try{ return localStorage.getItem("prac:text") === "1"; }catch(e){ return false; } })();
+function paintText(){
+  $("#fText")?.classList.toggle("on", TEXTMODE);
+  const b = $("#fText"); if(b) b.textContent = TEXTMODE ? "🖼 그림으로 보기" : "가 글자로 보기";
+  OVTXT = TEXTMODE;
+  try{ localStorage.setItem("prac:text", TEXTMODE ? "1" : "0"); }catch(e){}
+}
+$("#fText")?.addEventListener("click", () => { TEXTMODE = !TEXTMODE; paintText(); drawList(); });
+$("#cvGap")?.addEventListener("click", () => cvRun(false));
+$("#cvAll")?.addEventListener("click", () => cvRun(true));
+$("#cvStop")?.addEventListener("click", () => { CVSTOP = true; cvSay("중지하는 중…"); });
+
 /* ── 그림에서 네모 부분만 잘라 낸다 (비율 좌표 → 실제 픽셀) ── */
 async function cropRect(url, rect){
   const blob = await fetch(url).then(r => r.blob());
@@ -2496,8 +2814,9 @@ async function putFiles(files){
    그림은 눌러서 원본 크기로 폈다가 다시 화면 폭에 맞출 수 있다.
    ══════════════════════════════════════════════════════ */
 let OVID = null, OVSEG = "a";
-/* 한눈에 보기를 «글자» 로 열지 «그림» 으로 열지. 한 번 고르면 그대로 기억한다. */
-let OVTXT = (()=>{ try{ return localStorage.getItem("pr-ovtxt") === "1"; }catch(e){ return false; } })();
+/* 한눈에 보기를 «글자» 로 열지 «그림» 으로 열지 — 목록 쪽 «가 글자로 보기» 와 같은 값을 쓴다.
+   두 곳이 따로 놀면 «목록은 글자인데 펼치면 그림» 이 되어 헷갈린다. */
+let OVTXT = TEXTMODE;
 
 function ovIndex(){ return SHOWN.findIndex(x => String(x.id) === String(OVID)); }
 
@@ -2529,12 +2848,16 @@ function ovDraw(){
      그림은 원본 여백까지 그대로 들고 와서 화면이 헐렁해진다.
      글은 이미 뽑아 두었으니(q_text · a_text) 빽빽하게 읽고 싶으면 이쪽을 쓴다.
      다만 결선도·시퀀스도는 글로 옮기면 형체가 사라지므로, 그림도 아래에 같이 남겨 둔다. */
-  const paneBody = (url, txt, what) => {
+  const paneBody = (url, md, txt, what) => {
     if(OVTXT){
+      /* 글자로 바꿔 둔 것이 있으면 그걸 쓴다. 없으면 PDF 에서 뽑아 둔 날글이라도 보여 준다. */
+      if(md) return `<div class="qmd" data-qmd data-src="${esc(url || "")}">${mdRich(md)}</div>`
+        + (url ? `<details class="qsrc"><summary>원본 그림 보기</summary>
+            <div class="imgbox"><img src="${esc(url)}" alt="${what}" style="${rot}"></div></details>` : "");
       const t = (txt || "").trim();
       return t
         ? `<div class="otx">${esc(t)}</div>`
-          + (url ? `<div class="tnote">도면·회로가 있는 문항은 아래 그림을 함께 보세요.</div>
+          + (url ? `<div class="tnote">아직 글자로 변환하지 않은 문항입니다 — «⚡ 전체 변환 진행» 을 누르면 표·수식까지 제대로 옮깁니다.</div>
                     <div class="imgbox"><img src="${esc(url)}" alt="${what}" style="${rot}"></div>` : "")
         : `<div class="miss">뽑아 둔 글자가 없습니다. 그림으로 봅니다.</div>`
           + (url ? `<div class="imgbox"><img src="${esc(url)}" alt="${what}" style="${rot}"></div>` : "");
@@ -2545,12 +2868,12 @@ function ovDraw(){
   };
 
   $("#ovText").textContent = OVTXT ? "🖼 그림으로" : "가 글자로";
-  $("#ovLeft").innerHTML = `<div class="plab">문제</div>${paneBody(r.q_url, r.q_text, "문제")}`;
+  $("#ovLeft").innerHTML = `<div class="plab">문제</div>${paneBody(r.q_url, r.q_md, r.q_text, "문제")}`;
 
   $("#ovRight").innerHTML = `
     <div class="seg${OVSEG === "a" ? " on" : ""}" data-seg="a">
       <div class="plab">답안</div>
-      ${paneBody(r.a_url, r.a_text, "답안")}
+      ${paneBody(r.a_url, r.a_md, r.a_text, "답안")}
     </div>
     <div class="seg${OVSEG === "e" ? " on" : ""}" data-seg="e">
       <div class="plab">쉬운 풀이</div>
@@ -2564,6 +2887,10 @@ function ovDraw(){
     im.onclick = () => im.classList.toggle("zoom");
   });
   $$("#ovl .otabs button").forEach(b => b.classList.toggle("on", b.dataset.oseg === OVSEG));
+
+  /* 글자로 옮긴 칸은 수식을 그리고, [[그림]] 자리를 원본에서 오려 채운다 */
+  $$("#ovl .qmd").forEach(el => { tex(el); figFill(el, el.dataset.src); });
+  tex($("#ovl .ez"));
 }
 function ovStep(d){
   const i = ovIndex(); if(i < 0) return;
@@ -2575,9 +2902,9 @@ function ovStep(d){
   $$("#ovl .pane").forEach(p => p.scrollTop = 0);
 }
 $("#ovText")?.addEventListener("click", () => {
-  OVTXT = !OVTXT;
-  try{ localStorage.setItem("pr-ovtxt", OVTXT ? "1" : "0"); }catch(e){}
-  ovDraw();
+  TEXTMODE = !TEXTMODE;
+  paintText();          /* OVTXT 도 여기서 같이 맞춰진다 */
+  ovDraw(); drawList();
 });
 $("#ovClose")?.addEventListener("click", ovClose);
 $("#ovPrev")?.addEventListener("click", () => ovStep(-1));
@@ -2621,12 +2948,61 @@ $$("[data-fold]").forEach(b => {
   };
 });
 
+/* ══════════════════════════════════════════════════════════════
+   자료함 · PDF 가져오기는 «자동 변환» 탭으로 옮겼다
+
+   실기뷰어에서는 늘 접혀 있으면서도 문제를 보려면 그 밑까지 스크롤해야 했다.
+   그렇다고 코드를 자동 변환 쪽으로 통째로 베끼면, 두 문서가
+   #run · #stop · #drop · #file · #log 같은 이름을 똑같이 써서 서로의 단추를 집어 간다.
+   그래서 «화면만» 옮긴다 — 자동 변환 탭이 이 쪽을 ?only=import 로 불러 쓴다.
+   고치는 자리는 여기 한 곳으로 남고, 실기뷰어 본화면은 문제 보기만 남는다.
+   ══════════════════════════════════════════════════════════════ */
+let IMPORT_UI_DONE = false;
+function applyImportOnly(){
+  if(IMPORT_UI_DONE) return;            /* boot() 은 로그인 상태가 바뀔 때마다 다시 돈다 */
+  IMPORT_UI_DONE = true;
+  const files = $("#boxFiles"), imp = $("#boxImport"), view = $("#boxView");
+  if(IMPORT_ONLY){
+    document.body.classList.add("onlyimport");
+    /* 불러 쓰는 쪽에서는 늘 펼쳐 둔다 — 한 번 더 눌러야 하면 옮긴 보람이 없다 */
+    files?.classList.add("open"); imp?.classList.add("open");
+    view?.setAttribute("hidden", "");
+    document.title = "실기 변환 · 기출 해설 노트";
+    return;
+  }
+  /* 본화면 — 두 상자를 걷어내고, 어디로 갔는지만 적어 둔다 */
+  files?.setAttribute("hidden", "");
+  imp?.setAttribute("hidden", "");
+  const head = view?.querySelector(".foldh");
+  if(head) head.innerHTML = `<span class="arw">◀</span>문제 보기`;
+  view?.classList.add("open");
+  $("#main")?.insertAdjacentHTML("beforeend",
+    `<div class="movednote">
+       <b>자료함</b>과 <b>PDF 에서 문제 가져오기</b>는 위쪽 <b>자동 변환</b> 탭으로 옮겼습니다.
+       거기서 <b>필기 변환 / 실기 변환</b>으로 갈라 두었습니다.
+       <br><a href="./ingest.html">자동 변환 탭으로 가기 →</a>
+     </div>`);
+}
+
 /* ═══════════════════════════════════════════════ */
 async function boot(){
+  applyImportOnly();
+  paintText();
   await loadSubjects();
   await loadList();
   paintScope();
   await loadFiles();
+  cvCount();
+}
+
+/* 지금 과목에 «아직 글자로 안 바뀐» 문항이 몇 개인지 알려 준다.
+   눌러 보기 전에 얼마나 걸릴 일인지 먼저 보이게. */
+function cvCount(){
+  if(CVBUSY) return;
+  const n = ROWS.filter(r => (r.q_url || r.a_url) && !r.q_md).length;
+  cvSay(!ROWS.length ? "" :
+    n ? `${ROWS.length}개 중 ${n}개가 아직 그림입니다 — «⚡ 전체 변환 진행» 을 누르면 글자로 바꿉니다.`
+      : `${ROWS.length}개 모두 글자로 바뀌어 있습니다.`);
 }
 (async () => { if(await gate()) boot(); })();
 sb?.auth?.onAuthStateChange?.(() => setTimeout(() => gate().then(on => on && boot()), 0));
