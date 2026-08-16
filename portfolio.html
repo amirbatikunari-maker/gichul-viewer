@@ -127,6 +127,17 @@ button:disabled{opacity:.45;cursor:not-allowed}
   .two>.card{margin-bottom:0}
   .two>.col{position:sticky;top:60px}
 }
+/* ── 공유 링크로 들어온 손님 화면 ── */
+body.guest{background:#F4F5F1}
+body.guest .wrap{max-width:920px;padding-top:26px}
+body.guest #docView .bar{align-items:center;margin-bottom:16px}
+body.guest .gname{flex:1;font:600 12px/1 var(--font-d);letter-spacing:.14em;color:var(--ink-2);
+  text-transform:uppercase}
+body.guest .doc{box-shadow:0 18px 50px -28px rgba(16,35,61,.4)}
+body.guest #musicBtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+body.guest #musicBtn{font-variant-numeric:tabular-nums}
+@media print{ body.guest .ro{display:none} }
+
 @media print{
   .nav3,.stabs,.msg,.bar,button,.hint,.noprint{display:none !important}
   body{background:#fff}
@@ -227,9 +238,10 @@ const KEEP = localStorage.getItem("pf-keep") === "1";
 const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY,
   { auth:{ persistSession:KEEP, autoRefreshToken:KEEP, storageKey:"sb-pf-session" } });
 
-const say  = (t, c) => { const m = $("#m"); m.textContent = t; m.className = "msg " + (c || "on");
+/* 손님 화면에서는 알림 상자를 아예 들어내므로, 없어도 안 터지게 해 둔다 */
+const say  = (t, c) => { const m = $("#m"); if(!m) return; m.textContent = t; m.className = "msg " + (c || "on");
   if(c === "ok") setTimeout(() => { if(m.textContent === t) m.className = "msg"; }, 3200); };
-const hide = () => { $("#m").className = "msg"; };
+const hide = () => { const m = $("#m"); if(m) m.className = "msg"; };
 const esc  = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 /* ═══════════════════════════════════════════════════════
@@ -401,17 +413,66 @@ $("#login").onclick = async () => {
 };
 $("#pw").addEventListener("keydown", e => { if(e.key === "Enter") $("#login").click(); });
 
+/* ══════════════════════════════════════════════════════
+   공유 링크로 들어온 손님 화면
+   ──────────────────────────────────────────────────────
+   문서 한 장만 남긴다. 탭바·로그인·편집·목록은 아예 DOM 에서 걷어낸다.
+   숨기기만 하면 개발자 도구로 되살릴 수 있고, 무엇보다
+   «보는 사람» 에게는 그 단추들이 있다는 것 자체가 군더더기다.
+   살려 두는 것은 딱 둘 — 본문 안의 링크, 그리고 인쇄.
+   (실제 차단은 화면이 아니라 Supabase 의 pf_shared 함수가 한다.
+    그 함수는 토큰에 걸린 사람의 항목만 «읽기» 로 돌려준다.)
+   ══════════════════════════════════════════════════════ */
 async function bootShared(){
-  $("#gate").className = "gate hide";
-  document.querySelector(".nav3")?.remove();
+  document.body.classList.add("guest");
   const { data, error } = await sb.rpc("pf_shared", { p_token: SHARE });
-  if(error) return say("링크가 유효하지 않거나 만료됐습니다 — " + error.message, "err");
-  ITEMS = data || [];
+
+  /* 손님 화면에서 필요 없는 것을 통째로 들어낸다 */
+  ["gate","listView","editView","stabs","authBtn"].forEach(id => document.getElementById(id)?.remove());
+  document.querySelector(".nav3")?.remove();
+
+  if(error){
+    document.querySelector(".wrap").innerHTML =
+      `<div class="doc" style="text-align:center;padding:60px 24px">
+         <div class="dh" style="font-size:22px">링크를 열 수 없습니다</div>
+         <div class="quiet" style="margin-top:8px">주소가 잘못됐거나, 만든 사람이 링크를 끊었습니다.</div>
+       </div>`;
+    return;
+  }
+
+  ITEMS = (data || []).map(x => ({ ...x, kind:x.kind || "project", meta:x.meta || {} }));
   drawDoc();
   $("#docView").className = "";
-  $("#docBack")?.remove(); 
+  $("#m").remove();
+
+  /* 문서 안의 링크는 전부 새 창으로 — 이 페이지를 떠나지 않게 */
+  $("#docBody").querySelectorAll("a[href]").forEach(a => {
+    a.target = "_blank"; a.rel = "noopener noreferrer";
+  });
+
+  /* 위 단추줄을 손님용으로 갈아 끼운다 */
+  const bar = $("#docView").querySelector(".bar");
+  bar.innerHTML = `<span class="gname" id="gName"></span>
+    <button class="ghost sm" id="docPrint2">인쇄 · PDF</button>
+    <button class="ghost sm" id="musicBtn" title="가사 없는 재즈">♪ 음악 켜기</button>`;
+  const p = ITEMS.find(x => x.kind === "profile");
+  $("#gName").textContent = p ? `${p.title} · 포트폴리오` : "포트폴리오";
+  $("#docPrint2").onclick = () => window.print();
+  $("#musicBtn").onclick  = toggleJazz;
+
   document.querySelector(".wrap").insertAdjacentHTML("beforeend",
     `<div class="ro">읽기 전용으로 공유된 포트폴리오입니다.</div>`);
+
+  /* 지난번에 켜 뒀다면 이어서 튼다.
+     다만 브라우저는 «사용자가 무언가 건드리기 전» 에는 소리를 못 내게 막는다.
+     그래서 첫 클릭·터치·스크롤을 기다렸다가 그때 시작한다. */
+  if(localStorage.getItem("pf-jazz") === "1"){
+    const kick = () => { if(!JZ.on) toggleJazz(); off(); };
+    const off  = () => ["pointerdown","keydown","wheel","touchstart"]
+      .forEach(e => removeEventListener(e, kick));
+    ["pointerdown","keydown","wheel","touchstart"]
+      .forEach(e => addEventListener(e, kick, { once:false, passive:true }));
+  }
 }
 
 function show(v){
@@ -755,6 +816,151 @@ function mdToHtml(md){
     close(); html += `<p>${inline(t)}</p>`;
   }
   close(); return html;
+}
+
+/* ══════════════════════════════════════════════════════
+   배경 음악 — 가사 없는 재즈
+
+   음원 파일을 싣지 않는다. 녹음물은 전부 누군가의 저작물이고,
+   포트폴리오 링크에 남의 음원을 얹어 두면 그것부터 문제가 된다.
+   그래서 브라우저가 «그 자리에서 연주하게» 했다.
+   워킹 베이스 + 스윙 라이드 + 7화음 컴핑, ii-V-I 을 돌린다.
+   화성 진행 자체는 재즈의 공용 문법이라 누구의 것도 아니다.
+
+   · 저절로 켜지지 않는다. 손님이 ♪ 를 눌러야 시작한다
+     (브라우저도 그렇게만 허용하고, 남의 페이지에서 소리가 튀어나오는 건 결례다)
+   · 켠 상태는 이 기기에 기억해 둔다
+   ══════════════════════════════════════════════════════ */
+const JZ = { ctx:null, on:false, timer:null, t:0, bar:0, master:null, noise:null };
+
+/* 화음 — [반음 간격들]. 컴핑은 3음·7음·9음만 쥔다(루트는 베이스가 친다) */
+const QUAL = {
+  m7:   { chord:[0,3,7,10], voice:[3,10,14] },
+  d7:   { chord:[0,4,7,10], voice:[4,10,14] },
+  M7:   { chord:[0,4,7,11], voice:[4,11,14] },
+  h7:   { chord:[0,3,6,10], voice:[3,10,13] }   /* m7♭5 */
+};
+/* 한 마디 = 화음 하나 또는 둘. ii-V-I 을 조를 옮겨 가며 돈다 */
+const TUNE = [
+  [[62,"m7"]], [[67,"d7"]], [[60,"M7"]], [[60,"M7"]],
+  [[64,"h7"]], [[69,"d7"]], [[62,"m7"]], [[62,"m7"]],
+  [[67,"m7"]], [[60,"d7"]], [[65,"M7"]], [[65,"M7"]],
+  [[62,"h7"]], [[67,"d7"]], [[60,"m7"]], [[62,"m7"],[67,"d7"]]
+];
+const BPM = 132, SWING = 0.64;
+const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+
+function jzInit(){
+  const C = new (window.AudioContext || window.webkitAudioContext)();
+  JZ.ctx = C;
+  const g = C.createGain(); g.gain.value = 0.0001; g.connect(C.destination);
+  JZ.master = g;
+  /* 심벌·하이햇에 쓸 잡음 한 덩어리를 미리 만들어 둔다 */
+  const n = C.createBuffer(1, C.sampleRate * 2, C.sampleRate);
+  const d = n.getChannelData(0);
+  for(let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  JZ.noise = n;
+}
+function jzNoise(t, dur, freq, q, vol){
+  const C = JZ.ctx;
+  const src = C.createBufferSource(); src.buffer = JZ.noise; src.loop = true;
+  const bp = C.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = freq; bp.Q.value = q;
+  const g = C.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.004);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(bp).connect(g).connect(JZ.master);
+  src.start(t); src.stop(t + dur + 0.02);
+}
+function jzTone(t, midi, dur, vol, type, cut){
+  const C = JZ.ctx;
+  const o = C.createOscillator(); o.type = type; o.frequency.value = hz(midi);
+  const lp = C.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = cut;
+  const g = C.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(lp).connect(g).connect(JZ.master);
+  o.start(t); o.stop(t + dur + 0.02);
+}
+
+/* 한 마디를 통째로 예약한다 */
+function jzBar(t0){
+  const beat = 60 / BPM;
+  const bar  = TUNE[JZ.bar % TUNE.length];
+  const next = TUNE[(JZ.bar + 1) % TUNE.length][0];
+  const pick = b => bar.length === 1 ? bar[0] : (b < 2 ? bar[0] : bar[1]);
+
+  for(let b = 0; b < 4; b++){
+    const t = t0 + b * beat;
+    const [root, q] = pick(b);
+    const ch = QUAL[q];
+
+    /* ── 라이드 심벌 — 스윙 8분음표 ── */
+    jzNoise(t, 0.9, 7200, 0.7, b % 2 === 0 ? 0.055 : 0.04);
+    if(b === 1 || b === 3) jzNoise(t + beat * SWING, 0.5, 7600, 0.7, 0.032);
+    /* ── 하이햇(발) — 2·4박 ── */
+    if(b === 1 || b === 3) jzNoise(t, 0.12, 4200, 1.4, 0.07);
+
+    /* ── 워킹 베이스 — 4분음표로 걷는다 ── */
+    let n;
+    if(b === 0) n = root - 24;
+    else if(b === 3){
+      /* 다음 화음 루트로 반음 붙여 들어간다 — 이게 걷는 맛이다 */
+      const tgt = next[0] - 24;
+      n = tgt + (Math.random() < 0.5 ? 1 : -1);
+    } else {
+      n = root - 24 + ch.chord[1 + Math.floor(Math.random() * 3)];
+    }
+    while(n < 33) n += 12; while(n > 52) n -= 12;
+    jzTone(t, n, beat * 0.92, 0.16, "triangle", 520);
+
+    /* ── 피아노 컴핑 — 박에 딱 맞추지 않고 살짝 어긋나게 ── */
+    const hit = (b === 0 && Math.random() < 0.55) || (b === 1 && Math.random() < 0.5)
+             || (b === 2 && Math.random() < 0.35) || (b === 3 && Math.random() < 0.45);
+    if(hit){
+      const off = Math.random() < 0.5 ? 0 : beat * SWING;
+      const vs = ch.voice.map(iv => {
+        let m = root + iv;
+        while(m < 60) m += 12; while(m > 78) m -= 12;
+        return m;
+      });
+      vs.forEach((m, i) => jzTone(t + off + i * 0.006, m, 1.05, 0.045, "triangle", 2400));
+    }
+  }
+  JZ.bar++;
+  return t0 + beat * 4;
+}
+
+function jzLoop(){
+  const C = JZ.ctx;
+  /* 0.6초 앞까지 미리 예약해 둔다 — 브라우저가 잠깐 멈춰도 끊기지 않게 */
+  while(JZ.t < C.currentTime + 0.6) JZ.t = jzBar(Math.max(JZ.t, C.currentTime + 0.05));
+}
+
+function toggleJazz(){
+  const btn = $("#musicBtn");
+  if(!JZ.ctx) jzInit();
+  const C = JZ.ctx;
+  if(JZ.on){
+    JZ.on = false;
+    clearInterval(JZ.timer); JZ.timer = null;
+    JZ.master.gain.cancelScheduledValues(C.currentTime);
+    JZ.master.gain.setValueAtTime(JZ.master.gain.value, C.currentTime);
+    JZ.master.gain.exponentialRampToValueAtTime(0.0001, C.currentTime + 0.8);
+    btn.textContent = "♪ 음악 켜기"; btn.classList.remove("on");
+    localStorage.setItem("pf-jazz", "0");
+    return;
+  }
+  C.resume?.();
+  JZ.on = true; JZ.t = C.currentTime + 0.15;
+  JZ.master.gain.cancelScheduledValues(C.currentTime);
+  JZ.master.gain.setValueAtTime(0.0001, C.currentTime);
+  JZ.master.gain.exponentialRampToValueAtTime(0.14, C.currentTime + 1.6);  /* 살며시 올라온다 */
+  jzLoop();
+  JZ.timer = setInterval(jzLoop, 180);
+  btn.textContent = "♪ 음악 끄기"; btn.classList.add("on");
+  localStorage.setItem("pf-jazz", "1");
 }
 
 boot();
