@@ -255,12 +255,14 @@ body.haspin .qnote{display:grid}
 .easy .ez-h{font:600 11px/1 var(--font-d);letter-spacing:.1em;color:var(--accent);
   margin-bottom:11px;display:flex;align-items:center;gap:8px}
 .easy .ez-h::after{content:"";flex:1;height:1px;background:color-mix(in srgb,var(--accent) 25%,transparent)}
-.easy .eb h3{font:600 13.5px/1.5 var(--font-d);margin:16px 0 7px;color:var(--ink)}
-.easy .eb h2{font:600 14px/1.5 var(--font-d);margin:18px 0 8px;color:var(--ink)}
-.easy .eb p{margin:0 0 9px}
-.easy .eb ul,.easy .eb ol{margin:0 0 9px;padding-left:19px}
-.easy .eb li{margin-bottom:5px}
-.easy .eb table{margin:6px 0 11px}
+.easy .eb{font-size:13.5px;line-height:1.6}
+.easy .eb h3{font:600 13px/1.4 var(--font-d);margin:13px 0 4px;color:var(--ink)}
+.easy .eb h2{font:600 13.5px/1.4 var(--font-d);margin:15px 0 5px;color:var(--ink)}
+.easy .eb h2:first-child,.easy .eb h3:first-child{margin-top:0}
+.easy .eb p{margin:0 0 6px}
+.easy .eb ul,.easy .eb ol{margin:0 0 6px;padding-left:18px}
+.easy .eb li{margin-bottom:2px}
+.easy .eb table{margin:5px 0 8px}
 .easy .ebar{display:flex;gap:7px;flex-wrap:wrap;margin-top:13px}
 .easy .wait{font:500 12px/1.6 var(--font-d);color:var(--ink-2)}
 .year{font:600 13px/1 var(--font-m);color:var(--ink-2);margin:20px 0 8px;letter-spacing:.04em}
@@ -524,7 +526,9 @@ body.manage .delx{display:inline-flex}
 /* ── 문제 카드 ───────────────────────────────── */
 .qcard{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
        padding:16px;box-shadow:var(--shadow)}
-.qtext{font-size:15.5px;line-height:1.72;font-weight:500;word-break:keep-all}
+.qtext{font-size:15px;line-height:1.65;font-weight:500;word-break:keep-all}
+@media(max-width:520px){ .qtext{font-size:14.5px;line-height:1.62} }
+@media(min-width:1100px){ .qtext{font-size:15.5px} }
 .part{font:600 10px/1 var(--font-d);letter-spacing:.1em;color:var(--ink-2);margin-bottom:9px}
 
 /* ── 보기 = OMR 마킹 ─────────────────────────── */
@@ -575,10 +579,12 @@ body.manage .delx{display:inline-flex}
 .exp-h{display:flex;align-items:center;gap:8px;font:600 11px/1 var(--font-d);
        letter-spacing:.12em;color:var(--ink-2);margin-bottom:12px}
 .exp-h::after{content:"";flex:1;height:1px;background:var(--rule)}
-.exp-b{font-size:14.5px;line-height:1.75}
-.exp-b p{margin:0 0 10px}
-.exp-b ul,.exp-b ol{margin:0 0 10px;padding-left:20px}
-.exp-b li{margin:3px 0}
+/* 해설은 «읽는 글» 이라 문제 본문보다 한 눈금 작고 촘촘한 게 읽기 편하다.
+   1.75 줄간격은 문단이 흩어져 보여 눈이 다음 줄을 놓친다. */
+.exp-b{font-size:13.5px;line-height:1.6}
+.exp-b p{margin:0 0 7px}
+.exp-b ul,.exp-b ol{margin:0 0 7px;padding-left:18px}
+.exp-b li{margin:2px 0}
 .exp-b strong{font-weight:700;color:var(--ink)}
 .exp-b code{font-family:var(--font-m);font-size:.9em;background:var(--accent-soft);
             padding:1px 5px;border-radius:4px}
@@ -4597,7 +4603,7 @@ route();
 
 /* 홈 화면 설치 + 오프라인 */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=48").catch(()=>{}));
+  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=49").catch(()=>{}));
 </script>
 </body>
 </html>
