@@ -880,6 +880,13 @@ mark.st{
   <a href="./portfolio.html">포트폴리오</a>
 </nav>
 
+<!-- 화면 좌우 넘김 단추 — 반드시 <script> 보다 «앞» 에 있어야 한다.
+     뒤에 두면 스크립트가 돌 때 이 요소가 아직 없어서 null 에서 터지고,
+     그 아래 boot() 까지 통째로 안 돌아 화면이 텅 빈다. (실제로 그렇게 됐었다) -->
+<button class="edgenav prev" id="edgePrev" type="button" aria-label="이전 문항">‹</button>
+<button class="edgenav next" id="edgeNext" type="button" aria-label="다음 문항">›</button>
+
+
 
 <!-- ══ 상단 ══ -->
 <header class="top">
@@ -4421,9 +4428,7 @@ route();
 
 /* 홈 화면 설치 + 오프라인 */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=45").catch(()=>{}));
+  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=46").catch(()=>{}));
 </script>
-<button class="edgenav prev" id="edgePrev" type="button" aria-label="이전 문항">‹</button>
-<button class="edgenav next" id="edgeNext" type="button" aria-label="다음 문항">›</button>
 </body>
 </html>
