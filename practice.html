@@ -104,7 +104,7 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
 .mkb{padding:10px 12px;font-size:var(--fs-ez);line-height:var(--lh-ez)}
 .mkb p{margin:3px 0} .mkb ul{margin:3px 0;padding-left:17px} .mkb li{margin:1px 0}
 .mkb h4{font:700 13px/1.4 var(--font-d);margin:9px 0 4px}
-.easybox{margin-top:9px;padding:11px 13px;border-radius:10px;
+.easybox{margin-top:0;padding:10px 12px;border-radius:10px;
   font-size:var(--fs-ez);line-height:var(--lh-ez);
   background:color-mix(in srgb,var(--accent) 5%,transparent);border:1px solid color-mix(in srgb,var(--accent) 20%,transparent)}
 .easybox p{margin:3px 0} .easybox ul{margin:3px 0;padding-left:17px} .easybox li{margin:1px 0}
@@ -142,7 +142,7 @@ body.ovlopen{overflow:hidden}
 /* 글자로 보기 — 오려낸 그림은 원본 여백까지 그대로 들고 온다.
    글로 뽑아 둔 것이 이미 있으니, 빽빽하게 읽고 싶을 때는 이쪽으로 갈아 끼운다. */
 .ovl .otx{white-space:pre-wrap;word-break:break-word;margin:0;
-  font:400 13.5px/1.72 var(--font-d);color:var(--ink)}
+  font:400 var(--qfs,14px)/1.5 var(--font-d);color:var(--ink)}
 .ovl .otx b{color:var(--accent)}
 .ovl .tnote{font-size:11.5px;color:var(--ink-2);margin-top:10px}
 .ovl .pane::-webkit-scrollbar{width:9px}
@@ -273,40 +273,92 @@ body.oneup #list > .pcard.show{display:block}
 .chip.on{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
 
 /* ── 전체 변환 줄 ── */
-.cvbar{margin:-4px 0 12px;padding:9px 10px;border:1px dashed var(--rule);border-radius:10px;
+.cvbar{margin:-4px 0 12px;padding:8px 10px;border:1px dashed var(--rule);border-radius:10px;
   background:color-mix(in srgb,var(--accent) 4%,transparent)}
+.cvsep{width:1px;height:20px;background:var(--rule);margin:0 2px}
+.cvbar select{min-width:88px;padding:7px 8px;font-size:12px}
+#fTrim.on,#fSplit.on,#fText.on{border-color:var(--accent);background:var(--accent);color:#fff}
 .cvstat{font:500 11.5px/1.4 var(--font-m);color:var(--ink-2);flex:1;min-width:120px}
 .cvprog{flex-basis:100%;height:4px;border-radius:3px;background:var(--rule);overflow:hidden}
 .cvprog i{display:block;height:100%;width:0;background:var(--accent);transition:width .18s}
 #cvGap.on,#cvAll.on{border-color:var(--accent);background:var(--accent);color:#fff}
 
 /* ── 글자로 바꾼 문항 ──
-   필기뷰어의 해설칸과 같은 결로 맞춘다. 표는 표로, 식은 KaTeX 로. ── */
-.qmd{font-size:14.5px;line-height:1.72;color:var(--ink)}
-.qmd p{margin:0 0 8px}
-.qmd h4{font:700 13.5px/1.4 var(--font-d);margin:14px 0 5px;color:var(--accent)}
+   PDF 조각을 글로 옮기면 «줄이 주르륵» 흘러 오히려 못 읽는다.
+   그래서 필기뷰어 해설칸과 같은 결로 촘촘하게 잡는다 —
+   줄간격은 좁게, 문단 사이는 한 칸만, 표는 내용 폭에 맞춰 작게. ── */
+.qmd{font-size:var(--qfs,14px);line-height:1.5;color:var(--ink);
+     word-break:keep-all;overflow-wrap:anywhere}
+.qmd > :first-child{margin-top:0}
+.qmd > :last-child{margin-bottom:0}
+.qmd p{margin:0 0 4px}
+.qmd p + p{margin-top:0}
+/* 【규모】 [조건] 같은 꺾쇠 머리는 작은 소제목처럼 띄운다 */
+.qmd p.blk{font-weight:700;margin:11px 0 3px;color:var(--accent)}
+.qmd h4{font:700 var(--qfs,14px)/1.35 var(--font-d);margin:12px 0 4px;color:var(--accent);
+  padding-bottom:3px;border-bottom:1px solid var(--rule)}
 .qmd h4:first-child{margin-top:0}
-.qmd ul,.qmd ol{margin:0 0 8px;padding-left:19px}
-.qmd li{margin:2px 0}
+.qmd ul,.qmd ol{margin:0 0 5px;padding-left:16px}
+.qmd li{margin:0 0 1px}
+.qmd li p{margin:0}
+/* ①②③ · (1)(2) 로 시작하는 줄 — 번호를 왼쪽에 걸고 본문을 들여쓴다 */
+.qmd p.num{margin:0 0 2px;padding-left:1.35em;text-indent:-1.35em}
 .qmd strong{font-weight:700}
-.qmd code{font-family:var(--font-m);font-size:.9em;background:color-mix(in srgb,var(--accent) 8%,transparent);
-  padding:1px 5px;border-radius:5px}
-.qmd table{border-collapse:collapse;width:100%;margin:9px 0;font-size:13px}
-.qmd th,.qmd td{border:1px solid var(--rule);padding:6px 8px;text-align:center;vertical-align:middle}
-.qmd th{background:color-mix(in srgb,var(--accent) 8%,transparent);font-weight:700}
-.qmd figure{margin:10px 0}
-.qmd figure img{display:block;max-width:100%;border:1px solid var(--rule);border-radius:9px;background:#fff}
-.qmd figcaption{font:500 11px/1.4 var(--font-m);color:var(--ink-2);margin-top:4px;text-align:center}
-.qmd .figwait{font:500 11.5px/1.4 var(--font-m);color:var(--ink-2);
-  border:1px dashed var(--rule);border-radius:9px;padding:14px;text-align:center}
-.qmd .katex{font-size:1.06em}
-.qmd .katex-display{overflow-x:auto;overflow-y:hidden;margin:8px 0}
-.qsrc{margin-top:10px}
-.qsrc summary{font:600 11px/1 var(--font-m);color:var(--ink-2);cursor:pointer;
-  padding:6px 0;list-style:none}
+.qmd code{font-family:var(--font-m);font-size:.88em;
+  background:color-mix(in srgb,var(--accent) 8%,transparent);padding:0 4px;border-radius:4px}
+.qmd table{border-collapse:collapse;width:auto;max-width:100%;margin:7px 0;
+  font-size:calc(var(--qfs,14px) - 1.5px);line-height:1.3}
+.qmd th,.qmd td{border:1px solid var(--rule);padding:3px 8px;text-align:center;
+  vertical-align:middle;white-space:nowrap}
+.qmd th{background:color-mix(in srgb,var(--accent) 7%,transparent);font-weight:700}
+.qmd .tblwrap{overflow-x:auto;margin:7px 0}
+.qmd .tblwrap table{margin:0}
+.qmd figure{margin:8px 0}
+.qmd figure img{display:block;max-width:100%;border:1px solid var(--rule);border-radius:8px;background:#fff}
+.qmd figcaption{font:500 10.5px/1.3 var(--font-m);color:var(--ink-2);margin-top:3px;text-align:center}
+.qmd .figwait{font:500 11px/1.3 var(--font-m);color:var(--ink-2);
+  border:1px dashed var(--rule);border-radius:8px;padding:10px;text-align:center}
+.qmd .katex{font-size:1.02em}
+.qmd .katex-display{overflow-x:auto;overflow-y:hidden;margin:5px 0}
+.qmd .katex-display > .katex{text-align:left}
+.qsrc{margin-top:8px}
+.qsrc summary{font:600 10.5px/1 var(--font-m);color:var(--ink-2);cursor:pointer;padding:5px 0;list-style:none}
 .qsrc summary::-webkit-details-marker{display:none}
-.qsrc summary::before{content:"▸ ";}
-.qsrc[open] summary::before{content:"▾ ";}
+.qsrc summary::before{content:"▸ "}
+.qsrc[open] summary::before{content:"▾ "}
+
+/* ── 문항 한 장의 짜임 — 필기뷰어와 같은 «문제 | 답안·풀이» 두 칸 ── */
+.pgrid{display:grid;gap:12px;grid-template-columns:1fr;align-items:start}
+@media(min-width:1080px){ .pgrid.split{grid-template-columns:minmax(0,1.02fr) minmax(0,1fr);gap:16px} }
+.pcol{min-width:0}
+.plabel{font:600 9.5px/1 var(--font-d);letter-spacing:.16em;color:var(--ink-2);
+  display:flex;align-items:center;gap:7px;margin:0 0 6px}
+.plabel::after{content:"";flex:1;height:1px;background:var(--rule)}
+.plabel + .plabel{margin-top:14px}
+
+/* ── 흰 여백 잘라내기 ──
+   PDF 에서 오려 낸 조각은 좌우·아래에 종이 여백이 그대로 붙어 온다.
+   그림 자체를 다시 만들지 않고 «보이는 창» 만 줄인다 —
+   그래야 그 위에 저장해 둔 필기·막히는 곳 표시 좌표가 그대로 맞는다.
+     --tl,--tt : 잘라낼 왼쪽·위 비율   --tw,--th : 남길 가로·세로 비율
+     --tar     : 그렇게 잘랐을 때의 가로세로비 ── */
+.pz.trim{aspect-ratio:var(--tar)}
+.pz.trim .pz-stage{position:absolute;top:0;left:0;
+  width:calc(100% / var(--tw));
+  margin-left:calc(var(--tl) * -100% / var(--tw));
+  margin-top:calc(var(--tt) * -100% / (var(--tw) * var(--iar)))}
+/* 한눈에 판·원본 보기에서 쓰는 같은 물건 */
+.tw{position:relative;overflow:hidden;border:1px solid var(--rule);
+  border-radius:9px;background:#fff}
+.tw img{display:block;width:100%;height:auto;border:0;border-radius:0}
+.tw.on{aspect-ratio:var(--tar)}
+.tw.on img{position:absolute;top:0;left:0;
+  width:calc(100% / var(--tw));
+  margin-left:calc(var(--tl) * -100% / var(--tw));
+  margin-top:calc(var(--tt) * -100% / (var(--tw) * var(--iar)))}
+.tw img.zoom{position:static;width:auto;max-width:none;margin:0;cursor:zoom-out}
+.tw.on:has(img.zoom){aspect-ratio:auto;overflow:auto}
+
 .cvbadge{font:600 9.5px/1 var(--font-m);padding:4px 6px;border-radius:5px;
   border:1px solid var(--ok);color:var(--ok);background:color-mix(in srgb,var(--ok) 8%,transparent)}
 .cvbadge.no{border-color:var(--rule);color:var(--ink-2);background:transparent}
@@ -359,7 +411,9 @@ body.oneup #list > .pcard.show{display:block}
 /* ── 답안 — 문제 바로 아래에 붙인다.
    예전에는 큼직한 단추 하나가 사이를 갈라 놔서 «다른 첨부» 처럼 보였다. ── */
 .ans{margin-top:6px}
-.ans.hide .pz,.ans.hide .ptools{display:none}
+/* 가림판을 내렸을 때 — 그림이든 글자든 다 덮는다
+   (글자로 보기를 넣은 뒤로 .pz 만 숨기면 답안 글이 그대로 보였다) */
+.ans.hide .pz,.ans.hide .ptools,.ans.hide .qmd,.ans.hide .qsrc,.ans.hide .tw{display:none}
 .ansbtn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;
   font:600 11.5px/1 var(--font-d);letter-spacing:.06em;padding:8px 10px;border-radius:7px;cursor:pointer;
   border:0;border-top:1px dashed var(--rule);background:transparent;color:var(--ink-2)}
@@ -509,6 +563,15 @@ body.oneup .lead,body.oneup h1{display:none}
         <button class="chip" id="cvGap" type="button" title="아직 글자로 안 바뀐 문항만 골라 변환합니다">⚡ 전체 변환 진행</button>
         <button class="chip" id="cvAll" type="button" title="이미 변환된 것까지 처음부터 다시 합니다">↻ 전부 다시 변환</button>
         <button class="chip" id="cvStop" type="button" hidden>중지</button>
+        <span class="cvsep"></span>
+        <select id="fSize" title="글자 크기">
+          <option value="13">작게</option>
+          <option value="14" selected>보통</option>
+          <option value="15.5">크게</option>
+          <option value="17">아주 크게</option>
+        </select>
+        <button class="chip" id="fTrim" type="button" title="그림 둘레의 흰 종이 여백을 잘라 냅니다">✂ 여백 자르기</button>
+        <button class="chip" id="fSplit" type="button" title="넓은 화면에서 문제와 답안을 좌우로 나눕니다">▥ 두 칸</button>
         <span class="cvstat" id="cvStat"></span>
         <div class="cvprog" id="cvProg" hidden><i id="cvBar"></i></div>
       </div>
@@ -889,7 +952,7 @@ function drawList(){
       `<button class="mk" type="button" data-mk="${m.id}"
          style="left:${(m.x*100).toFixed(2)}%;top:${(m.y*100).toFixed(2)}%;width:${(m.w*100).toFixed(2)}%;height:${(m.h*100).toFixed(2)}%"
          title="${esc((m.note_md || m.memo || "").slice(0, 60))}"><i>${k+1}</i></button>`).join("");
-    const img = (u, alt, t) => `<div class="pz" data-pz><div class="pz-stage" data-mkhost="${t}" data-qid="${r.id}">
+    const img = (u, alt, t) => `<div class="pz" data-pz data-trim="${esc(u)}"><div class="pz-stage" data-mkhost="${t}" data-qid="${r.id}">
         <img src="${esc(u)}" loading="lazy" alt="${esc(alt)}" style="${rot}">
         <canvas class="inkc"></canvas>${dots(t)}</div></div>`;
     /* 글자로 보기 — 바꿔 둔 것이 있으면 그림 대신 글로 보여 준다.
@@ -898,29 +961,47 @@ function drawList(){
       <details class="qsrc"><summary>원본 그림 보기</summary>${img(u, alt, t)}</details>`;
     const useText = t => TEXTMODE && (t === "a" ? !!r.a_md : !!r.q_md);
     const block = (u, md, t, alt) => useText(t) ? asText(u, md, t, alt) : img(u, alt, t);
+
+    /* ── 답안칸 ──
+       필기뷰어처럼 «가림판» 을 덮어 두고, 눌러야 열린다. */
+    const ansBlock = r.a_url
+      ? `<div class="ans ${HIDE_ALL ? "hide" : ""}" data-ans>
+           <button class="ansbtn ${HIDE_ALL ? "" : "on"}" type="button" data-toggle>${HIDE_ALL ? "보기" : "가리기"}</button>
+           <div style="margin-top:4px">${block(r.a_url, r.a_md, "a", "답안")}</div>
+         </div>`
+      : `<div class="noans">
+           <b>답안이 붙어 있지 않습니다.</b>
+           원본에서 «답안작성» 표시를 못 찾아 잘리지 않았거나, 답안이 다른 파일에 있는 경우입니다.
+           <div class="bar" style="margin-top:8px">
+             <button class="zb" type="button" data-ansadd="${r.id}">답안 그림 넣기</button>
+             <span class="hintx">파일을 고르거나, 캡처해 두고 이 자리를 누른 뒤 <b>Ctrl+V</b></span>
+           </div>
+         </div>`;
+
     return `
     <div class="pcard" data-id="${r.id}">
       <div class="phead ovhead" data-ov="${r.id}" title="눌러서 한눈에 보기 (f)">
         <span class="pno">${r.no}</span>
         <span class="pmeta">${r.year}년 제${r.session}회${r.asked ? " · 출제 " + esc(r.asked) : ""}</span>
-        <span class="ppt">${r.points ? r.points + "점" : ""}</span>
-        <span class="cvbadge${r.q_md ? "" : " no"}" title="${r.q_md ? "글자로 바꿔 둔 문항" : "아직 그림만 있습니다"}">${r.q_md ? "가 변환됨" : "그림"}</span>
+        ${r.points ? `<span class="ppt">${r.points}점</span>` : ""}
+        <span class="cvbadge${r.q_md ? "" : " no"}" title="${r.q_md ? "글자로 바꿔 둔 문항" : "아직 그림만 있습니다"}">${r.q_md ? "가 글자" : "그림"}</span>
         <span class="ovhint">⛶ 한눈에</span>
       </div>
       <div class="pbody">
-        ${r.q_url ? block(r.q_url, r.q_md, "q", `문제 ${r.no}`) : `<div class="empty">문제 그림이 없습니다.</div>`}
-        ${r.a_url ? `<div class="ans ${HIDE_ALL ? "hide" : ""}" data-ans>
-            <button class="ansbtn ${HIDE_ALL ? "" : "on"}" type="button" data-toggle>${HIDE_ALL ? "보기" : "가리기"}</button>
-            <div style="margin-top:4px">${block(r.a_url, r.a_md, "a", "답안")}</div>
-          </div>`
-        : `<div class="noans">
-            <b>답안이 붙어 있지 않습니다.</b>
-            원본에서 «답안작성» 표시를 못 찾아 잘리지 않았거나, 답안이 다른 파일에 있는 경우입니다.
-            <div class="bar" style="margin-top:8px">
-              <button class="zb" type="button" data-ansadd="${r.id}">답안 그림 넣기</button>
-              <span class="hintx">파일을 고르거나, 캡처해 두고 이 자리를 누른 뒤 <b>Ctrl+V</b></span>
-            </div>
-          </div>`}
+        <div class="pgrid${SPLIT ? " split" : ""}">
+          <section class="pcol">
+            <div class="plabel">문제</div>
+            ${r.q_url ? block(r.q_url, r.q_md, "q", `문제 ${r.no}`) : `<div class="empty">문제 그림이 없습니다.</div>`}
+          </section>
+          <section class="pcol">
+            <div class="plabel">답안</div>
+            ${ansBlock}
+            <div class="plabel">쉬운 풀이</div>
+            <div class="easybox${r.easy_md ? "" : " empty"}">${
+              r.easy_md ? mdLite(r.easy_md)
+                        : `<span class="wait">${AUTO ? "이 문제를 보면 해설을 씁니다." : "자동 해설이 꺼져 있습니다. 아래 «해설 만들기» 를 누르세요."}</span>`}</div>
+          </section>
+        </div>
         <div class="marknotes" data-notes="${r.id}">${marks.map((m, k) => `
           <div class="mknote" data-note="${m.id}">
             <div class="mkh"><b>${k+1}</b><span>${(m.target||"q")==="a"?"답안":"문제"} 부분</span>
@@ -928,10 +1009,7 @@ function drawList(){
               <button class="zb" type="button" data-mkdel="${m.id}">지우기</button></div>
             <div class="mkb">${m.note_md ? mdLite(m.note_md) : `<span class="wait">아직 설명이 없습니다.</span>`}</div>
           </div>`).join("")}</div>
-        <div class="easybox${r.easy_md ? "" : " empty"}">${
-          r.easy_md ? mdLite(r.easy_md)
-                    : `<span class="wait">${AUTO ? "이 문제를 보면 해설을 씁니다." : "자동 해설이 꺼져 있습니다. 아래 «해설 만들기» 를 누르세요."}</span>`}</div>
-        <div class="ptools" style="margin-top:10px;border-top:1px solid var(--rule);padding-top:10px">
+        <div class="ptools">
           <button class="zb" type="button" data-ov="${r.id}">⛶ 한눈에 보기</button>
           <button class="zb pick" type="button" data-pick="${r.id}">✎ 막히는 곳 표시</button>
           <button class="zb${r.easy_md ? "" : " pick"}" type="button" data-easy="${r.id}">${
@@ -1093,6 +1171,8 @@ function drawList(){
 
   /* 수식을 그리고, [[그림]] 자리를 원본에서 오려 채운다 */
   $$("#list .qmd").forEach(el => { tex(el); figFill(el, el.dataset.src); });
+  /* 그림의 흰 여백을 좁힌다 (원본은 그대로 두고 «보이는 창» 만 줄인다) */
+  applyTrim($("#list"));
 
   /* 새로 그린 뒤 한 문항씩 모드를 다시 적용한다 */
   if(ONEAT >= SHOWN.length) ONEAT = 0;
@@ -2028,9 +2108,9 @@ function mdRich(src){
       const head = cells(lines[i]); i += 2;
       const body = [];
       while(i < lines.length && isRow(lines[i].trim())){ body.push(cells(lines[i])); i++; }
-      out += `<table><thead><tr>${head.map(h => `<th>${inlR(h)}</th>`).join("")}</tr></thead><tbody>`
+      out += `<div class="tblwrap"><table><thead><tr>${head.map(h => `<th>${inlR(h)}</th>`).join("")}</tr></thead><tbody>`
            + body.map(r => `<tr>${r.map(c => `<td>${inlR(c)}</td>`).join("")}</tr>`).join("")
-           + "</tbody></table>";
+           + "</tbody></table></div>";
       continue;
     }
     /* 글로 못 옮기는 그림 자리 — 나중에 원본에서 오려 채운다 */
@@ -2048,6 +2128,14 @@ function mdRich(src){
       out += `<li>${inlR(t.replace(/^[-*]\s/, ""))}</li>`; i++; continue; }
     if(/^\d+[.)]\s/.test(t)){ if(ul){ out += "</ul>"; ul = false; } if(!ol){ out += "<ol>"; ol = true; }
       out += `<li>${inlR(t.replace(/^\d+[.)]\s/, ""))}</li>`; i++; continue; }
+    /* 【규모】 [조건] 처럼 꺾쇠로만 된 줄은 작은 소제목으로 띄운다 */
+    if(/^(【[^】]{1,14}】|\[[^\]]{1,14}\])$/.test(t.replace(/&lt;|&gt;/g,""))){
+      close(); out += `<p class="blk">${inlR(t)}</p>`; i++; continue;
+    }
+    /* ① · (1) · 가. 로 시작하는 줄 — 번호를 왼쪽에 걸고 본문만 들여쓴다 */
+    if(/^([①-⑳㉑-㉟]|\(\d{1,2}\)|\d{1,2}\)|[가-핳]\.)\s/.test(t)){
+      close(); out += `<p class="num">${inlR(t)}</p>`; i++; continue;
+    }
     close(); out += `<p>${inlR(t)}</p>`; i++;
   }
   close(); return out;
@@ -2063,6 +2151,70 @@ function tex(el){
     { left:"\\[", right:"\\]", display:true }, { left:"\\(", right:"\\)", display:false }
   ], throwOnError:false, ignoredTags:["script","style","textarea","pre","code"] }); }catch(e){}
 }
+
+/* ══ 흰 여백 재기 ══
+   그림을 작게 줄여 한 번 훑어 «글자·선이 있는 네모» 를 찾는다.
+   원본은 손대지 않는다 — 화면에서 보이는 창만 그 네모로 좁힌다.
+   그래서 그 위에 저장해 둔 필기와 «막히는 곳» 좌표가 어긋나지 않는다. */
+const TRIM = new Map();
+async function trimBox(url){
+  if(TRIM.has(url)) return TRIM.get(url);
+  const p = (async () => {
+    const blob = await fetch(url).then(r => r.blob());
+    const bmp  = await createImageBitmap(blob);
+    const W = 260, H = Math.max(1, Math.round(W * bmp.height / bmp.width));
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    const cx = cv.getContext("2d", { willReadFrequently:true });
+    cx.fillStyle = "#fff"; cx.fillRect(0, 0, W, H);
+    cx.drawImage(bmp, 0, 0, W, H);
+    const iar = bmp.width / bmp.height;
+    bmp.close?.();
+    const d = cx.getImageData(0, 0, W, H).data;
+    /* 워터마크는 아주 흐리다. 문턱을 조금 낮춰 «진짜 글자» 만 센다 */
+    const INK = 208;
+    const rowHas = new Array(H).fill(0), colHas = new Array(W).fill(0);
+    for(let y = 0; y < H; y++){
+      for(let x = 0; x < W; x++){
+        const i = (y * W + x) * 4;
+        if(Math.min(d[i], d[i+1], d[i+2]) < INK){ rowHas[y]++; colHas[x]++; }
+      }
+    }
+    const firstIdx = (a, min) => { for(let i = 0; i < a.length; i++) if(a[i] > min) return i; return -1; };
+    const lastIdx  = (a, min) => { for(let i = a.length - 1; i >= 0; i--) if(a[i] > min) return i; return -1; };
+    const t = firstIdx(rowHas, 0), b = lastIdx(rowHas, 0);
+    const l = firstIdx(colHas, 0), r = lastIdx(colHas, 0);
+    if(t < 0 || l < 0 || b <= t || r <= l) return { on:false, iar };
+    const PAD = 0.008;                                   /* 글자가 딱 붙지 않게 아주 조금 남긴다 */
+    const tl = Math.max(0, l / W - PAD), tt = Math.max(0, t / H - PAD);
+    const tr = Math.min(1, (r + 1) / W + PAD), tb = Math.min(1, (b + 1) / H + PAD);
+    const tw = tr - tl, th = tb - tt;
+    /* 잘라 봐야 얼마 안 줄면 굳이 손대지 않는다 */
+    if(tw > 0.97 && th > 0.97) return { on:false, iar };
+    return { on:true, tl, tt, tw, th, iar, tar: iar * tw / th };
+  })().catch(() => ({ on:false, iar:1 }));
+  TRIM.set(url, p);
+  return p;
+}
+
+/* 화면에 붙은 그림들의 여백을 실제로 좁힌다 */
+async function applyTrim(root){
+  if(!TRIMON) return;
+  const els = [...(root || document).querySelectorAll("[data-trim]:not([data-trimmed])")];
+  for(const el of els){
+    const url = el.dataset.trim; if(!url) continue;
+    el.dataset.trimmed = "1";
+    let t; try{ t = await trimBox(url); }catch(e){ continue; }
+    if(!t?.on) continue;
+    el.style.setProperty("--tl", t.tl.toFixed(4));
+    el.style.setProperty("--tt", t.tt.toFixed(4));
+    el.style.setProperty("--tw", t.tw.toFixed(4));
+    el.style.setProperty("--th", t.th.toFixed(4));
+    el.style.setProperty("--iar", t.iar.toFixed(4));
+    el.style.setProperty("--tar", t.tar.toFixed(4));
+    el.classList.add(el.classList.contains("pz") ? "trim" : "on");
+  }
+}
+let TRIMON = (()=>{ try{ return localStorage.getItem("prac:trim") !== "0"; }catch(e){ return true; } })();
 
 /* [[그림 …]] 자리를 원본에서 오려 채운다. 좌표가 없으면 그림 전체를 넣는다. */
 const FIGCACHE = new Map();
@@ -2205,6 +2357,31 @@ function paintText(){
   try{ localStorage.setItem("prac:text", TEXTMODE ? "1" : "0"); }catch(e){}
 }
 $("#fText")?.addEventListener("click", () => { TEXTMODE = !TEXTMODE; paintText(); drawList(); });
+
+/* ── 보기 설정 — 글자 크기 · 여백 자르기 · 두 칸 ──
+   한 번 정해 두면 이 기기에 남는다. */
+let SPLIT = (()=>{ try{ return localStorage.getItem("prac:split") !== "0"; }catch(e){ return true; } })();
+function paintView(){
+  const fs = (()=>{ try{ return localStorage.getItem("prac:fs") || "14"; }catch(e){ return "14"; } })();
+  document.documentElement.style.setProperty("--qfs", fs + "px");
+  const sel = $("#fSize"); if(sel) sel.value = fs;
+  $("#fTrim")?.classList.toggle("on", TRIMON);
+  $("#fSplit")?.classList.toggle("on", SPLIT);
+}
+$("#fSize")?.addEventListener("change", e => {
+  try{ localStorage.setItem("prac:fs", e.target.value); }catch(x){}
+  paintView();
+});
+$("#fTrim")?.addEventListener("click", () => {
+  TRIMON = !TRIMON;
+  try{ localStorage.setItem("prac:trim", TRIMON ? "1" : "0"); }catch(e){}
+  paintView(); drawList(); if(OVID) ovDraw();
+});
+$("#fSplit")?.addEventListener("click", () => {
+  SPLIT = !SPLIT;
+  try{ localStorage.setItem("prac:split", SPLIT ? "1" : "0"); }catch(e){}
+  paintView(); drawList();
+});
 $("#cvGap")?.addEventListener("click", () => cvRun(false));
 $("#cvAll")?.addEventListener("click", () => cvRun(true));
 $("#cvStop")?.addEventListener("click", () => { CVSTOP = true; cvSay("중지하는 중…"); });
@@ -2834,6 +3011,10 @@ function ovClose(){
   document.body.classList.remove("ovlopen");
   OVID = null;
 }
+/* 한눈에 판에서 쓰는 그림 한 장 — 흰 여백을 좁혀서 보여 준다 */
+const twImg = (url, alt, rot) =>
+  `<div class="tw" data-trim="${esc(url)}"><img src="${esc(url)}" alt="${esc(alt)}" style="${rot}"></div>`;
+
 function ovDraw(){
   const r = ROWS.find(x => String(x.id) === String(OVID)); if(!r) return;
   const rot = r.rotate ? `transform:rotate(${r.rotate}deg)` : "";
@@ -2853,18 +3034,18 @@ function ovDraw(){
       /* 글자로 바꿔 둔 것이 있으면 그걸 쓴다. 없으면 PDF 에서 뽑아 둔 날글이라도 보여 준다. */
       if(md) return `<div class="qmd" data-qmd data-src="${esc(url || "")}">${mdRich(md)}</div>`
         + (url ? `<details class="qsrc"><summary>원본 그림 보기</summary>
-            <div class="imgbox"><img src="${esc(url)}" alt="${what}" style="${rot}"></div></details>` : "");
+            <div class="imgbox">${twImg(url, what, rot)}</div></details>` : "");
       const t = (txt || "").trim();
       return t
         ? `<div class="otx">${esc(t)}</div>`
           + (url ? `<div class="tnote">아직 글자로 변환하지 않은 문항입니다 — «⚡ 전체 변환 진행» 을 누르면 표·수식까지 제대로 옮깁니다.</div>
-                    <div class="imgbox"><img src="${esc(url)}" alt="${what}" style="${rot}"></div>` : "")
+                    <div class="imgbox">${twImg(url, what, rot)}</div>` : "")
         : `<div class="miss">뽑아 둔 글자가 없습니다. 그림으로 봅니다.</div>`
-          + (url ? `<div class="imgbox"><img src="${esc(url)}" alt="${what}" style="${rot}"></div>` : "");
+          + (url ? `<div class="imgbox">${twImg(url, what, rot)}</div>` : "");
     }
-    return `<div class="imgbox">${url
-      ? `<img src="${esc(url)}" alt="${what}" style="${rot}">`
-      : `<div class="miss">${what} 그림이 없습니다.</div>`}</div>`;
+    return url
+      ? `<div class="imgbox">${twImg(url, what, rot)}</div>`
+      : `<div class="imgbox"><div class="miss">${what} 그림이 없습니다.</div></div>`;
   };
 
   $("#ovText").textContent = OVTXT ? "🖼 그림으로" : "가 글자로";
@@ -2884,9 +3065,14 @@ function ovDraw(){
 
   /* 그림을 누르면 원본 크기로 폈다가 다시 화면 폭에 맞춘다 */
   $("#ovl").querySelectorAll(".imgbox img").forEach(im => {
-    im.onclick = () => im.classList.toggle("zoom");
+    im.onclick = () => {
+      const on = im.classList.toggle("zoom");
+      /* 원본 크기로 펼 때는 여백 자르기를 잠시 푼다 — 안 그러면 잘린 창 안에서만 커진다 */
+      im.closest(".tw")?.classList.toggle("on", !on && TRIMON);
+    };
   });
   $$("#ovl .otabs button").forEach(b => b.classList.toggle("on", b.dataset.oseg === OVSEG));
+  applyTrim($("#ovl"));
 
   /* 글자로 옮긴 칸은 수식을 그리고, [[그림]] 자리를 원본에서 오려 채운다 */
   $$("#ovl .qmd").forEach(el => { tex(el); figFill(el, el.dataset.src); });
@@ -2987,6 +3173,7 @@ function applyImportOnly(){
 /* ═══════════════════════════════════════════════ */
 async function boot(){
   applyImportOnly();
+  paintView();
   paintText();
   await loadSubjects();
   await loadList();
