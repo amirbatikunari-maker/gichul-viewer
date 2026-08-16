@@ -581,7 +581,7 @@ function render(){
   $("#pHrs").innerHTML  = wetHrs + '<span class="u">시간</span>';
   $("#sky").textContent = (SKY[NOW.code] || "—") + ` · 앞으로 24시간 강수 ${f(sum("prcp", false))}mm`;
 
-  drawStrip(); freeCooling(); drawDay(); drawPsy(); coil(); drawTable();
+  drawStrip(); freeCooling(); drawDay(); drawPsy(); coil(); drawTable(); centerNow();
 }
 
 /* ── 강수·적설 막대 ── */
@@ -613,9 +613,31 @@ function drawStrip(){
     </div>`;
   }).join("");
 
-  /* 지금 칸을 화면 가운데로 밀어 놓는다 */
-  const el = $("#strip"), now = el.querySelector(".hcell.now") || el.children[NOWI];
-  if(now) el.scrollLeft = now.offsetLeft - el.clientWidth / 2 + now.clientWidth / 2;
+  centerNow();
+}
+
+/* ── «지금» 자리로 옮겨 놓기 ──────────────────────────────
+   예전에는 그림을 그린 «바로 그 줄» 에서 scrollLeft 를 넣었다.
+   그런데 그 시점에는 아직 폭이 잡히지 않아(clientWidth 가 0 이거나 실제보다 작다)
+   계산이 어긋나서, 처음 들어오면 늘 맨 왼쪽(=24시간 전)에 서 있었다.
+   그래서 «폭이 잡힌 뒤» 로 미루고, 한 번 더 확인해서 밀어 준다.
+   시간별 표도 같이 «지금» 줄로 내려 놓는다 — 표만 위에서 시작하면 결국 또 찾아 내려가야 한다. */
+function centerNow(){
+  const el = $("#strip");
+  const put = () => {
+    if(!el) return false;
+    const now = el.querySelector(".hcell.now") || el.children[NOWI];
+    if(!now || !el.clientWidth) return false;
+    el.scrollLeft = now.offsetLeft - el.clientWidth / 2 + now.clientWidth / 2;
+
+    const w = $("#tblwrap"), row = w?.querySelector("tr.nowrow");
+    if(w && row) w.scrollTop = Math.max(0, row.offsetTop - w.clientHeight / 2 + row.clientHeight / 2);
+    return true;
+  };
+  /* 그리기 → 배치 → 글꼴 적용 순으로 폭이 바뀐다. 될 때까지 몇 번만 다시 시도한다. */
+  requestAnimationFrame(() => { if(!put()) requestAnimationFrame(put); });
+  [120, 400, 900].forEach(ms => setTimeout(put, ms));
+  document.fonts?.ready?.then(put).catch(() => {});
 }
 
 /* ── 시간별 표(자세히) ── */
