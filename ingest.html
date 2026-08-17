@@ -47,6 +47,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-
 .btab.on{border-color:var(--accent);background:var(--accent);color:#fff}
 .btab.on small{color:rgba(255,255,255,.8)}
 #tab-practical[hidden],#tab-written[hidden]{display:none}
+/* 로그인 전 — 자물쇠. 인라인 style 이 어떤 이유로 지워져도 여기서 한 번 더 막는다 */
+body.locked #btabs,body.locked #tab-written,body.locked #tab-practical,body.locked #app{display:none !important}
 .pvnote{font-size:12.5px;color:var(--ink-2);margin:0 0 10px}
 .pvnote a{color:var(--accent);margin-left:8px}
 #pvFrame{width:100%;height:min(1100px,calc(100vh - 210px));min-height:560px;
@@ -339,9 +341,20 @@ window.addEventListener("unhandledrejection", e => showFatal("처리 안 된 오
 <script>
 const $ = s => document.querySelector(s);
 
+/* ── 로그인 전에 감출 것들 ──
+   한 군데 빠뜨리면 «로그인도 안 했는데 저건 왜 보이냐» 가 된다. 목록으로 못 박아 둔다. */
+const LOCKED = ["#app", "#btabs", "#tab-written", "#tab-practical"];
+function gateUI(on){
+  window.INGEST_UNLOCKED = on;
+  document.body.classList.toggle("locked", !on);
+  $("#auth").style.display = on ? "none" : "block";
+  LOCKED.forEach(sel => { const el = $(sel); if(el) el.style.display = on ? "" : "none"; });
+  /* 실기 iframe 은 로그인 전에는 아예 안 불러 온다 — 안 보이는 곳에서 혼자 돌 이유가 없다 */
+  if(!on){ const fr = $("#pvFrame"); if(fr) fr.removeAttribute("src"); }
+}
+
 /* 시작하자마자 로그인 박스부터 확실히 보여준다 */
-$("#auth").style.display = "block";
-$("#app").style.display = "none";
+gateUI(false);
 
 if(typeof window.supabase === "undefined"){
   showFatal("Supabase 라이브러리를 불러오지 못했습니다.",
@@ -436,9 +449,11 @@ async function refresh(){
   try{
     const {data,error} = await sb.auth.getSession();
     if(error) return showFatal("로그인 상태를 확인하지 못했습니다.", error.message);
-    $("#auth").style.display = data.session ? "none" : "block";
-    $("#app").style.display  = data.session ? "block" : "none";
-    if(data.session) mountLogout();
+    /* ★ 예전에는 #app 만 여닫았다. 그런데 «필기 변환 / 실기 변환» 알약(#btabs)과
+       실기 쪽 iframe(#tab-practical)은 #app 바깥에 있어서, 로그인도 안 한 사람에게
+       그대로 보였다. 잠글 것은 한 곳에 모아 함께 여닫는다. */
+    gateUI(!!data.session);
+    if(data.session){ mountLogout(); window.ingestRetab?.(); }
     document.getElementById("fatal").style.display = "none";
   }catch(err){
     showFatal("화면을 전환하는 중 오류가 났습니다.", err.message);
@@ -1585,7 +1600,9 @@ refresh().then(load).catch(err => showFatal("초기화 중 오류가 났습니�
     tabs.querySelectorAll(".btab").forEach(b => b.classList.toggle("on", b.dataset.tab === name));
     document.getElementById("tab-written").hidden   = name !== "written";
     document.getElementById("tab-practical").hidden = name !== "practical";
-    if(name === "practical" && fr && !fr.src) fr.src = "./practice.html?only=import";
+    /* 로그인 전에는 실기 화면을 불러오지 않는다 — 가려 둔 곳에서 혼자 돌 이유가 없다 */
+    if(name === "practical" && fr && !fr.src && window.INGEST_UNLOCKED)
+      fr.src = "./practice.html?only=import";
     if(remember !== false){ try{ localStorage.setItem("ingest-tab", name); }catch(e){} }
   }
   tabs.addEventListener("click", e => {
@@ -1595,6 +1612,8 @@ refresh().then(load).catch(err => showFatal("초기화 중 오류가 났습니�
   let saved = "written";
   try{ saved = localStorage.getItem("ingest-tab") || "written"; }catch(e){}
   go(saved, false);
+  /* 로그인이 끝난 뒤 다시 한 번 세운다 — 그때가 되어야 iframe 을 불러올 수 있다 */
+  window.ingestRetab = () => go(saved, false);
 })();
 </script>
 </body>

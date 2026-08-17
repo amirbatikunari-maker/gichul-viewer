@@ -797,7 +797,12 @@ $("#authBtn").onclick = async () => {
     if(!confirm("로그아웃할까요?")) return;
     await sb.auth.signOut();
     CASES = []; CUR = null; DOCS = []; PREP = {}; hideMsg();
-    return /* ══════════════════════════════════════════════════════
+    return boot();
+  }
+  $("#em").focus();
+};
+
+/* ══════════════════════════════════════════════════════
    줄마다 접기 — 손으로 마크업을 열다섯 군데 고치는 대신 여기서 한 번에 감싼다
    ──────────────────────────────────────────────────────
    규칙은 둘.
@@ -883,10 +888,6 @@ function foldAllBar(where, label){
   };
 }
 
-boot();
-  }
-  $("#em").focus();
-};
 $("#login").onclick = async () => {
   const { error } = await sb.auth.signInWithPassword({ email:$("#em").value.trim(), password:$("#pw").value });
   if(error) return say("로그인 실패 — " + error.message, "err");
@@ -2112,4 +2113,760 @@ A: ...`);
   if(!ins.length) return say("읽어낸 질문이 없습니다. Q: 로 시작하는 줄이 있어야 합니다.", "err");
   const { error } = await sb.from("iv_answer").insert(ins);
   if(error) return say("실패 — " + error.message, "err");
-  say(`${ins.length}개를 넣었습니다.`, "ok"); aw
+  say(`${ins.length}개를 넣었습니다.`, "ok"); await loadAnswers(); drawTL();
+};
+
+/* ══════════════════════════════════════════════════════
+   ★ 여기부터 아래는 «잘려 나가 있던» 부분을 다시 써 넣은 것이다.
+     올려 주신 파일은 $("#aBulk") 한가운데(`; aw`)에서 뚝 끊겨 있었다.
+     자바스크립트가 통째로 문법 오류가 되니 스크립트가 한 줄도 안 돌았고,
+     #gate·#listView 가 처음부터 class="hide" 라 «로그인 화면조차» 안 나왔다.
+     (화면이 텅 비어 보였던 이유가 이것이다.)
+     끊긴 자리부터 끝까지 — 용어·복기·실전·브리핑·말주머니·서브탭·시작 —
+     을 다시 채운다.
+   ══════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════
+   서브탭 — 전략 / 답변 / 실전 / 용어 / 복기 / 브리핑 / 자료
+   ══════════════════════════════════════════════════ */
+/* 서브탭 자체를 갈아 끼우는 손잡이는 위(«서브탭» 자리)에 이미 있다.
+   여기서는 «마지막에 보던 탭으로 돌아오기» 와 «브리핑을 열면 다시 그리기» 만 얹는다. */
+function showPane(t){
+  if(!PANES.includes(t)) t = "prep";
+  PANES.forEach(k => $("#pane-" + k).className = "pane" + (k === t ? "" : " hide"));
+  $$("#subtabs .stb").forEach(b => b.classList.toggle("on", b.dataset.t === t));
+  try{ localStorage.setItem("iv-pane", t); }catch(e){}
+  if(t === "brief") drawBrief();
+}
+$$("#subtabs .stb").forEach(b => b.addEventListener("click", () => {
+  try{ localStorage.setItem("iv-pane", b.dataset.t); }catch(e){}
+  if(b.dataset.t === "brief") drawBrief();
+}));
+
+/* ══════════════════════════════════════════════════
+   용어 카드 — 실무 면접은 «20초 안에 설명되나» 에서 갈린다
+   mastery: 0 모름 · 1 애매 · 2 됨
+   ══════════════════════════════════════════════════ */
+const TERR = e => /iv_term|schema cache|does not exist/i.test(e || "")
+  ? "용어 표(iv_term)가 아직 없습니다 — 같이 드린 SQL 을 먼저 돌려 주세요." : e;
+
+async function loadTerms(){
+  const { data, error } = await sb.from("iv_term").select("*")
+    .eq("case_id", CUR.id).order("created_at", { ascending:true });
+  if(error){ TERMS = []; $("#termList").innerHTML = `<div class="hint">${esc(TERR(error.message))}</div>`; return; }
+  TERMS = data || [];
+  drawTerms();
+}
+function drawTerms(){
+  counts();
+  const box = $("#termList"); if(!box) return;
+  const cats = ["전체", ...[...new Set(TERMS.map(t => t.cat || "기타"))]];
+  const chip = $("#termChips");
+  if(chip) chips(chip, [...cats, "아직 모름"], k => { TERM_F = k; drawTerms(); }, TERM_F);
+
+  const list = TERMS.filter(t =>
+    TERM_F === "전체" ? true
+    : TERM_F === "아직 모름" ? (t.mastery || 0) === 0
+    : (t.cat || "기타") === TERM_F);
+
+  box.innerHTML = list.length ? list.map(t => `
+    <div class="tc m${t.mastery || 0}" data-tc="${t.id}">
+      <div class="tt">${esc(t.term)}</div>
+      <span class="tcat">${esc(t.cat || "기타")} · ${["아직 모름","애매","됨"][t.mastery || 0]}</span>
+      <div class="ta">${mdToHtml(t.mean_md || "")}
+        ${t.keys ? `<span class="tk">${esc(t.keys)}</span>` : ""}</div>
+      <div class="mrow">
+        ${[0,1,2].map(n => `<button data-tm="${t.id}:${n}" class="${(t.mastery||0) === n ? "on" : ""}">${["모름","애매","됨"][n]}</button>`).join("")}
+        <button data-td="${t.id}">지움</button>
+      </div>
+    </div>`).join("")
+    : `<div class="hint">${TERMS.length ? "그 조건에 맞는 용어가 없습니다." :
+        "아직 없습니다. <b>공고에서 용어 뽑기</b>를 누르거나 <b>직접 추가</b>로 넣으세요."}</div>`;
+
+  /* 카드를 누르면 뜻이 열린다. 단추 줄을 누른 것은 뒤집지 않는다. */
+  $$("#termList .tc").forEach(c => c.onclick = e => {
+    if(e.target.closest(".mrow")) return;
+    c.classList.toggle("open");
+  });
+  $$("#termList [data-tm]").forEach(b => b.onclick = async () => {
+    const [id, n] = b.dataset.tm.split(":");
+    const t = TERMS.find(x => String(x.id) === id); if(!t) return;
+    t.mastery = +n;
+    const { error } = await sb.from("iv_term").update({ mastery:+n }).eq("id", id);
+    if(error) return say("저장 실패 — " + TERR(error.message), "err");
+    drawTerms(); drawTL();
+  });
+  $$("#termList [data-td]").forEach(b => b.onclick = async () => {
+    if(!confirm("이 용어를 지웁니다.")) return;
+    await sb.from("iv_term").delete().eq("id", b.dataset.td);
+    await loadTerms(); drawTL();
+  });
+}
+
+$("#tGen").onclick = async () => {
+  if(!DOCS.some(d => (d.body || "").length > 80))
+    return say("자료 탭에 채용공고부터 넣어주세요.", "err");
+  $("#tGen").disabled = true;
+  try{
+    const have = new Set(TERMS.map(t => t.term));
+    const arr = await askJSON(headPrompt() +
+`[할 일] 이 공고·직무에서 면접관이 "그게 뭡니까" 라고 물을 만한 용어 24개를 뽑아라.
+설비·절차·기준값 쪽을 우선한다. 이미 있는 것은 빼라: ${[...have].slice(0,60).join(", ") || "(없음)"}
+각 원소: {"term":"용어","cat":"전기/기계/운영/안전/일반 중 하나","mean":"면접에서 20초 안에 말할 설명 2~3문장","keys":"키워드 · 키워드 · 키워드"}`,
+      "공고에서 용어를 뽑는 중…");
+    const rows = arr.filter(x => x.term && !have.has(String(x.term).trim())).slice(0, 30).map(x => ({
+      case_id:CUR.id, user_id:ME.id,
+      term:String(x.term).trim().slice(0, 80),
+      cat:String(x.cat || "일반").slice(0, 20),
+      mean_md:String(x.mean || ""), keys:String(x.keys || ""), mastery:0 }));
+    if(!rows.length) return say("새로 넣을 용어가 없습니다.", "ok");
+    const { error } = await sb.from("iv_term").insert(rows);
+    if(error) throw new Error(TERR(error.message));
+    say(`${rows.length}개를 넣었습니다.`, "ok");
+    await loadTerms(); drawTL();
+  }catch(e){ say("실패 — " + e.message, "err"); }
+  finally{ $("#tGen").disabled = false; }
+};
+
+$("#tAdd").onclick = async () => {
+  const term = prompt("용어"); if(!term?.trim()) return;
+  const mean = prompt("20초 설명 (비워도 됩니다)") || "";
+  const { error } = await sb.from("iv_term").insert({
+    case_id:CUR.id, user_id:ME.id, term:term.trim().slice(0,80),
+    cat:"직접", mean_md:mean, keys:"", mastery:0 });
+  if(error) return say("실패 — " + TERR(error.message), "err");
+  await loadTerms(); drawTL();
+};
+
+$("#tWipe").onclick = async () => {
+  if(!TERMS.length) return say("지울 것이 없습니다.", "err");
+  const what = prompt(
+`무엇을 지울까요?
+  1 — 다 외운 것(됨)만
+  2 — 아직 모르는 것만
+  9 — 이 건의 용어 전부`, "1");
+  if(!what) return;
+  const pick = what.trim() === "1" ? TERMS.filter(t => (t.mastery||0) === 2)
+             : what.trim() === "2" ? TERMS.filter(t => (t.mastery||0) === 0)
+             : what.trim() === "9" ? TERMS : [];
+  if(!pick.length) return say("해당하는 용어가 없습니다.", "err");
+  if(!confirm(`${pick.length}개를 지웁니다.`)) return;
+  await sb.from("iv_term").delete().in("id", pick.map(t => t.id));
+  await loadTerms(); drawTL(); say("지웠습니다.", "ok");
+};
+
+/* ── 암기 훈련 — 앞면만 보고 소리 내어 말한 뒤 뒤집는다 ── */
+let DRILL_Q = [], DRILL_I = 0;
+$("#tDrill").onclick = () => {
+  const pool = TERMS.filter(t => (t.mastery || 0) < 2);
+  if(!pool.length) return say("다 외웠습니다. 훈련할 것이 없습니다.", "ok");
+  DRILL_Q = pool.slice().sort(() => Math.random() - .5);
+  DRILL_I = 0;
+  $("#drill").className = "";
+  drillDraw();
+  $("#drill").scrollIntoView({ behavior:"smooth", block:"center" });
+};
+function drillDraw(){
+  const box = $("#drill");
+  if(DRILL_I >= DRILL_Q.length){
+    box.innerHTML = `<div class="card"><div class="flip">
+      <div class="fq">한 바퀴 끝났습니다</div>
+      <div class="hint" style="margin:0">아직 «모름·애매» 로 남은 것만 다시 돌리려면 한 번 더 누르세요.</div>
+      <div class="bar" style="justify-content:center;margin-top:14px">
+        <button class="ghost sm" id="drlEnd">닫기</button></div></div></div>`;
+    $("#drlEnd").onclick = () => { $("#drill").className = "hide"; drawTerms(); };
+    return;
+  }
+  const t = DRILL_Q[DRILL_I];
+  box.innerHTML = `<div class="card">
+    <div class="prog"><i style="width:${(DRILL_I / DRILL_Q.length * 100).toFixed(1)}%"></i></div>
+    <div class="flip">
+      <div class="fq">${esc(t.term)}</div>
+      <div class="hint" style="margin:0">소리 내어 20초로 설명해 보고 아래를 누르세요.</div>
+      <div id="drlBack" class="hide" style="margin-top:14px;text-align:left">
+        ${mdToHtml(t.mean_md || "(설명이 비어 있습니다)")}
+        ${t.keys ? `<span class="tk">${esc(t.keys)}</span>` : ""}</div>
+    </div>
+    <div class="bar" style="justify-content:center">
+      <button class="sm" id="drlFlip">뒤집기</button>
+      <button class="ghost sm" id="drlNo">아직 모름</button>
+      <button class="ghost sm" id="drlMid">애매</button>
+      <button class="ghost sm" id="drlOk">됨</button>
+      <button class="ghost sm" id="drlEnd" style="margin-left:auto">그만</button>
+    </div>
+    <div class="hint" style="text-align:center">${DRILL_I + 1} / ${DRILL_Q.length}</div>
+  </div>`;
+  $("#drlFlip").onclick = () => $("#drlBack").className = "";
+  const mark = async n => {
+    t.mastery = n;
+    await sb.from("iv_term").update({ mastery:n }).eq("id", t.id);
+    DRILL_I++; drillDraw();
+  };
+  $("#drlNo").onclick  = () => mark(0);
+  $("#drlMid").onclick = () => mark(1);
+  $("#drlOk").onclick  = () => mark(2);
+  $("#drlEnd").onclick = () => { $("#drill").className = "hide"; drawTerms(); drawTL(); };
+}
+
+/* ══════════════════════════════════════════════════
+   복기 — 실제로 받았던 질문을 남긴다. 하루 지나면 절반이 사라진다.
+   ══════════════════════════════════════════════════ */
+async function loadReviews(){
+  const { data, error } = await sb.from("iv_review").select("*")
+    .eq("case_id", CUR.id).order("created_at", { ascending:false });
+  REV = error ? [] : (data || []);
+  drawRev();
+}
+function drawRev(){
+  counts();
+  const sel = $("#rStage");
+  if(sel && !sel.options.length)
+    sel.innerHTML = TLS.map(t => `<option value="${t.key}">${t.name}</option>`).join("");
+
+  const list = REV_BAD ? REV.filter(r => r.react === "bad") : REV;
+  const n = k => REV.filter(r => r.react === k).length;
+  $("#rvStat").innerHTML = `
+    <div class="n"><b>${REV.length}</b><span>기록</span></div>
+    <div class="n"><b style="color:var(--stamp)">${n("bad")}</b><span>막힘</span></div>
+    <div class="n"><b style="color:var(--warn)">${n("mid")}</b><span>애매</span></div>
+    <div class="n"><b style="color:var(--ok)">${n("good")}</b><span>잘 답함</span></div>`;
+
+  $("#rvList").innerHTML = list.length ? list.map(r => `
+    <div class="rv ${r.react}">
+      <div class="rq">${esc(r.q)}</div>
+      <div class="hint" style="margin-top:4px">${r.on_date || (r.created_at || "").slice(0,10)}
+        · ${(TLS.find(t => t.key === r.stage_key) || {}).name || "기타"}
+        · ${{good:"잘 답함",mid:"애매",bad:"막힘"}[r.react]}</div>
+      ${r.my_a ? `<div class="rm">그때 답: ${esc(r.my_a)}</div>` : ""}
+      ${r.better_md ? `<details class="qa" style="margin-top:8px">
+          <summary><span class="qt">다시 쓴 답 보기</span></summary>
+          <div class="qb">${mdToHtml(r.better_md)}</div></details>` : ""}
+      <div class="bar" style="margin-top:9px">
+        <button class="ghost sm" data-rvb="${r.id}">이 질문 다시 쓰기</button>
+        <button class="ghost sm" data-rvm="${r.id}">답변함으로 보내기</button>
+        <button class="ghost sm" data-rvd="${r.id}" style="margin-left:auto">삭제</button>
+      </div>
+    </div>`).join("")
+    : `<div class="hint">${REV.length ? "막힌 질문이 없습니다." : "아직 없습니다. 면접이 끝나면 바로 여기에 적어 두세요."}</div>`;
+
+  $$("#rvList [data-rvd]").forEach(b => b.onclick = async () => {
+    if(!confirm("이 복기를 지웁니다.")) return;
+    await sb.from("iv_review").delete().eq("id", b.dataset.rvd);
+    await loadReviews(); drawTL();
+  });
+  $$("#rvList [data-rvm]").forEach(b => b.onclick = async () => {
+    const r = REV.find(x => String(x.id) === b.dataset.rvm);
+    if(ANS.some(a => a.q === r.q)) return say("답변함에 이미 같은 질문이 있습니다.", "err");
+    const { error } = await sb.from("iv_answer").insert({
+      case_id:CUR.id, user_id:ME.id, cat:"기타",
+      round:r.stage_key === "r2" ? 2 : 1,
+      q:r.q.slice(0,300), a_md:r.better_md || r.my_a || "", asked:true,
+      score:r.react === "good" ? 3 : r.react === "mid" ? 2 : 1 });
+    if(error) return say("실패 — " + error.message, "err");
+    say("답변함으로 보냈습니다.", "ok"); await loadAnswers(); drawTL();
+  });
+  $$("#rvList [data-rvb]").forEach(b => b.onclick = async () => {
+    const r = REV.find(x => String(x.id) === b.dataset.rvb);
+    b.disabled = true;
+    try{
+      const md = await ask(headPrompt() +
+`[할 일] 아래는 이 지원자가 실제 면접에서 받았고 ${{good:"그럭저럭 답한",mid:"애매하게 답한",bad:"막혀서 못 답한"}[r.react]} 질문이다.
+질문: ${r.q}
+그때 한 답: ${r.my_a || "(못 답함)"}
+
+${FORMAT}
+왜 그때 답이 부족했는지 한 줄로 먼저 짚고, 그 다음 위 형식대로 다시 써라.`, "다시 쓰는 중…");
+      const { error } = await sb.from("iv_review").update({ better_md: md }).eq("id", r.id);
+      if(error) throw new Error(error.message);
+      say("다시 썼습니다.", "ok"); await loadReviews();
+    }catch(e){ say("실패 — " + e.message, "err"); }
+    finally{ b.disabled = false; }
+  });
+}
+$("#rSave").onclick = async () => {
+  const q = $("#rQ").value.trim();
+  if(!q) return say("받았던 질문을 넣어주세요.", "err");
+  const row = { case_id:CUR.id, user_id:ME.id, stage_key:$("#rStage").value,
+    react:$("#rReact").value, q:q.slice(0,300), my_a:$("#rA").value.trim(),
+    on_date:new Date().toISOString().slice(0,10) };
+  const { error } = await sb.from("iv_review").insert(row);
+  if(error) return say("저장 실패 — " + error.message, "err");
+  $("#rQ").value = $("#rA").value = ""; clearDraft("rq"); clearDraft("ra");
+  say("복기를 남겼습니다.", "ok");
+  await loadReviews(); drawTL(); loadAllRev();
+};
+$("#rBad").onclick = e => {
+  REV_BAD = !REV_BAD;
+  e.target.className = REV_BAD ? "sm" : "ghost sm";
+  e.target.textContent = REV_BAD ? "전부 보기" : "막힌 질문만 보기";
+  drawRev();
+};
+
+/* ══════════════════════════════════════════════════
+   실전 모의면접 — 한 문항씩, 시계를 걸고, 그 자리에서 채점
+   ══════════════════════════════════════════════════ */
+async function loadDrills(){
+  const { data, error } = await sb.from("iv_drill").select("*")
+    .eq("case_id", CUR.id).order("created_at", { ascending:false }).limit(200);
+  DRL = error ? [] : (data || []);
+  drawMockHist();
+}
+function drawMockHist(){
+  const box = $("#mockHist"); if(!box) return;
+  if(!DRL.length){
+    $("#mockStat").innerHTML = "";
+    box.innerHTML = `<div class="hint">아직 없습니다. 위에서 <b>시작</b>을 누르세요.</div>`;
+    return;
+  }
+  const avg = Math.round(DRL.reduce((s, d) => s + (d.score || 0), 0) / DRL.length);
+  const ok  = DRL.filter(d => (d.score || 0) >= 70).length;
+  const bad = DRL.filter(d => (d.score || 0) < 50).length;
+  $("#mockStat").innerHTML = `
+    <div class="n"><b>${DRL.length}</b><span>푼 문항</span></div>
+    <div class="n"><b>${avg}</b><span>평균 점수</span></div>
+    <div class="n"><b style="color:var(--ok)">${ok}</b><span>70점 이상</span></div>
+    <div class="n"><b style="color:var(--stamp)">${bad}</b><span>50점 미만</span></div>`;
+  box.innerHTML = DRL.slice(0, 40).map(d => `
+    <details class="qa">
+      <summary>
+        <span class="qt">${esc(d.q)}</span>
+        <span class="tag">${d.score ?? "-"}점</span>
+      </summary>
+      <div class="qb">
+        ${d.my_a ? `<div class="ansbox">${esc(d.my_a)}</div>` : ""}
+        ${d.fb_md ? mdToHtml(d.fb_md) : ""}
+        <div class="bar" style="margin-top:9px">
+          <button class="ghost sm" data-dq="${d.id}">답변함에 넣기</button>
+          <button class="ghost sm" data-dd="${d.id}" style="margin-left:auto">삭제</button>
+        </div>
+      </div>
+    </details>`).join("");
+  $$("#mockHist [data-dd]").forEach(b => b.onclick = async () => {
+    await sb.from("iv_drill").delete().eq("id", b.dataset.dd);
+    await loadDrills();
+  });
+  $$("#mockHist [data-dq]").forEach(b => b.onclick = async () => {
+    const d = DRL.find(x => String(x.id) === b.dataset.dq);
+    if(ANS.some(a => a.q === d.q)) return say("이미 답변함에 있습니다.", "err");
+    const { error } = await sb.from("iv_answer").insert({
+      case_id:CUR.id, user_id:ME.id, cat:"기타", round:0,
+      q:d.q.slice(0,300), a_md:d.my_a || "",
+      score:(d.score || 0) >= 70 ? 3 : (d.score || 0) >= 50 ? 2 : 1 });
+    if(error) return say("실패 — " + error.message, "err");
+    say("답변함에 넣었습니다.", "ok"); await loadAnswers(); drawTL();
+  });
+}
+
+/* 비슷한 직무 · 다른 회사에서 이미 쌓아 둔 질문 — 회사가 달라도 묻는 것은 겹친다 */
+let NEAR = [];
+async function loadNear(){
+  NEAR = [];
+  if(!CUR) return;
+  const key = (CUR.role || "").replace(/\s/g, "").slice(0, 4);
+  const near = CASES.filter(c => c.id !== CUR.id &&
+    (!key || (c.role || "").replace(/\s/g, "").includes(key)));
+  if(!near.length) return;
+  const { data } = await sb.from("iv_answer").select("*")
+    .in("case_id", near.map(c => c.id)).limit(300);
+  NEAR = (data || []).map(a => ({ ...a,
+    _co: (CASES.find(c => c.id === a.case_id) || {}).company || "다른 건" }));
+}
+
+let MOCK_SRC = "all";
+$$("#mockSrc .chip").forEach(b => b.onclick = () => {
+  $$("#mockSrc .chip").forEach(x => x.classList.toggle("on", x === b));
+  MOCK_SRC = b.dataset.s;
+});
+
+const BASEQ = [
+  "간단히 자기소개 부탁드립니다.",
+  "우리 회사에 지원한 이유가 무엇입니까?",
+  "이직(또는 지원) 사유를 말씀해 주세요.",
+  "본인의 강점과 약점을 하나씩 말씀해 주세요.",
+  "가장 어려웠던 문제를 어떻게 해결했는지 말씀해 주세요.",
+  "동료와 의견이 부딪혔을 때 어떻게 하십니까?",
+  "교대·야간 근무나 비상 호출이 가능하십니까?",
+  "희망 연봉과 입사 가능일을 말씀해 주세요.",
+  "5년 뒤 본인의 모습을 어떻게 그리고 계십니까?",
+  "마지막으로 궁금한 점이 있으십니까?"
+];
+
+function mockPool(){
+  const R = +$("#mockR").value;
+  const byRound = a => !R || !a.round || a.round === R;
+  if(MOCK_SRC === "base")
+    return BASEQ.map(q => ({ q, _from:"기본" }));
+  if(MOCK_SRC === "term")
+    return TERMS.filter(t => (t.mastery || 0) < 2)
+      .map(t => ({ q:`${t.term} — 20초 안에 설명해 보세요.`, ref:t.mean_md, _from:"용어" }));
+  if(MOCK_SRC === "bad")
+    return REV.filter(r => r.react !== "good")
+      .map(r => ({ q:r.q, ref:r.better_md || r.my_a, _from:"복기" }));
+  if(MOCK_SRC === "weak")
+    return [...ANS, ...MANS].filter(a => byRound(a) && (!a.score || a.score <= 1))
+      .map(a => ({ q:a.q, ref:a.a_md, _from:"약한 답변" }));
+  if(MOCK_SRC === "near")
+    return NEAR.map(a => ({ q:a.q, ref:a.a_md, _from:a._co }));
+  /* all */
+  return [
+    ...[...ANS, ...MANS].filter(byRound).map(a => ({ q:a.q, ref:a.a_md, _from:"답변함" })),
+    ...REV.filter(r => r.react !== "good").map(r => ({ q:r.q, ref:r.my_a, _from:"복기" })),
+    ...TERMS.filter(t => (t.mastery || 0) < 2).map(t => ({ q:`${t.term} — 20초 안에 설명해 보세요.`, ref:t.mean_md, _from:"용어" })),
+    ...BASEQ.map(q => ({ q, _from:"기본" }))
+  ];
+}
+
+let MQ = [], MI = 0, MTIMER = null, MSEC = 0, MREC = null, MCHASE = 0;
+
+$("#mockGo").onclick = async () => {
+  const n = +$("#mockN").value;
+  let pool = mockPool();
+
+  if(MOCK_SRC === "ai"){
+    $("#mockGo").disabled = true;
+    try{
+      const arr = await askJSON(headPrompt() +
+`[할 일] 지금 이 자리에서 물을 면접 질문 ${n}개를 만들어라.
+이미 준비된 질문은 피하고, 이 지원자가 아직 안 다룬 각도로 물어라.
+각 원소: {"q":"질문 한 문장"}`, "질문을 만드는 중…");
+      pool = arr.filter(x => x.q).map(x => ({ q:String(x.q), _from:"AI" }));
+    }catch(e){ say("실패 — " + e.message, "err"); return; }
+    finally{ $("#mockGo").disabled = false; }
+  }
+
+  /* 같은 질문이 두 번 나오지 않게 */
+  const seen = new Set();
+  pool = pool.filter(x => x.q && !seen.has(x.q) && seen.add(x.q));
+  if(!pool.length) return say("그 범위에 낼 질문이 없습니다. 범위를 바꾸거나 답변·용어를 먼저 쌓으세요.", "err");
+
+  MQ = pool.sort(() => Math.random() - .5).slice(0, n);
+  MI = 0; MCHASE = +$("#mockChase").value;
+  $("#mockSetup").className = "card hide";
+  $("#mockRun").className = "";
+  mockDraw();
+};
+
+function mockDraw(){
+  clearInterval(MTIMER); MTIMER = null;
+  stopRec();
+  const box = $("#mockRun");
+  if(MI >= MQ.length){
+    const done = MQ.filter(x => x._score != null);
+    const avg = done.length ? Math.round(done.reduce((s, x) => s + x._score, 0) / done.length) : 0;
+    box.innerHTML = `<div class="mock">
+      <div class="scoreband ${avg >= 70 ? "hi" : avg >= 50 ? "mid" : "lo"}">
+        <b>${avg}</b><span>${done.length}문항 평균입니다.<br>
+        50점 아래는 «아는데 입에 안 붙은» 것입니다 — 답변함에서 그 답만 소리 내어 세 번 읽으세요.</span></div>
+      <div class="bar"><button id="mkAgain">한 판 더</button>
+        <button class="ghost sm" id="mkOut">끝내기</button></div></div>`;
+    $("#mkAgain").onclick = () => { $("#mockRun").className = "hide"; $("#mockSetup").className = "card"; };
+    $("#mkOut").onclick = () => { $("#mockRun").className = "hide"; $("#mockSetup").className = "card"; loadDrills(); };
+    loadDrills();
+    return;
+  }
+
+  const cur = MQ[MI];
+  const lim = +$("#mockT").value;
+  MSEC = 0;
+  box.innerHTML = `<div class="mock">
+    <div class="prog"><i style="width:${(MI / MQ.length * 100).toFixed(1)}%"></i></div>
+    <div class="mmeta">${MI + 1} / ${MQ.length} · ${esc(cur._from || "")}${cur._chase ? " · 꼬리질문" : ""}</div>
+    <div class="mq">${esc(cur.q)}</div>
+    <div class="clock" id="mkClock">
+      <div class="cring" style="--p:0"><i id="mkSec">0</i></div>
+      <div class="ctxt">제한 ${lim}초. 시계를 보지 말고 <b>소리 내어</b> 답하세요.<br>
+        마이크를 켜면 말한 것이 아래 칸에 그대로 적힙니다.</div>
+    </div>
+    <button class="mic" id="mkMic">🎤 마이크로 답하기</button>
+    <textarea id="mkA" style="min-height:96px;margin-top:10px"
+      placeholder="마이크가 안 되면 여기에 직접 적어도 됩니다."></textarea>
+    <div class="bar" style="margin-top:10px">
+      <button class="sm" id="mkGrade">채점받기</button>
+      <button class="ghost sm" id="mkSkip">모르겠음 · 넘기기</button>
+      <button class="ghost sm" id="mkQuit" style="margin-left:auto">그만</button>
+    </div>
+    <div id="mkFb"></div>
+  </div>`;
+
+  MTIMER = setInterval(() => {
+    MSEC++;
+    const p = Math.min(100, MSEC / lim * 100);
+    const c = $("#mkClock"); if(!c) return clearInterval(MTIMER);
+    c.querySelector(".cring").style.setProperty("--p", p);
+    $("#mkSec").textContent = MSEC;
+    c.className = "clock" + (MSEC > lim ? " over" : MSEC > lim * .75 ? " warn" : "");
+  }, 1000);
+
+  $("#mkMic").onclick = toggleRec;
+  $("#mkSkip").onclick = () => { MI++; mockDraw(); };
+  $("#mkQuit").onclick = () => { MI = MQ.length; mockDraw(); };
+  $("#mkGrade").onclick = () => gradeOne(cur, lim);
+  autoGrow($("#mkA"));
+}
+
+/* ── 마이크 — 되는 기기에서만. 안 되면 조용히 손으로 적게 둔다 ── */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+$("#micHint").textContent = SR
+  ? "이 기기는 마이크 받아쓰기가 됩니다. (크롬 계열에서 가장 잘 됩니다)"
+  : "이 브라우저는 받아쓰기를 지원하지 않습니다 — 소리 내어 답한 뒤 요지만 손으로 적으세요.";
+
+function stopRec(){
+  if(MREC){ try{ MREC.stop(); }catch(e){} MREC = null; }
+  const b = $("#mkMic"); if(b) b.className = "mic";
+}
+function toggleRec(){
+  const btn = $("#mkMic");
+  if(MREC) return stopRec();
+  if(!SR) return say("이 브라우저는 받아쓰기를 지원하지 않습니다. 아래 칸에 적어 주세요.", "err");
+  MREC = new SR();
+  MREC.lang = "ko-KR"; MREC.continuous = true; MREC.interimResults = true;
+  let fixed = $("#mkA").value;
+  MREC.onresult = e => {
+    let live = "";
+    for(let i = e.resultIndex; i < e.results.length; i++){
+      const t = e.results[i][0].transcript;
+      if(e.results[i].isFinal) fixed += t; else live += t;
+    }
+    $("#mkA").value = (fixed + live).trim();
+  };
+  MREC.onerror = () => { stopRec(); say("마이크를 쓰지 못했습니다. 아래 칸에 적어 주세요.", "err"); };
+  MREC.onend = () => { if(MREC) stopRec(); };
+  try{ MREC.start(); btn.className = "mic rec"; btn.textContent = "■ 멈추기"; }
+  catch(e){ stopRec(); }
+}
+
+async function gradeOne(cur, lim){
+  const my = $("#mkA").value.trim();
+  if(!my) return say("답을 적거나 마이크로 말한 뒤 눌러 주세요.", "err");
+  clearInterval(MTIMER); stopRec();
+  const took = MSEC;
+  $("#mkGrade").disabled = true;
+  $("#mkFb").innerHTML = `<div class="hint">채점하는 중…</div>`;
+  try{
+    const arr = await askJSON(headPrompt() +
+`[할 일] 아래는 모의면접이다. 면접관의 눈으로 냉정하게 채점하라.
+질문: ${cur.q}
+지원자가 말한 답(받아쓰기라 오탈자가 있을 수 있다): ${my}
+말한 시간: ${took}초 (제한 ${lim}초)
+${cur.ref ? "참고 — 이 지원자가 준비해 둔 답: " + String(cur.ref).slice(0, 600) : ""}
+
+JSON 배열에 원소 1개만:
+[{"score":0~100 정수,
+  "good":"살릴 것 한 줄",
+  "bad":"이대로면 감점되는 것 한 줄",
+  "better":"그대로 입 밖으로 낼 20~30초 고친 답",
+  "chase":"이 답을 들은 면접관이 바로 파고들 꼬리질문 한 문장"}]`, "채점하는 중…");
+    const r = arr[0] || {};
+    const sc = Math.max(0, Math.min(100, Math.round(+r.score || 0)));
+    cur._score = sc;
+
+    $("#mkFb").innerHTML = `
+      <div class="scoreband ${sc >= 70 ? "hi" : sc >= 50 ? "mid" : "lo"}" style="margin-top:12px">
+        <b>${sc}</b><span>${took}초 만에 말했습니다.
+        ${took > lim ? "제한을 넘겼습니다 — 실제 면접에서는 잘립니다." :
+          took < lim * .35 ? "너무 짧습니다 — 근거를 한 겹 더 붙이세요." : "길이는 적당합니다."}</span></div>
+      <div class="kv"><b>살릴 것</b><span>${esc(r.good || "")}</span></div>
+      <div class="kv"><b>감점</b><span>${esc(r.bad || "")}</span></div>
+      <div class="ansbox" style="margin-top:9px">${esc(r.better || "")}</div>
+      <div class="bar" style="margin-top:10px">
+        <button class="sm" id="mkNext">다음 질문</button>
+        ${r.chase && MCHASE ? `<button class="ghost sm" id="mkChase">꼬리질문 받기</button>` : ""}
+        <button class="ghost sm" id="mkKeep">이 고친 답 저장</button>
+      </div>`;
+
+    await sb.from("iv_drill").insert({
+      case_id:CUR.id, user_id:ME.id, q:cur.q.slice(0,300), my_a:my, score:sc,
+      fb_md:`**살릴 것** ${r.good || ""}\n\n**감점** ${r.bad || ""}\n\n**고친 답**\n${r.better || ""}`
+    }).then(({ error }) => { if(error) console.warn(error.message); });
+
+    $("#mkNext").onclick = () => { MI++; mockDraw(); };
+    $("#mkKeep").onclick = async () => {
+      if(ANS.some(a => a.q === cur.q)) return say("답변함에 이미 있습니다.", "err");
+      await sb.from("iv_answer").insert({ case_id:CUR.id, user_id:ME.id, cat:"기타",
+        round:0, q:cur.q.slice(0,300), a_md:r.better || "",
+        score:sc >= 70 ? 3 : sc >= 50 ? 2 : 1 });
+      say("답변함에 넣었습니다.", "ok"); await loadAnswers(); drawTL();
+    };
+    const ch = $("#mkChase");
+    if(ch) ch.onclick = () => {
+      const depth = (cur._depth || 0) + 1;
+      if(depth > MCHASE) return say("추격은 여기까지입니다.", "ok");
+      MQ.splice(MI + 1, 0, { q:r.chase, ref:r.better, _from:cur._from, _chase:true, _depth:depth });
+      MI++; mockDraw();
+    };
+  }catch(e){
+    $("#mkFb").innerHTML = `<div class="hint" style="color:var(--stamp)">채점하지 못했습니다 — ${esc(e.message)}</div>`;
+  }finally{
+    const g = $("#mkGrade"); if(g) g.disabled = false;
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   브리핑 — 전날 밤과 대기실에서 이것만 본다
+   ══════════════════════════════════════════════════ */
+const briefKey = () => "iv-brief-" + (CUR ? CUR.id : "x");
+function drawBrief(){
+  const box = $("#brBody"); if(!box || !CUR) return;
+  /* 표에 brief_md 칸이 없어도 브리핑이 사라지지 않게 이 기기에도 남겨 둔다 */
+  let md = (STG[SEL] || {}).brief_md || CUR._brief;
+  if(!md){ try{ md = localStorage.getItem(briefKey()) || ""; }catch(e){} }
+  if(!md){
+    box.innerHTML = `<div class="hint">아직 없습니다. 위의 <b>브리핑 만들기</b>를 누르세요.
+      지금까지 쌓인 답변·용어·복기를 근거로 한 장으로 뽑습니다.</div>`;
+    return;
+  }
+  box.innerHTML = `<h1 class="print-only">${esc(CUR.company)} · ${esc(CUR.role)}</h1>` + mdToHtml(md);
+}
+$("#brGen").onclick = async () => {
+  const strong = ANS.filter(a => a.score >= 3).slice(0, 10).map(a => a.q);
+  $("#brGen").disabled = true;
+  try{
+    const md = await ask(headPrompt() + reviewText() + weakText() +
+`[할 일] "${CUR.company} · ${CUR.role}" 면접 전날 밤에 볼 «한 장» 을 써라.
+이미 잘 되는 것: ${strong.join(" / ") || "아직 없음"}
+길게 쓰지 마라. 대기실에서 3분 안에 훑을 분량이다.
+
+## 한 문장 포지셔닝
+## 반드시 꺼낼 내 무기 3개 (각각 한 줄 근거까지)
+## 나올 질문 7개 — 질문 / 첫 한 문장만
+## 아직 약한 것 — 여기 물으면 이렇게 넘긴다 (3개)
+## 내가 물을 역질문 3개
+## 당일 아침 체크 6줄`, "브리핑을 쓰는 중…");
+    CUR._brief = md;
+    try{ localStorage.setItem(briefKey(), md); }catch(e){}
+    /* iv_stage 에 brief_md 칸이 없는 경우가 있어 저장 실패는 조용히 넘긴다 —
+       화면과 이 기기에는 이미 남아 있다. */
+    try{ await saveStage({ brief_md: md }); }catch(e){}
+    drawBrief(); say("브리핑을 만들었습니다.", "ok");
+  }catch(e){ say("실패 — " + e.message, "err"); }
+  finally{ $("#brGen").disabled = false; }
+};
+$("#brPrint").onclick = () => window.print();
+$("#brCopy").onclick = () => copyText($("#brBody").innerText || "");
+
+/* ══════════════════════════════════════════════════
+   목록 화면 — 말주머니와 단계별로 생각할 것
+   ══════════════════════════════════════════════════ */
+const SELF_LINES = [
+  "떨리는 건 준비가 부족해서가 아니라 그만큼 원해서다.",
+  "면접관도 오늘 처음 보는 사람이다. 내가 아는 것을 말하면 된다.",
+  "모르는 걸 모른다고 말하는 사람이 제일 위험하지 않다.",
+  "여기 떨어져도 내 경력은 하나도 줄지 않는다.",
+  "나는 현장에서 실제로 돌려 본 사람이다. 책으로만 본 사람과 다르다.",
+  "한 문장만 잘 말하자. 나머지는 따라온다.",
+  "지금 긴장한 건 몸이 준비되고 있다는 뜻이다.",
+  "말이 꼬이면 잠깐 멈춰도 된다. 침묵 2초는 아무도 세지 않는다.",
+  "오늘의 나는 어제보다 한 판 더 돌려 본 나다.",
+  "합격은 운이지만, 준비는 내 것이다.",
+  "면접은 심문이 아니라 대화다.",
+  "내 경험은 내가 제일 잘 안다. 그대로 말하면 된다."
+];
+const QUOTE_LINES = [
+  "준비된 자에게 기회가 온다 — 루이 파스퇴르",
+  "실패는 넘어지는 것이 아니라 일어나지 않는 것이다",
+  "가장 어두운 시간은 해 뜨기 직전이다",
+  "천천히 가도 좋다. 멈추지만 않으면 된다 — 공자",
+  "행운은 준비가 기회를 만났을 때 생긴다 — 세네카",
+  "할 수 있다고 믿는 사람이 결국 해낸다",
+  "오늘 걷지 않으면 내일은 뛰어야 한다",
+  "완벽을 기다리면 아무것도 시작하지 못한다",
+  "포기하지 않는 한 실패가 아니라 과정이다",
+  "고요한 바다에서는 좋은 뱃사공이 만들어지지 않는다",
+  "노력은 배신하지 않는다. 다만 시간이 걸릴 뿐이다",
+  "시작이 반이다"
+];
+const TIP_LINES = [
+  "1차 · 실무진은 «이 사람과 같이 당직 설 수 있나» 를 본다. 절차 이름을 정확히 말하라.",
+  "1차 · 숫자를 하나 붙이면 신뢰도가 달라진다. 다만 한 문장에 숫자는 둘까지.",
+  "1차 · 모르는 설비를 물으면 «다뤄 본 적은 없지만 원리는 이렇습니다» 로 이어라.",
+  "1차 · 트러블 사례는 원인 → 조치 → 재발방지 세 토막으로 끊어 말하라.",
+  "2차 · 임원은 기술을 안 본다. 오래 다닐 사람인지를 본다.",
+  "2차 · 이직 사유는 절대 전 직장을 깎아서 말하지 마라. 가고 싶은 방향으로 말하라.",
+  "2차 · 연봉은 먼저 숫자를 던지지 말고 «회사 기준에 따르되 기대는 이렇습니다» 로.",
+  "공통 · 첫 문장이 결론이어야 한다. 배경부터 깔면 중간에 잘린다.",
+  "공통 · 답이 30초를 넘어가면 면접관은 이미 다음 질문을 생각하고 있다.",
+  "공통 · 역질문 «없습니다» 는 관심 없다는 뜻으로 읽힌다. 두 개는 준비하라.",
+  "공통 · 손은 책상 위에, 시선은 질문한 사람에게. 답할 때만 잠깐 다른 면접관도 본다.",
+  "공통 · 압박 질문은 내용이 아니라 태도를 본다. 웃으며 «좋은 지적입니다» 로 받아라."
+];
+function pouch(box, out, lines, n){
+  const pick = lines.slice().sort(() => Math.random() - .5).slice(0, n || 5);
+  $(out).innerHTML = pick.map(t => `<div class="bub">${esc(t)}</div>`).join("");
+}
+let TIP_F = "전체";
+function rollTips(){
+  const src = TIP_F === "전체" ? TIP_LINES
+    : TIP_LINES.filter(t => t.startsWith(TIP_F === "1차" ? "1차" : TIP_F === "2차" ? "2차" : "공통"));
+  pouch(null, "#tipOut", src.length ? src : TIP_LINES);
+}
+$("#selfRoll").onclick  = () => pouch(null, "#selfOut",  SELF_LINES);
+$("#quoteRoll").onclick = () => pouch(null, "#quoteOut", QUOTE_LINES);
+$("#tipRoll").onclick   = rollTips;
+chips($("#selfChips"),  ["다시 뽑기"], () => pouch(null, "#selfOut",  SELF_LINES), "");
+chips($("#quoteChips"), ["다시 뽑기"], () => pouch(null, "#quoteOut", QUOTE_LINES), "");
+chips($("#tipChips"),   ["전체","1차","2차","공통"], k => { TIP_F = k; rollTips(); }, "전체");
+pouch(null, "#selfOut", SELF_LINES);
+pouch(null, "#quoteOut", QUOTE_LINES);
+rollTips();
+
+/* 단계별로 생각할 것 — 회사와 무관하게 늘 같은 이야기라 코드 안에 둔다 */
+const STAGE_TIPS = [
+  { n:1, t:"서류를 넣기 전", li:[
+    "공고의 «자격요건» 을 한 줄씩 뜯어 내 경력에서 대응되는 문장을 붙여 본다.",
+    "대응이 안 되는 항목이 셋을 넘으면 그 회사는 서류에서 걸린다 — 다른 각도가 필요하다.",
+    "경력기술서는 «무엇을 했다» 가 아니라 «무엇을 얼마나 바꿨다» 로 쓴다."]},
+  { n:2, t:"서류가 붙은 직후", li:[
+    "공고 원문·자소서·경력기술서를 이 앱 자료 탭에 넣는다. 이게 있어야 나머지가 다 돈다.",
+    "전략 탭에서 1차용 블록을 먼저 만든다.",
+    "용어 탭에서 공고 용어를 뽑아 «모름» 을 하나씩 지운다."]},
+  { n:3, t:"1차(실무) 전날", li:[
+    "실전 탭에서 «약한 것만» 으로 한 판 돌린다. 아는데 입에 안 붙은 게 드러난다.",
+    "브리핑을 만들어 한 장으로 뽑아 둔다.",
+    "설비 이름·기준값은 소리 내어 세 번 읽는다. 눈으로 읽은 건 입에서 안 나온다."]},
+  { n:4, t:"1차가 끝난 직후", li:[
+    "차 안에서, 늦어도 그날 안에 복기 탭에 받았던 질문을 적는다. 하루 지나면 절반이 사라진다.",
+    "막힌 질문은 «이 질문 다시 쓰기» 로 답을 만들어 답변함에 넣는다.",
+    "2차는 같은 질문을 다시 묻는 일이 잦다."]},
+  { n:5, t:"2차(임원) 전날", li:[
+    "기술 이야기를 줄이고 «오래 다닐 사람» 쪽으로 문장을 바꾼다.",
+    "이직 사유·연봉·근무조건 세 개는 문장으로 통째로 외운다. 여기서 흔들리면 다 무너진다.",
+    "역질문 두 개는 반드시 준비한다."]},
+  { n:6, t:"결과를 기다리며", li:[
+    "다음 건 하나를 더 열어 둔다. 한 곳만 바라보면 협상력이 사라진다.",
+    "떨어져도 복기는 남긴다 — 다음 회사에서 그대로 쓴다.",
+    "받았던 질문 모아보기는 회사를 가리지 않는다. 그게 이 앱의 진짜 자산이다."]}
+];
+function drawStages(){
+  const box = $("#stages"); if(!box) return;
+  box.innerHTML = STAGE_TIPS.map(s => `
+    <div class="stage" data-st="${s.n}">
+      <button class="sh" type="button"><span class="n">${s.n}</span>${esc(s.t)}<span class="cv">⌄</span></button>
+      <ul class="sb">${s.li.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+    </div>`).join("");
+  $$("#stages .stage .sh").forEach(b => b.onclick = () => b.parentElement.classList.toggle("open"));
+}
+drawStages();
+
+/* ══════════════════════════════════════════════════
+   마무리 — 임시 저장 · 로그인 상태에 따라 화면 세우기
+   ══════════════════════════════════════════════════ */
+["#aQ","#aA","#rQ","#rA"].forEach((id, i) => bindDraft(id, ["aq","aa","rq","ra"][i]));
+["#aA","#rA","#dBody"].forEach(id => autoGrow($(id)));
+
+/* 서브탭은 마지막에 보던 자리로 돌아온다 */
+try{ showPane(localStorage.getItem("iv-pane") || "prep"); }catch(e){ showPane("prep"); }
+
+/* 다른 탭에서 로그인·로그아웃하면 여기도 따라간다.
+   supabase-js 는 처음 붙을 때도 한 번 알려 주므로, 그 한 번은 흘려보낸다. */
+let AUTH_READY = false;
+sb.auth.onAuthStateChange(() => { if(AUTH_READY) boot(); });
+
+boot().then(() => { AUTH_READY = true; }).catch(e => {
+  /* 여기서 터지면 예전처럼 화면이 텅 빈다. 무슨 일인지 눈에 보이게 적어 둔다. */
+  const g = $("#gate"); if(g) g.className = "gate";
+  say("화면을 세우지 못했습니다 — " + (e.message || e), "err");
+});
+
+</script>
+</body>
+</html>
