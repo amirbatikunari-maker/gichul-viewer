@@ -34,21 +34,21 @@
          1.75 는 문단이 흩어져 보이고, 1.55 도 표·식이 섞이면 헐겁다. */
       --lh:1.45;
       --lh-ez:1.5;
-      --gap:9px}
+      --gap:7px}
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:Pretendard,sans-serif;
   font-size:var(--fs);line-height:var(--lh);-webkit-text-size-adjust:100%}
-.wrap{max-width:960px;margin:0 auto;padding:16px 14px 84px}
+.wrap{max-width:960px;margin:0 auto;padding:10px 12px 76px}
 
 /* 태블릿 */
-@media(min-width:760px){ :root{--fs:13.5px;--fs-ez:13.5px;--gap:10px} .wrap{padding:20px 18px 88px} }
+@media(min-width:760px){ :root{--fs:13.5px;--fs-ez:13.5px;--gap:8px} .wrap{padding:14px 16px 80px} }
 /* PC — 넓다고 글씨까지 키우면 한 줄이 너무 길어져 눈이 되돌아오기 힘들다.
    글씨는 조금만 키우고 대신 폭을 넓힌다. */
 @media(min-width:1100px){ :root{--fs:14px;--fs-ez:13.5px} .wrap{max-width:1080px} }
-h1{font:700 20px/1.3 var(--font-d);margin:0 0 4px;letter-spacing:-.02em}
-.lead{color:var(--ink-2);font-size:12.5px;margin-bottom:16px}
-.box{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:15px;margin-bottom:12px}
-.eyebrow{display:flex;align-items:baseline;gap:10px;font:600 11px/1 var(--font-d);letter-spacing:.14em;color:var(--ink-2);margin-bottom:14px}
+h1{font:700 18px/1.25 var(--font-d);margin:0 0 2px;letter-spacing:-.02em}
+.lead{color:var(--ink-2);font-size:12px;margin-bottom:9px}
+.box{background:var(--card);border:1px solid var(--rule);border-radius:13px;padding:11px 12px;margin-bottom:8px}
+.eyebrow{display:flex;align-items:baseline;gap:10px;font:600 11px/1 var(--font-d);letter-spacing:.14em;color:var(--ink-2);margin-bottom:9px}
 .eyebrow::after{content:"";flex:1;height:1px;background:var(--rule)}
 label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin:0 0 5px}
 input,select{width:100%;padding:10px 12px;border:1.4px solid var(--rule);border-radius:9px;background:var(--paper);color:var(--ink);font:inherit}
@@ -132,11 +132,14 @@ code{font-family:var(--font-m);font-size:12px;background:#E4ECFD;padding:1px 5px
   flex-direction:column;padding-top:env(safe-area-inset-top)}
 .ovl.on{display:flex}
 body.ovlopen{overflow:hidden}
-.ovl .oh{display:flex;align-items:center;gap:8px;padding:9px 12px;flex-wrap:wrap;
+.ovl .oh{display:flex;align-items:center;gap:6px;padding:6px 9px;flex-wrap:wrap;
   border-bottom:1px solid var(--rule);background:var(--card)}
-.ovl .oh .ot{font:700 13.5px/1.3 var(--font-d);letter-spacing:-.01em;margin-right:auto;
+.ovl .oh .ot{font:700 12.5px/1.25 var(--font-d);letter-spacing:-.01em;margin-right:auto;
   display:flex;align-items:center;gap:8px;min-width:0}
 .ovl .oh .ot small{font:500 11px/1 var(--font-m);color:var(--ink-2);white-space:nowrap}
+/* 이 줄의 단추들은 아무 class 도 없어 맨 위 button{padding:11px 16px} 를 그대로 물려받았다.
+   그래서 알약 넷이 두 줄로 접혀 머리줄이 통째로 세 줄이 됐다. 여기서 못 박아 둔다. */
+.ovl .oh button{padding:7px 11px;font:600 12px/1 var(--font-d);border-radius:8px}
 .ovl .ob{flex:1;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);
   gap:1px;background:var(--rule);overflow:hidden}
 .ovl .pane{background:var(--paper);overflow:auto;-webkit-overflow-scrolling:touch;
@@ -162,8 +165,8 @@ body.ovlopen{overflow:hidden}
 .ovl .ez h4{font:700 12.5px/1.3 var(--font-d);margin:10px 0 2px;color:var(--accent)}
 .ovl .ez h4:first-child{margin-top:0}
 .ovl .ez p{margin:2px 0} .ovl .ez ul{margin:2px 0;padding-left:16px} .ovl .ez li{margin:0}
-.ovl .otabs{display:none;gap:5px;padding:7px 12px;border-bottom:1px solid var(--rule);background:var(--card)}
-.ovl .otabs button{flex:1;padding:9px 6px;border-radius:8px;font:600 12.5px/1 var(--font-d);
+.ovl .otabs{display:none;gap:5px;padding:5px 9px;border-bottom:1px solid var(--rule);background:var(--card)}
+.ovl .otabs button{flex:1;padding:7px 6px;border-radius:8px;font:600 12px/1 var(--font-d);
   background:transparent;border:1.3px solid var(--rule);color:var(--ink-2)}
 .ovl .otabs button.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
 .ovl .miss{font-size:12.5px;color:var(--ink-2);padding:18px 0;text-align:center}
@@ -197,7 +200,7 @@ body.onlyimport .ovl{display:none !important}
 body.onlyimport .wrap{padding:14px 12px 40px}
 body.onlyimport .box.fold{margin-bottom:12px}
 .movednote{background:var(--card);border:1px dashed var(--rule);border-radius:12px;
-  padding:13px 15px;margin-bottom:14px;font-size:12.5px;color:var(--ink-2)}
+  padding:10px 12px;margin-bottom:9px;font-size:12px;color:var(--ink-2)}
 .movednote b{color:var(--ink)}
 .movednote a{display:inline-block;margin-top:7px;color:var(--accent);font-weight:600;text-decoration:none}
 
@@ -209,41 +212,28 @@ body.onlyimport .box.fold{margin-bottom:12px}
    매번 한참 스크롤해야 해서, 기본을 «접힘» 으로 둔다. */
 .box.fold{padding-top:0;padding-bottom:0}
 .box.fold .foldh{width:100%;display:flex;align-items:center;gap:9px;background:none;border:0;
-  padding:15px 0;cursor:pointer;color:var(--ink-2);text-align:left;
+  padding:10px 0;cursor:pointer;color:var(--ink-2);text-align:left;
   font:600 11px/1 var(--font-d);letter-spacing:.14em}
 .box.fold .foldh .arw{display:inline-block;font-size:10px;color:var(--accent);
   transition:transform .18s;flex:none}
 .box.fold .foldh::after{content:"";flex:1;height:1px;background:var(--rule)}
-.box.fold .foldb{display:none;padding-bottom:16px}
+.box.fold .foldb{display:none;padding-bottom:11px}
 .box.fold.open .foldb{display:block}
 .box.fold.open .foldh .arw{transform:rotate(-90deg)}   /* ◀ 가 ▼ 처럼 눕는다 */
-.prail{display:none;gap:5px;overflow-x:auto;scrollbar-width:none;
-  padding:8px 2px;margin:0 -2px;position:sticky;top:0;z-index:20;
+.prail{display:none;gap:4px;overflow-x:auto;scrollbar-width:none;
+  padding:5px 2px;margin:0 -2px;position:sticky;top:0;z-index:20;
   background:color-mix(in srgb,var(--paper) 94%,transparent);backdrop-filter:blur(8px)}
 .prail::-webkit-scrollbar{display:none}
 body.oneup .prail{display:flex}
 
-/* ── 접었다 펴는 상자 ──
-   자료함과 PDF 가져오기는 평소에 안 쓴다. 늘 펼쳐 두면 문제를 보려고
-   매번 한참 스크롤해야 해서, 기본을 «접힘» 으로 둔다. */
-.box.fold{padding-top:0;padding-bottom:0}
-.box.fold .foldh{width:100%;display:flex;align-items:center;gap:9px;background:none;border:0;
-  padding:15px 0;cursor:pointer;color:var(--ink-2);text-align:left;
-  font:600 11px/1 var(--font-d);letter-spacing:.14em}
-.box.fold .foldh .arw{display:inline-block;font-size:10px;color:var(--accent);
-  transition:transform .18s;flex:none}
-.box.fold .foldh::after{content:"";flex:1;height:1px;background:var(--rule)}
-.box.fold .foldb{display:none;padding-bottom:16px}
-.box.fold.open .foldb{display:block}
-.box.fold.open .foldh .arw{transform:rotate(-90deg)}   /* ◀ 가 ▼ 처럼 눕는다 */
 .pb{flex:none;min-width:46px;height:30px;padding:0 8px;border-radius:999px;
   border:1.4px solid var(--rule);background:#fff;color:var(--ink);
   font:500 11.5px/1 var(--font-m);cursor:pointer;display:grid;place-items:center;white-space:nowrap}
 .pb.now{background:var(--ink);border-color:var(--ink);color:#fff;font-weight:700}
 .pb.mark{border-color:var(--stamp)}
 .pb.easy::after{content:"";position:absolute;margin-top:20px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
-.pnav{display:none;gap:10px;align-items:center;justify-content:center;
-  position:sticky;bottom:0;padding:10px 0 14px;
+.pnav{display:none;gap:8px;align-items:center;justify-content:center;
+  position:sticky;bottom:0;padding:6px 0 10px;
   background:linear-gradient(transparent,var(--paper) 30%)}
 body.oneup .pnav{display:flex}
 #pnavAt{font:600 12px/1 var(--font-m);color:var(--ink-2);min-width:120px;text-align:center}
@@ -269,19 +259,19 @@ body.oneup #list > .pcard.show{display:block}
 .peekimgs img{width:100%;height:auto;display:block;border:1px solid var(--rule);border-radius:8px;background:#fff}
 
 /* ── 문제 목록 ── */
-.filters{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-.filters select,.filters input{width:auto;min-width:110px;padding:8px 10px;font-size:12.5px}
-.chip{font:600 11.5px/1 var(--font-m);padding:8px 10px;border-radius:8px;cursor:pointer;
+.filters{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:7px}
+.filters select,.filters input{width:auto;min-width:104px;padding:6px 9px;font-size:12px}
+.chip{font:600 11.5px/1 var(--font-m);padding:6px 9px;border-radius:8px;cursor:pointer;
   border:1.3px solid var(--rule);background:var(--card);color:var(--ink-2)}
 .chip.on{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
 
 /* ── 전체 변환 줄 ── */
-.cvbar{margin:-4px 0 12px;padding:8px 10px;border:1px dashed var(--rule);border-radius:10px;
+.cvbar{margin:-2px 0 8px;padding:6px 8px;border:1px dashed var(--rule);border-radius:10px;
   background:color-mix(in srgb,var(--accent) 4%,transparent)}
 .cvsep{width:1px;height:20px;background:var(--rule);margin:0 2px}
-.cvbar select{min-width:88px;padding:7px 8px;font-size:12px}
+.cvbar select{min-width:84px;padding:5px 7px;font-size:11.5px}
 #fTrim.on,#fSplit.on,#fText.on{border-color:var(--accent);background:var(--accent);color:#fff}
-.cvstat{font:500 11.5px/1.4 var(--font-m);color:var(--ink-2);flex:1;min-width:120px}
+.cvstat{font:500 11px/1.35 var(--font-m);color:var(--ink-2);flex:1;min-width:120px}
 .cvprog{flex-basis:100%;height:4px;border-radius:3px;background:var(--rule);overflow:hidden}
 .cvprog i{display:block;height:100%;width:0;background:var(--accent);transition:width .18s}
 #cvGap.on,#ezRun.on{border-color:var(--accent);background:var(--accent);color:#fff}
@@ -385,8 +375,8 @@ body.oneup #list > .pcard.show{display:block}
 .bgmpop button.off{border-top:1px solid var(--rule);border-radius:0 0 9px 9px;
   margin-top:4px;padding-top:11px;color:var(--ink-2)}
 .bgmpop button.off.on{background:transparent;color:var(--ink-2)}
-.pcard{background:var(--card);border:1px solid var(--rule);border-radius:12px;margin-bottom:12px;overflow:hidden}
-.phead{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+.pcard{background:var(--card);border:1px solid var(--rule);border-radius:12px;margin-bottom:8px;overflow:hidden}
+.phead{display:flex;align-items:center;gap:7px;padding:6px 10px;border-bottom:1px solid var(--rule);flex-wrap:wrap}
 .phead.ovhead{cursor:pointer}
 .phead .ovhint{margin-left:auto;font:600 10.5px/1 var(--font-d);color:var(--accent);
   border:1.2px solid color-mix(in srgb,var(--accent) 35%,transparent);border-radius:999px;
@@ -402,7 +392,7 @@ body.oneup #list > .pcard.show{display:block}
 .pz-stage{transform-origin:0 0;will-change:transform;position:relative}
 .pz img{display:block;width:100%;height:auto}
 .pz.zoomed{cursor:grab}
-.ptools{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:6px}
+.ptools{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:5px}
 .ptools .zb{font:600 12px/1 var(--font-m);min-width:32px;padding:6px 9px;border-radius:8px;
   border:1.3px solid var(--rule);background:var(--card);color:var(--ink-2);cursor:pointer}
 .ptools .zb.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
@@ -444,15 +434,39 @@ body.oneup #list > .pcard.show{display:block}
   -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
   -webkit-user-select:none;user-select:none;touch-action:manipulation}
 body.oneup .edgenav{display:flex}
+/* ★ 폰·태블릿에서는 이 단추를 띄우지 않는다.
+   손가락으로 좌우로 미는 것이 이미 되는데도 반투명 알약이 화면 양옆에 늘 떠 있어
+   글자를 가리고, 스크롤 위치에 따라 엉뚱한 곳(맨 위)에 얹혀 보이기까지 했다.
+   마우스가 있는 화면(hover:hover)에서만 쓴다. */
+@media(max-width:900px),(hover:none),(pointer:coarse){
+  .edgenav{display:none !important}
+}
 /* 한 문항씩 볼 때는 가로 손짓을 우리가 받는다(세로 스크롤은 그대로) */
 body.oneup #list > .pcard.show{touch-action:pan-y;will-change:transform}
 @media(hover:hover){ body.oneup #list > .pcard.show{cursor:grab} }
 /* ── 화면 크기별 마무리 ── */
 @media(max-width:560px){
-  .filters{gap:5px}
-  .chip{padding:8px 10px;font-size:11.5px}
-  .ptools .zb{padding:8px 10px}
+  .filters{gap:4px}
+  .filters select,.filters input{min-width:96px;padding:6px 8px;font-size:11.5px}
+  .chip{padding:6px 8px;font-size:11px}
+  .ptools .zb{padding:6px 9px}
   .pnav{gap:6px}
+  /* 문제 보기 상자 — 접기 머리줄과 속 여백을 한 눈금씩 더 */
+  .box{padding:9px 10px;margin-bottom:7px}
+  .box.fold .foldh{padding:8px 0}
+  .box.fold .foldb{padding-bottom:9px}
+  .cvbar{padding:5px 7px;row-gap:4px}
+  .cvbar select{padding:5px 6px}
+  h1{font-size:17px}
+  /* 한눈에 보기 — 제목은 한 줄 통째로, 단추는 그 아래 한 줄에 몰아 넣는다.
+     예전에는 큰 알약 넷이 두 줄로 접혀 화면 위쪽 3분의 1을 먹었다. */
+  .ovl .oh{padding:5px 8px;gap:5px}
+  .ovl .oh .ot{flex:1 0 100%;margin-right:0;font-size:11.5px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ovl .oh button{flex:1;min-width:0;padding:6px 6px;font-size:11.5px;border-radius:7px}
+  .ovl .otabs{padding:4px 8px}
+  .ovl .otabs button{padding:6px 5px;font-size:11.5px}
+  .ovl .pane{padding:5px 7px;gap:4px}
 }
 /* ══ 태블릿 ══ */
 @media(min-width:561px) and (max-width:1023px){
@@ -1121,6 +1135,10 @@ function drawList(){
   /* ★ 한 문항씩 보기는 «한 장만» 화면에 나온다. 그런데도 500장에서 잘라
      «1261개 중 500개만 보이고 있습니다» 가 떴다 — 501번째 문항으로는 아예 못 갔다.
      한 문항씩일 때는 자르지 않는다. 대신 화면에는 지금 것과 앞뒤 몇 장만 그린다. */
+  /* 한 문항만 다시 변환하거나 해설을 붙여도 위쪽 숫자가 그대로 남아 있었다.
+     목록을 다시 그리는 자리에서 같이 고친다. (돌고 있는 중에는 cvCount 가 스스로 비킨다) */
+  setTimeout(() => { try{ cvCount(); }catch(e){} }, 0);
+
   const cap = ONEUP ? rows.length : 200;
   SHOWN = rows.slice(0, cap);
   /* 다 그리면 폰이 멈춘다. 지금 것 앞뒤 12장만 만들고, 넘길 때 다시 그린다. */
@@ -1142,12 +1160,16 @@ function drawList(){
        원본이 궁금할 때를 위해 접어 둔 «원본 그림» 을 아래에 남긴다. */
     const asText = (u, md, t, alt) => `<div class="qmd" data-qmd="${t}" data-src="${esc(u)}">${mdRich(md)}</div>
       <details class="qsrc"><summary>원본 그림 보기</summary>${img(u, alt, t)}</details>`;
+    /* 그림이 아예 없는 줄(글자로만 들어온 줄)은 «그림으로 보기» 여부와 상관없이 글자로 보여 준다.
+       예전에는 여기서 그림만 찾다가 «문제 그림이 없습니다» 만 띄웠다 — 글자를 이미 들고 있는데도. */
+    const textOnly = (md, t) => `<div class="qmd" data-qmd="${t}">${mdRich(md)}</div>`;
     const useText = t => TEXTMODE && (t === "a" ? !!r.a_md : !!r.q_md);
-    const block = (u, md, t, alt) => useText(t) ? asText(u, md, t, alt) : img(u, alt, t);
+    const block = (u, md, t, alt) =>
+      !u ? textOnly(md, t) : (useText(t) ? asText(u, md, t, alt) : img(u, alt, t));
 
     /* ── 답안칸 ──
        필기뷰어처럼 «가림판» 을 덮어 두고, 눌러야 열린다. */
-    const ansBlock = r.a_url
+    const ansBlock = (r.a_url || r.a_md)
       ? `<div class="ans ${HIDE_ALL ? "hide" : ""}" data-ans>
            <button class="ansbtn ${HIDE_ALL ? "" : "on"}" type="button" data-toggle>${HIDE_ALL ? "보기" : "가리기"}</button>
            <div style="margin-top:4px">${block(r.a_url, r.a_md, "a", "답안")}</div>
@@ -1167,14 +1189,16 @@ function drawList(){
         <span class="pno">${r.no}</span>
         <span class="pmeta">${r.year}년 제${r.session}회${r.asked ? " · 출제 " + esc(r.asked) : ""}</span>
         ${r.points ? `<span class="ppt">${r.points}점</span>` : ""}
-        <span class="cvbadge${r.q_md ? "" : " no"}" title="${r.q_md ? "글자로 바꿔 둔 문항" : "아직 그림만 있습니다"}">${r.q_md ? "가 글자" : "그림"}</span>
+        <span class="cvbadge${r.q_md ? "" : " no"}" title="${
+          r.q_md ? (r.q_url ? "글자로 바꿔 둔 문항" : "그림 없이 글자로만 들어온 문항") : "아직 그림만 있습니다"
+        }">${r.q_md ? (r.q_url ? "가 글자" : "가 글자만") : "그림"}</span>
         <span class="ovhint">⛶ 한눈에</span>
       </div>
       <div class="pbody">
         <div class="pgrid${SPLIT ? " split" : ""}">
           <section class="pcol">
             <div class="plabel">문제</div>
-            ${r.q_url ? block(r.q_url, r.q_md, "q", `문제 ${r.no}`) : `<div class="empty">문제 그림이 없습니다.</div>`}
+            ${(r.q_url || r.q_md) ? block(r.q_url, r.q_md, "q", `문제 ${r.no}`) : `<div class="empty">문제 그림이 없습니다.</div>`}
           </section>
           <section class="pcol">
             <div class="plabel">답안</div>
@@ -1266,7 +1290,7 @@ function drawList(){
      이미 써 둔 해설은 건드리지 않는다. 이 단추를 눌렀을 때만 갈아엎는다. */
   $$("#list [data-easy]").forEach(b => b.onclick = () => {
     const r = ROWS.find(x => String(x.id) === b.dataset.easy);
-    if(!r?.q_url) return log("문제 그림이 없습니다.");
+    if(!r?.q_url && !r?.q_md) return log("문제 그림도 글자도 없습니다.");
     if(r.easy_md && !confirm("지금 해설을 버리고 처음부터 다시 씁니다. 계속할까요?")) return;
     ezMake(r.id, true);
   });
@@ -2512,8 +2536,11 @@ async function cvRun(force){
   /* ★ 예전에는 «지금 화면에 걸린 것» 만 돌았다. 연도·회차를 걸어 둔 채 누르면
      나머지가 통째로 빠지는데 화면에는 «완료» 로 보여 오해를 부른다.
      «변환» 은 이 과목 전체를 본다. 한 문항만 다시 하려면 카드의 «↻ 다시 변환». */
+  /* «남은 것» 의 뜻을 cvCount 와 한 글자까지 맞춘다 —
+     답안 그림만 있고 그 글자가 이미 있는 줄이 매번 헛돌던 것을 막는다. */
   const pool = ROWS
-    .filter(r => (r.q_url || r.a_url) && (force || !r.q_md || (r.a_url && !r.a_md)));
+    .filter(r => force ? (r.q_url || r.a_url)
+                       : ((r.q_url && !r.q_md) || (r.a_url && !r.a_md)));
   if(!pool.length){
     cvSay("변환할 문항이 없습니다 — 지금 조건 안은 모두 글자로 바뀌어 있습니다.");
     return;
@@ -2626,14 +2653,19 @@ const EASY_RULE = `
 - 지어내지 마라. 그림에서 안 보이는 값은 "그림에 안 나와 있음" 이라고 적어라.`;
 
 /* 문제 하나를 처음부터 끝까지 풀어 주는 해설 프롬프트 */
-function easyPrompt(r){
-  return `실기 시험 문제 그림이다. 이 문제를 처음 보는 사람이 혼자 풀 수 있을 만큼 자세히 해설해라.
+function easyPrompt(r, textOnly){
+  /* 글자로 바꿔 둔 것(q_md·a_md)이 있으면 그쪽이 훨씬 정확하다 — OCR 원문(q_text)보다 먼저 쓴다 */
+  const qs = (r.q_md || r.q_text || "");
+  const as = (r.a_md || r.a_text || "");
+  return `${textOnly
+    ? "실기 시험 문제를 글자로 옮겨 둔 것이다. 그림은 없으니 아래 글만 보고 판단해라."
+    : "실기 시험 문제 그림이다."} 이 문제를 처음 보는 사람이 혼자 풀 수 있을 만큼 자세히 해설해라.
 
-[문제 글(참고용, 불완전할 수 있음)]
-${(r.q_text || "").slice(0, 1800) || "(없음)"}
+[문제 글${textOnly ? "" : "(참고용, 불완전할 수 있음)"}]
+${qs.slice(0, 2400) || "(없음)"}
 
-[답안 글(있으면 참고. 없으면 그림만 보고 판단)]
-${(r.a_text || "").slice(0, 1200) || "(없음)"}
+[답안 글${textOnly ? "" : "(있으면 참고. 없으면 그림만 보고 판단)"}]
+${as.slice(0, 1800) || "(없음)"}
 
 [할 일 — 이 차례 그대로, 소제목을 굵게 달아서]
 **무엇을 묻는 문제인가**
@@ -2699,7 +2731,9 @@ async function ezPump(){
 /* force = true 면 이미 있는 해설도 갈아엎는다 (다시 해석하기) */
 async function ezMake(id, force, quiet){
   const r = ROWS.find(x => String(x.id) === String(id));
-  if(!r || !r.q_url) return;
+  /* 그림이 없어도 글자(q_md)만 있으면 해설을 쓸 수 있다. 예전에는 여기서 조용히 되돌아가
+     «해설 만들기» 를 눌러도 아무 일도 안 일어나는 것처럼 보였다. */
+  if(!r || (!r.q_url && !r.q_md)) return;
   if(r.easy_md && !force) return;
 
   const card = document.querySelector(`.pcard[data-id="${id}"]`);
@@ -2713,8 +2747,8 @@ async function ezMake(id, force, quiet){
     box.innerHTML = `<span class="wait">해설을 쓰는 중입니다… 20~40초쯤 걸립니다.</span>`;
   }
   try{
-    const blob = await fetch(r.q_url).then(x => x.blob());
-    const md = await askAI(easyPrompt(r), blob, 3600);
+    const blob = r.q_url ? await fetch(r.q_url).then(x => x.blob()) : null;
+    const md = await askAI(easyPrompt(r, !blob), blob, 3600);
     const up = await sb.from("practicals").update({ easy_md: md }).eq("id", r.id);
     if(up.error) throw new Error(/easy_md|schema cache/i.test(up.error.message)
       ? "easy_md 칸이 없습니다 — supabase-실기.sql 을 다시 돌려 주세요." : up.error.message);
@@ -3218,9 +3252,13 @@ function ovDraw(){
         : `<div class="miss">뽑아 둔 글자가 없습니다. 그림으로 봅니다.</div>`
           + (url ? `<div class="imgbox">${twImg(url, what, rot)}</div>` : "");
     }
-    return url
-      ? `<div class="imgbox">${twImg(url, what, rot)}</div>`
-      : `<div class="imgbox"><div class="miss">${what} 그림이 없습니다.</div></div>`;
+    /* «그림으로» 를 켜 두었어도 그림이 없으면 글자라도 보여 준다 —
+       빈 칸에 «그림이 없습니다» 만 띄우면 이미 들고 있는 글자를 못 읽는다. */
+    if(url) return `<div class="imgbox">${twImg(url, what, rot)}</div>`;
+    if(md)  return `<div class="qmd" data-qmd>${mdRich(md)}</div>`;
+    const t0 = (txt || "").trim();
+    if(t0)  return `<div class="otx">${esc(t0)}</div>`;
+    return `<div class="imgbox"><div class="miss">${what} 그림이 없습니다.</div></div>`;
   };
 
   $("#ovText").textContent = OVTXT ? "🖼 그림으로" : "가 글자로";
@@ -3361,20 +3399,35 @@ async function boot(){
      «1061개가 아직 그림입니다» 가 그대로 남아 있었다. 이제 목록을 그릴 때마다 다시 센다. */
 function cvCount(){
   if(CVBUSY || EZBUSY) return;
-  const has = ROWS.filter(r => r.q_url || r.a_url);
+  /* ★ 예전 셈이 틀렸던 곳.
+     ① 세는 조건과 실제로 도는 조건이 서로 달랐다.
+        여기서는 «q_md 가 없는 것» 만 셌는데, 정작 «변환» 단추는
+        «그림이 있는데 글자가 없는 쪽» 을 돈다. 그래서 답안 그림만 있고
+        문제 그림이 없는 줄은 아무리 돌려도 숫자가 안 줄어, 이미 글자로
+        다 가지고 있는데도 «1061개 남음» 이 그대로 붙어 있었다.
+     ② 그림이 아예 없는 줄(글자로만 들어온 줄)까지 «남았다» 에 넣었다.
+        그건 채울 것이 없으니 이미 다 된 것이다.
+     이제 두 단추의 대상과 «똑같은 식» 으로 센다 — 숫자가 0 이면 정말 0 이다. */
+  const cvLeft = r => (r.q_url && !r.q_md) || (r.a_url && !r.a_md);
+  const ezLeft = r => !r.easy_md && (r.q_url || r.q_md);
+
+  const has = ROWS.filter(r => r.q_url || r.a_url || r.q_md || r.a_md);
   if(!has.length) return cvSay("");
-  const nCv = has.filter(r => !r.q_md).length;
-  const nEz = has.filter(r => !r.easy_md).length;
+  const nCv = has.filter(cvLeft).length;
+  const nEz = has.filter(ezLeft).length;
+  const nTxt = has.filter(r => !r.q_url && !r.a_url).length;   /* 그림 없이 글자로만 들어온 줄 */
+
   cvSay(`이 과목 ${has.length}개 — `
     + (nCv ? `글자 변환 ${nCv}개 남음` : "글자 변환 다 됨") + " · "
     + (nEz ? `쉬운 풀이 ${nEz}개 남음` : "쉬운 풀이 다 됨")
+    + (nTxt ? `   (그중 ${nTxt}개는 그림 없이 글자로만 들어온 것)` : "")
     + (nCv || nEz ? "   (두 단추는 «남은 것만» 골라 돕니다)" : ""));
 }
 
 /* ── 쉬운 풀이 일괄 ── 변환과 같은 자리에서 같은 모양으로 돈다 */
 async function ezRunAll(){
   if(CVBUSY || EZBUSY) return;
-  const pool = ROWS.filter(r => r.q_url && !r.easy_md);
+  const pool = ROWS.filter(r => (r.q_url || r.q_md) && !r.easy_md);
   if(!pool.length) return cvSay("이 과목은 쉬운 풀이가 다 돼 있습니다.");
   if(!confirm(`해설이 없는 ${pool.length}개에 쉬운 풀이를 씁니다.\n`
     + `한 개에 20~40초쯤 걸리므로 대략 ${Math.ceil(pool.length * 30 / 60)}분입니다.\n`

@@ -39,10 +39,13 @@
   --accent-soft:#E4ECFD;
   --veil:#C4433C;       /* 가림판 */
   --shadow:0 1px 0 rgba(16,35,61,.05), 0 6px 20px -14px rgba(16,35,61,.5);
-  --r:14px;
-  --head:56px;
-  --rail:46px;
-  --qhead:52px;   /* 문항 헤더(번호·제목·필기·별표) 고정 바 높이 */
+  --r:13px;
+  /* ── 세로 빈 곳 ──
+     폰에서 위쪽 바 셋(탭·제목·번호줄)만으로 화면의 4분의 1이 날아갔다.
+     글자 크기는 그대로 두고 «빈 곳» 만 한 눈금씩 줄인다. */
+  --head:48px;
+  --rail:38px;
+  --qhead:42px;   /* 문항 헤더(번호·제목·필기·별표) 고정 바 높이 */
   --font-d:"IBM Plex Sans KR",Pretendard,sans-serif;
   --font-b:Pretendard,"IBM Plex Sans KR",sans-serif;
   --font-m:"IBM Plex Mono",ui-monospace,monospace;
@@ -74,8 +77,8 @@ a{color:var(--accent);text-decoration:none}
   background:color-mix(in srgb,var(--paper) 88%,transparent);
   backdrop-filter:blur(12px);border-bottom:1px solid var(--rule);
 }
-.top h1{font:600 15px/1.2 var(--font-d);margin:0;letter-spacing:-.02em}
-.top .sub{font-size:11px;color:var(--ink-2);margin-top:1px}
+.top h1{font:600 14.5px/1.15 var(--font-d);margin:0;letter-spacing:-.02em}
+.top .sub{font-size:10.5px;color:var(--ink-2);margin-top:0}
 /* ★ 한 줄로 못 박고, 넘치면 «…» 로 자른다.
    이걸 안 걸어 두면 긴 제목이 바 높이를 넘어 아래 화면 위에 겹쳐 찍힌다. */
 .top .grow{flex:1;min-width:0;overflow:hidden}
@@ -89,7 +92,18 @@ a{color:var(--accent);text-decoration:none}
   .top h1{font-size:14px}
   .top .sub{font-size:10.5px}
 }
-.icon{width:34px;height:34px;display:grid;place-items:center;border-radius:9px;color:var(--ink-2)}
+/* ── 폰 마무리 — 빈 곳을 한 번 더 줄인다 ──
+   글자는 그대로, 카드 안팎의 여백만 좁힌다. */
+@media(max-width:520px){
+  :root{--head:46px;--rail:36px;--qhead:40px}
+  .wrap{padding:10px 11px 72px}
+  .qcard,.exp{padding:11px 12px}
+  .slide{padding:0 11px calc(72px + env(safe-area-inset-bottom))}
+  .qhead{margin:0 -11px 6px;padding:0 11px}
+  .eyebrow{margin:14px 0 7px}
+  .grid{gap:8px}
+}
+.icon{width:31px;height:31px;display:grid;place-items:center;border-radius:9px;color:var(--ink-2)}
 .icon:active{background:var(--accent-soft)}
 .icon svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 
@@ -97,14 +111,14 @@ a{color:var(--accent);text-decoration:none}
 .view{display:none;animation:in .22s ease both}
 .view.on{display:block}
 @keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.wrap{padding:18px 14px 90px;max-width:760px;margin:0 auto}
+.wrap{padding:12px 13px 78px;max-width:760px;margin:0 auto}
 
 /* ── 섹션 라벨: 실제 개수를 담는 괘선 ─────────── */
 .eyebrow{
-  display:flex;align-items:baseline;gap:10px;margin:26px 0 12px;
+  display:flex;align-items:baseline;gap:10px;margin:17px 0 8px;
   font:600 11px/1 var(--font-d);letter-spacing:.14em;color:var(--ink-2);
 }
-.eyebrow:first-child{margin-top:4px}
+.eyebrow:first-child{margin-top:2px}
 .eyebrow::after{content:"";flex:1;height:1px;background:var(--rule)}
 .eyebrow .n{font-family:var(--font-m);letter-spacing:0}
 
@@ -113,9 +127,9 @@ a{color:var(--accent);text-decoration:none}
 @media(max-width:380px){.grid{grid-template-columns:1fr}}
 .subj{
   position:relative;background:var(--card);border:1px solid var(--rule);
-  border-radius:var(--r);padding:14px 14px 12px;text-align:left;
+  border-radius:var(--r);padding:11px 12px 10px;text-align:left;
   box-shadow:var(--shadow);transition:transform .12s,border-color .12s;
-  display:flex;flex-direction:column;min-height:104px;
+  display:flex;flex-direction:column;min-height:88px;
 }
 .subj:active{transform:scale(.98)}
 .subj .tag{font:600 10px/1 var(--font-d);letter-spacing:.08em;color:var(--ink-2)}
@@ -357,8 +371,8 @@ body.haspin .qnote{display:grid}
 /* ══ 문항 번호 레일 — 답안지 마킹칸 ══════════════ */
 .rail{
   position:sticky;top:calc(var(--head) + env(safe-area-inset-top));z-index:30;
-  height:var(--rail);display:flex;align-items:center;gap:5px;
-  padding:0 12px;overflow-x:auto;scrollbar-width:none;
+  height:var(--rail);display:flex;align-items:center;gap:4px;
+  padding:0 10px;overflow-x:auto;scrollbar-width:none;
   background:color-mix(in srgb,var(--paper) 92%,transparent);
   backdrop-filter:blur(10px);border-bottom:1px solid var(--rule);
 }
@@ -375,8 +389,8 @@ body.haspin .qnote{display:grid}
   flex:none;position:relative;
   /* 세 자리(101…)가 되면 글자가 동그라미를 꽉 채워 가운데를 벗어나 보인다.
      그래서 그 회차의 가장 큰 번호 자릿수에 맞춰 모든 동그라미 폭을 한 값으로 맞춘다. */
-  min-width:var(--bubw, 28px);width:var(--bubw, auto);
-  height:28px;padding:0 4px;box-sizing:border-box;text-align:center;
+  min-width:var(--bubw, 26px);width:var(--bubw, auto);
+  height:26px;padding:0 4px;box-sizing:border-box;text-align:center;
   border-radius:999px;border:1.4px solid var(--rule);
   /* 아직 안 본 번호도 읽을 수 있어야 한다. 예전에는 연한 회색이라
      200개가 뿌옇게 깔려 어디가 어딘지 분간이 안 됐다. */
@@ -423,7 +437,7 @@ body.haspin .qnote{display:grid}
   flex:0 0 100%;scroll-snap-align:center;scroll-snap-stop:always;
   overflow-y:auto;overscroll-behavior-y:contain;
   /* 태블릿에서 아래쪽 도구모음이 마지막 줄을 덮는 일이 있어 여유를 넉넉히 둔다 */
-  padding:0 14px calc(96px + env(safe-area-inset-bottom));
+  padding:0 12px calc(78px + env(safe-area-inset-bottom));
 }
 .sheet-body{max-width:760px;margin:0 auto}
 
@@ -483,7 +497,7 @@ body.haspin .qnote{display:grid}
   position:sticky;top:0;z-index:28;
   display:flex;align-items:center;gap:10px;
   height:var(--qhead);flex:none;
-  margin:0 -14px 10px;padding:0 14px;
+  margin:0 -12px 7px;padding:0 12px;
   background:var(--paper);
   border-bottom:1px solid var(--rule);
 }
@@ -510,8 +524,9 @@ body.haspin .qnote{display:grid}
   padding:6px 11px;border-radius:999px;background:var(--ink);color:var(--paper);
   font:600 11px/1 var(--font-m);box-shadow:var(--shadow);letter-spacing:.02em}
 .zoomwrap.zoomed .zoomreset{display:block}
-.inkpage{width:400px;transform-origin:top left;position:relative;padding:16px}
-.inkpage .qhead{padding:0}
+.inkpage{width:400px;transform-origin:top left;position:relative;padding:12px}
+/* 고정폭 가상 페이지 안에서는 머리줄이 페이지 밖으로 삐져나가지 않게 한다 */
+.inkpage .qhead{margin-left:0;margin-right:0;padding:0}
 .inkcanvas{position:absolute;inset:0;width:400px;touch-action:none;transform-origin:top left}
 .inkcanvas.edit{cursor:crosshair}
 /* 이동(손) 모드: 캔버스가 터치를 안 받고 그대로 통과시키므로 평소처럼 스크롤·스와이프·핀치가 된다.
@@ -600,21 +615,26 @@ body.manage .delx{display:inline-flex}
 
 /* ── 문제 카드 ───────────────────────────────── */
 .qcard{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
-       padding:16px;box-shadow:var(--shadow)}
-.qtext{font-size:15px;line-height:1.65;font-weight:500;word-break:keep-all}
-@media(max-width:520px){ .qtext{font-size:14.5px;line-height:1.62} }
+       padding:12px 13px;box-shadow:var(--shadow)}
+.qtext{font-size:15px;line-height:1.56;font-weight:500;word-break:keep-all}
+/* 문단 사이는 한 칸만 — 통짜 여백이 겹치면 한 화면에 두 문단밖에 안 들어온다 */
+.qtext p{margin:0 0 6px}
+.qtext p:last-child{margin-bottom:0}
+.qtext ul,.qtext ol{margin:0 0 6px;padding-left:17px}
+.qtext li{margin:1px 0}
+@media(max-width:520px){ .qtext{font-size:14.5px;line-height:1.54} }
 @media(min-width:1100px){ .qtext{font-size:15.5px} }
-.part{font:600 10px/1 var(--font-d);letter-spacing:.1em;color:var(--ink-2);margin-bottom:9px}
+.part{font:600 10px/1 var(--font-d);letter-spacing:.1em;color:var(--ink-2);margin-bottom:6px}
 
 /* ── 보기 = OMR 마킹 ─────────────────────────── */
-.choices{margin-top:16px;display:flex;flex-direction:column;gap:2px}
-.ch{display:flex;gap:11px;align-items:flex-start;padding:9px 8px;border-radius:9px}
+.choices{margin-top:10px;display:flex;flex-direction:column;gap:1px}
+.ch{display:flex;gap:10px;align-items:flex-start;padding:6px 7px;border-radius:9px}
 .ch .b{
   flex:none;width:22px;height:22px;border-radius:50%;border:1.5px solid var(--rule);
   font:500 11px/1 var(--font-m);display:grid;place-items:center;color:var(--ink-2);
   margin-top:1px;transition:all .2s;
 }
-.ch .t{flex:1;font-size:14.5px;line-height:1.6}
+.ch .t{flex:1;font-size:14.5px;line-height:1.52}
 .ch.ok .b{background:var(--stamp);border-color:var(--stamp);color:#fff;font-weight:600}
 .ch.ok .t{font-weight:600}
 .ch.ok{background:color-mix(in srgb,var(--stamp) 7%,transparent)}
@@ -625,7 +645,7 @@ body.manage .delx{display:inline-flex}
 /* ══ 가림판 — 이 앱의 서명 동작 ═══════════════════
    해설을 display:none 시키지 않고, 빨간 가림판이
    내려앉는 것처럼 덮는다. 눌러서 이 문항만 살짝 들추기. */
-.answer{margin-top:14px;position:relative}
+.answer{margin-top:9px;position:relative}
 .answer .inner{transition:opacity .26s ease,transform .26s ease,filter .26s ease}
 .veiled .answer{min-height:58px}
 .veiled .answer .inner{
@@ -650,20 +670,20 @@ body.manage .delx{display:inline-flex}
 
 /* ── 해설 본문 ───────────────────────────────── */
 .exp{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
-     padding:16px;box-shadow:var(--shadow)}
+     padding:12px 13px;box-shadow:var(--shadow)}
 .exp-h{display:flex;align-items:center;gap:8px;font:600 11px/1 var(--font-d);
-       letter-spacing:.12em;color:var(--ink-2);margin-bottom:12px}
+       letter-spacing:.12em;color:var(--ink-2);margin-bottom:8px}
 .exp-h::after{content:"";flex:1;height:1px;background:var(--rule)}
 /* 해설은 «읽는 글» 이라 문제 본문보다 한 눈금 작고 촘촘한 게 읽기 편하다.
    1.75 줄간격은 문단이 흩어져 보여 눈이 다음 줄을 놓친다. */
-.exp-b{font-size:13.5px;line-height:1.6}
-.exp-b p{margin:0 0 7px}
-.exp-b ul,.exp-b ol{margin:0 0 7px;padding-left:18px}
+.exp-b{font-size:13.5px;line-height:1.56}
+.exp-b p{margin:0 0 5px}
+.exp-b ul,.exp-b ol{margin:0 0 5px;padding-left:17px}
 .exp-b li{margin:2px 0}
 .exp-b strong{font-weight:700;color:var(--ink)}
 .exp-b code{font-family:var(--font-m);font-size:.9em;background:var(--accent-soft);
             padding:1px 5px;border-radius:4px}
-.exp-b hr{border:0;border-top:1px solid var(--rule);margin:14px 0}
+.exp-b hr{border:0;border-top:1px solid var(--rule);margin:10px 0}
 /* 기존 도구가 만든 통짜 시트 HTML 수용 */
 .sheet-host{overflow-x:auto}
 .sheet-host .sheet{background:transparent!important;box-shadow:none!important;
@@ -671,7 +691,7 @@ body.manage .delx{display:inline-flex}
                    max-width:100%!important;width:auto!important}
 .sheet-host img,.sheet-host svg{max-width:100%;height:auto}
 .sheet-host table{width:100%;border-collapse:collapse;font-size:13px}
-.mdtable{overflow-x:auto;margin:10px 0;-webkit-overflow-scrolling:touch}
+.mdtable{overflow-x:auto;margin:7px 0;-webkit-overflow-scrolling:touch}
 .mdtable table{border-collapse:collapse;width:100%;font-size:13.5px}
 .mdtable th,.mdtable td{border:1px solid var(--rule);padding:6px 9px;text-align:left;white-space:nowrap}
 .mdtable th{background:var(--accent-soft);font-weight:600;color:var(--ink)}
@@ -731,7 +751,7 @@ sub{bottom:-.22em}
 /* ── 문항·해설에 들어간 그림 ── */
 .qimg{display:block;max-width:100%;height:auto;margin:10px 0;border-radius:10px;
       border:1px solid var(--rule);background:#fff}
-.qtext svg,.exp-b svg{max-width:100%;height:auto;display:block;margin:10px 0;background:#fff;
+.qtext svg,.exp-b svg{max-width:100%;height:auto;display:block;margin:7px 0;background:#fff;
                       border:1px solid var(--rule);border-radius:10px}
 html[data-theme="dark"] .qimg,
 html[data-theme="dark"] .qtext svg,
@@ -803,7 +823,14 @@ body.reading .edgenav{display:flex}
 .edgenav:disabled{opacity:.06;cursor:default}
 .edgenav.prev{left:6px} .edgenav.next{right:6px}
 @media(max-width:720px){ .edgenav{width:34px;height:60px;font-size:21px} }
-@media(hover:none){ .edgenav{opacity:.12} }
+/* ★ 폰·태블릿에서는 아예 띄우지 않는다.
+   손가락으로 좌우로 미는 것이 이미 되는데 반투명 알약이 늘 떠 있어 글자를 가렸고,
+   화면 위치에 따라 엉뚱하게 맨 위에 얹혀 보이는 일까지 있었다.
+   마우스가 있는 화면에서만 쓴다. */
+@media(max-width:900px),(hover:none),(pointer:coarse){
+  .edgenav{display:none !important}
+  body.reading .edgenav{display:none !important}
+}
 #toast{position:fixed;left:50%;bottom:calc(56px + env(safe-area-inset-bottom));transform:translateX(-50%);
   z-index:80;padding:11px 16px;border-radius:999px;background:var(--ink);color:var(--paper);
   font:600 12.5px/1 var(--font-d);opacity:0;pointer-events:none;transition:opacity .18s;max-width:90vw;text-align:center}
