@@ -169,31 +169,60 @@ body.gvlopen .edgenav,body.gvlopen .hlbar{display:none !important}
   flex-direction:column;padding-top:env(safe-area-inset-top)}
 .gvl.on{display:flex}
 body.gvlopen{overflow:hidden}
-.gvl .gh{display:flex;align-items:center;gap:8px;padding:9px 12px;flex-wrap:wrap;
+.gvl .gh{display:flex;align-items:center;gap:6px;padding:5px 9px;flex-wrap:wrap;
   border-bottom:1px solid var(--rule);background:var(--card)}
-.gvl .gt{font:700 13.5px/1.3 var(--font-d);letter-spacing:-.01em;margin-right:auto;
-  display:flex;align-items:center;gap:8px;min-width:0}
-.gvl .gt small{font:500 11px/1 var(--font-m);color:var(--ink-2);white-space:nowrap}
-.gvl .gb{padding:8px 12px;border-radius:9px;border:1.3px solid var(--rule);
-  background:var(--card);color:var(--ink);font:600 12px/1 var(--font-d);cursor:pointer}
+.gvl .gt{font:700 12.5px/1.2 var(--font-d);letter-spacing:-.01em;margin-right:auto;
+  display:flex;align-items:center;gap:7px;min-width:0;flex:1}
+/* 번호는 줄바꿈 없이, 뒤따르는 잔글씨는 넘치면 … 로 접는다.
+   예전에는 잔글씨가 길어지면 «51번» 이 두 줄로 쪼개져 제목 위에 겹쳐 보였다. */
+.gvl .gt > span{white-space:nowrap;flex:none}
+.gvl .gt small{font:500 10.5px/1.2 var(--font-m);color:var(--ink-2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.gvl .gb{padding:6px 10px;border-radius:8px;border:1.3px solid var(--rule);
+  background:var(--card);color:var(--ink);font:600 11.5px/1 var(--font-d);cursor:pointer}
 .gvl .gb.pick{background:var(--ink);border-color:var(--ink);color:var(--paper)}
 .gvl .gb:disabled{opacity:.4}
+/* 손가락으로 좌우로 미는 것이 되는 화면에서는 «이전·다음» 단추를 띄우지 않는다.
+   머리줄 한 줄을 통째로 아끼려는 것이다. 마우스만 있는 화면에는 그대로 둔다. */
+@media(hover:none),(pointer:coarse),(max-width:900px){
+  .gvl .gb.pcOnly{display:none}
+}
+.gvl .swipehint{display:none;font:500 10px/1 var(--font-m);color:var(--ink-2);
+  white-space:nowrap;opacity:.75}
+@media(hover:none),(pointer:coarse),(max-width:900px){ .gvl .swipehint{display:inline} }
 .gvl .gb2{flex:1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
   gap:1px;background:var(--rule);overflow:hidden}
 .gvl .gpane{background:var(--paper);overflow:auto;-webkit-overflow-scrolling:touch;
-  padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+  padding:6px 9px;display:flex;flex-direction:column;gap:3px}
 .gvl .glab{font:600 10.5px/1 var(--font-d);letter-spacing:.14em;color:var(--ink-2);
-  display:flex;align-items:center;gap:8px;position:sticky;top:-12px;z-index:2;
-  background:var(--paper);padding:6px 0 7px;margin:-6px 0 0}
+  display:flex;align-items:center;gap:8px;position:sticky;top:-6px;z-index:2;
+  background:var(--paper);padding:3px 0 4px;margin:-3px 0 0}
 .gvl .glab::after{content:"";flex:1;height:1px;background:var(--rule)}
-.gvl .gtabs{display:none;gap:5px;padding:7px 12px;border-bottom:1px solid var(--rule);background:var(--card)}
-.gvl .gtabs button{flex:1;padding:9px 6px;border-radius:8px;font:600 12.5px/1 var(--font-d);
+.gvl .gtabs{display:none;gap:5px;padding:4px 9px;border-bottom:1px solid var(--rule);background:var(--card)}
+.gvl .gtabs button{flex:1;padding:6px 6px;border-radius:8px;font:600 12px/1 var(--font-d);
   background:transparent;border:1.3px solid var(--rule);color:var(--ink-2);cursor:pointer}
 .gvl .gtabs button.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
-.gvl .miss{font-size:12.5px;color:var(--ink-2);padding:18px 0;text-align:center}
-.gvl .gq{font-size:15px;line-height:1.62}
-.gvl .gch{display:flex;gap:8px;align-items:flex-start;padding:7px 9px;border-radius:8px;
-  border:1px solid var(--rule);background:var(--card);font-size:14px;margin-bottom:5px}
+.gvl .miss{font-size:12.5px;color:var(--ink-2);padding:10px 0;text-align:center}
+.gvl .gq{font-size:14.5px;line-height:1.42}
+.gvl .gch{display:flex;gap:7px;align-items:flex-start;padding:4px 7px;border-radius:8px;
+  border:1px solid var(--rule);background:var(--card);font-size:13.5px;margin-bottom:2px}
+
+/* ── 한눈에 판 속 글줄 ──
+   이 화면은 «대조해서 훑는» 곳이다. 읽는 글이 아니라 찾는 글이라
+   줄간격과 문단 사이를 본문보다 훨씬 좁게 잡는다. */
+.gvl .gpane{font-size:13.5px;line-height:1.42}
+.gvl .gpane p{margin:0 0 3px}
+.gvl .gpane p:last-child{margin-bottom:0}
+.gvl .gpane ul,.gvl .gpane ol{margin:0 0 3px;padding-left:15px}
+.gvl .gpane li{margin:0}
+.gvl .gpane h1,.gvl .gpane h2,.gvl .gpane h3,.gvl .gpane h4{
+  font:700 12.5px/1.3 var(--font-d);margin:7px 0 2px;color:var(--accent)}
+.gvl .gpane h1:first-child,.gvl .gpane h2:first-child,
+.gvl .gpane h3:first-child,.gvl .gpane h4:first-child{margin-top:0}
+.gvl .gpane hr{border:0;border-top:1px solid var(--rule);margin:6px 0}
+.gvl .gpane .mdtable{margin:4px 0}
+.gvl .gseg > *:first-child{margin-top:0}
+.gvl .gq p{margin:0 0 3px}
 .gvl .gch.ok{border-color:var(--stamp);background:color-mix(in srgb,var(--stamp) 8%,transparent)}
 .gvl .gch .b{font:700 11px/1.5 var(--font-m);color:var(--ink-2);flex:none;
   width:19px;height:19px;border-radius:50%;border:1px solid var(--rule);text-align:center}
@@ -208,7 +237,7 @@ body.gvlopen{overflow:hidden}
 @media(min-width:1500px){
   .gvl .gb2{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr) minmax(0,1fr)}
   .gvl .gpane.right{display:contents}
-  .gvl .gpane.right > .gseg{background:var(--paper);overflow:auto;padding:12px 14px}
+  .gvl .gpane.right > .gseg{background:var(--paper);overflow:auto;padding:6px 9px}
 }
 /* ── 과목 고르는 칩 ──
    과목 카드는 «들어가는 문» 이고, 이 칩은 «섞을 재료를 고르는 것» 이다.
@@ -1188,8 +1217,9 @@ mark.st{
 <div class="gvl" id="gvl">
   <div class="gh">
     <div class="gt"><span id="gvTitle">—</span><small id="gvSub"></small></div>
-    <button class="gb" type="button" id="gvPrev">‹ 이전</button>
-    <button class="gb" type="button" id="gvNext">다음 ›</button>
+    <button class="gb pcOnly" type="button" id="gvPrev">‹ 이전</button>
+    <button class="gb pcOnly" type="button" id="gvNext">다음 ›</button>
+    <span class="swipehint">‹ 밀어서 넘김 ›</span>
     <button class="gb pick" type="button" id="gvClose">닫기 (Esc)</button>
   </div>
   <div class="gtabs">
@@ -4777,8 +4807,9 @@ function gvDraw(){
   $("#gvTitle").textContent = `${q.number}번`;
   $("#gvSub").textContent   = `${S.idx + 1} / ${S.questions.length}`
     + (q.subject_part ? ` · ${q.subject_part}` : "");
-  $("#gvPrev").disabled = S.idx <= 0;
-  $("#gvNext").disabled = S.idx >= S.questions.length - 1;
+  const gp = $("#gvPrev"), gn = $("#gvNext");
+  if(gp) gp.disabled = S.idx <= 0;
+  if(gn) gn.disabled = S.idx >= S.questions.length - 1;
 
   const chs = (Array.isArray(q.choices) ? q.choices : []).map((c, k) => `
     <div class="gch ${q.answer === k + 1 ? "ok" : ""}">
@@ -4829,6 +4860,68 @@ function gvStep(d){
   gvDraw();
 }
 $("#gvClose")?.addEventListener("click", gvClose);
+
+/* ── 손가락으로 좌우로 밀어 넘기기 ──
+   판을 열어 놓고 문항을 바꾸려면 지금까지는 위쪽 단추를 눌러야 했다.
+   폰에서는 그 단추 한 줄이 화면의 십분의 일을 먹는다. 밀어서 넘기는 것으로 바꾼다.
+
+   조심할 것이 셋 있다.
+     ① 세로 스크롤을 방해하면 안 된다  → 가로로 더 많이 움직였을 때만 넘긴다.
+     ② 두 손가락(확대)은 넘김이 아니다  → 손가락이 하나일 때만 센다.
+     ③ 표처럼 «옆으로 굴러가는» 칸 안에서 시작한 밀기는 그 칸의 것이다
+        → 그런 칸에서 시작했으면 넘기지 않는다. */
+(() => {
+  const gvl = $("#gvl"); if(!gvl) return;
+  const MIN = 52;          /* 이만큼은 밀어야 넘어간다 (짧게 스치는 것은 무시) */
+  const SLOPE = 1.5;       /* 가로가 세로보다 이 배는 커야 «옆으로 민 것» 으로 본다 */
+  let sx = 0, sy = 0, on = false, live = false;
+
+  const scrollsX = el => {
+    for(let n = el; n && n !== gvl; n = n.parentElement){
+      if(n.scrollWidth > n.clientWidth + 4){
+        const st = getComputedStyle(n).overflowX;
+        if(st === "auto" || st === "scroll") return true;
+      }
+    }
+    return false;
+  };
+
+  gvl.addEventListener("touchstart", e => {
+    on = live = false;
+    if(e.touches.length !== 1) return;
+    if(scrollsX(e.target)) return;
+    /* 글자를 고르는 중이면 넘기지 않는다.
+       (getSelection() 이 null 인 브라우저도 있어 «고른 것이 있을 때» 만 막는다 —
+        반대로 쓰면 아무 데서도 안 넘어간다) */
+    const sel = getSelection();
+    if(sel && sel.rangeCount > 0 && !sel.isCollapsed) return;
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY; on = true;
+  }, { passive:true });
+
+  gvl.addEventListener("touchmove", e => {
+    if(!on || e.touches.length !== 1) return;
+    const dx = e.touches[0].clientX - sx, dy = e.touches[0].clientY - sy;
+    if(!live){
+      if(Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
+      /* 처음 움직인 방향으로 «세로냐 가로냐» 를 한 번만 정한다.
+         중간에 마음이 바뀌면 스크롤이 덜컹거린다. */
+      live = Math.abs(dx) > Math.abs(dy) * SLOPE;
+      if(!live){ on = false; return; }
+    }
+    if(e.cancelable) e.preventDefault();   /* 가로로 정해졌으면 세로 스크롤은 막는다 */
+  }, { passive:false });
+
+  gvl.addEventListener("touchend", e => {
+    if(!on || !live){ on = live = false; return; }
+    const t = e.changedTouches[0];
+    const dx = t.clientX - sx, dy = t.clientY - sy;
+    on = live = false;
+    if(Math.abs(dx) < MIN || Math.abs(dx) < Math.abs(dy) * SLOPE) return;
+    gvStep(dx < 0 ? 1 : -1);               /* 왼쪽으로 밀면 다음 문항 */
+  }, { passive:true });
+
+  gvl.addEventListener("touchcancel", () => { on = live = false; }, { passive:true });
+})();
 $("#gvPrev")?.addEventListener("click", () => gvStep(-1));
 $("#gvNext")?.addEventListener("click", () => gvStep(1));
 $$("#gvl .gtabs button").forEach(b => b.onclick = () => { GVSEG = b.dataset.gseg; gvDraw(); });
