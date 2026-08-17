@@ -143,18 +143,18 @@ body.ovlopen{overflow:hidden}
 .ovl .ob{flex:1;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);
   gap:1px;background:var(--rule);overflow:hidden}
 .ovl .pane{background:var(--paper);overflow:auto;-webkit-overflow-scrolling:touch;
-  padding:7px 9px;display:flex;flex-direction:column;gap:5px}
+  padding:5px 7px;display:flex;flex-direction:column;gap:3px}
 /* 글자로 보기 — 오려낸 그림은 원본 여백까지 그대로 들고 온다.
    글로 뽑아 둔 것이 이미 있으니, 빽빽하게 읽고 싶을 때는 이쪽으로 갈아 끼운다. */
 .ovl .otx{white-space:pre-wrap;word-break:break-word;margin:0;
   font:400 var(--qfs,14px)/1.5 var(--font-d);color:var(--ink)}
 .ovl .otx b{color:var(--accent)}
-.ovl .tnote{font-size:11.5px;color:var(--ink-2);margin-top:10px}
+.ovl .tnote{font-size:11.5px;color:var(--ink-2);margin-top:6px}
 .ovl .pane::-webkit-scrollbar{width:9px}
 .ovl .pane::-webkit-scrollbar-thumb{background:var(--rule);border-radius:5px}
 .ovl .plab{font:600 10.5px/1 var(--font-d);letter-spacing:.14em;color:var(--ink-2);
-  display:flex;align-items:center;gap:8px;position:sticky;top:-7px;z-index:2;
-  background:var(--paper);padding:4px 0 5px;margin:-4px 0 0}
+  display:flex;align-items:center;gap:8px;position:sticky;top:-5px;z-index:2;
+  background:var(--paper);padding:3px 0 4px;margin:-3px 0 0}
 .ovl .plab::after{content:"";flex:1;height:1px;background:var(--rule)}
 .ovl img{display:block;width:100%;height:auto;border:1px solid var(--rule);
   border-radius:9px;background:#fff}
@@ -169,7 +169,7 @@ body.ovlopen{overflow:hidden}
 .ovl .otabs button{flex:1;padding:7px 6px;border-radius:8px;font:600 12px/1 var(--font-d);
   background:transparent;border:1.3px solid var(--rule);color:var(--ink-2)}
 .ovl .otabs button.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
-.ovl .miss{font-size:12.5px;color:var(--ink-2);padding:18px 0;text-align:center}
+.ovl .miss{font-size:12.5px;color:var(--ink-2);padding:12px 0;text-align:center}
 
 /* 폰·좁은 태블릿 — 위아래로 나누고 아래는 탭으로 갈아 끼운다 */
 @media(max-width:900px){
@@ -2424,6 +2424,132 @@ async function trimBox(url){
   return p;
 }
 
+/* ══════════════════════════════════════════════════════════════
+   그림 «속» 의 빈 띠까지 줄인다 — 한눈에 보기 전용
+   ──────────────────────────────────────────────────────────────
+   바깥 여백만 잘라 내는 것으로는 부족한 그림이 있다.
+   PDF 두 쪽을 위아래로 이어 붙인 문항이 그렇다. 이어 붙인 자리에
+     ① 앞 쪽의 아래 빈 곳  ② 쪽 번호 줄  ③ 뒤 쪽의 위 빈 곳
+   이 그대로 남아, 지문과 물음 사이가 손가락 두 마디만큼 벌어진다.
+
+   그래서 «글자가 한 톨도 없는 가로 띠» 를 찾아 얇게 눌러 준다.
+   원본 파일은 건드리지 않는다 — 화면에 붙일 그림만 캔버스에서 새로 그린다.
+
+   ★ 목록 화면(.pz)에는 일부러 쓰지 않는다.
+     거기에는 그림 위에 손으로 그린 필기와 «막히는 곳» 표시가 좌표로 얹혀 있어서,
+     중간을 접으면 그 좌표가 통째로 어긋난다. 필기가 없는 한눈에 판에서만 쓴다.
+   ══════════════════════════════════════════════════════════════ */
+const SQZ = new Map();
+const SQZ_MAX = 40;                 /* 만들어 둔 그림을 이만큼만 들고 있는다 */
+
+async function squeeze(url){
+  if(SQZ.has(url)) return SQZ.get(url);
+  const job = (async () => {
+    const blob = await fetch(url).then(r => r.blob());
+    const bmp  = await createImageBitmap(blob);
+    try{
+      /* ── 1) 작게 줄여서 «어디에 글자가 있나» 만 훑는다 ── */
+      const AW = 320, AH = Math.max(1, Math.round(AW * bmp.height / bmp.width));
+      const ac = document.createElement("canvas"); ac.width = AW; ac.height = AH;
+      const ax = ac.getContext("2d", { willReadFrequently:true });
+      ax.fillStyle = "#fff"; ax.fillRect(0, 0, AW, AH);
+      ax.drawImage(bmp, 0, 0, AW, AH);
+      const d = ax.getImageData(0, 0, AW, AH).data;
+
+      const INK = 208;                       /* 워터마크는 흐리다 — 이 아래만 «글자» 로 본다 */
+      const rowInk = new Array(AH).fill(0), colInk = new Array(AW).fill(0);
+      for(let y = 0; y < AH; y++){
+        for(let x = 0; x < AW; x++){
+          const i = (y * AW + x) * 4;
+          if(Math.min(d[i], d[i+1], d[i+2]) < INK){ rowInk[y]++; colInk[x]++; }
+        }
+      }
+      /* ── 2) 바깥 테두리 ── */
+      const first = a => { for(let i = 0; i < a.length; i++) if(a[i] > 0) return i; return -1; };
+      const last  = a => { for(let i = a.length - 1; i >= 0; i--) if(a[i] > 0) return i; return -1; };
+      const t = first(rowInk), b = last(rowInk), l = first(colInk), r = last(colInk);
+      if(t < 0 || l < 0 || b <= t || r <= l) return null;
+
+      const PADX = Math.round(AW * 0.008), PADY = Math.round(AH * 0.006);
+      const x0 = Math.max(0, l - PADX), x1 = Math.min(AW, r + 1 + PADX);
+      const y0 = Math.max(0, t - PADY), y1 = Math.min(AH, b + 1 + PADY);
+
+      /* ── 3) 안쪽의 «글자 없는 가로 띠» 를 찾는다 ──
+         너무 짧은 것은 줄 사이 간격이니 건드리지 않는다. 문단이 붙어 버린다. */
+      const MINRUN = Math.max(6, Math.round(AH * 0.022));   /* 이보다 긴 빈 띠만 */
+      const KEEP   = Math.max(3, Math.round(AH * 0.008));   /* 이만큼만 남기고 눌러 준다 */
+      const segs = [];                                      /* 남길 [시작,끝) 구간들 */
+      let cut = 0, s0 = y0;
+      for(let y = y0; y < y1; y++){
+        if(rowInk[y] > 0) continue;
+        let e = y; while(e < y1 && rowInk[e] === 0) e++;
+        const run = e - y;
+        if(run > MINRUN){
+          segs.push([s0, y + KEEP]);                        /* 빈 띠를 KEEP 만큼만 남긴다 */
+          cut += run - KEEP;
+          s0 = e;
+        }
+        y = e - 1;
+      }
+      segs.push([s0, y1]);
+
+      /* 줄어드는 게 얼마 안 되면 굳이 새로 그리지 않는다 — 원래 방식(CSS 창 자르기)이 더 싸다 */
+      const outAH = (y1 - y0) - cut;
+      if(cut / Math.max(1, AH) < 0.02 && (x1 - x0) / AW > 0.97 && (y1 - y0) / AH > 0.97) return null;
+
+      /* ── 4) 제 해상도로 다시 그린다 ── */
+      const sx = bmp.width / AW, sy = bmp.height / AH;
+      const srcW = (x1 - x0) * sx;
+      const OW = Math.min(srcW, 1600);        /* 원본보다 크게 늘리지는 않는다 */
+      const scale = OW / srcW;
+      const OH = Math.max(1, Math.round(outAH * sy * scale));
+      const oc = document.createElement("canvas"); oc.width = Math.round(OW); oc.height = OH;
+      const ox = oc.getContext("2d");
+      ox.fillStyle = "#fff"; ox.fillRect(0, 0, oc.width, oc.height);
+      ox.imageSmoothingQuality = "high";
+      let dy = 0;
+      for(const [a, z] of segs){
+        if(z <= a) continue;
+        const h = Math.round((z - a) * sy * scale);
+        ox.drawImage(bmp,
+          x0 * sx, a * sy, (x1 - x0) * sx, (z - a) * sy,
+          0, dy, oc.width, h);
+        dy += h;
+      }
+      const out = await new Promise(res => oc.toBlob(res, "image/webp", 0.92));
+      if(!out) return null;
+      return { src: URL.createObjectURL(out), ar: oc.width / oc.height };
+    } finally { bmp.close?.(); }
+  })().catch(() => null);
+
+  SQZ.set(url, job);
+  /* 오래된 것부터 놓아 준다 — 안 그러면 오래 켜 둔 만큼 메모리가 는다 */
+  if(SQZ.size > SQZ_MAX){
+    const old = SQZ.keys().next().value;
+    SQZ.get(old)?.then(v => { if(v?.src) URL.revokeObjectURL(v.src); }).catch(() => {});
+    SQZ.delete(old);
+  }
+  return job;
+}
+
+/* 한눈에 판의 그림을 «속까지 좁힌» 것으로 갈아 끼운다 */
+async function applySqueeze(root){
+  const els = [...(root || document).querySelectorAll(".tw[data-trim]:not([data-sqz])")];
+  for(const el of els){
+    el.dataset.sqz = "1";
+    const url = el.dataset.trim; if(!url) continue;
+    let v; try{ v = await squeeze(url); }catch(e){ continue; }
+    if(!v) continue;
+    const im = el.querySelector("img"); if(!im) continue;
+    im.dataset.orig = im.dataset.orig || im.src;   /* 원본 크기로 펼 때 되돌릴 것 */
+    im.src = v.src;
+    /* 이미 그림 자체가 좁혀졌으니 CSS 창 자르기는 쓰지 않는다 (두 번 자르면 글자가 잘린다) */
+    el.dataset.trimmed = "1"; el.dataset.done = "1";
+    el.classList.remove("on");
+    el.style.aspectRatio = "";
+  }
+}
+
 /* 화면에 붙은 그림들의 여백을 실제로 좁힌다 */
 async function applyTrim(root){
   if(!TRIMON) return;
@@ -3274,12 +3400,20 @@ function ovDraw(){
   $("#ovl").querySelectorAll(".imgbox img").forEach(im => {
     im.onclick = () => {
       const on = im.classList.toggle("zoom");
-      /* 원본 크기로 펼 때는 여백 자르기를 잠시 푼다 — 안 그러면 잘린 창 안에서만 커진다 */
-      im.closest(".tw")?.classList.toggle("on", !on && TRIMON);
+      const box = im.closest(".tw");
+      /* 원본 크기로 펼 때는 여백 자르기를 잠시 푼다 — 안 그러면 잘린 창 안에서만 커진다.
+         속까지 좁혀 둔 그림은 «진짜 원본» 으로 갈아 끼웠다가 다시 돌아온다. */
+      if(box?.dataset.done){
+        if(on && im.dataset.orig) im.src = im.dataset.orig;
+        else if(!on){ squeeze(box.dataset.trim).then(v => { if(v) im.src = v.src; }); }
+        return;
+      }
+      box?.classList.toggle("on", !on && TRIMON);
     };
   });
   $$("#ovl .otabs button").forEach(b => b.classList.toggle("on", b.dataset.oseg === OVSEG));
-  applyTrim($("#ovl"));
+  /* 먼저 «속의 빈 띠까지» 좁혀 보고, 그게 안 되는 그림만 예전처럼 창으로 자른다 */
+  applySqueeze($("#ovl")).then(() => applyTrim($("#ovl")));
 
   /* 글자로 옮긴 칸은 수식을 그리고, [[그림]] 자리를 원본에서 오려 채운다 */
   $$("#ovl .qmd").forEach(el => { tex(el); figFill(el, el.dataset.src); });
