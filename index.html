@@ -796,16 +796,6 @@ mark.hl.st{text-decoration-color:var(--stamp)}
 .qfig img{display:block;width:var(--figw,100%);max-width:520px;height:auto;margin:0 auto;
   border:1px solid var(--rule);border-radius:10px;background:#fff}
 
-/* 상단 제목을 누르면 잘린 글을 펼쳐 본다. 다시 누르면 접힌다. */
-$(".top .grow")?.addEventListener("click", () => {
-  const t = document.querySelector(".top"); if(!t) return;
-  /* 아래 문항 레일이 --head 를 기준으로 붙어 있어, 펼친 채로 두면 결국 겹친다.
-     그래서 «잠깐 보고 저절로 접히는» 것으로 못 박는다. */
-  const on = t.classList.toggle("wide");
-  clearTimeout($(".top")._t);
-  if(on) t._t = setTimeout(() => t.classList.remove("wide"), 4000);
-});
-
 /* ── 화면 좌우 넘김 단추 ──
    마우스로 끄는 넘김을 없앤 대신, 화면 양옆에 반투명 단추를 띄운다.
    평소에는 흐릿하게 있다가 스크롤하거나 가까이 가면 또렷해진다. */
@@ -4886,6 +4876,21 @@ $("#edgeNext")?.addEventListener("click", () => {
 });
 addEventListener("scroll", edgeWake, true);
 addEventListener("wheel",  edgeWake, { passive:true });
+
+/* ── 상단 제목을 누르면 잘린 글을 펼쳐 본다 ──
+   ★ 이 손잡이는 원래 <style> 안에 잘못 들어가 있었다. 스타일시트에 자바스크립트가
+     섞이면 CSS 해석기가 그 자리에서 헤매다가 «바로 다음 규칙» 을 통째로 삼킨다.
+     여기서 삼켜진 것이 .edgenav 였고, 그래서 position:fixed 가 통째로 사라져
+     좌우 넘김 단추가 화면 가운데가 아니라 문서 맨 위에 그냥 얹혀 있었다.
+     제자리(스크립트)로 옮긴다. */
+$(".top .grow")?.addEventListener("click", () => {
+  const t = document.querySelector(".top"); if(!t) return;
+  /* 아래 문항 레일이 --head 를 기준으로 붙어 있어, 펼친 채로 두면 결국 겹친다.
+     그래서 «잠깐 보고 저절로 접히는» 것으로 못 박는다. */
+  const on = t.classList.toggle("wide");
+  clearTimeout(t._t);
+  if(on) t._t = setTimeout(() => t.classList.remove("wide"), 4000);
+});
 
 /* ── 가림판 ── */
 function applyVeil(){

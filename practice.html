@@ -270,7 +270,7 @@ body.oneup #list > .pcard.show{display:block}
   background:color-mix(in srgb,var(--accent) 4%,transparent)}
 .cvsep{width:1px;height:20px;background:var(--rule);margin:0 2px}
 .cvbar select{min-width:84px;padding:5px 7px;font-size:11.5px}
-#fTrim.on,#fSplit.on,#fText.on{border-color:var(--accent);background:var(--accent);color:#fff}
+#fSplit.on,#fText.on{border-color:var(--accent);background:var(--accent);color:#fff}
 .cvstat{font:500 11px/1.35 var(--font-m);color:var(--ink-2);flex:1;min-width:120px}
 .cvprog{flex-basis:100%;height:4px;border-radius:3px;background:var(--rule);overflow:hidden}
 .cvprog i{display:block;height:100%;width:0;background:var(--accent);transition:width .18s}
@@ -634,7 +634,6 @@ body.oneup .lead,body.oneup h1{display:none}
           <option value="15.5">크게</option>
           <option value="17">아주 크게</option>
         </select>
-        <button class="chip" id="fTrim" type="button" title="그림 둘레의 흰 종이 여백을 잘라 냅니다">✂ 여백 자르기</button>
         <button class="chip" id="fSplit" type="button" title="넓은 화면에서 문제와 답안을 좌우로 나눕니다">▥ 두 칸</button>
         <span class="cvstat" id="cvStat"></span>
         <div class="cvprog" id="cvProg" hidden><i id="cvBar"></i></div>
@@ -2443,7 +2442,9 @@ async function applyTrim(root){
     el.classList.add(el.classList.contains("pz") ? "trim" : "on");
   }
 }
-let TRIMON = (()=>{ try{ return localStorage.getItem("prac:trim") !== "0"; }catch(e){ return true; } })();
+/* ★ 여백 자르기는 끌 이유가 없다 — 끄면 종이 여백만 보느라 글자가 작아진다.
+   단추를 없애고 늘 켠 것으로 못 박는다. 목록도, 한눈에 보기도 같은 값을 쓴다. */
+const TRIMON = true;
 
 /* [[그림 …]] 자리를 원본에서 오려 채운다. 좌표가 없으면 그림 전체를 넣는다. */
 const FIGCACHE = new Map();
@@ -2593,24 +2594,18 @@ function paintText(){
 }
 $("#fText")?.addEventListener("click", () => { TEXTMODE = !TEXTMODE; paintText(); drawList(); });
 
-/* ── 보기 설정 — 글자 크기 · 여백 자르기 · 두 칸 ──
+/* ── 보기 설정 — 글자 크기 · 두 칸 ── (여백 자르기는 늘 켜져 있다)
    한 번 정해 두면 이 기기에 남는다. */
 let SPLIT = (()=>{ try{ return localStorage.getItem("prac:split") !== "0"; }catch(e){ return true; } })();
 function paintView(){
   const fs = (()=>{ try{ return localStorage.getItem("prac:fs") || "14"; }catch(e){ return "14"; } })();
   document.documentElement.style.setProperty("--qfs", fs + "px");
   const sel = $("#fSize"); if(sel) sel.value = fs;
-  $("#fTrim")?.classList.toggle("on", TRIMON);
   $("#fSplit")?.classList.toggle("on", SPLIT);
 }
 $("#fSize")?.addEventListener("change", e => {
   try{ localStorage.setItem("prac:fs", e.target.value); }catch(x){}
   paintView();
-});
-$("#fTrim")?.addEventListener("click", () => {
-  TRIMON = !TRIMON;
-  try{ localStorage.setItem("prac:trim", TRIMON ? "1" : "0"); }catch(e){}
-  paintView(); drawList(); if(OVID) ovDraw();
 });
 $("#fSplit")?.addEventListener("click", () => {
   SPLIT = !SPLIT;
