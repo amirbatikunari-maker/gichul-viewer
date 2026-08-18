@@ -1,38 +1,49 @@
 /* ═══════════════════════════════════════════════════════════════════════
-   ai-chat.js — 뷰어와 블로그가 함께 쓰는 AI 대화 상자
-   안정화 전체 교체본
 
+   ai-chat.js — 뷰어와 블로그가 함께 쓰는 AI 대화 상자
+
+   모델 동기화 버전
    ───────────────────────────────────────────────────────────────────────
 
-   붙이는 법 (config.js 다음 줄에 한 줄만):
+   ★ 모델명은 이 파일에서 관리하지 않습니다.
+
+   실제 모델 목록 / 기본 모델:
+       Worker /ai/models
+
+   구조:
+
+       OpenAI ─┐
+               ├── Worker /ai/models ──→ ai-chat.js
+       Gemini ─┘
+
+   따라서 OpenAI/Gemini 모델이 바뀌어도
+   Worker의 /ai/models만 수정하면 프론트가 자동 동기화됩니다.
+
+
+
+   붙이는 법:
 
        <script src="./ai-chat.js" defer></script>
 
 
 
-   config.js 에 필요한 값:
+   config.js:
 
        AI_WORKER_URL : "https://sniper-ai.<계정>.workers.dev"
-
-       AI_APP_KEY    : "…"   ← Worker 에 APP_KEY 를 등록했을 때만
-
-       (SUPABASE_URL / SUPABASE_ANON_KEY 가 있으면 대화 기록도 저장됩니다)
+       AI_APP_KEY    : "…"
+       AI_APP_NAME   : "viewer" 또는 "blog"
 
 
 
-   바깥에서 쓸 수 있는 것:
+   외부 API:
 
-       AIChat.open()                     대화창 열기
-
-       AIChat.ask("이 문항 풀이해줘")      질문을 넣고 바로 보내기
-
-       AIChat.fill("질문")                질문만 입력
-
-       AIChat.setContext({ … })          "지금 보고 있는 화면" 알려 주기
-
-       AIChat.setContextProvider(fn)     화면을 그때그때 읽어 오기
-
-       AIChat.attachFiles(FileList)      파일 붙이기
+       AIChat.open()
+       AIChat.close()
+       AIChat.ask("이 문항 풀이해줘")
+       AIChat.fill("질문")
+       AIChat.setContext({ ... })
+       AIChat.setContextProvider(fn)
+       AIChat.attachFiles(FileList)
 
    ═══════════════════════════════════════════════════════════════════════ */
 
@@ -53,12 +64,15 @@ if (window.AIChat) return;
 const CFG =
   window.APP_CONFIG || {};
 
+
 const BASE =
   (CFG.AI_WORKER_URL || "")
     .replace(/\/+$/, "");
 
+
 const KEY =
   CFG.AI_APP_KEY || "";
+
 
 const APP =
   CFG.AI_APP_NAME ||
@@ -150,6 +164,7 @@ const ALLOWED =
 
 
 let USER = null;
+
 let TOKEN = null;
 
 
@@ -158,6 +173,7 @@ async function readSession() {
   if (!sb) {
 
     USER = null;
+
     TOKEN = null;
 
     return null;
@@ -174,20 +190,24 @@ async function readSession() {
 
 
     const ses =
-      data?.session || null;
+      data?.session ||
+      null;
 
 
     USER =
-      ses?.user || null;
+      ses?.user ||
+      null;
 
 
     TOKEN =
-      ses?.access_token || null;
+      ses?.access_token ||
+      null;
 
 
   } catch {
 
     USER = null;
+
     TOKEN = null;
 
   }
@@ -236,14 +256,18 @@ async function doLogin(
     error
   } =
     await sb.auth.signInWithPassword({
+
       email,
+
       password
+
     });
 
 
   if (error) {
 
     throw new Error(
+
       /invalid/i.test(
         error.message
       )
@@ -251,6 +275,7 @@ async function doLogin(
         ? "이메일이나 비밀번호가 맞지 않습니다."
 
         : error.message
+
     );
 
   }
@@ -290,98 +315,69 @@ async function doLogout() {
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   2. 모델 고르기
+   2. 모델 목록
    ═══════════════════════════════════════════════════════════════════════
 
-   중요:
+   ★★★ 중요 ★★★
 
-   실제 호출 모델은 Worker의 /ai/models 응답을 최우선으로 사용한다.
+   여기에는 모델 ID를 하드코딩하지 않습니다.
 
-   아래 값은 Worker가 응답하기 전의 fallback 목록이다.
+   Worker의:
 
-   Gemini 공식 모델:
-     gemini-3.6-flash
-     gemini-3.5-flash
-     gemini-3.5-flash-lite
+       GET /ai/models
 
-   OpenAI는 Worker가 실제 지원 모델 목록을 내려주는 것을 우선한다.
+   응답을 그대로 사용합니다.
+
+   기대 형식:
+
+   {
+     "catalog": {
+       "openai": [
+         { "id": "...", "label": "GPT · 최고급" },
+         { "id": "...", "label": "GPT · 균형" },
+         { "id": "...", "label": "GPT · 빠름" }
+       ],
+
+       "gemini": [
+         { "id": "...", "label": "Gemini · 최고급" },
+         { "id": "...", "label": "Gemini · 균형" },
+         { "id": "...", "label": "Gemini · 빠름" }
+       ]
+     },
+
+     "defaults": {
+       "openai": "...",
+       "gemini": "..."
+     }
+   }
+
    ═══════════════════════════════════════════════════════════════════════ */
+
 
 let CATALOG = {
 
-  openai: [
+  openai: [],
 
-    {
-      id:
-        CFG.AI_OPENAI_BALANCED_MODEL ||
-        "gpt-5.6-terra",
-
-      label:
-        "GPT · 균형"
-    },
-
-    {
-      id:
-        CFG.AI_OPENAI_PREMIUM_MODEL ||
-        "gpt-5.6-sol",
-
-      label:
-        "GPT · 최고급"
-    },
-
-    {
-      id:
-        CFG.AI_OPENAI_FAST_MODEL ||
-        "gpt-5.6-luna",
-
-      label:
-        "GPT · 빠름"
-    }
-
-  ],
-
-
-  gemini: [
-
-    {
-      id:
-        "gemini-3.5-flash",
-
-      label:
-        "Gemini · 최고급"
-    },
-
-    {
-      id:
-        "gemini-3.6-flash",
-
-      label:
-        "Gemini · 균형"
-    },
-
-    {
-      id:
-        "gemini-3.5-flash-lite",
-
-      label:
-        "Gemini · 빠름"
-    }
-
-  ]
+  gemini: []
 
 };
 
 
 let DEFAULTS = {
 
-  openai:
-    CFG.AI_OPENAI_DEFAULT_MODEL ||
-    "gpt-5.6-terra",
+  openai: null,
 
-  gemini:
-    "gemini-3.6-flash"
+  gemini: null
 
 };
+
+
+let MODELS_READY =
+  false;
+
+
+let MODEL_ERROR =
+  "";
 
 
 const TIER = [
@@ -396,7 +392,7 @@ const TIER = [
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   상태
+   state
    ═══════════════════════════════════════════════════════════════════════ */
 
 const state = {
@@ -448,7 +444,9 @@ function load(
   try {
 
     return (
-      localStorage.getItem(k) ||
+      localStorage.getItem(
+        k
+      ) ||
       d
     );
 
@@ -479,7 +477,291 @@ function save(
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   모델 선택
+   3. 모델 처리
+   ═══════════════════════════════════════════════════════════════════════ */
+
+function normalizeCatalog(
+  input
+) {
+
+  const source =
+    input || {};
+
+
+  const openai =
+    Array.isArray(
+      source.openai
+    )
+
+      ? source.openai
+          .filter(
+            m =>
+              m &&
+              m.id
+          )
+          .map(
+            m => ({
+              id:
+                String(m.id),
+
+              label:
+                String(
+                  m.label ||
+                  m.id
+                )
+            })
+          )
+
+      : [];
+
+
+  const gemini =
+    Array.isArray(
+      source.gemini
+    )
+
+      ? source.gemini
+          .filter(
+            m =>
+              m &&
+              m.id
+          )
+          .map(
+            m => ({
+              id:
+                String(m.id),
+
+              label:
+                String(
+                  m.label ||
+                  m.id
+                )
+            })
+          )
+
+      : [];
+
+
+  return {
+
+    openai,
+
+    gemini
+
+  };
+
+}
+
+
+function normalizeDefaults(
+  input
+) {
+
+  return {
+
+    openai:
+      input?.openai
+        ? String(
+            input.openai
+          )
+        : null,
+
+    gemini:
+      input?.gemini
+        ? String(
+            input.gemini
+          )
+        : null
+
+  };
+
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Worker /ai/models
+   ═══════════════════════════════════════════════════════════════════════ */
+
+async function loadCatalog() {
+
+  MODELS_READY =
+    false;
+
+  MODEL_ERROR =
+    "";
+
+
+  if (!BASE) {
+
+    MODEL_ERROR =
+      "AI_WORKER_URL이 없습니다.";
+
+    renderModelBar();
+
+    renderHint();
+
+    return false;
+
+  }
+
+
+  try {
+
+    const r =
+      await fetch(
+
+        BASE +
+        "/ai/models",
+
+        {
+
+          method:
+            "GET",
+
+          headers:
+            KEY
+
+              ? {
+                  "x-app-key":
+                    KEY
+                }
+
+              : {},
+
+          cache:
+            "no-store"
+
+        }
+
+      );
+
+
+    if (!r.ok) {
+
+      throw new Error(
+        `모델 목록 조회 실패 (${r.status})`
+      );
+
+    }
+
+
+    const d =
+      await r.json();
+
+
+    if (
+      !d ||
+      !d.catalog
+    ) {
+
+      throw new Error(
+        "Worker /ai/models가 catalog를 반환하지 않았습니다."
+      );
+
+    }
+
+
+    const catalog =
+      normalizeCatalog(
+        d.catalog
+      );
+
+
+    const defaults =
+      normalizeDefaults(
+        d.defaults
+      );
+
+
+    if (
+      !catalog.openai.length &&
+      !catalog.gemini.length
+    ) {
+
+      throw new Error(
+        "사용 가능한 OpenAI/Gemini 모델이 없습니다."
+      );
+
+    }
+
+
+    CATALOG =
+      catalog;
+
+
+    DEFAULTS =
+      defaults;
+
+
+    /*
+      기본 모델이 비어 있으면
+      각 provider의 첫 번째 모델 사용
+    */
+    if (
+      !DEFAULTS.openai &&
+      CATALOG.openai.length
+    ) {
+
+      DEFAULTS.openai =
+        CATALOG.openai[0].id;
+
+    }
+
+
+    if (
+      !DEFAULTS.gemini &&
+      CATALOG.gemini.length
+    ) {
+
+      DEFAULTS.gemini =
+        CATALOG.gemini[0].id;
+
+    }
+
+
+    MODELS_READY =
+      true;
+
+
+    renderModelBar();
+
+    renderHint();
+
+
+    return true;
+
+
+  } catch (e) {
+
+    MODELS_READY =
+      false;
+
+
+    MODEL_ERROR =
+      e.message ||
+      String(e);
+
+
+    console.error(
+      "[AIChat] /ai/models 실패:",
+      e
+    );
+
+
+    renderModelBar();
+
+    renderHint();
+
+
+    return false;
+
+  }
+
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   모델 하나 선택
    ═══════════════════════════════════════════════════════════════════════ */
 
 function pickFrom(
@@ -488,14 +770,31 @@ function pickFrom(
 ) {
 
   const list =
-    CATALOG[provider] || [];
+    Array.isArray(
+      CATALOG[provider]
+    )
+
+      ? CATALOG[provider]
+
+      : [];
 
 
+  if (
+    !list.length
+  ) {
+
+    return null;
+
+  }
+
+
+  /*
+    label에 "최고급/균형/빠름"이 있으면
+    해당 모델 선택
+  */
   const exact =
     list.find(
       m =>
-        m &&
-        m.id &&
         (
           m.label ||
           ""
@@ -505,22 +804,40 @@ function pickFrom(
     );
 
 
-  if (exact)
+  if (exact) {
+
     return exact.id;
 
+  }
 
-  const first =
-    list.find(
+
+  /*
+    기본 모델이 목록에 있으면 사용
+  */
+  const defaultId =
+    DEFAULTS[provider];
+
+
+  if (
+    defaultId &&
+    list.some(
       m =>
-        m &&
-        m.id
-    );
+        m.id ===
+        defaultId
+    )
+  ) {
+
+    return defaultId;
+
+  }
 
 
+  /*
+    없으면 첫 번째 모델
+  */
   return (
-    first?.id ||
-    DEFAULTS[provider] ||
-    ""
+    list[0]?.id ||
+    null
   );
 
 }
@@ -534,6 +851,15 @@ function autoPick(
   text,
   files
 ) {
+
+  if (
+    !MODELS_READY
+  ) {
+
+    return null;
+
+  }
+
 
   const t =
     (
@@ -585,20 +911,31 @@ function autoPick(
 
 
   /*
-    이미지 / PDF / 문서
-
-    → Gemini
+    이미지 / 문서가 있으면 Gemini
   */
-
   if (
     hasImage ||
     hasDoc
   ) {
 
     const tier =
-      heavy || long
+      heavy ||
+      long
+
         ? "최고급"
+
         : "균형";
+
+
+    const model =
+      pickFrom(
+        "gemini",
+        tier
+      );
+
+
+    if (!model)
+      return null;
 
 
     return {
@@ -606,11 +943,7 @@ function autoPick(
       provider:
         "gemini",
 
-      model:
-        pickFrom(
-          "gemini",
-          tier
-        ),
+      model,
 
       tier
 
@@ -621,26 +954,30 @@ function autoPick(
 
   /*
     코드 / 복잡한 분석
-
-    → GPT 최고급
   */
-
   if (
     coding ||
     heavy ||
     long
   ) {
 
+    const model =
+      pickFrom(
+        "openai",
+        "최고급"
+      );
+
+
+    if (!model)
+      return null;
+
+
     return {
 
       provider:
         "openai",
 
-      model:
-        pickFrom(
-          "openai",
-          "최고급"
-        ),
+      model,
 
       tier:
         "최고급"
@@ -652,22 +989,28 @@ function autoPick(
 
   /*
     짧은 질문
-
-    → Gemini 빠름
   */
+  if (
+    quick
+  ) {
 
-  if (quick) {
+    const model =
+      pickFrom(
+        "gemini",
+        "빠름"
+      );
+
+
+    if (!model)
+      return null;
+
 
     return {
 
       provider:
         "gemini",
 
-      model:
-        pickFrom(
-          "gemini",
-          "빠름"
-        ),
+      model,
 
       tier:
         "빠름"
@@ -679,20 +1022,24 @@ function autoPick(
 
   /*
     일반 질문
-
-    → GPT 균형
   */
+  const model =
+    pickFrom(
+      "openai",
+      "균형"
+    );
+
+
+  if (!model)
+    return null;
+
 
   return {
 
     provider:
       "openai",
 
-    model:
-      pickFrom(
-        "openai",
-        "균형"
-      ),
+    model,
 
     tier:
       "균형"
@@ -705,6 +1052,15 @@ function autoPick(
 function resolveModel(
   text
 ) {
+
+  if (
+    !MODELS_READY
+  ) {
+
+    return null;
+
+  }
+
 
   if (
     state.mode ===
@@ -723,15 +1079,25 @@ function resolveModel(
     state.mode;
 
 
+  const model =
+    pickFrom(
+      provider,
+      state.tier
+    );
+
+
+  if (!model) {
+
+    return null;
+
+  }
+
+
   return {
 
     provider,
 
-    model:
-      pickFrom(
-        provider,
-        state.tier
-      ),
+    model,
 
     tier:
       state.tier
@@ -742,72 +1108,7 @@ function resolveModel(
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Worker에서 모델 목록 가져오기
-   ═══════════════════════════════════════════════════════════════════════ */
-
-async function loadCatalog() {
-
-  if (!BASE)
-    return;
-
-
-  try {
-
-    const r =
-      await fetch(
-        BASE +
-        "/ai/models",
-        {
-          headers:
-            KEY
-              ? {
-                  "x-app-key":
-                    KEY
-                }
-              : {}
-        }
-      );
-
-
-    if (!r.ok)
-      return;
-
-
-    const d =
-      await r.json();
-
-
-    if (
-      d.catalog
-    ) {
-
-      CATALOG =
-        d.catalog;
-
-    }
-
-
-    if (
-      d.defaults
-    ) {
-
-      DEFAULTS =
-        d.defaults;
-
-    }
-
-
-    renderModelBar();
-    renderHint();
-
-
-  } catch {}
-
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════════
-   3. 화면 CSS
+   4. CSS
    ═══════════════════════════════════════════════════════════════════════ */
 
 const CSS = `
@@ -1264,7 +1565,7 @@ html[data-theme="dark"] .aic-err{
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   4. DOM 생성
+   5. DOM 생성
    ═══════════════════════════════════════════════════════════════════════ */
 
 let el = {};
@@ -1516,14 +1817,18 @@ function build() {
             `${USER.email}에서 로그아웃할까요?`
           )
         ) {
+
           return;
+
         }
 
 
         if (
           state.busy
         ) {
+
           stop();
+
         }
 
 
@@ -1590,7 +1895,8 @@ function build() {
       el.ta.style.height =
         Math.min(
           el.ta.scrollHeight,
-          window.innerHeight * 0.34
+          window.innerHeight *
+            0.34
         ) + "px";
 
 
@@ -1716,7 +2022,7 @@ function build() {
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   5. 모델 UI
+   6. 모델 UI
    ═══════════════════════════════════════════════════════════════════════ */
 
 function renderModelBar() {
@@ -1748,19 +2054,18 @@ function renderModelBar() {
   let html =
     modes
       .map(
-        ([k, t]) =>
-          `
-            <button
-              class="aic-chip${
-                state.mode === k
-                  ? " on"
-                  : ""
-              }"
-              data-mode="${k}"
-            >
-              ${t}
-            </button>
-          `
+        ([k, t]) => `
+          <button
+            class="aic-chip${
+              state.mode === k
+                ? " on"
+                : ""
+            }"
+            data-mode="${k}"
+          >
+            ${t}
+          </button>
+        `
       )
       .join("");
 
@@ -1772,21 +2077,21 @@ function renderModelBar() {
 
     html +=
       `<div class="aic-sep"></div>` +
+
       TIER
         .map(
-          t =>
-            `
-              <button
-                class="aic-chip${
-                  state.tier === t
-                    ? " on"
-                    : ""
-                }"
-                data-tier="${t}"
-              >
-                ${t}
-              </button>
-            `
+          t => `
+            <button
+              class="aic-chip${
+                state.tier === t
+                  ? " on"
+                  : ""
+              }"
+              data-tier="${t}"
+            >
+              ${t}
+            </button>
+          `
         )
         .join("");
 
@@ -1859,6 +2164,10 @@ function renderModelBar() {
 }
 
 
+/* ═══════════════════════════════════════════════════════════════════════
+   모델 힌트
+   ═══════════════════════════════════════════════════════════════════════ */
+
 function renderHint() {
 
   if (!el.hint)
@@ -1879,30 +2188,48 @@ function renderHint() {
   }
 
 
+  if (!MODELS_READY) {
+
+    el.hint.textContent =
+      MODEL_ERROR
+        ? `⚠ ${MODEL_ERROR}`
+        : "모델 목록 불러오는 중…";
+
+    return;
+
+  }
+
+
   const p =
     resolveModel(
-      el.ta?.value || ""
+      el.ta?.value ||
+      ""
     );
 
 
+  if (!p) {
+
+    el.hint.textContent =
+      "사용 가능한 모델이 없습니다.";
+
+    return;
+
+  }
+
+
   el.hint.textContent =
-    state.mode === "auto"
+    state.mode ===
+      "auto"
 
-      ? `자동 — ${
-          p.model ||
-          "Worker 모델"
-        }`
+      ? `자동 — ${p.model}`
 
-      : (
-          p.model ||
-          "Worker 모델"
-        );
+      : p.model;
 
 }
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   6. 파일
+   7. 첨부
    ═══════════════════════════════════════════════════════════════════════ */
 
 const IMG =
@@ -1933,7 +2260,7 @@ function fileToBase64(
             String(
               r.result
             )
-              .split(",")[1] ||
+            .split(",")[1] ||
             ""
           );
 
@@ -1952,6 +2279,7 @@ function fileToBase64(
 }
 
 
+/* 이미지 압축 */
 async function shrinkImage(
   file,
   max = 1400,
@@ -2011,19 +2339,22 @@ async function shrinkImage(
     cv.width =
       w;
 
+
     cv.height =
       h;
 
 
-    cv.getContext(
-      "2d"
-    ).drawImage(
-      bmp,
-      0,
-      0,
-      w,
-      h
-    );
+    cv
+      .getContext(
+        "2d"
+      )
+      .drawImage(
+        bmp,
+        0,
+        0,
+        w,
+        h
+      );
 
 
     const blob =
@@ -2040,14 +2371,13 @@ async function shrinkImage(
     return blob
 
       ? new File(
-          [
-            blob
-          ],
+          [blob],
 
           file.name.replace(
             /\.\w+$/,
             ""
-          ) + ".jpg",
+          ) +
+          ".jpg",
 
           {
             type:
@@ -2153,7 +2483,8 @@ async function pdfToText(
   const doc =
     await lib
       .getDocument({
-        data: buf
+        data:
+          buf
       })
       .promise;
 
@@ -2410,22 +2741,25 @@ function renderTray() {
 
               ${
                 f.preview
+
                   ? `
-                    <img
-                      src="${f.preview}"
-                      style="
-                        width:20px;
-                        height:20px;
-                        border-radius:4px;
-                        object-fit:cover
-                      "
-                    >
-                  `
+                      <img
+                        src="${f.preview}"
+                        style="
+                          width:20px;
+                          height:20px;
+                          border-radius:4px;
+                          object-fit:cover
+                        "
+                      >
+                    `
+
                   : "📄"
               }
 
               <span>
                 ${esc(f.name)}
+
                 ${
                   f.status
                     ? ` · ${esc(f.status)}`
@@ -2433,7 +2767,9 @@ function renderTray() {
                 }
               </span>
 
-              <b data-rm="${f.id}">
+              <b
+                data-rm="${f.id}"
+              >
                 ✕
               </b>
 
@@ -2474,7 +2810,7 @@ function renderTray() {
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   7. Markdown
+   8. Markdown
    ═══════════════════════════════════════════════════════════════════════ */
 
 function esc(s) {
@@ -2483,23 +2819,24 @@ function esc(s) {
     s ?? ""
   ).replace(
     /[&<>"']/g,
-    c => ({
-      "&":
-        "&amp;",
+    c =>
+      ({
+        "&":
+          "&amp;",
 
-      "<":
-        "&lt;",
+        "<":
+          "&lt;",
 
-      ">":
-        "&gt;",
+        ">":
+          "&gt;",
 
-      '"':
-        "&quot;",
+        '"':
+          "&quot;",
 
-      "'":
-        "&#39;"
+        "'":
+          "&#39;"
 
-    }[c])
+      }[c])
   );
 
 }
@@ -2515,7 +2852,8 @@ function md(
 
   let s =
     esc(
-      src || ""
+      src ||
+      ""
     );
 
 
@@ -2525,6 +2863,7 @@ function md(
   s =
     s.replace(
       /```(\w*)\n?([\s\S]*?)```/g,
+
       (
         _,
         lang,
@@ -2532,16 +2871,12 @@ function md(
       ) => {
 
         blocks.push(
-          `
-            <pre>
-              <code data-lang="${lang}">
-                ${code.replace(
-                  /\n$/,
-                  ""
-                )}
-              </code>
-            </pre>
-          `
+          `<pre><code data-lang="${lang}">${
+            code.replace(
+              /\n$/,
+              ""
+            )
+          }</code></pre>`
         );
 
 
@@ -2582,6 +2917,7 @@ function md(
   s =
     s.replace(
       /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+
       '<a href="$2" target="_blank" rel="noopener">$1</a>'
     );
 
@@ -2602,68 +2938,76 @@ function md(
     null;
 
 
-  function flushPara() {
+  const flushPara =
+    () => {
 
-    if (
-      !para.length
-    )
-      return;
+      if (
+        para.length
+      ) {
 
-
-    out.push(
-      `<p>${para.join("<br>")}</p>`
-    );
-
-
-    para =
-      [];
-
-  }
+        out.push(
+          `<p>${para.join("<br>")}</p>`
+        );
 
 
-  function flushList() {
+        para =
+          [];
 
-    if (!list)
-      return;
+      }
 
-
-    out.push(
-      `</${list}>`
-    );
+    };
 
 
-    list =
-      null;
+  const flushList =
+    () => {
 
-  }
+      if (
+        list
+      ) {
 
-
-  function flushTable() {
-
-    if (!table)
-      return;
-
-
-    out.push(
-      `<table>${table.join("")}</table>`
-    );
+        out.push(
+          `</${list}>`
+        );
 
 
-    table =
-      null;
+        list =
+          null;
 
-  }
+      }
+
+    };
 
 
-  function flushAll() {
+  const flushTable =
+    () => {
 
-    flushPara();
+      if (
+        table
+      ) {
 
-    flushList();
+        out.push(
+          `<table>${table.join("")}</table>`
+        );
 
-    flushTable();
 
-  }
+        table =
+          null;
+
+      }
+
+    };
+
+
+  const flushAll =
+    () => {
+
+      flushPara();
+
+      flushList();
+
+      flushTable();
+
+    };
 
 
   for (
@@ -2706,6 +3050,9 @@ function md(
     let m;
 
 
+    /*
+      제목
+    */
     if (
       (
         m =
@@ -2722,6 +3069,7 @@ function md(
         Math.min(
           m[1].length +
             1,
+
           4
         );
 
@@ -2731,6 +3079,9 @@ function md(
       );
 
 
+    /*
+      UL
+    */
     } else if (
 
       /^\s*[-*\u2022]\s+/
@@ -2770,6 +3121,9 @@ function md(
       );
 
 
+    /*
+      OL
+    */
     } else if (
 
       /^\s*\d+[.)]\s+/
@@ -2809,6 +3163,9 @@ function md(
       );
 
 
+    /*
+      인용
+    */
     } else if (
 
       /^&gt;\s?/
@@ -2829,6 +3186,9 @@ function md(
       );
 
 
+    /*
+      표
+    */
     } else if (
 
       /^\s*\|.*\|\s*$/
@@ -2870,7 +3230,8 @@ function md(
 
 
       const head =
-        table === null;
+        table ===
+        null;
 
 
       const tag =
@@ -2879,8 +3240,14 @@ function md(
           : "td";
 
 
-      if (head)
-        table = [];
+      if (
+        head
+      ) {
+
+        table =
+          [];
+
+      }
 
 
       table.push(
@@ -2895,6 +3262,9 @@ function md(
       );
 
 
+    /*
+      구분선
+    */
     } else if (
 
       /^\s*(-{3,}|\*{3,}|_{3,})\s*$/
@@ -2904,11 +3274,15 @@ function md(
 
       flushAll();
 
+
       out.push(
         "<hr>"
       );
 
 
+    /*
+      일반 문단
+    */
     } else {
 
       flushList();
@@ -2937,14 +3311,15 @@ function md(
       ) =>
         blocks[
           +i
-        ] || ""
+        ] ||
+        ""
     );
 
 }
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   8. 대화 그리기
+   9. 대화 그리기
    ═══════════════════════════════════════════════════════════════════════ */
 
 function bubble(
@@ -2972,12 +3347,13 @@ function bubble(
     (
       meta
         ? `
-          <div class="aic-meta">
-            ${esc(meta)}
-          </div>
-        `
+            <div class="aic-meta">
+              ${esc(meta)}
+            </div>
+          `
         : ""
     ) +
+
     `
       <div class="aic-bub">
         ${html}
@@ -3043,25 +3419,9 @@ function showErr(
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   redraw
+   10. redraw
 
-   ★ 중요
-
-   AI 생성 중에는 전체 DOM을 다시 그리지 않는다.
-
-   기존 문제:
-
-      질문 전송
-        ↓
-      redraw()
-        ↓
-      refreshGate()
-        ↓
-      el.log.innerHTML = ""
-        ↓
-      화면의 대화 사라짐
-
-   이제 state.busy 동안 redraw를 차단한다.
+   ★ AI가 생성 중이면 절대 실행하지 않는다.
    ═══════════════════════════════════════════════════════════════════════ */
 
 function redraw() {
@@ -3075,8 +3435,13 @@ function redraw() {
   }
 
 
-  if (!el.log)
+  if (
+    !el.log
+  ) {
+
     return;
+
+  }
 
 
   el.log.innerHTML =
@@ -3095,19 +3460,19 @@ function redraw() {
       c?.label
 
         ? `
-          <p
-            style="
-              color:
-                var(--ink-2,#8894a5)
-            "
-          >
-            지금 보고 있는 것:
-            <b>
-              ${esc(c.label)}
-            </b>
-            — 그대로 물어보시면 됩니다.
-          </p>
-        `
+            <p
+              style="
+                color:
+                  var(--ink-2,#8894a5)
+              "
+            >
+              지금 보고 있는 것:
+              <b>
+                ${esc(c.label)}
+              </b>
+              — 그대로 물어보시면 됩니다.
+            </p>
+          `
 
         : "";
 
@@ -3123,28 +3488,48 @@ function redraw() {
           </b>
         </p>
 
+        ${
+          MODELS_READY
+            ? `
+              <ul>
+
+                <li>
+                  사진·PDF를 붙이면
+                  읽고 분석해 드립니다.
+                </li>
+
+                <li>
+                  위쪽에서
+                  <b>GPT / Gemini</b>
+                  를 선택할 수 있습니다.
+                </li>
+
+                <li>
+                  <b>자동</b>으로 두면
+                  질문 성격에 맞는 모델을
+                  Worker 목록에서 자동 선택합니다.
+                </li>
+
+              </ul>
+            `
+
+            : `
+              <p
+                style="
+                  color:
+                    var(--ink-2,#8894a5)
+                "
+              >
+                ${esc(
+                  MODEL_ERROR ||
+                  "Worker에서 모델 목록을 불러오는 중입니다."
+                )}
+              </p>
+            `
+        }
+
         ${ctxLine}
 
-        <ul>
-
-          <li>
-            사진·PDF를 붙이면
-            읽고 분석해 드립니다.
-          </li>
-
-          <li>
-            위쪽에서
-            <b>GPT / Gemini</b>
-            를 선택할 수 있습니다.
-          </li>
-
-          <li>
-            <b>자동</b>으로 두면
-            질문 성격에 따라
-            모델을 자동 선택합니다.
-          </li>
-
-        </ul>
       `
 
     );
@@ -3193,7 +3578,9 @@ function redraw() {
         .map(
           f =>
             `
-              <span class="aic-fileTag">
+              <span
+                class="aic-fileTag"
+              >
                 📄 ${esc(f.name)}
               </span>
             `
@@ -3254,7 +3641,7 @@ function redraw() {
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   9. Context
+   11. Context
    ═══════════════════════════════════════════════════════════════════════ */
 
 function currentContext() {
@@ -3342,7 +3729,7 @@ function buildSystem() {
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   10. 서버 전송 형식
+   12. Wire
    ═══════════════════════════════════════════════════════════════════════ */
 
 function toWire(
@@ -3428,16 +3815,26 @@ function toWire(
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   11. 보내기
+   13. 보내기
+
+   ★ 여기서 대화가 사라지던 문제 해결
+
+   기존:
+      state.msgs.push()
+      redraw()
+      state.busy = true
+
+   수정:
+      state.busy = true
+      state.msgs.push()
+      직접 DOM 추가
+      스트리밍 중 redraw 금지
    ═══════════════════════════════════════════════════════════════════════ */
 
 async function send(
   preset
 ) {
 
-  /*
-    중복 전송 방지
-  */
   if (
     state.busy
   ) {
@@ -3477,6 +3874,7 @@ async function send(
       "config.js에 AI_WORKER_URL이 없습니다."
     );
 
+
     return;
 
   }
@@ -3503,12 +3901,40 @@ async function send(
 
 
   /*
-    ★★★★★ 핵심
+    ★ 모델 목록이 준비되어 있어야 한다.
+  */
+  if (
+    !MODELS_READY
+  ) {
 
-    redraw()보다 먼저 busy=true.
+    /*
+      혹시 페이지 시작 직후라면
+      여기서 한 번 더 시도한다.
+    */
+    await loadCatalog();
 
-    이 상태에서는 refreshGate/redraw가
-    현재 대화 DOM을 건드리지 않는다.
+
+    if (
+      !MODELS_READY
+    ) {
+
+      showErr(
+        MODEL_ERROR ||
+        "사용 가능한 AI 모델 목록을 불러오지 못했습니다."
+      );
+
+
+      return;
+
+    }
+
+  }
+
+
+  /*
+    ★★★★★★ 핵심 ★★★★★★
+
+    반드시 redraw보다 먼저 busy=true
   */
   state.busy =
     true;
@@ -3520,8 +3946,30 @@ async function send(
     );
 
 
+  if (
+    !pick ||
+    !pick.model
+  ) {
+
+    state.busy =
+      false;
+
+
+    showErr(
+      "선택할 수 있는 AI 모델이 없습니다."
+    );
+
+
+    renderHint();
+
+
+    return;
+
+  }
+
+
   /*
-    첨부파일을 현재 메시지에 고정
+    현재 첨부파일을 메시지에 고정
   */
   const sentFiles =
     files.map(
@@ -3532,7 +3980,7 @@ async function send(
 
 
   /*
-    ★ 사용자 질문을 먼저 저장
+    ★ 사용자 질문을 먼저 state에 저장
   */
   state.msgs.push({
 
@@ -3549,7 +3997,7 @@ async function send(
 
 
   /*
-    입력창/대기 첨부 비우기
+    입력창 초기화
   */
   state.files =
     [];
@@ -3567,11 +4015,9 @@ async function send(
 
 
   /*
-    ★ 전체 redraw하지 않는다.
-
-    사용자 말풍선을 직접 추가한다.
+    ★★★ redraw하지 않는다.
+    직접 사용자 말풍선을 만든다.
   */
-
   const userBubble =
     bubble(
       "user",
@@ -3608,7 +4054,9 @@ async function send(
       .map(
         f =>
           `
-            <span class="aic-fileTag">
+            <span
+              class="aic-fileTag"
+            >
               📄 ${esc(f.name)}
             </span>
           `
@@ -3645,26 +4093,25 @@ async function send(
   }
 
 
+  /*
+    AI 응답 자리
+  */
   const meta =
     `${
       pick.provider ===
         "openai"
         ? "GPT"
         : "Gemini"
-    } · ${
-      pick.model ||
-      "Worker 모델"
-    }`;
+    } · ${pick.model}`;
 
 
-  /*
-    AI 답변 말풍선
-  */
   const bub =
     bubble(
       "assistant",
       `
-        <span class="aic-dots"></span>
+        <span
+          class="aic-dots"
+        ></span>
       `,
       meta
     );
@@ -3694,8 +4141,10 @@ async function send(
 
     const res =
       await fetch(
+
         BASE +
         "/ai/chat",
+
         {
 
           method:
@@ -3750,6 +4199,7 @@ async function send(
             })
 
         }
+
       );
 
 
@@ -3773,12 +4223,20 @@ async function send(
 
 
       if (
-        res.status === 401 ||
-        res.status === 403
+        res.status ===
+          401 ||
+        res.status ===
+          403
       ) {
 
-        bub.parentElement
-          .remove();
+        if (
+          bub.parentElement
+        ) {
+
+          bub.parentElement
+            .remove();
+
+        }
 
 
         /*
@@ -3787,9 +4245,6 @@ async function send(
         state.msgs.pop();
 
 
-        /*
-          먼저 busy 해제
-        */
         state.busy =
           false;
 
@@ -3816,7 +4271,7 @@ async function send(
     ) {
 
       throw new Error(
-        "스트리밍 응답을 받을 수 없습니다."
+        "서버에서 스트리밍 응답을 받을 수 없습니다."
       );
 
     }
@@ -3957,8 +4412,8 @@ async function send(
 
 
             /*
-              ★ 스트리밍 중에는
-              redraw() 절대 호출하지 않는다.
+              ★ 스트리밍 중
+              redraw 금지
             */
             bub.innerHTML =
               md(
@@ -3998,7 +4453,7 @@ async function send(
 
 
     /*
-      AI 답변 저장
+      AI 답변 state 저장
     */
     state.msgs.push({
 
@@ -4013,6 +4468,9 @@ async function send(
     });
 
 
+    /*
+      저장
+    */
     await persist(
       pick
     );
@@ -4029,7 +4487,9 @@ async function send(
     ) {
 
       bub.innerHTML =
-        md(acc) +
+        md(
+          acc
+        ) +
         `
           <p
             style="
@@ -4068,11 +4528,14 @@ async function send(
 
     } else {
 
-      /*
-        AI 말풍선 제거
-      */
-      bub.parentElement
-        .remove();
+      if (
+        bub.parentElement
+      ) {
+
+        bub.parentElement
+          .remove();
+
+      }
 
 
       showErr(
@@ -4111,9 +4574,9 @@ async function send(
 
 
     /*
-      ★ 여기서 redraw() 하지 않는다.
-
-      이미 현재 DOM이 정상적으로 유지되고 있다.
+      ★★★
+      여기서 redraw() 하지 않는다.
+      현재 DOM을 그대로 유지한다.
     */
 
   }
@@ -4135,7 +4598,7 @@ function stop() {
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   12. 대화 저장
+   14. 기록 저장
    ═══════════════════════════════════════════════════════════════════════ */
 
 async function persist(
@@ -4157,7 +4620,7 @@ async function persist(
 
 
   /*
-    브라우저에도 항상 저장
+    LocalStorage
   */
   try {
 
@@ -4259,9 +4722,6 @@ async function persist(
       }
 
 
-      /*
-        지금까지 전체 대화 저장
-      */
       await sb
         .from(
           "ai_messages"
@@ -4283,9 +4743,7 @@ async function persist(
 
 
     /*
-      기존 대화:
-
-      마지막 질문 + 답변만 저장
+      이어지는 대화
     */
     await sb
       .from(
@@ -4372,7 +4830,7 @@ function rowOf(
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   13. 히스토리
+   15. 히스토리
    ═══════════════════════════════════════════════════════════════════════ */
 
 async function showHistory() {
@@ -4414,9 +4872,6 @@ async function showHistory() {
   );
 
 
-  /*
-    Supabase 없음
-  */
   if (!sb) {
 
     let last =
@@ -4452,7 +4907,9 @@ async function showHistory() {
 
             <p>
               <b>
-                ${esc(last.title)}
+                ${esc(
+                  last.title
+                )}
               </b>
             </p>
           `
@@ -4509,7 +4966,7 @@ async function showHistory() {
     showErr(
       "기록을 못 읽었습니다: " +
       error.message +
-      " — 01-ai-chat.sql을 한 번 돌려 주세요."
+      " — 01-ai-chat.sql을 확인해 주세요."
     );
 
 
@@ -4544,52 +5001,54 @@ async function showHistory() {
 
 
   list.innerHTML =
-    data.map(
-      t =>
-        `
-          <button
-            class="aic-chip"
-            data-t="${t.id}"
-            style="
-              text-align:left;
-              border-radius:10px;
-              padding:9px 12px;
-              white-space:normal
-            "
-          >
-
-            <div
+    data
+      .map(
+        t =>
+          `
+            <button
+              class="aic-chip"
+              data-t="${t.id}"
               style="
-                font-weight:700
+                text-align:left;
+                border-radius:10px;
+                padding:9px 12px;
+                white-space:normal
               "
             >
-              ${
-                esc(
-                  t.title ||
-                  "제목 없음"
-                )
-              }
-            </div>
 
-            <div
-              style="
-                opacity:.65;
-                font-size:11px;
-                margin-top:2px
-              "
-            >
-              ${
-                new Date(
-                  t.updated_at
-                ).toLocaleString(
-                  "ko-KR"
-                )
-              }
-            </div>
+              <div
+                style="
+                  font-weight:700
+                "
+              >
+                ${
+                  esc(
+                    t.title ||
+                    "제목 없음"
+                  )
+                }
+              </div>
 
-          </button>
-        `
-    ).join("");
+              <div
+                style="
+                  opacity:.65;
+                  font-size:11px;
+                  margin-top:2px
+                "
+              >
+                ${
+                  new Date(
+                    t.updated_at
+                  ).toLocaleString(
+                    "ko-KR"
+                  )
+                }
+              </div>
+
+            </button>
+          `
+      )
+      .join("");
 
 
   el.log.appendChild(
@@ -4729,7 +5188,7 @@ function newThread() {
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   14. 로그인 화면
+   16. 로그인 화면
    ═══════════════════════════════════════════════════════════════════════ */
 
 function drawLock(
@@ -4791,7 +5250,9 @@ function drawLock(
   );
 
 
-  if (msg) {
+  if (
+    msg
+  ) {
 
     box.querySelector(
       "#aicErr"
@@ -4836,6 +5297,7 @@ function drawLock(
 
         await refreshGate();
 
+
       } catch (e) {
 
         err.textContent =
@@ -4879,21 +5341,14 @@ function drawLock(
           preventScroll:
             true
         }),
-
     60
-
   );
 
 }
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   15. Gate
-
-   ★ 중요
-
-   refreshGate가 실행되더라도 AI가 생성 중이면
-   현재 대화를 다시 그리지 않는다.
+   17. Gate
    ═══════════════════════════════════════════════════════════════════════ */
 
 async function refreshGate(
@@ -4946,7 +5401,7 @@ async function refreshGate(
   who.textContent =
     ok
       ? (
-          USER.email ||
+          USER?.email ||
           ""
         )
       : "";
@@ -4963,7 +5418,7 @@ async function refreshGate(
   if (!ok) {
 
     /*
-      AI 답변 스트리밍 중에는
+      AI 답변 중이면 기존 대화를
       로그인 화면으로 덮지 않는다.
     */
     if (
@@ -4983,7 +5438,7 @@ async function refreshGate(
 
 
   /*
-    ★ AI 생성 중에는 전체 redraw 금지
+    AI 생성 중에는 redraw 금지
   */
   if (
     !state.busy
@@ -5013,9 +5468,7 @@ async function refreshGate(
         }
 
       },
-
       60
-
     );
 
 
@@ -5026,13 +5479,25 @@ async function refreshGate(
   }
 
 
+  /*
+    모델 목록은 별도로 로드한다.
+  */
+  if (
+    !MODELS_READY
+  ) {
+
+    loadCatalog();
+
+  }
+
+
   return true;
 
 }
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   16. 열기 / 닫기
+   18. 열기 / 닫기
    ═══════════════════════════════════════════════════════════════════════ */
 
 function open() {
@@ -5047,10 +5512,8 @@ function open() {
 
 
   /*
-    await하지 않는다.
-
-    사용자가 바로 입력해도
-    send()에서 세션을 다시 확인한다.
+    로그인 확인
+    + 모델 목록 확인
   */
   refreshGate();
 
@@ -5060,7 +5523,7 @@ function open() {
 function close() {
 
   /*
-    닫는다고 대화 삭제하지 않는다.
+    닫는다고 대화 삭제하지 않음
   */
   el.wrap.classList.remove(
     "on"
@@ -5074,7 +5537,7 @@ function close() {
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   17. 외부 API
+   19. 외부 API
    ═══════════════════════════════════════════════════════════════════════ */
 
 const AIChat = {
@@ -5087,7 +5550,9 @@ const AIChat = {
     newThread,
 
 
-  ask(text) {
+  ask(
+    text
+  ) {
 
     open();
 
@@ -5097,15 +5562,15 @@ const AIChat = {
         send(
           text
         ),
-
       100
-
     );
 
   },
 
 
-  fill(text) {
+  fill(
+    text
+  ) {
 
     open();
 
@@ -5127,15 +5592,15 @@ const AIChat = {
         el.ta.focus();
 
       },
-
       100
-
     );
 
   },
 
 
-  setContext(ctx) {
+  setContext(
+    ctx
+  ) {
 
     state.ctx =
       ctx ||
@@ -5169,14 +5634,51 @@ const AIChat = {
 
     return currentContext();
 
+  },
+
+  
+  /*
+    현재 모델 목록 확인용
+  */
+  get models() {
+
+    return {
+
+      ready:
+        MODELS_READY,
+
+      catalog:
+        CATALOG,
+
+      defaults:
+        DEFAULTS,
+
+      error:
+        MODEL_ERROR
+
+    };
+
   }
 
 };
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   18. 초기화
+   20. 초기화
    ═══════════════════════════════════════════════════════════════════════ */
+
+function init() {
+
+  build();
+
+  /*
+    UI가 먼저 뜨고
+    모델 목록은 Worker에서 가져온다.
+  */
+  loadCatalog();
+
+}
+
 
 if (
   document.readyState ===
@@ -5185,21 +5687,12 @@ if (
 
   document.addEventListener(
     "DOMContentLoaded",
-    () => {
-
-      build();
-
-      loadCatalog();
-
-    }
+    init
   );
-
 
 } else {
 
-  build();
-
-  loadCatalog();
+  init();
 
 }
 
