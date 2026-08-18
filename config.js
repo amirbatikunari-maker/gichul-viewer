@@ -28,8 +28,8 @@ window.APP_CONFIG = {
 
      AI_APP_NAME — 대화 기록을 앱별로 나눠 담는 이름표.
      ───────────────────────────────────────────── */
-  AI_WORKER_URL: "",     // ← 여기에 Worker 주소를 넣으세요
-  AI_APP_KEY:    "",
+  AI_WORKER_URL: "https://sniper-ai.amirbatikunari.workers.dev",     // ← 여기에 Worker 주소를 넣으세요
+  ADMIN_EMAILS:  ["amirbatikunari@gmail.com"],
   AI_APP_NAME:   "viewer",
 
   /* AI 를 쓸 수 있는 계정. AI 는 물어볼 때마다 요금이 붙으므로
