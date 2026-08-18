@@ -29,8 +29,8 @@ window.APP_CONFIG = {
 
      AI_APP_NAME — 대화 기록을 앱별로 나눠 담는 이름표.
      ───────────────────────────────────────────── */
-  AI_WORKER_URL: "https://gichul-viewer.pages.dev",     // ← 여기에 Worker 주소를 넣으세요
-  AI_APP_KEY: "1234",
+AI_WORKER_URL: "https://sniper-ai.amirbatikunari.workers.dev", 
+AI_APP_KEY: "1234",
   ADMIN_EMAILS:  ["amirbatikunari@gmail.com"],
   AI_APP_NAME:   "viewer",
 
