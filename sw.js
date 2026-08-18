@@ -2,8 +2,8 @@
    ★ HTML 페이지(index/upload/ingest 등)는 네트워크를 먼저 시도한다.
      예전 버전은 "일단 캐시된 걸 보여주고 끝"이라 새 배포가 반영 안 됐다.
      지금은 "새 버전을 먼저 받아보고, 인터넷이 끊겼을 때만 캐시로 대신한다". */
-const SHELL = "shell-v64", DATA = "data-v1";
-const FILES = ["./","./index.html","./config.js","./manifest.json","./icon.svg"];
+const SHELL = "shell-v66", DATA = "data-v1";
+const FILES = ["./","./index.html","./config.js","./ai-chat.js","./ai-viewer.js","./music.js","./manifest.json","./icon.svg"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(SHELL).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
