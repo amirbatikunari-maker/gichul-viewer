@@ -10,6 +10,7 @@ window.APP_CONFIG = {
   SUPABASE_URL: "https://nfyyctinvlytykucbgzk.supabase.co",
   SUPABASE_ANON_KEY: "sb_publishable_tRyg8GTus9I2_wt-VSmaRA_6gbU-lt5",
   APP_TITLE: "기출 해설 노트",
+  CONFIG_VERSION: "v88",
 
   WORKER_URL:        "https://sniper-backend.amirbatikunari.workers.dev",
   WORKER_BACKUP_URL: "https://sniper-render.onrender.com",
@@ -30,7 +31,8 @@ window.APP_CONFIG = {
      AI_APP_NAME — 대화 기록을 앱별로 나눠 담는 이름표.
      ───────────────────────────────────────────── */
 AI_WORKER_URL: "https://sniper-ai.amirbatikunari.workers.dev",
-AI_APP_KEY: "1234",
+/* APP_KEY는 공개 소스에 넣지 않습니다. Worker 시크릿으로만 관리하세요. */
+AI_APP_KEY: "",
   ADMIN_EMAILS:  ["amirbatikunari@gmail.com"],
   AI_APP_NAME:   "viewer",
 
@@ -41,3 +43,33 @@ AI_APP_KEY: "1234",
      비워 두면 «로그인한 사람이면 누구나» 가 됩니다. */
   AI_ALLOWED_EMAILS: ["amirbatikunari@gmail.com"],
 };
+
+/* 오프라인/외부 CDN 차단 대비: supabase-js가 늦거나 내려가도 화면 자체는 살아 있게 둡니다.
+   실제 Supabase 라이브러리가 로드되면 이 대체 객체는 만들지 않습니다. */
+(function ensureSupabaseFallback(){
+  if (window.supabase || !window.APP_CONFIG?.SUPABASE_URL) return;
+  const offlineError = { message:'Supabase 라이브러리를 사용할 수 없습니다. 오프라인 상태에서는 화면과 로컬 기능만 사용할 수 있습니다.', code:'SUPABASE_OFFLINE' };
+  const query = () => {
+    const q = {
+      select(){return q}, insert(){return q}, update(){return q}, upsert(){return q}, delete(){return q}, eq(){return q}, neq(){return q}, in(){return q}, or(){return q}, and(){return q}, ilike(){return q}, order(){return q}, limit(){return q}, range(){return q}, single(){return Promise.resolve({data:null,error:offlineError})}, maybeSingle(){return Promise.resolve({data:null,error:offlineError})},
+      then(resolve,reject){ return Promise.resolve({data:null,error:offlineError}).then(resolve,reject) }, catch(reject){ return Promise.resolve({data:null,error:offlineError}).catch(reject) }
+    };
+    return q;
+  };
+  window.supabase = {
+    createClient(){
+      return {
+        auth:{
+          async getSession(){return {data:{session:null},error:offlineError}},
+          async getUser(){return {data:{user:null},error:offlineError}},
+          async signInWithPassword(){return {data:null,error:offlineError}},
+          async signUp(){return {data:null,error:offlineError}},
+          async signOut(){return {error:offlineError}},
+          onAuthStateChange(){return {data:{subscription:{unsubscribe(){}}}}}
+        },
+        from(){return query()},
+        storage:{from(){return {upload:async()=>({data:null,error:offlineError}),download:async()=>({data:null,error:offlineError}),remove:async()=>({data:null,error:offlineError}),list:async()=>({data:[],error:offlineError})}}}
+      };
+    }
+  };
+})();

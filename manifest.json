@@ -3,8 +3,8 @@
   "short_name": "해설노트",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#E9ECE6",
-  "theme_color": "#E9ECE6",
+  "background_color": "#f8fafc",
+  "theme_color": "#1d4ed8",
   "orientation": "portrait",
   "icons": [
     { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }

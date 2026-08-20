@@ -1,3 +1,6 @@
+function resolveTier(value){ const v=String(value||'').trim(); const map={fast:'빠름',balanced:'균형',medium:'균형',high:'최고급',quality:'최고급',pro:'최고급','빠름':'빠름','균형':'균형','최고급':'최고급'}; return map[v]||v||'균형'; }
+
+/* canonical shared AI source — edit shared/ai-chat.js, then run tools/sync-shared.sh */
 /* ═══════════════════════════════════════════════════════════════════════
 
    ai-chat.js — 뷰어와 블로그가 함께 쓰는 AI 대화 상자
@@ -508,7 +511,14 @@ function normalizeCatalog(
                 String(
                   m.label ||
                   m.id
-                )
+                ),
+
+              tier:
+                m.tier
+                  ? String(
+                      m.tier
+                    )
+                  : null
             })
           )
 
@@ -535,7 +545,14 @@ function normalizeCatalog(
                 String(
                   m.label ||
                   m.id
-                )
+                ),
+
+              tier:
+                m.tier
+                  ? String(
+                      m.tier
+                    )
+                  : null
             })
           )
 
@@ -795,6 +812,7 @@ function pickFrom(
   const exact =
     list.find(
       m =>
+        m.tier === tier ||
         (
           m.label ||
           ""
@@ -838,6 +856,50 @@ function pickFrom(
   return (
     list[0]?.id ||
     null
+  );
+
+}
+
+
+function modelLabel(
+  provider,
+  model,
+  tier
+) {
+
+  const list =
+    Array.isArray(
+      CATALOG[provider]
+    )
+
+      ? CATALOG[provider]
+
+      : [];
+
+
+  const found =
+    list.find(
+      m =>
+        m.id === model &&
+        (
+          m.tier === tier ||
+          (
+            m.label ||
+            ""
+          ).includes(
+            tier
+          )
+        )
+    ) ||
+    list.find(
+      m =>
+        m.id === model
+    );
+
+
+  return (
+    found?.label ||
+    model
   );
 
 }
@@ -2217,13 +2279,25 @@ function renderHint() {
   }
 
 
+  state.model =
+    p.model;
+
+
+  const current =
+    modelLabel(
+      p.provider,
+      p.model,
+      p.tier
+    );
+
+
   el.hint.textContent =
     state.mode ===
       "auto"
 
-      ? `자동 — ${p.model}`
+      ? `자동 — ${current}`
 
-      : p.model;
+      : current;
 
 }
 
@@ -4184,6 +4258,9 @@ async function send(
 
               model:
                 pick.model,
+
+              tier:
+                pick.tier,
 
               system:
                 buildSystem(),

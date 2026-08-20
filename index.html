@@ -1097,12 +1097,13 @@ mark.st{
 .nav3 a.on::before,.nav3 a.on + a::before{background:transparent}
 .nav3 a:not(.on):hover{color:var(--paper)}
 </style>
+<link rel="stylesheet" href="./app-enhance.css?v=86">
 </head>
 <body>
 <nav class="nav3">
   <a href="./index.html" class="on">필기뷰어</a>
   <a href="./practice.html">실기뷰어</a>
-  <a href="./upload.html">기계</a>
+  <a href="./calc.html">계산기</a><a href="./upload.html">기계</a>
   <a href="./ingest.html">자동 변환</a>
   <a href="./interview.html">면접</a>
   <a href="./portfolio.html">포트폴리오</a>
@@ -5100,7 +5101,7 @@ route();
 
 /* 홈 화면 설치 + 오프라인 */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=59").catch(()=>{}));
+  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=86").catch(()=>{}));
 </script>
 <script>
 /* ══════════════════════════════════════════════════════════════
@@ -5463,5 +5464,6 @@ if("serviceWorker" in navigator && location.protocol.startsWith("http"))
 <script src="./ai-chat.js" defer></script>
 <script src="./ai-viewer.js" defer></script>
 <script src="./music.js" defer></script>
+<script src="./app-enhance.js?v=86" defer></script>
 </body>
 </html>

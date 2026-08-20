@@ -359,12 +359,13 @@ button:disabled{opacity:.45;cursor:not-allowed}
 #flash.err{background:var(--stamp)}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
+<link rel="stylesheet" href="./app-enhance.css?v=86">
 </head>
-<body>
+<body data-data-domain="interview">
 <nav class="nav3">
   <a href="./index.html">필기뷰어</a>
   <a href="./practice.html">실기뷰어</a>
-  <a href="./upload.html">기계</a>
+  <a href="./calc.html">계산기</a><a href="./upload.html">기계</a>
   <a href="./ingest.html">자동 변환</a>
   <a href="./interview.html" class="on">면접</a>
   <a href="./portfolio.html">포트폴리오</a>
@@ -2873,5 +2874,7 @@ boot().then(() => { AUTH_READY = true; }).catch(e => {
 <script src="./ai-chat.js" defer></script>
 <script src="./ai-viewer.js" defer></script>
 <script src="./music.js" defer></script>
+<!-- DATA ISOLATION CONTRACT: interview data uses iv-/iv: namespace only. Never import practice/written mistakes. -->
+<script src="./app-enhance.js?v=86" defer></script>
 </body>
 </html>
