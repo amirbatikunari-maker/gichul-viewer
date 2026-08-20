@@ -719,7 +719,7 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
 @media(max-width:560px){.studyhud{grid-template-columns:1fr 1fr;gap:6px;padding:8px}.study-title{font-size:13px}.study-actions button{flex:1;padding:0 6px}.quickbar{top:48px;padding:6px;gap:5px}.quickbar button{height:30px;padding:0 8px;font-size:10.5px}.filters-shell .filter-top{margin-bottom:6px}.study-stat b{font-size:14px}}
 
 </style>
-<link rel="stylesheet" href="./app-enhance.css?v=86">
+<link rel="stylesheet" href="./app-enhance.css?v=89">
 </head>
 <body data-data-domain="study">
 <nav class="nav3">
@@ -4144,7 +4144,7 @@ sb?.auth?.onAuthStateChange?.(() => setTimeout(() => gate().then(on => on && boo
 <!-- ══ AI 대화 상자 ══ config.js 의 AI_WORKER_URL 을 채워야 작동합니다 -->
 <script src="./ai-chat.js" defer></script>
 <script src="./ai-viewer.js" defer></script>
-\n<script>
+<script>
 (function(){
   'use strict';
   const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -4166,7 +4166,7 @@ sb?.auth?.onAuthStateChange?.(() => setTimeout(() => gate().then(on => on && boo
     const qbar=document.createElement('div');qbar.className='quickbar';qbar.innerHTML=`<button id="qAll">전체</button><button id="qUnseen">미학습</button><button id="qFav">★ 북마크</button><button id="qRandom">🎲 랜덤 10</button><span class="qsep"></span><button id="qHelp">단축키</button><span class="qhint"><span class="kbd">←</span><span class="kbd">→</span> 이동 · <span class="kbd">Space</span> 답안 · <span class="kbd">F</span> 검색</span>`;
     hud.after(qbar);
     const shell=document.createElement('div'); shell.className='filters-shell';
-    const original=[]; while(filters.firstChild) original.push(filters.firstChild); filters.remove();
+    const original=[]; while(filters.firstChild) original.push(filters.removeChild(filters.firstChild)); filters.remove();
     shell.innerHTML=`<div class="filter-top"><b>문제 찾기</b><span id="filterSummary">전체 문제</span><button class="filter-reset" id="filterReset">필터 초기화</button></div>`;
     const body=document.createElement('div');body.className='filters';original.forEach(x=>body.appendChild(x)); shell.appendChild(body);
     const inp=$('#fQ',body); if(inp){const clr=document.createElement('button');clr.className='filter-clear';clr.id='filterClear';clr.type='button';clr.textContent='×';inp.after(clr);}
@@ -4351,6 +4351,483 @@ body.exam-mode .pcard{box-shadow:0 0 0 2px rgba(29,78,216,.08),var(--shadow)}
 
 <script src="./music.js" defer></script>
 <!-- DATA ISOLATION CONTRACT: practice/written mistakes stay in study domain; never write into iv-/iv: interview data. -->
-<script src="./app-enhance.js?v=86" defer></script>
+<script src="./app-enhance.js?v=89" defer></script>
+
+<!-- ══════════════════════════════════════════════════════════════
+     v89 · 상단 도구 3칸 재배치 · 문항 레일 · 진도율
+     ──────────────────────────────────────────────────────────────
+     · 위에 쌓여 있던 띠 넷(진행 · 빠른단추 · 세션 · 필터)을 좌우로 넓게
+       세 칸에 나눠 담는다. 세로로 쌓지 않는다.
+     · 겹쳐 붙어 있던 sticky 띠들이 폰에서 문항 단추 위를 덮어
+       «눌러도 안 먹는» 원인이었다 — 붙는 것은 문항 레일 하나만 남긴다.
+     · 문항 레일에 반투명 좌우 단추와 손끌기를 붙이고,
+       «한눈에(그림)» 화면 안에도 같은 레일을 넣는다.
+     · 진도율은 «봤다» 가 아니라 «✓/✕ 로 체크한 것» 만 센다. 푼 횟수도 센다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* ── 좌우로 넓게 ── */
+@media(min-width:1180px){ .wrap{max-width:1400px!important} body.oneup .wrap{max-width:1400px!important} }
+@media(min-width:1560px){ .wrap{max-width:1520px!important} body.oneup .wrap{max-width:1520px!important} }
+
+/* ── 겹쳐 붙던 띠들을 떼어 낸다 (폰에서 레일 클릭을 먹던 원인) ── */
+.quickbar,.sessionbar{position:static!important;top:auto!important;z-index:auto!important}
+.studyhud,.quickbar,.sessionbar,.filters-shell,.cvbar{display:none!important}
+#deckAttic{display:none!important}
+
+/* ── 3칸 도구 ── */
+.deck{display:grid;gap:10px;margin:0 0 12px;align-items:start;
+  grid-template-columns:minmax(230px,.9fr) minmax(290px,1.2fr) minmax(300px,1.3fr)}
+.dcol{min-width:0;border:1px solid var(--line,#e2e8f0);border-radius:14px;
+  background:var(--surface,#fff);padding:10px 11px 11px;box-shadow:0 3px 14px rgba(23,32,51,.035)}
+.dhead{display:flex;align-items:center;gap:6px;margin:0 0 8px}
+.dhead b{font:800 11.5px/1 var(--font-d);color:var(--ink);letter-spacing:-.01em}
+.dhead small{font:600 10px/1 var(--font-m);color:var(--muted)}
+.dhead .sp{flex:1}
+.drow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.drow+.drow{margin-top:7px}
+.dsep{width:100%;height:1px;background:var(--line,#e8edf4);margin:2px 0}
+.dcol .filters{margin:0!important;display:flex;flex-wrap:wrap;gap:6px}
+.dcol select,.dcol input{height:36px!important;width:auto!important;min-width:0!important;
+  padding:0 10px!important;border:1px solid var(--line)!important;border-radius:9px!important;
+  background:var(--surface-2,#f6f8fb)!important;color:var(--ink)!important;
+  font:600 12px/1 var(--font-d)!important}
+.dcol #fSub{flex:1 1 148px;max-width:100%}
+.dcol #fYear,.dcol #fSess{flex:0 1 116px}
+.dcol #fRandN,.dcol #fSize{flex:0 1 104px}
+.dcol #fQ{flex:1 1 155px}
+.dcol .filter-clear{flex:0 0 30px;height:36px!important}
+.dcol .chip,.dcol button{white-space:nowrap}
+.dlab{font:700 9.5px/1 var(--font-m);color:var(--muted);letter-spacing:.1em;
+  text-transform:uppercase;width:100%;margin:2px 0 -1px}
+
+/* 진도 칸 */
+.dp-top{display:flex;align-items:baseline;gap:7px}
+.dp-pct{font:800 26px/1 var(--font-d);color:var(--ink);letter-spacing:-.02em}
+.dp-of{font:600 11px/1 var(--font-m);color:var(--muted)}
+.dp-bar{display:flex;height:8px;border-radius:999px;overflow:hidden;background:#eef1f6;margin:9px 0 8px}
+.dp-bar i{display:block;height:100%;transition:width .25s ease}
+.dp-bar i.ok{background:linear-gradient(90deg,#2563eb,#3b82f6)}
+.dp-bar i.no{background:#f0a3ab}
+.dp-nums{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;text-align:center}
+.dp-nums div{padding:6px 2px;border:1px solid var(--line,#eef1f6);border-radius:9px;background:#fbfcfe}
+.dp-nums b{display:block;font:800 14px/1 var(--font-d);color:var(--ink)}
+.dp-nums span{display:block;margin-top:3px;font:600 9.5px/1 var(--font-m);color:var(--muted)}
+.dp-act{display:flex;gap:6px;margin-top:8px}
+.dp-act button{flex:1;height:32px;border:1px solid var(--line);border-radius:9px;background:var(--surface-2,#f6f8fb);
+  color:var(--ink);font:700 11px/1 var(--font-d);cursor:pointer}
+.dp-act button.go{background:var(--ink,#111827);border-color:var(--ink,#111827);color:#fff}
+.dp-act button.mini{flex:0 0 36px}
+.dp-note{margin-top:7px;font:600 10px/1.4 var(--font-m);color:var(--muted)}
+
+/* 작은 메뉴(과목 관리 · 변환 도구 · 기타) */
+.dmenu{position:relative}
+.dmenu>.chip.dm-t{padding-inline:9px}
+.dmenu-pop{display:none;position:absolute;z-index:60;top:calc(100% + 5px);left:0;min-width:172px;
+  padding:6px;border:1px solid var(--line);border-radius:11px;background:var(--surface,#fff);
+  box-shadow:0 14px 40px rgba(15,23,42,.16)}
+.dmenu.open .dmenu-pop{display:block}
+.dmenu-pop .dmenu-lab{font:700 9.5px/1 var(--font-m);color:var(--muted);letter-spacing:.1em;padding:5px 7px 6px}
+.dmenu-pop button,.dmenu-pop .chip{display:block!important;width:100%;text-align:left!important;
+  margin:0 0 3px;height:auto!important;min-height:30px;border-radius:8px}
+.dmenu-pop .dmenu-row{display:flex;gap:4px;margin-bottom:3px}
+.dmenu-pop .dmenu-row .chip{margin:0}
+
+/* ── 문항 레일 : 반투명 좌우 단추 · 손끌기 ── */
+.railwrap{display:none;position:sticky;top:var(--railtop,0px);z-index:40;margin:0 0 6px;padding:5px 0 7px;
+  background:linear-gradient(var(--bg,#f8fafc) 74%,transparent)}
+body.oneup .railwrap{display:block}
+.railwrap .prail{display:flex!important;position:static!important;top:auto!important;
+  margin:0!important;padding:2px 36px!important;background:none!important;
+  scroll-behavior:smooth;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;
+  touch-action:pan-x;cursor:grab}
+.railwrap .prail.drag{cursor:grabbing;scroll-behavior:auto}
+.railwrap .prail.drag .pb{pointer-events:none}
+.railar{position:absolute;top:50%;transform:translateY(-50%);width:30px;height:36px;z-index:3;
+  display:grid;place-items:center;border:1px solid rgba(148,163,184,.35);border-radius:11px;
+  background:color-mix(in srgb,var(--surface,#fff) 72%,transparent);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  color:var(--ink,#0f172a);font:700 16px/1 var(--font-d);cursor:pointer;
+  box-shadow:0 4px 14px rgba(15,23,42,.10);transition:opacity .18s,background .18s}
+.railar:active{background:var(--surface,#fff)}
+.railar.l{left:0}.railar.r{right:0}
+.railar.off{opacity:0;pointer-events:none}
+.railwrap .pb{position:relative}
+.railwrap .pb.done{border-color:#93b4f7;background:#eef4ff;color:#1d4ed8}
+.railwrap .pb.done.now{background:var(--ink);border-color:var(--ink);color:#fff}
+.railwrap .pb.wrong{border-color:#f0a3ab}
+
+/* «한눈에» 판이 이동줄 밑에 깔려서 위쪽 단추가 안 보이던 것을 고친다 */
+.ovl{z-index:2000!important}
+body.ovlopen .nav3,body.ovlopen .app-context,body.ovlopen .app-float,
+body.ovlopen .app-network,body.ovlopen .app-mobilenav{display:none!important}
+.ovl .oh{position:sticky;top:0;z-index:5}
+
+/* 한눈에 화면 안의 레일 */
+.ovrail{position:relative;display:flex;align-items:center;border-bottom:1px solid var(--rule,#e5e7eb);
+  padding:4px 0;background:var(--paper,#fff);flex:none}
+.ovrail .ovr-s{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;padding:3px 36px;
+  width:100%;scroll-behavior:smooth;-webkit-overflow-scrolling:touch}
+.ovrail .ovr-s::-webkit-scrollbar{display:none}
+.ovrail .pb{flex:none;min-width:58px;height:32px;padding:0 9px;border-radius:9px;
+  border:1px solid var(--rule,#e5e7eb);background:var(--paper,#fff);color:var(--ink-2,#64748b);
+  font:700 11px/1 var(--font-m);cursor:pointer;display:grid;place-items:center;white-space:nowrap}
+.ovrail .pb.now{background:var(--ink,#111827);border-color:var(--ink,#111827);color:#fff}
+.ovrail .pb.done{border-color:#93b4f7;background:#eef4ff;color:#1d4ed8}
+.ovrail .pb.done.now{background:var(--ink,#111827);border-color:var(--ink,#111827);color:#fff}
+
+/* ── 카드의 «학습 체크» ── */
+.pcard .result-actions{display:flex!important;gap:5px;margin-left:auto;align-items:center}
+.pcard .result-actions button{height:29px!important;padding:0 10px!important;border-radius:8px!important;
+  font:700 11px/1 var(--font-d)!important;border:1px solid var(--line)!important;background:var(--surface-2,#f6f8fb)!important;
+  color:var(--ink)!important;cursor:pointer}
+.pcard .result-actions button:hover{border-color:#b8c1cf!important}
+.pcard[data-result="ok"] .result-actions button[data-result="ok"]{background:#1d4ed8!important;border-color:#1d4ed8!important;color:#fff!important}
+.pcard[data-result="no"] .result-actions button[data-result="no"]{background:#e0525f!important;border-color:#e0525f!important;color:#fff!important}
+.pcard .done-n{font:700 10px/1 var(--font-m);color:var(--muted);padding:0 2px;white-space:nowrap}
+.pcard.result-ok{box-shadow:inset 3px 0 0 #1d4ed8,var(--shadow)}
+.pcard.result-no{box-shadow:inset 3px 0 0 #e0525f,var(--shadow)}
+
+/* ── 폰 ── */
+@media(max-width:1024px){ .deck{grid-template-columns:1fr 1fr} .dcol-view{grid-column:1/-1} }
+@media(max-width:820px){
+  .deck{grid-template-columns:1fr;gap:8px}
+  .deck .dcol-find,.deck .dcol-view{display:none}
+  .deck.open .dcol-find,.deck.open .dcol-view{display:block}
+  .dp-pct{font-size:22px}
+  .railwrap{padding:4px 0 6px}
+  .railwrap .prail{padding:2px 40px!important;gap:6px!important}
+  .railwrap .pb{min-width:66px!important;height:40px!important;font-size:12.5px!important}
+  .railar{width:34px;height:40px;font-size:18px}
+  .ovrail .pb{min-width:64px;height:36px;font-size:12px}
+}
+</style>
+
+<script>
+(function(){
+  'use strict';
+  const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+  const rows=()=>{try{return Array.isArray(window.SHOWN)?window.SHOWN:[]}catch(e){return[]}};
+  const oneup=()=>document.body.classList.contains('oneup');
+  const START=Date.now();
+
+  /* 위에 붙어 있는 띠(이동줄·현재위치줄) 높이만큼 문항 레일을 내려 붙인다 */
+  function syncStick(){
+    let h=0;
+    ['.nav3','.app-context'].forEach(s=>{
+      const el=document.querySelector(s); if(!el)return;
+      if(getComputedStyle(el).position==='sticky' && el.offsetParent!==null) h+=el.offsetHeight;
+    });
+    document.documentElement.style.setProperty('--railtop',h+'px');
+  }
+  addEventListener('resize',syncStick); addEventListener('load',syncStick);
+
+  /* ── 진도 기록 ──────────────────────────────────────────────
+     «봤다» 로는 오르지 않는다. ✓(맞음) 또는 ✕(틀림) 을 눌러야 한 문항이 센다.
+     n 은 그 문항을 몇 번 풀었는지다. 값이 작아 저장 부담은 없다. */
+  const PKEY='prac:prog:v1';
+  let PROG=(()=>{try{return JSON.parse(localStorage.getItem(PKEY)||'{}')}catch(e){return{}}})();
+  const psave=()=>{try{localStorage.setItem(PKEY,JSON.stringify(PROG))}catch(e){}};
+  function bump(id,r){
+    if(!id)return; id=String(id);
+    const p=PROG[id]||{n:0};
+    p.n=(p.n|0)+1; p.r=r; p.at=Date.now(); PROG[id]=p; psave(); paint();
+  }
+  function clearOne(id){ id=String(id); delete PROG[id]; psave(); paint(); }
+  window.__pracProg=()=>PROG;
+
+  /* ── 3칸 도구 만들기 ── */
+  let attic;
+  function park(el){ if(el&&attic&&el.parentNode!==attic) attic.appendChild(el); }
+  function menu(label,title,items){
+    const w=document.createElement('div'); w.className='dmenu';
+    const t=document.createElement('button'); t.type='button'; t.className='chip dm-t'; t.textContent=label;
+    if(title)t.title=title;
+    const pop=document.createElement('div'); pop.className='dmenu-pop';
+    items.forEach(x=>{
+      if(typeof x==='string'){const l=document.createElement('div');l.className='dmenu-lab';l.textContent=x;pop.appendChild(l);return}
+      if(Array.isArray(x)){const r=document.createElement('div');r.className='dmenu-row';x.forEach(e=>e&&r.appendChild(e));pop.appendChild(r);return}
+      if(x) pop.appendChild(x);
+    });
+    t.onclick=e=>{e.stopPropagation();$$('.dmenu.open').forEach(m=>m!==w&&m.classList.remove('open'));w.classList.toggle('open')};
+    w.append(t,pop); return w;
+  }
+  document.addEventListener('click',e=>{ if(!e.target.closest?.('.dmenu')) $$('.dmenu.open').forEach(m=>m.classList.remove('open')); });
+
+  function build(){
+    if($('.deck')) return true;
+    const hud=$('.studyhud'), shell=$('.filters-shell'), qbar=$('.quickbar'), sbar=$('.sessionbar'), cv=$('.cvbar');
+    if(!hud||!cv) return false;
+    if((!shell||!sbar) && Date.now()-START<5000) return false;   /* 세션 띠가 늦게 붙는다 — 잠깐 기다린다 */
+
+    attic=document.createElement('div'); attic.id='deckAttic'; document.body.appendChild(attic);
+
+    const deck=document.createElement('div'); deck.className='deck';
+
+    /* ① 진행 ------------------------------------------------- */
+    const c1=document.createElement('section'); c1.className='dcol dcol-progress';
+    c1.innerHTML=`
+      <div class="dhead"><b>진행</b><small id="dpSubj"></small><span class="sp"></span>
+        <button type="button" class="chip" id="deckToggle" hidden>도구 ▾</button></div>
+      <div class="dp-top"><span class="dp-pct" id="dpPct">0%</span><span class="dp-of" id="dpOf">0 / 0 문항</span></div>
+      <div class="dp-bar"><i class="ok" id="dpBarOk" style="width:0"></i><i class="no" id="dpBarNo" style="width:0"></i></div>
+      <div class="dp-nums">
+        <div><b id="dpOk">0</b><span>맞음</span></div>
+        <div><b id="dpNo">0</b><span>틀림</span></div>
+        <div><b id="dpLeft">0</b><span>남음</span></div>
+        <div><b id="dpN">0</b><span>푼 횟수</span></div>
+      </div>
+      <div class="dp-act">
+        <button type="button" class="go" id="dpResume">▶ 이어풀기</button>
+        <button type="button" id="dpWrong">오답만</button>
+        <button type="button" class="mini" id="dpMore" title="더보기">⋯</button>
+      </div>
+      <div class="dp-note">문항 카드의 <b>맞음 / 틀림</b> 을 눌러야 진도가 오릅니다.</div>`;
+
+    /* ② 문제 찾기 -------------------------------------------- */
+    const c2=document.createElement('section'); c2.className='dcol dcol-find';
+    c2.innerHTML=`<div class="dhead"><b>문제 찾기</b><small id="dpFound"></small><span class="sp"></span></div>
+      <div class="drow" id="dFind1"></div><div class="drow" id="dFind2"></div>`;
+
+    /* ③ 보기 ------------------------------------------------- */
+    const c3=document.createElement('section'); c3.className='dcol dcol-view';
+    c3.innerHTML=`<div class="dhead"><b>보기 · 모드</b><span class="sp"></span><small id="cvSlot"></small></div>
+      <div class="drow" id="dView1"></div><div class="drow" id="dView2"></div>`;
+
+    deck.append(c1,c2,c3);
+    (hud.parentNode||$('.wrap')).insertBefore(deck,hud);
+
+    const f1=$('#dFind1',deck), f2=$('#dFind2',deck), v1=$('#dView1',deck), v2=$('#dView2',deck);
+    const put=(host,el)=>{ if(el) host.appendChild(el); };
+
+    /* 찾기 칸 채우기 */
+    put(f1,$('#fSub'));
+    put(f1,menu('⚙','과목 관리',['과목 관리',[ $('#subAdd'), $('#subRen'), $('#subDel') ]]));
+    put(f1,$('#fYear')); put(f1,$('#fSess'));
+    put(f2,$('#fQ')); put(f2,$('#filterClear'));
+    put(f2,$('#fRand')); put(f2,$('#fRandN'));
+    put(f2,$('#qUnseen')); put(f2,$('#qFav')); put(f2,$('#filterReset'));
+
+    /* 보기 칸 채우기 */
+    put(v1,$('#fOne')); put(v1,$('#fText')); put(v1,$('#fSplit')); put(v1,$('#fSize'));
+    put(v1,$('#fAns')); put(v1,$('#fEz'));
+    put(v2,$('#sessionStart')); put(v2,$('#reviewWrong')); put(v2,$('#reviewMarked'));
+    put(v2,menu('🛠 도구','글자 변환 · 자동 해설',['한꺼번에 처리',$('#cvGap'),$('#ezRun'),$('#cvStop')]));
+    put(v2,$('.bgm'));
+    put(v2,menu('⋯','그 밖에',['그 밖에',$('#qHelp'),$('#logoutBtn')]));
+    /* 변환 진행 상황은 «보기» 칸 머리에 붙여 둔다 */
+    const slot=$('#cvSlot',deck); if(slot){ if($('#cvStat'))slot.appendChild($('#cvStat')); if($('#cvProg'))c3.appendChild($('#cvProg')); }
+
+    /* «미학습» 은 이제 «아직 체크 안 한 문항» 을 뜻한다 — 예전 «본 것» 기준을 갈아 끼운다 */
+    const un=$('#qUnseen');
+    if(un){
+      const c=un.cloneNode(true); c.textContent='미체크'; c.title='아직 맞음/틀림을 누르지 않은 문항';
+      un.replaceWith(c);
+      c.addEventListener('click',()=>{
+        const rs=rows(); const left=rs.filter(r=>!PROG[String(r.id)]);
+        if(!left.length) return alert('이 조건의 문항을 모두 체크했습니다.');
+        if(oneup()){ const i=rs.findIndex(r=>!PROG[String(r.id)]); if(i>=0&&window.showAt)window.showAt(i); }
+        else $$('#list>.pcard').forEach(x=>x.hidden=!!PROG[String(x.dataset.id)]);
+      });
+    }
+
+    /* 안 쓰는 것들은 치운다 (다른 코드가 찾을 수 있으니 지우지는 않는다) */
+    ['#qAll','#qRandom','#studyReset','#studyContinue','#sessionClear'].forEach(s=>park($(s)));
+    park($('.qhint')); park($('.session-title')); park($('.session-meta'));
+
+    /* 더보기 · 이어풀기 · 오답만 */
+    $('#dpMore',deck).onclick=e=>{
+      e.stopPropagation();
+      if(!confirm('이 기기에 저장된 실기 진도(맞음/틀림·푼 횟수)를 모두 지울까요?')) return;
+      PROG={}; psave(); $('#sessionClear')?.click(); paint();
+    };
+    $('#dpMore',deck).title='진도 초기화';
+    $('#dpResume',deck).onclick=()=>{
+      const rs=rows(); const i=rs.findIndex(r=>!PROG[String(r.id)]);
+      if(i<0) return alert('이 조건의 문항을 모두 체크했습니다.');
+      if(typeof window.showAt==='function') window.showAt(i);
+      document.querySelector('#list > .pcard.show')?.scrollIntoView({block:'start',behavior:'smooth'});
+    };
+    $('#dpWrong',deck).onclick=()=>{
+      const rs=rows().filter(r=>PROG[String(r.id)]?.r==='no');
+      if(!rs.length) return alert('틀림으로 체크한 문항이 없습니다.');
+      if(oneup()){ const i=rows().findIndex(r=>String(r.id)===String(rs[0].id)); if(i>=0&&window.showAt)window.showAt(i); }
+      else $$('#list>.pcard').forEach(c=>c.hidden=!rs.some(r=>String(r.id)===String(c.dataset.id)));
+    };
+
+    /* 폰: 도구 접기 */
+    const tg=$('#deckToggle',deck);
+    const syncToggle=()=>{ const small=matchMedia('(max-width:820px)').matches; tg.hidden=!small; if(!small)deck.classList.remove('open') };
+    tg.onclick=()=>{ deck.classList.toggle('open'); tg.textContent=deck.classList.contains('open')?'도구 ▴':'도구 ▾' };
+    syncToggle(); addEventListener('resize',syncToggle);
+
+    buildRail(); syncStick(); setTimeout(syncStick,400);
+    return true;
+  }
+
+  /* ── 문항 레일 : 좌우 반투명 단추 · 손끌기 ── */
+  function buildRail(){
+    const rail=$('#prail'); if(!rail||rail.parentNode.classList.contains('railwrap')) return;
+    const wrap=document.createElement('div'); wrap.className='railwrap';
+    rail.parentNode.insertBefore(wrap,rail); wrap.appendChild(rail);
+    const L=document.createElement('button'); L.type='button'; L.className='railar l'; L.textContent='‹'; L.setAttribute('aria-label','문항 목록 왼쪽으로');
+    const R=document.createElement('button'); R.type='button'; R.className='railar r'; R.textContent='›'; R.setAttribute('aria-label','문항 목록 오른쪽으로');
+    wrap.append(L,R);
+    const step=()=>Math.max(140,Math.round(rail.clientWidth*0.75));
+    L.onclick=()=>rail.scrollBy({left:-step(),behavior:'smooth'});
+    R.onclick=()=>rail.scrollBy({left:step(),behavior:'smooth'});
+    const sync=()=>{
+      const max=rail.scrollWidth-rail.clientWidth-2;
+      L.classList.toggle('off',rail.scrollLeft<=2);
+      R.classList.toggle('off',rail.scrollLeft>=max);
+    };
+    rail.addEventListener('scroll',sync,{passive:true});
+    addEventListener('resize',sync);
+    new MutationObserver(()=>{markRail();setTimeout(sync,60)}).observe(rail,{childList:true});
+    setTimeout(sync,120);
+
+    /* 손으로 끌어서 넘기기 — 끌었을 때는 클릭으로 치지 않는다 */
+    let down=false,sx=0,sl=0,moved=0;
+    rail.addEventListener('pointerdown',e=>{
+      if(e.pointerType!=='mouse')return;            /* 손가락은 브라우저가 알아서 굴린다 */
+      if(e.target.closest('.railar'))return;
+      down=true;moved=0;sx=e.clientX;sl=rail.scrollLeft;
+    });
+    rail.addEventListener('pointermove',e=>{
+      if(!down||e.pointerType!=='mouse')return; const d=e.clientX-sx; if(Math.abs(d)>4){moved=Math.abs(d);rail.classList.add('drag');rail.scrollLeft=sl-d;}
+    });
+    const up=()=>{down=false;setTimeout(()=>rail.classList.remove('drag'),0);sync()};
+    rail.addEventListener('pointerup',up); rail.addEventListener('pointercancel',up);
+    rail.addEventListener('pointerleave',()=>{if(down)up()});
+  }
+  function markRail(){
+    const rs=rows();
+    $$('#prail .pb').forEach(b=>{
+      const i=+b.dataset.go; const r=rs[i]; if(!r)return;
+      const p=PROG[String(r.id)];
+      b.classList.toggle('done',!!p);
+      b.classList.toggle('wrong',p?.r==='no');
+    });
+  }
+
+  /* ── «한눈에» 화면 안의 레일 ── */
+  function buildOvRail(){
+    const ovl=$('#ovl'); if(!ovl||$('#ovrail')) return;
+    const bar=document.createElement('div'); bar.className='ovrail'; bar.id='ovrail';
+    bar.innerHTML=`<button type="button" class="railar l" id="ovrL">‹</button>
+      <div class="ovr-s" id="ovrS"></div>
+      <button type="button" class="railar r" id="ovrR">›</button>`;
+    const oh=ovl.querySelector('.oh'); oh.after(bar);
+    const s=$('#ovrS',bar);
+    const st=()=>Math.max(140,Math.round(s.clientWidth*0.75));
+    $('#ovrL',bar).onclick=()=>s.scrollBy({left:-st(),behavior:'smooth'});
+    $('#ovrR',bar).onclick=()=>s.scrollBy({left:st(),behavior:'smooth'});
+    /* 제목이 바뀌면(= 다른 문항으로 옮겨 가면) 레일을 다시 그린다 */
+    new MutationObserver(()=>drawOvRail()).observe($('#ovSub'),{childList:true,characterData:true,subtree:true});
+    new MutationObserver(()=>{ if(ovl.classList.contains('on')) drawOvRail(); })
+      .observe(ovl,{attributes:true,attributeFilter:['class']});
+  }
+  function drawOvRail(){
+    const s=$('#ovrS'); if(!s) return;
+    const rs=rows(); if(!rs.length){ s.innerHTML=''; return; }
+    const at=(()=>{ try{ return Math.max(0,window.ONEAT|0) }catch(e){ return 0 } })();
+    const m=String($('#ovTitle')?.textContent||'').match(/(\d{4})년 제(\d+)회 (\d+)번/);
+    let now=at;
+    if(m){ const k=rs.findIndex(r=>String(r.year)===m[1]&&String(r.session)===m[2]&&String(r.no)===m[3]); if(k>=0)now=k; }
+    const W=45, a=Math.max(0,now-W), b=Math.min(rs.length,now+W+1);
+    s.innerHTML=rs.slice(a,b).map((r,k)=>{
+      const i=a+k, p=PROG[String(r.id)];
+      return `<button class="pb ${i===now?'now':''} ${p?'done':''}" type="button" data-ovgo="${i}">${r.year%100}-${r.session} ${r.no}</button>`;
+    }).join('');
+    s.querySelectorAll('[data-ovgo]').forEach(b=>b.onclick=()=>{
+      const i=+b.dataset.ovgo, r=rs[i]; if(!r)return;
+      if(document.body.classList.contains('oneup') && typeof window.showAt==='function') window.showAt(i);
+      if(typeof window.ovOpen==='function') window.ovOpen(r.id);
+    });
+    s.querySelector('.pb.now')?.scrollIntoView({block:'nearest',inline:'center'});
+  }
+
+  /* ── 카드의 체크 단추를 «맞음/틀림» 으로 다듬고 푼 횟수를 붙인다 ── */
+  function dressCards(){
+    $$('#list > .pcard').forEach(card=>{
+      const id=String(card.dataset.id||''); if(!id) return;
+      const a=card.querySelector('.result-actions'); if(!a) return;
+      const ok=a.querySelector('[data-result="ok"]'), no=a.querySelector('[data-result="no"]');
+      if(ok&&ok.textContent.trim()==='✓') ok.textContent='✓ 맞음';
+      if(no&&no.textContent.trim()==='✕') no.textContent='✕ 틀림';
+      let n=a.querySelector('.done-n');
+      if(!n){ n=document.createElement('span'); n.className='done-n'; a.insertBefore(n,a.firstChild); }
+      /* 체크 단추를 눌렀는데 «한눈에» 가 같이 열리던 것을 막는다 */
+      if(!a.__stop){ a.addEventListener('click',e=>e.stopPropagation()); a.__stop=1; }
+      const h=card.querySelector('.phead[data-ov]');
+      if(h && !h.__guard){
+        const orig=h.onclick;
+        h.onclick=e=>{ if(e.target.closest('button,a,input,select,label,details,summary'))return; orig&&orig.call(h,e); };
+        h.__guard=1;
+      }
+      const p=PROG[id];
+      n.textContent=p?`${p.n}회 풂`:'';
+      n.title=p?'다시 누르면 횟수가 올라갑니다':'';
+      card.dataset.result=p?.r||'';
+      card.classList.toggle('result-ok',p?.r==='ok');
+      card.classList.toggle('result-no',p?.r==='no');
+    });
+  }
+
+  /* ── 숫자 다시 계산 ── */
+  let painting=false;
+  function paint(){
+    if(painting)return; painting=true; requestAnimationFrame(()=>{ painting=false; realPaint(); });
+  }
+  function realPaint(){
+    if(!$('.deck')) return;
+    const rs=rows(), total=rs.length;
+    let ok=0,no=0,n=0;
+    rs.forEach(r=>{ const p=PROG[String(r.id)]; if(!p)return; n+=p.n|0; if(p.r==='no')no++; else ok++; });
+    const done=ok+no, pct=total?Math.round(done/total*100):0;
+    const set=(id,v)=>{const e=document.getElementById(id); if(e)e.textContent=v};
+    set('dpPct',pct+'%'); set('dpOf',`${done} / ${total} 문항`);
+    set('dpOk',ok); set('dpNo',no); set('dpLeft',Math.max(0,total-done)); set('dpN',n);
+    const bo=document.getElementById('dpBarOk'), bn=document.getElementById('dpBarNo');
+    if(bo)bo.style.width=(total?ok/total*100:0)+'%';
+    if(bn)bn.style.width=(total?no/total*100:0)+'%';
+    const subj=$('#fSub')?.selectedOptions?.[0]?.textContent||'';
+    set('dpSubj',subj);
+    const at=(()=>{try{return (window.ONEAT|0)+1}catch(e){return 1}})();
+    set('dpFound',total?`${total}문항 · 지금 ${Math.min(at,total)}번째`:'조건에 맞는 문항이 없습니다');
+    dressCards(); markRail();
+    if($('#ovl')?.classList.contains('on')) drawOvRail();
+  }
+
+  /* ── 체크를 가로챈다 (v6 의 기록과 나란히 쌓는다) ── */
+  document.addEventListener('click',e=>{
+    const b=e.target.closest?.('[data-result]'); if(!b) return;
+    const card=b.closest('.pcard'); if(!card) return;
+    bump(card.dataset.id,b.dataset.result);
+  },true);
+  /* 1 · 2 단축키도 같이 센다 */
+  document.addEventListener('keydown',e=>{
+    if(/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName||''))return;
+    if(e.key!=='1'&&e.key!=='2')return;
+    const rs=rows(); let r=null;
+    try{ r=rs[window.ONEAT|0]||null }catch(x){}
+    if(!r) r=(()=>{const c=$('#list>.pcard.show'); return c?rs.find(x=>String(x.id)===String(c.dataset.id)):null})();
+    if(r) bump(r.id,e.key==='1'?'ok':'no');
+  });
+
+  /* ── 시동 ── */
+  const boot=setInterval(()=>{ if(build()){ clearInterval(boot); buildOvRail(); paint();
+    const list=$('#list');
+    if(list) new MutationObserver(()=>paint()).observe(list,{childList:true});
+    ['fSub','fYear','fSess','fQ','fOne','fRand'].forEach(id=>{
+      const el=document.getElementById(id); if(!el)return;
+      el.addEventListener('change',()=>setTimeout(paint,80));
+      el.addEventListener('click',()=>setTimeout(paint,80));
+    });
+    addEventListener('keydown',()=>setTimeout(paint,60));
+  } },160);
+  setTimeout(()=>clearInterval(boot),20000);
+})();
+</script>
+
 </body>
 </html>

@@ -1,12 +1,39 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111827"><title>공학용 계산기 · 기출 해설 노트</title>
-<link rel="stylesheet" href="./app-enhance.css?v=86">
+<link rel="stylesheet" href="./app-enhance.css?v=89">
 <style>
 :root{--bg:#0f172a;--panel:#172033;--panel2:#1e293b;--line:#334155;--text:#e5e7eb;--muted:#94a3b8;--accent:#60a5fa;--key:#f8fafc;--key2:#e2e8f0;--keytext:#0f172a;--keyfn:#cbd5e1;--orange:#f59e0b;--green:#34d399;--red:#fb7185}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 50% -20%,#26364f 0,#0f172a 45%,#0b1120 100%);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Pretendard",sans-serif;min-height:100vh}.wrap{max-width:1100px;margin:0 auto;padding:18px 14px 100px}.hero{display:flex;justify-content:space-between;gap:14px;align-items:end;margin:18px 0 14px}.hero h1{margin:0;font-size:24px}.hero p{margin:6px 0 0;color:var(--muted);font-size:13px}.badge{display:inline-flex;gap:7px;align-items:center;background:#111827;border:1px solid #334155;color:#cbd5e1;border-radius:999px;padding:7px 10px;font:700 11px/1 ui-monospace}.layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(300px,.8fr);gap:14px}.calc,.side{background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid #334155;border-radius:20px;box-shadow:0 24px 80px rgba(0,0,0,.28);overflow:hidden}.screen{padding:18px 18px 14px;background:linear-gradient(180deg,#0b1220,#111827);border-bottom:1px solid #334155}.status{display:flex;justify-content:space-between;align-items:center;color:#94a3b8;font:700 10px/1 ui-monospace;text-transform:uppercase;letter-spacing:.08em}.expr{min-height:58px;margin-top:14px;font:500 20px/1.45 ui-monospace;word-break:break-all;text-align:right;color:#cbd5e1}.result{min-height:54px;margin-top:4px;font:700 35px/1.15 ui-monospace;word-break:break-all;text-align:right;color:#f8fafc}.mode-row{display:flex;gap:7px;flex-wrap:wrap;padding:12px;border-bottom:1px solid #334155}.pill{border:1px solid #475569;background:#0f172a;color:#cbd5e1;border-radius:999px;padding:7px 10px;font:700 11px ui-monospace;cursor:pointer}.pill.on{background:#1d4ed8;border-color:#60a5fa;color:#fff}.keys{padding:12px;display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.key{min-height:52px;border:0;border-radius:12px;background:var(--key);color:var(--keytext);font:800 16px ui-monospace;box-shadow:inset 0 -2px 0 rgba(15,23,42,.12),0 2px 5px rgba(0,0,0,.12);cursor:pointer;touch-action:manipulation}.key.fn{background:#cbd5e1;font-size:13px}.key.op{background:#bfdbfe}.key.eq{background:#2563eb;color:white}.key.solve{background:#f59e0b;color:#111827}.key:active{transform:translateY(1px)}.span2{grid-column:span 2}.side{padding:14px}.side h2{font-size:14px;margin:4px 0 10px}.section{padding:12px;border:1px solid #334155;border-radius:14px;background:#111827;margin-bottom:10px}.section:last-child{margin-bottom:0}.section label{display:block;font-size:10px;color:#94a3b8;margin-bottom:7px;font-weight:800;letter-spacing:.08em}.solvebox textarea{width:100%;min-height:76px;resize:vertical;background:#0b1220;color:#e5e7eb;border:1px solid #475569;border-radius:10px;padding:10px;font:14px/1.4 ui-monospace}.row{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid #475569;background:#1e293b;color:#e2e8f0;border-radius:10px;padding:9px 11px;cursor:pointer;font-weight:800}.btn.primary{background:#2563eb;border-color:#60a5fa}.btn.warn{background:#b45309;border-color:#f59e0b}.hint{margin-top:8px;color:#94a3b8;font-size:11px;line-height:1.5}.mems{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}.mem{padding:8px 4px;background:#0f172a;border:1px solid #334155;border-radius:8px;text-align:center;color:#cbd5e1;cursor:pointer;font:700 11px ui-monospace}.hist{display:grid;gap:6px;max-height:320px;overflow:auto}.hist-item{padding:9px;border:1px solid #334155;border-radius:9px;background:#0b1220;cursor:pointer}.hist-item .a{font:12px/1.35 ui-monospace;color:#cbd5e1}.hist-item .b{font:700 13px/1.35 ui-monospace;color:#fff;margin-top:3px}.solve-result{margin-top:9px;padding:10px;border-radius:10px;background:#052e2b;border:1px solid #065f55;color:#a7f3d0;font:700 13px ui-monospace;display:none}.solve-result.on{display:block}.solve-result.err{background:#3f1119;border-color:#7f1d1d;color:#fecdd3}.quick{display:flex;gap:7px;flex-wrap:wrap}.quick button{font-size:11px}.foot{margin-top:10px;color:#64748b;font-size:10px;text-align:center}
 @media(max-width:860px){.layout{grid-template-columns:1fr}.hero{align-items:start;flex-direction:column}.side{order:2}.keys{grid-template-columns:repeat(5,1fr);gap:6px}.key{min-height:48px;font-size:15px}.result{font-size:30px}}
 </style></head><body>
 <nav class="nav3"><a href="./index.html">필기뷰어</a><a href="./practice.html">실기뷰어</a><a href="./calc.html" class="on">계산기</a><a href="./upload.html">기계</a><a href="./ingest.html">자동 변환</a><a href="./interview.html">면접</a><a href="./portfolio.html">포트폴리오</a></nav>
+
+<!-- 작은 창(팝업)으로 열렸을 때: 위쪽 이동줄을 숨기고 «닫기» 만 남긴다 -->
+<style>
+body.calc-popup .nav3{display:none}
+body.calc-popup .wrap{padding-top:12px;max-width:none}
+body.calc-popup .hero h1{font-size:20px}
+.calc-popbar{display:none;position:sticky;top:0;z-index:50;align-items:center;gap:8px;
+  padding:8px 12px;background:rgba(15,23,42,.92);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);font:700 12px/1 system-ui;color:var(--muted)}
+body.calc-popup .calc-popbar{display:flex}
+.calc-popbar b{color:var(--text);font-size:13px}
+.calc-popbar button{margin-left:auto;border:1px solid var(--line);background:var(--panel2);
+  color:var(--text);border-radius:8px;padding:7px 12px;font:700 12px/1 system-ui;cursor:pointer}
+.calc-popbar button:hover{border-color:var(--accent);color:var(--accent)}
+</style>
+<div class="calc-popbar"><b>공학용 계산기</b><span>문제 화면은 그대로 있습니다</span><button type="button" id="calcPopClose">닫기</button></div>
+<script>
+(function(){
+  var pop = /[?&]popup=1/.test(location.search) || (window.opener && window.opener !== window);
+  if(!pop) return;
+  document.body.classList.add('calc-popup');
+  document.title = '계산기';
+  var b = document.getElementById('calcPopClose');
+  if(b) b.onclick = function(){ try{ window.close(); }catch(e){} };
+  addEventListener('keydown', function(e){ if(e.key === 'Escape'){ try{ window.close(); }catch(x){} } });
+})();
+</script>
 <div class="wrap"><div class="hero"><div><h1>공학용 계산기</h1><p>fx-570ES 스타일 자연표시 · SOLVE · 메모리 · 식 히스토리</p></div><span class="badge">● LOCAL · NO SERVER</span></div>
 <div class="layout"><section class="calc"><div class="screen"><div class="status"><span id="modeTxt">COMP</span><span id="angleTxt">DEG</span></div><div class="expr" id="expr">0</div><div class="result" id="result">0</div></div><div class="mode-row"><button class="pill on" data-ang="DEG">DEG</button><button class="pill" data-ang="RAD">RAD</button><button class="pill" data-ang="GRA">GRA</button><button class="pill" id="ansBtn">Ans</button><button class="pill" id="delBtn">DEL</button><button class="pill" id="acBtn">AC</button><select id="fmtMode" title="표기 형식"><option value="auto">AUTO</option><option value="fix">FIX</option><option value="sci">SCI</option><option value="eng">ENG</option></select><select id="fixDigits" title="소수/유효자리" aria-label="소수 자리"><option>2</option><option>4</option><option selected>6</option><option>8</option><option>10</option><option>12</option></select></div><div class="keys">
 <button class="key fn" data-in="sin(">sin</button><button class="key fn" data-in="cos(">cos</button><button class="key fn" data-in="tan(">tan</button><button class="key fn" data-in="asin(">sin⁻¹</button><button class="key fn" data-in="acos(">cos⁻¹</button>
@@ -23,7 +50,7 @@
 <div class="section"><h2>식 단축키</h2><div class="quick"><button class="btn" data-q="10^">10ˣ</button><button class="btn" data-q="exp(">eˣ</button><button class="btn" data-q="rand(">Ran#</button><button class="btn" data-q="comb(">nCr</button><button class="btn" data-q="perm(">nPr</button></div><div class="hint">키보드: Enter 계산 · Esc 초기화 · Backspace 삭제 · Ctrl+L 현재 식 지우기</div></div>
 <div class="section"><h2>최근 계산</h2><div class="hist" id="hist"></div></div></aside></div><section class="section" style="margin-top:18px"><h2>STAT · 통계</h2><label>데이터 입력 (쉼표/공백 구분)</label><textarea id="statInput" placeholder="12, 15, 18, 21, 24"></textarea><div class="row" style="margin-top:8px"><button class="btn primary" id="statCalc">통계 계산</button><button class="btn" id="statClear">지우기</button></div><div class="solve-result" id="statOut"></div></section>
 <div class="foot">이 계산기는 Casio 공식 제품 에뮬레이터가 아니라 fx-570ES 계열의 사용 흐름을 참고한 웹 계산기입니다.</div></div>
-<script src="./app-enhance.js?v=86"></script><script src="./calc-engine.js?v=86"></script><script>
+<script src="./app-enhance.js?v=89"></script><script src="./calc-engine.js?v=89"></script><script>
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 let expr='', ans=0, mem=0, angle='DEG', hist=JSON.parse(localStorage.getItem('gichul:calc-history')||'[]'), vars={A:0,B:0,C:0,D:0,E:0,F:0};
 function paint(){ $('#expr').textContent=expr||'0'; $('#result').textContent=(()=>{if(!expr)return '0'; try{return fmt(evalExpr(expr))}catch{return '…'}})(); $('#angleTxt').textContent=angle; renderHist(); save(); }

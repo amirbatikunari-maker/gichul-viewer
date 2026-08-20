@@ -17,7 +17,7 @@
   })();
 
 
-  const APP_VERSION='v88';
+  const APP_VERSION='v89';
   const COMPLETION_WEIGHTS={ui:6,study:6,practice:7,written:5,interview:7,portfolio:5,calculator:8,ingest:5,pwa:4,qa:3,integrity:4,accessibility:4,
     /* 아래 4개는 실제 동작 확인 항목이다. 합계 36점으로, 이게 깨지면 점수가 눈에 띄게 떨어진다. */
     swActive:10,storage:8,configOk:8,aiReachable:10};
@@ -638,13 +638,45 @@
     const bad=rows2.filter(x=>!x.ok).length; back.querySelector('[data-summary]').textContent=bad?`${bad}개 점검 필요`:'전체 QA 통과'; back.classList.add('open');
   }
 
+  /* ── 공학용 계산기는 «따로 뜨는 작은 창» 으로 ────────────────
+     예전에는 계산기를 누르면 지금 보던 문제 화면이 통째로 날아가고
+     돌아올 길도 마땅치 않았다. 이제는 옆에 띄워 두고 문제와 같이 본다.
+     팝업이 막혀 있으면 예전처럼 새 탭으로 연다. */
+  let CALCWIN=null;
+  function openCalcPopup(){
+    try{
+      if(CALCWIN && !CALCWIN.closed){ CALCWIN.focus(); return true; }
+      const w=Math.min(520,Math.max(360,Math.round(screen.availWidth*0.34)));
+      const h=Math.min(900,Math.max(560,Math.round(screen.availHeight*0.86)));
+      const left=Math.max(0,screen.availWidth-w-24), top=Math.max(0,Math.round((screen.availHeight-h)/2));
+      const feat=`popup=yes,width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`;
+      CALCWIN=window.open('./calc.html?popup=1','gichulCalc',feat);
+      if(CALCWIN){ CALCWIN.focus(); return true; }
+    }catch(e){}
+    try{ window.open('./calc.html','_blank','noopener'); return true; }catch(e){}
+    return false;
+  }
+  window.openCalcPopup=openCalcPopup;
+  function installCalcPopup(){
+    if(/calc\.html/.test(location.pathname)) return;   /* 계산기 안에서는 그대로 둔다 */
+    document.addEventListener('click',e=>{
+      const a=e.target.closest?.('a[href*="calc.html"]'); if(!a) return;
+      if(a.target==='_blank'||e.metaKey||e.ctrlKey||e.shiftKey||e.button===1) return;
+      e.preventDefault();
+      /* 폰에서는 작은 창이 의미가 없다 — 새 탭으로 연다 */
+      if(matchMedia('(max-width:760px)').matches){ window.open(a.href,'_blank','noopener'); return; }
+      openCalcPopup();
+    });
+  }
+
   function boot(){
-    restorePreferences(); buildContext(); buildInterviewIsolation(); buildScroll(); buildCmd(); buildFloat(); maybeMarkResume(); buildOffline(); installGlobalSearch(); buildMobileNav(); setTimeout(buildTools,0); installShortcuts(); buildHomeHub();
+    restorePreferences(); buildContext(); buildInterviewIsolation(); buildScroll(); buildCmd(); buildFloat(); maybeMarkResume(); buildOffline(); installGlobalSearch(); buildMobileNav(); setTimeout(buildTools,0); installShortcuts(); installCalcPopup();
     document.addEventListener('keydown',e=>{
       const inField=/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName||'');
       if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();window.openCmd();return}
       if(inField) return;
-      const map={h:'./index.html',p:'./practice.html',c:'./calc.html',i:'./ingest.html',m:'./interview.html',r:'./portfolio.html'};
+      if(e.key.toLowerCase()==='c'){openCalcPopup();return}
+      const map={h:'./index.html',p:'./practice.html',i:'./ingest.html',m:'./interview.html',r:'./portfolio.html'};
       const href=map[e.key.toLowerCase()]; if(href){location.href=href;return}
       if(e.key==='?'){window.openCmd();return}
       if(e.key==='Escape'){window.closeCmd?.();document.querySelector('.app-global-search')?.classList.remove('open');closeSettings();return;}
