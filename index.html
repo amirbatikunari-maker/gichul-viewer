@@ -1097,7 +1097,7 @@ mark.st{
 .nav3 a.on::before,.nav3 a.on + a::before{background:transparent}
 .nav3 a:not(.on):hover{color:var(--paper)}
 </style>
-<link rel="stylesheet" href="./app-enhance.css?v=89">
+<link rel="stylesheet" href="./app-enhance.css?v=91">
 </head>
 <body>
 <nav class="nav3">
@@ -2480,7 +2480,7 @@ async function viewExams(subjectId){
     <span class="lbl">한 번에</span>
     ${MIX_SIZES.map(n => `<button class="szb${mixSize(subjectId) === n ? " on" : ""}" data-size="${n}" type="button">${mixSizeLabel(n)}</button>`).join("")}
   </div>
-  <div class="mixnote" id="mixnote">등급을 세는 중…</div>`;
+  <div class="mixnote" id="mixnote"></div>`;
   /* 연도 칸에 글자가 들어와도 무너지지 않게: 숫자면 큰 순, 숫자가 없으면 맨 위 */
   const yKey = y => { const m = String(y).match(/\d+/); return m ? +m[0] : Infinity; };
   $("#exams").innerHTML = mixBar + Object.keys(byYear).sort((a,b)=>yKey(b)-yKey(a)).map(y=>`
@@ -2538,14 +2538,7 @@ async function viewExams(subjectId){
     Object.keys(ix.tiers).forEach(k => n[k] = ix.tiers[k].length);
     $$("#exams .mixb .c").forEach(el => { el.textContent = (n[el.dataset.c] ?? 0) + "문항"; });
     $("#mixnote").innerHTML =
-      `회차 ${ix.N}개 · 문항 ${ix.rows.length}개를 <b>합격 기여도</b> 순으로 줄 세운 뒤,
-       문항 수가 아니라 <b>기여도 총합의 몫</b>으로 끊습니다. 금이 적을수록 밀도가 높다는 뜻입니다.<br>
-       <b>기여도 = 또 나올 확률 × 지금 내가 약한 정도</b><br>
-       · 또 나올 확률 — 몇 %의 회차에 나왔나(55%) + 최근 회차일수록 가중(30%) + 그 주제에 걸린 문항 수(15%).
-       "냉동·공기" 같은 흔한 말은 주제어에서 빼고, 드문 낱말을 함께 쓰는 문항끼리 묶어 셉니다.<br>
-       · 내가 약한 정도 — <b>별표</b>한 문항 1.8배, 아직 안 본 문항 1.25배, 이미 본 문항 0.85배.<br>
-       별표를 누르거나 회차를 추가하면 다음에 들어올 때 등급이 다시 계산됩니다.
-       문제·해설·필기·별표는 원래 문항 그대로입니다.`;
+      `회차 ${ix.N}개 · 문항 ${ix.rows.length}개`;
   }).catch(()=>{ if($("#mixnote")) $("#mixnote").textContent = "등급을 세지 못했습니다."; });
   $$("#exams .row").forEach(b=>b.onclick=e=>{
     const w = e.target.closest("[data-wipe]"), d = e.target.closest("[data-delexam]");
@@ -3813,7 +3806,7 @@ function drawMultiMix(){
   const tip = $("#pickTip");
   if(tip) tip.textContent = pick.length
     ? ""
-    : "과목을 눌러 고르세요. 고른 과목들의 금·은·동을 한 묶음으로 섞어 냅니다.";
+    : "과목을 눌러 고르세요.";
 }
 
 /* 고른 과목들의 등급별 문항 수를 합쳐 단추에 적는다 */
@@ -3827,7 +3820,7 @@ async function syncMultiCounts(){
   });
   if(!ids.length){
     setC(null);
-    if(note) note.innerHTML = "위에서 과목을 골라 주세요. 고른 과목들의 금·은·동을 한 묶음으로 냅니다.";
+    if(note) note.textContent = "";
     return;
   }
   setC(null);
@@ -3844,10 +3837,7 @@ async function syncMultiCounts(){
     setC(n);
     const names = ids.map(id => S.subjects.find(s => s.id === id)?.name).filter(Boolean);
     if(note) note.innerHTML =
-      `<b>${esc(names.join(" + "))}</b> — 회차 ${N}개 · 문항 ${n.random}개<br>
-       등급은 <b>과목마다 따로</b> 매긴 뒤 합칩니다. 과목을 가로질러 다시 줄 세우면
-       문항이 많은 과목이 다른 과목을 전부 밀어내기 때문입니다.<br>
-       뽑을 때는 고른 과목에서 <b>고르게</b> 나오도록 섞습니다.`;
+      `<b>${esc(names.join(" + "))}</b> — 회차 ${N}개 · 문항 ${n.random}개`;
   }catch(e){
     if(seq !== MC_SEQ) return;
     setC(null);
@@ -5103,7 +5093,7 @@ route();
 
 /* 홈 화면 설치 + 오프라인 */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=89").catch(()=>{}));
+  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=91").catch(()=>{}));
 </script>
 <script>
 /* ══════════════════════════════════════════════════════════════
@@ -5466,7 +5456,7 @@ if("serviceWorker" in navigator && location.protocol.startsWith("http"))
 <script src="./ai-chat.js" defer></script>
 <script src="./ai-viewer.js" defer></script>
 <script src="./music.js" defer></script>
-<script src="./app-enhance.js?v=89" defer></script>
+<script src="./app-enhance.js?v=91" defer></script>
 
 <!-- ══════════════════════════════════════════════════════════════
      v89 · 필기뷰어 진도율 · 문항줄 좌우 단추
@@ -5658,6 +5648,87 @@ if("serviceWorker" in navigator && location.protocol.startsWith("http"))
   setTimeout(()=>clearInterval(boot),20000);
 })();
 </script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v90 · 필기뷰어도 실기와 같은 눈금으로 — 글자·줄간격·여백 한 단계씩
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+:root{--head:40px;--rail:32px;--qhead:34px}
+body{font-size:13px!important;line-height:1.45!important}
+
+/* 위쪽 바 */
+.top{height:var(--head)}
+.top h1{font-size:14px!important}
+.top .sub{font-size:10px!important}
+.top .icon,.top .toggle{height:28px!important;min-width:28px!important;padding:0 8px!important;font-size:10.5px!important}
+
+/* 문항 번호줄 */
+.bub{height:24px!important;font-size:10.5px!important}
+.railhost>.rail{gap:3px!important}
+
+/* 문항 머리 */
+.qhead{gap:6px!important;margin:0 -9px 5px!important;padding:0 9px!important}
+.qhead .qno{height:24px!important;min-width:26px!important;font-size:11px!important;padding:0 7px!important}
+.qhead .qsum{font-size:10.5px!important}
+.qhead .qink,.qhead .qnote,.qhead .qstar,.qhead .qedit{width:26px!important;height:26px!important}
+.qhead .qink svg,.qhead .qnote svg,.qhead .qstar svg,.qhead .qedit svg{width:14px!important;height:14px!important}
+.qhead .wchk button{height:24px!important;padding:0 7px!important;font-size:10px!important}
+.qhead .delx{font-size:9.5px!important;padding:3px 6px!important}
+
+/* 문제 카드 */
+.qcard{padding:9px 10px!important;border-radius:11px!important}
+.qtext{font-size:13px!important;line-height:1.44!important}
+.qtext p{margin:0 0 4px!important}
+.qtext ul,.qtext ol{margin:0 0 4px!important;padding-left:15px!important}
+.qtext li{margin:0!important}
+@media(max-width:520px){ .qtext{font-size:12.5px!important;line-height:1.44!important} }
+@media(min-width:1100px){ .qtext{font-size:13.5px!important} }
+.part{font-size:9px!important;margin-bottom:4px!important}
+
+/* 보기 */
+.choices{margin-top:7px!important;gap:0!important}
+.ch{padding:4px 6px!important;gap:8px!important;border-radius:7px!important}
+.ch .t{font-size:12.5px!important;line-height:1.42!important}
+
+/* 해설 · 쉬운 풀이 */
+.answer{margin-top:7px!important}
+.exp{padding:9px 10px!important;border-radius:11px!important}
+.exp-h{font-size:9.5px!important;margin-bottom:5px!important}
+.exp-b{font-size:12.5px!important;line-height:1.45!important}
+.exp-b p{margin:0 0 4px!important}
+.exp-b ul,.exp-b ol{margin:0 0 4px!important;padding-left:15px!important}
+.exp-b li{margin:0!important}
+.exp-b hr{margin:7px 0!important}
+.easy{margin-top:10px!important;padding-top:8px!important}
+.easy .ez-h{font-size:9.5px!important}
+.easy .eb{font-size:12.5px!important;line-height:1.46!important}
+.easy .eb h2{font-size:12.5px!important;margin:9px 0 3px!important}
+.easy .eb h3{font-size:12px!important;margin:8px 0 3px!important}
+.easy .eb p{margin:0 0 4px!important}
+.easy .eb ul,.easy .eb ol{margin:0 0 4px!important;padding-left:15px!important}
+.easy .eb li{margin:0!important}
+.cover{height:44px!important;font-size:11px!important}
+.veiled .answer{min-height:44px!important}
+
+/* 수식이 본문보다 훌쩍 커지던 것 */
+.exp-b .katex,.easy .eb .katex,.mkb .katex{font-size:max(1.1em,13.5px)!important}
+.exp-b .katex-display>.katex,.easy .eb .katex-display>.katex{font-size:max(1.14em,14.5px)!important}
+.katex-display{margin:5px 0!important}
+
+/* 목록 화면 */
+.wrap{padding:8px 12px 56px}
+.eyebrow{font-size:9.5px!important;margin-bottom:6px!important}
+.row{padding:9px 11px!important;gap:9px!important;border-radius:10px!important}
+.row .no{font-size:12px!important}
+.row .ttl{font-size:12.5px!important}
+.row .cnt{font-size:10.5px!important}
+.rows{gap:5px!important}
+.year{font-size:11px!important;margin:10px 0 5px!important}
+.mixnote,.picktip{font-size:10px!important;margin:0 0 8px!important;line-height:1.5!important}
+.mixb{font-size:11px!important}
+.wprog{padding:5px 11px!important}
+</style>
 
 </body>
 </html>

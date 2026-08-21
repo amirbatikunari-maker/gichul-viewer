@@ -234,3 +234,19 @@ html[data-theme="dark"] .app-diagnostics{background:#0d1726;color:#e5edf7;border
 .app-selftest-backdrop.open{display:flex}
 .app-selftest{width:min(680px,100%);max-height:min(86vh,760px);overflow:auto;border:1px solid var(--line,#e2e8f0);border-radius:24px;background:var(--surface,#fff);color:var(--text,#0f172a);box-shadow:0 32px 110px rgba(15,23,42,.34)}
 html[data-theme="dark"] .app-selftest{background:#0d1726;color:#e5edf7;border-color:#263449}
+
+
+/* ── v90 · 맨 위를 얇게. «학습 도구» 자리표시줄은 없앤다 ── */
+.app-context{display:none!important}
+.nav3{padding:3px 8px!important;gap:2px!important;
+  padding-top:calc(3px + env(safe-area-inset-top))!important}
+.nav3 a{padding:5px 10px!important;font-size:11px!important;border-radius:7px!important}
+.nav3 a:hover{transform:none!important}
+.app-network{padding:3px 8px!important;font-size:9.5px!important}
+
+
+/* ── v90 · 페이지 머리를 한 단계 줄인다 (모든 탭 공통) ── */
+.wrap > h1:first-child,
+body > .wrap h1{font-size:16px!important;line-height:1.25!important;margin-bottom:2px!important}
+.wrap > .lead,
+.wrap .lead{font-size:11px!important;margin-bottom:8px!important;line-height:1.45!important}

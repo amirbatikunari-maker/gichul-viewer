@@ -17,7 +17,7 @@
   })();
 
 
-  const APP_VERSION='v89';
+  const APP_VERSION='v91';
   const COMPLETION_WEIGHTS={ui:6,study:6,practice:7,written:5,interview:7,portfolio:5,calculator:8,ingest:5,pwa:4,qa:3,integrity:4,accessibility:4,
     /* 아래 4개는 실제 동작 확인 항목이다. 합계 36점으로, 이게 깨지면 점수가 눈에 띄게 떨어진다. */
     swActive:10,storage:8,configOk:8,aiReachable:10};
@@ -670,7 +670,7 @@
   }
 
   function boot(){
-    restorePreferences(); buildContext(); buildInterviewIsolation(); buildScroll(); buildCmd(); buildFloat(); maybeMarkResume(); buildOffline(); installGlobalSearch(); buildMobileNav(); setTimeout(buildTools,0); installShortcuts(); installCalcPopup();
+    restorePreferences(); buildInterviewIsolation(); buildScroll(); buildCmd(); buildFloat(); maybeMarkResume(); buildOffline(); installGlobalSearch(); buildMobileNav(); setTimeout(buildTools,0); installShortcuts(); installCalcPopup();
     document.addEventListener('keydown',e=>{
       const inField=/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName||'');
       if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();window.openCmd();return}
