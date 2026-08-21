@@ -1097,7 +1097,7 @@ mark.st{
 .nav3 a.on::before,.nav3 a.on + a::before{background:transparent}
 .nav3 a:not(.on):hover{color:var(--paper)}
 </style>
-<link rel="stylesheet" href="./app-enhance.css?v=91">
+<link rel="stylesheet" href="./app-enhance.css?v=92">
 </head>
 <body>
 <nav class="nav3">
@@ -5093,7 +5093,7 @@ route();
 
 /* 홈 화면 설치 + 오프라인 */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=91").catch(()=>{}));
+  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=92").catch(()=>{}));
 </script>
 <script>
 /* ══════════════════════════════════════════════════════════════
@@ -5456,7 +5456,7 @@ if("serviceWorker" in navigator && location.protocol.startsWith("http"))
 <script src="./ai-chat.js" defer></script>
 <script src="./ai-viewer.js" defer></script>
 <script src="./music.js" defer></script>
-<script src="./app-enhance.js?v=91" defer></script>
+<script src="./app-enhance.js?v=92" defer></script>
 
 <!-- ══════════════════════════════════════════════════════════════
      v89 · 필기뷰어 진도율 · 문항줄 좌우 단추
@@ -5712,8 +5712,13 @@ body{font-size:13px!important;line-height:1.45!important}
 .veiled .answer{min-height:44px!important}
 
 /* 수식이 본문보다 훌쩍 커지던 것 */
-.exp-b .katex,.easy .eb .katex,.mkb .katex{font-size:max(1.1em,13.5px)!important}
-.exp-b .katex-display>.katex,.easy .eb .katex-display>.katex{font-size:max(1.14em,14.5px)!important}
+.exp-b .katex,.easy .eb .katex,.mkb .katex,.qtext .katex{font-size:max(1.17em,14.4px)!important}
+.exp-b .katex-display>.katex,.easy .eb .katex-display>.katex,
+.qtext .katex-display>.katex{font-size:max(1.28em,15.8px)!important}
+.katex .msupsub{font-size:1.1em}
+.katex .mfrac{font-size:1.06em}
+.katex .mfrac .mfrac{font-size:1em}
+.katex-display{overflow-x:auto;overflow-y:hidden}
 .katex-display{margin:5px 0!important}
 
 /* 목록 화면 */
