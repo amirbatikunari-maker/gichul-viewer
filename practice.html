@@ -2032,7 +2032,10 @@ function attachInk(wrap, stage, tools, qid, side){
     if(!on || !drawing) return;
     if(!allow(e)) return;
     e.preventDefault(); e.stopPropagation();
-    const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    /* 빈 배열이 오면 이벤트 자신을 쓴다 — 안 그러면 점이 하나도 안 쌓인다 */
+    let evs = null;
+    try{ evs = e.getCoalescedEvents ? e.getCoalescedEvents() : null; }catch(x){}
+    if(!evs || !evs.length) evs = [e];
     if(INK_TOOL === "er" || eraserTip(e)){ evs.forEach(ev => erase(at(ev))); return; }
     if(!cur) return;
     evs.forEach(ev => cur.pts.push(at(ev)));
@@ -2591,14 +2594,15 @@ function mdRich(src){
            + "</tbody></table></div>";
       continue;
     }
-    /* 글로 못 옮기는 그림 자리 — 나중에 원본에서 오려 채운다 */
-    const fig = t.match(/^\[\[\s*그림\s*([0-9.,\s]*)\]\]\s*(.*)$/);
+    /* 글로 못 옮기는 그림 자리 — 나중에 원본에서 오려 채운다.
+       «=60%» 가 붙어 있으면 그 폭으로 그린다 (그림 크기 조절). */
+    const fig = t.match(/^\[\[\s*그림\s*([0-9.,\s]*?)(?:=\s*(\d{1,3})\s*%)?\s*\]\]\s*(.*)$/);
     if(fig){
       close();
       const nums = (fig[1] || "").split(",").map(v => parseFloat(v)).filter(v => !isNaN(v));
       const box = nums.length === 4 ? nums.join(",") : "";
-      out += `<figure data-fig="${box}"><div class="figwait">그림을 오려 오는 중…</div>`
-           + (fig[2] ? `<figcaption>${inlR(fig[2])}</figcaption>` : "") + `</figure>`;
+      out += `<figure data-fig="${box}"${fig[2] ? ` data-w="${fig[2]}"` : ""}><div class="figwait">그림을 오려 오는 중…</div>`
+           + (fig[3] ? `<figcaption>${inlR(fig[3])}</figcaption>` : "") + `</figure>`;
       i++; continue;
     }
     if(/^#{1,6}\s/.test(t)){ close(); out += `<h4>${inlR(t.replace(/^#+\s/, ""))}</h4>`; i++; continue; }
@@ -4417,7 +4421,7 @@ body.exam-mode .pcard{box-shadow:0 0 0 2px rgba(29,78,216,.08),var(--shadow)}
 
 <script src="./music.js" defer></script>
 <!-- DATA ISOLATION CONTRACT: practice/written mistakes stay in study domain; never write into iv-/iv: interview data. -->
-<script src="./app-enhance.js?v=97" defer></script>
+<script src="./app-enhance.js?v=99" defer></script>
 
 <!-- ══════════════════════════════════════════════════════════════
      v89 · 상단 도구 3칸 재배치 · 문항 레일 · 진도율
@@ -6215,7 +6219,7 @@ body.onlyimport #boxFiles,body.onlyimport #boxImport{display:block!important}
     return s.split('\n').map(line => {
       const head = (line.match(/^(\s*(?:[-*+]\s+|\d+[.)]\s+|#{1,6}\s+|>\s*)?)/) || [''])[0];
       const parts = line.slice(head.length)
-        .split(/(\$\$[\s\S]*?\$\$|\$[^\n$]*?\$|`[^`]*`|!\[[^\]\n]*\]\([^)\s]*\))/g);
+        .split(/(\$\$[\s\S]*?\$\$|\$[^\n$]*?\$|`[^`]*`|!\[[^\]\n]*\]\([^)\n]*\))/g);
       for(let i = 0; i < parts.length; i += 2) parts[i] = wrapRuns(parts[i]);
       return head + parts.join('');
     }).join('\n');
@@ -6743,6 +6747,682 @@ body:not(.onlyimport) .wrap{max-width:none!important}
     setTimeout(() => clearInterval(wait), 20000);
   });
   setInterval(() => applyFold(), 1500);
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v98 · 그림 크기 조절
+
+     붙인 그림(![](주소))도, 원본에서 오려 온 그림([[그림 …]])도 늘 칸 폭을
+     가득 채워 그려졌다. 결선도 한 조각이 화면 절반을 먹으니 글이 밀린다.
+
+     그림을 누르면 크기 막대가 뜬다. 밀어서 폭을 정하면 그 자리에서 바로 바뀌고,
+     손을 떼면 글(마크다운)에 «=60%» 로 적혀 Supabase 에 남는다.
+     그래서 다음에 열어도, 한눈에 보기에서도 그 크기 그대로다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+.mdimg,.qmd figure img{max-width:100%;height:auto}
+.qmd figure{margin:8px 0}
+.mdimg.sel,.qmd figure img.sel{outline:2px solid var(--accent,#2563eb);outline-offset:2px}
+.mdimg{cursor:pointer}
+.qmd figure img{cursor:pointer}
+/* 원본 크기로 편 그림은 칸을 넘어가도 되게 — 대신 그 줄만 옆으로 굴러간다 */
+.mdimg.raw,.qmd figure img.raw{max-width:none!important;width:auto!important}
+.qmd figure:has(img.raw),.easybox p:has(img.raw),.ez p:has(img.raw){overflow-x:auto}
+
+.imsz{position:fixed;z-index:100030;display:none;align-items:center;gap:7px;
+  padding:7px 10px;border:1px solid var(--line,#e2e8f0);border-radius:11px;
+  background:var(--surface,#fff);box-shadow:0 12px 34px rgba(15,23,42,.20)}
+.imsz.on{display:flex}
+.imsz .t{font:800 10px/1 var(--font-d,system-ui);color:var(--muted,#64748b);letter-spacing:.1em}
+.imsz input[type=range]{width:150px;accent-color:var(--accent,#2563eb)}
+.imsz .v{font:800 11px/1 var(--font-m,monospace);color:var(--ink,#0f172a);min-width:38px;text-align:right}
+.imsz button{height:24px;padding:0 8px;border:1px solid var(--line,#e2e8f0);border-radius:7px;
+  background:var(--surface,#fff);color:var(--ink,#0f172a);cursor:pointer;
+  font:700 10.5px/1 var(--font-d,system-ui)}
+.imsz button:hover{border-color:var(--accent,#2563eb);color:var(--accent,#2563eb)}
+.imsz button.on{background:var(--accent,#2563eb);border-color:var(--accent,#2563eb);color:#fff}
+.imsz .sep{width:1px;height:16px;background:var(--line,#e2e8f0)}
+@media(max-width:620px){ .imsz input[type=range]{width:104px} .imsz .pz1{display:none} }
+</style>
+<script>
+(function(){
+  'use strict';
+  const $  = (s,r=document)=>r.querySelector(s);
+  const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
+
+  /* ══ ① «=60%» 가 붙은 그림 표기도 알아본다 ══
+     v96 의 것은 괄호 안에 빈칸이 없어야만 알아본다. 크기를 붙이면 빈칸이 생기므로
+     남겨진 것을 여기서 한 번 더 훑는다. */
+  const SZRE = /!\[([^\]\n]*)\]\(\s*([^)\s]+)\s*=\s*(\d{1,3})\s*%\s*\)/g;
+  const sized = h => String(h == null ? '' : h).replace(SZRE,
+    (m, a, u, p) => `<img class="mdimg" src="${u}" alt="${a.replace(/"/g,'')}" `
+      + `style="width:${Math.max(5,Math.min(100,+p))}%" loading="lazy">`);
+
+  ['mdLite','mdRich'].forEach(n => {
+    const fn = window[n];
+    if(typeof fn !== 'function' || fn.__sz) return;
+    const w = function(md){ return sized(fn(md)); };
+    w.__sz = 1; w.__img = fn.__img; w.__tex = fn.__tex; w.__sci = fn.__sci;
+    window[n] = w;
+  });
+
+  /* 오려 온 그림([[그림 …]])은 figFill 이 나중에 <img> 를 끼운다.
+     figure 에 적어 둔 data-w 를 그 그림에 옮겨 준다. */
+  function paintFigW(root){
+    $$('figure[data-w] > img', root || document).forEach(im => {
+      const p = +im.parentElement.dataset.w;
+      if(p > 0 && im.style.width !== p + '%') im.style.width = p + '%';
+    });
+  }
+
+  /* ══ ② 어느 글의 몇 번째 그림인가 ══ */
+  function fieldOf(el){
+    if(el.closest('.easybox') || el.closest('.ez')) return 'easy_md';
+    if(el.closest('#ovl')){
+      if(el.closest('#ovLeft')) return 'q_md';
+      const seg = el.closest('.seg');
+      return seg && seg.dataset.seg === 'a' ? 'a_md' : 'q_md';
+    }
+    const q = el.closest('[data-qmd]');
+    if(q) return q.getAttribute('data-qmd') === 'a' ? 'a_md' : 'q_md';
+    return null;
+  }
+  function idOf(el){
+    const c = el.closest('.pcard');
+    if(c) return c.dataset.id;
+    if(el.closest('#ovl') && typeof OVID !== 'undefined') return OVID;
+    return null;
+  }
+  const rowOf = id => (typeof ROWS !== 'undefined' ? ROWS : []).find(x => String(x.id) === String(id));
+
+  /* 그림 하나를 가리키는 표 — 붙인 그림은 주소로, 오려 온 그림은 자른 자리로 */
+  function keyOf(im){
+    const f = im.closest('figure[data-fig]');
+    if(f) return { kind:'fig', key:f.dataset.fig || '' };
+    return { kind:'img', key:im.getAttribute('src') || '' };
+  }
+
+  const nums = s => String(s || '').split(',').map(v => parseFloat(v)).filter(v => !isNaN(v));
+  const sameBox = (a, b) => {
+    const x = nums(a), y = nums(b);
+    return x.length === 4 && y.length === 4 && x.every((v, i) => Math.abs(v - y[i]) < 0.002);
+  };
+
+  /* ══ ③ 글에 크기를 적어 넣는다 ══ */
+  function writeSize(md, kind, key, pct){
+    let s = String(md || '');
+    if(kind === 'img'){
+      const q = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp('!\\[([^\\]\\n]*)\\]\\(\\s*' + q + '(?:\\s*=\\s*\\d{1,3}\\s*%)?\\s*\\)', 'g');
+      return s.replace(re, (m, a) => pct && pct < 100 ? `![${a}](${key} =${pct}%)` : `![${a}](${key})`);
+    }
+    return s.replace(/\[\[\s*그림\s*([0-9.,\s]*?)(?:=\s*(\d{1,3})\s*%)?\s*\]\]/g, (m, c) => {
+      if(!sameBox(c, key)) return m;
+      const cc = c.trim().replace(/\s+/g, '');
+      return pct && pct < 100 ? `[[그림 ${cc} =${pct}%]]` : `[[그림 ${cc}]]`;
+    });
+  }
+
+  /* 화면에 있는 «같은 그림» 을 모두 같은 크기로 — 목록과 한눈에 보기가 따로 놀지 않게 */
+  function applyAll(kind, key, pct){
+    const w = pct && pct < 100 ? pct + '%' : '';
+    $$('img.mdimg, .qmd figure img').forEach(im => {
+      const k = keyOf(im);
+      if(k.kind !== kind) return;
+      if(kind === 'img' ? k.key !== key : !sameBox(k.key, key)) return;
+      im.classList.remove('raw');
+      if(w) im.style.width = w; else im.style.removeProperty('width');
+      const f = im.closest('figure[data-fig]');
+      if(f){ if(w) f.dataset.w = pct; else delete f.dataset.w; }
+    });
+  }
+
+  /* ══ ④ 크기 막대 ══ */
+  let BAR = null, CUR = null;
+
+  function bar(){
+    if(BAR) return BAR;
+    BAR = document.createElement('div');
+    BAR.className = 'imsz';
+    BAR.innerHTML = `<span class="t">크기</span>
+      <input type="range" min="10" max="100" step="1" value="100">
+      <b class="v">100%</b><span class="sep"></span>
+      <button type="button" data-p="30" class="pz1">30</button>
+      <button type="button" data-p="50">50</button>
+      <button type="button" data-p="70">70</button>
+      <button type="button" data-p="100">100</button>
+      <span class="sep"></span>
+      <button type="button" data-raw>⤢ 원본</button>
+      <button type="button" data-x>✕</button>`;
+    document.body.appendChild(BAR);
+    BAR.addEventListener('mousedown', e => e.stopPropagation());
+
+    const rg = BAR.querySelector('input'), vv = BAR.querySelector('.v');
+    const live = p => {
+      if(!CUR) return;
+      vv.textContent = p + '%';
+      applyAll(CUR.kind, CUR.key, p);
+      place();
+    };
+    rg.addEventListener('input', () => live(+rg.value));
+    rg.addEventListener('change', () => commit(+rg.value));
+    $$('button[data-p]', BAR).forEach(b => b.onclick = () => {
+      rg.value = b.dataset.p; live(+b.dataset.p); commit(+b.dataset.p);
+    });
+    BAR.querySelector('[data-raw]').onclick = () => {
+      if(!CUR || !CUR.im) return;
+      const on = CUR.im.classList.toggle('raw');
+      if(on) CUR.im.style.removeProperty('width');
+      else live(+rg.value);
+      place();
+    };
+    BAR.querySelector('[data-x]').onclick = () => close();
+    return BAR;
+  }
+
+  function place(){
+    if(!BAR || !CUR || !CUR.im || !CUR.im.isConnected) return close();
+    const r = CUR.im.getBoundingClientRect();
+    const bw = BAR.offsetWidth || 420, bh = BAR.offsetHeight || 40;
+    let top = r.bottom + 8;
+    if(top + bh > innerHeight - 6) top = Math.max(6, r.top - bh - 8);
+    let left = r.left + r.width / 2 - bw / 2;
+    left = Math.max(6, Math.min(innerWidth - bw - 6, left));
+    BAR.style.top = Math.round(top) + 'px';
+    BAR.style.left = Math.round(left) + 'px';
+  }
+
+  function open(im){
+    const id = idOf(im), f = fieldOf(im);
+    const k = keyOf(im);
+    bar();
+    $$('.sel').forEach(x => x.classList.remove('sel'));
+    im.classList.add('sel');
+    const now = (() => {
+      const w = im.style.width || (im.closest('figure[data-w]') ? im.closest('figure[data-w]').dataset.w + '%' : '');
+      const m = String(w).match(/^(\d{1,3})%$/);
+      return m ? +m[1] : 100;
+    })();
+    CUR = { im, id, field:f, kind:k.kind, key:k.key };
+    BAR.querySelector('input').value = now;
+    BAR.querySelector('.v').textContent = now + '%';
+    BAR.classList.add('on');
+    place();
+    if(!id || !f) BAR.querySelector('.v').textContent = now + '%';
+  }
+
+  function close(){
+    try{ flush(); }catch(e){}
+    if(BAR) BAR.classList.remove('on');
+    $$('.sel').forEach(x => x.classList.remove('sel'));
+    CUR = null;
+  }
+
+  /* ── 남기기 ──
+     밀고 있는 동안에는 안 부르고, 손을 뗀 뒤 한 번만 부른다.
+     ★ 기다리는 일감은 «그림 하나마다» 따로 봐야 한다. 시계 하나를 돌려 쓰면
+       그림 두 개를 연달아 줄일 때 뒤엣것이 앞엣것을 지워 버려 먼저 것이 안 남는다.
+     ★ 저장은 줄을 세운다. 같은 문항의 두 칸을 겹쳐 고치면 나중 것이 앞 것을 덮어쓴다. */
+  let PEND = null, SAVET = 0, CHAIN = Promise.resolve();
+
+  function flush(){
+    const job = PEND; PEND = null; clearTimeout(SAVET);
+    if(!job) return;
+    CHAIN = CHAIN.then(async () => {
+      const r = rowOf(job.id); if(!r) return;
+      try{
+        const next = writeSize(r[job.field], job.kind, job.key, job.p);
+        if(next === r[job.field]) return;
+        const up = await sb.from('practicals').update({ [job.field]: next }).eq('id', r.id);
+        if(up.error) throw up.error;
+        r[job.field] = next;
+      }catch(e){
+        try{ log('그림 크기를 남기지 못했습니다 — ' + (e.message || e)); }catch(_){}
+      }
+    });
+    return CHAIN;
+  }
+
+  function commit(p){
+    if(!CUR) return;
+    const { id, field, kind, key } = CUR;
+    if(!id || !field) return;                 /* 어느 글인지 모르면 화면에만 남긴다 */
+    if(!rowOf(id)) return;
+    const sig = [id, field, kind, key].join('|');
+    if(PEND && PEND.sig !== sig) flush();     /* 다른 그림으로 넘어가면 먼저 것부터 보낸다 */
+    PEND = { sig, id, field, kind, key, p };
+    clearTimeout(SAVET);
+    SAVET = setTimeout(flush, 260);
+  }
+  addEventListener('beforeunload', () => { flush(); });
+
+  /* ══ ⑤ 그림을 누르면 막대가 뜬다 ══
+     v96 은 «눌러서 원본 크기» 였다. 그 손잡이는 막대 안의 «⤢ 원본» 으로 옮겼다.
+     window 의 잡는 단계에 걸어 두면 document 에 걸린 예전 손잡이보다 먼저 온다. */
+  addEventListener('click', e => {
+    const im = e.target && e.target.closest && e.target.closest('img.mdimg, .qmd figure img');
+    if(im){
+      e.preventDefault(); e.stopPropagation();
+      if(CUR && CUR.im === im) close(); else open(im);
+      return;
+    }
+    if(BAR && BAR.classList.contains('on') && !e.target.closest('.imsz')) close();
+  }, true);
+
+  addEventListener('keydown', e => {
+    if(e.key === 'Escape' && BAR && BAR.classList.contains('on')){
+      e.preventDefault(); e.stopPropagation(); close();
+    }
+  }, true);
+  addEventListener('scroll', () => { if(CUR) place(); }, true);
+  addEventListener('resize', () => { if(CUR) place(); });
+
+  /* ══ ⑥ 오려 온 그림에 폭을 입히기 — figFill 은 나중에 끼우므로 지켜본다 ══ */
+  paintFigW();
+  ['#list', '#ovl'].forEach(sel => {
+    const wait = setInterval(() => {
+      const n = document.querySelector(sel);
+      if(!n) return;
+      clearInterval(wait);
+      new MutationObserver(() => setTimeout(() => paintFigW(n), 20))
+        .observe(n, { childList:true, subtree:true });
+      paintFigW(n);
+    }, 250);
+    setTimeout(() => clearInterval(wait), 20000);
+  });
+  setInterval(() => paintFigW(), 1200);
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v99 · S펜 필기를 «글자 위에» 제대로
+
+     지금까지 안 되던 까닭 세 가지 ──
+     ① 필기판이 «그림» 위에만 있었다. 지금은 글자 보기가 기본이라 본문에는
+        캔버스가 아예 없다. 원본 그림을 펼쳐야만 쓸 수 있었다.
+     ② 필기를 켜면 캔버스에 touch-action:none 이 걸려 손가락으로 굴리는 것까지
+        같이 막혔다. «손가락은 화면 굴리기» 는 말뿐이었다.
+     ③ 굵기가 «획 하나에 하나» 였다. 필압을 받아도 획 안에서 굵기가 안 변하니
+        붓맛이 없다. 게다가 점을 찍을 때마다 획 전체를 다시 그려서, 240Hz 로
+        들어오는 S펜 점을 못 따라가고 뒤로 갈수록 눌어붙었다.
+
+     그래서 필기판을 칸(문제·답안·쉬운 풀이) 통째에 씌우고, 점마다 굵기를 들고,
+     새로 들어온 마디만 덧그린다. 한눈에 보기에서도 똑같이 쓴다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* 예전 그림 위 필기판 — 손가락으로 굴리는 것까지 막던 것을 푼다 */
+.pz[data-ink="1"] canvas.inkc{touch-action:pan-x pan-y!important}
+body.inkfinger .pz[data-ink="1"] canvas.inkc{touch-action:none!important}
+
+/* ── 칸 위에 씌우는 필기판 ── */
+.inkhost{position:relative}
+.inkl{position:absolute;left:0;right:0;bottom:0;z-index:6;display:block;
+  pointer-events:none;touch-action:pan-x pan-y}
+body.inkon .inkl{pointer-events:auto;cursor:crosshair}
+body.inkon.inkpenhover .inkl,body.inkon.inkfinger .inkl{touch-action:none}
+body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb) 45%,transparent);
+  outline-offset:2px;border-radius:8px}
+
+/* ── 뜬 도구줄 ── */
+.pbar{position:fixed;z-index:100040;right:14px;bottom:16px;display:flex;align-items:center;
+  gap:7px;padding:8px 10px;border:1px solid var(--line,#e2e8f0);border-radius:14px;
+  background:var(--surface,#fff);box-shadow:0 14px 40px rgba(15,23,42,.22);
+  -webkit-user-select:none;user-select:none;flex-wrap:wrap;max-width:calc(100vw - 28px)}
+.pbar.mini{padding:0;border-radius:50%;border:0;box-shadow:none;background:transparent}
+.pbar.mini > *{display:none}
+.pbar.mini > .fab{display:flex}
+.pbar .fab{width:52px;height:52px;border-radius:50%;border:0;cursor:pointer;
+  background:var(--accent,#2563eb);color:#fff;font:700 20px/1 var(--font-d,system-ui);
+  align-items:center;justify-content:center;box-shadow:0 10px 28px rgba(37,99,235,.38)}
+.pbar:not(.mini) .fab{display:none}
+.pbar button{min-width:38px;height:38px;padding:0 10px;border:1px solid var(--line,#e2e8f0);
+  border-radius:10px;background:var(--surface,#fff);color:var(--ink,#0f172a);cursor:pointer;
+  font:700 12px/1 var(--font-d,system-ui)}
+.pbar button:hover{border-color:#b8c1cf}
+.pbar button.on{background:var(--accent,#2563eb);border-color:var(--accent,#2563eb);color:#fff}
+.pbar .sw{width:32px;height:32px;min-width:32px;border-radius:50%;padding:0;border:2px solid #cbd5e1}
+.pbar .sw.on{border-color:var(--ink,#0f172a);box-shadow:0 0 0 3px rgba(37,99,235,.22)}
+.pbar .sep{width:1px;height:22px;background:var(--line,#e2e8f0)}
+.pbar .wl{font:800 9.5px/1 var(--font-d,system-ui);color:var(--muted,#64748b);letter-spacing:.1em}
+@media(max-width:620px){ .pbar{right:8px;bottom:10px;gap:5px;padding:7px} .pbar button{min-width:34px;height:34px;padding:0 7px} }
+</style>
+<script>
+(function(){
+  'use strict';
+  const $  = (s,r=document)=>r.querySelector(s);
+  const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
+  const B  = document.body;
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+
+  const COLORS = ['#BE2B26','#1D4ED8','#137A4B','#10233D'];
+  const WIDTHS = [2.0, 3.4, 6.0];
+  const get = (k,d)=>{ try{ const v=localStorage.getItem(k); return v==null?d:v; }catch(e){ return d; } };
+  const set = (k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
+
+  let ON      = false;
+  let TOOL    = 'pen';                                  /* pen | hi | er */
+  let COLOR   = get('pen:color', COLORS[0]);
+  let WIDTH   = +get('pen:width', WIDTHS[1]);
+  let PENONLY = get('pen:only','1') !== '0';
+
+  /* ══ ① 남기기 ══
+     예전 그림 필기는 ink 자루의 q · a 를 쓴다. 칸 필기는 Lq · La · Le 로 따로 둔다.
+     한 자루를 나눠 쓰면 둘 중 하나가 다른 하나를 지운다. */
+  const BAG = {};                                        /* `${qid}:${zone}` → [획, …] */
+  const lkey = (id,z)=>`pinkl:${id}:${z}`;
+  const skey = z => 'L' + z;
+  const rowOf = id => (typeof ROWS !== 'undefined' ? ROWS : []).find(r => String(r.id) === String(id));
+
+  function load(id, z){
+    const k = `${id}:${z}`;
+    if(BAG[k]) return BAG[k];
+    let v = [];
+    try{ v = JSON.parse(localStorage.getItem(lkey(id,z)) || '[]'); }catch(e){}
+    if(!Array.isArray(v)) v = [];
+    const srv = rowOf(id) && rowOf(id).ink && rowOf(id).ink[skey(z)];
+    if(Array.isArray(srv) && srv.length > v.length) v = srv;
+    return (BAG[k] = v);
+  }
+  let LAST = null;                                       /* 마지막으로 그은 칸 — 되돌리기가 여기부터 무른다 */
+  const QUEUE = new Map();
+  function store(id, z){
+    const v = BAG[`${id}:${z}`] || [];
+    set(lkey(id,z), JSON.stringify(v));
+    clearTimeout(QUEUE.get(id + z));
+    QUEUE.set(id + z, setTimeout(async () => {
+      const r = rowOf(id); if(!r) return;
+      const bag = { ...(r.ink || {}), [skey(z)]: v };
+      r.ink = bag;
+      try{ await sb.from('practicals').update({ ink: bag }).eq('id', id); }catch(e){}
+    }, 1400));
+  }
+
+  /* ══ ② 어디에 씌우나 ══
+     이름표(문제 · 답안 …) 줄은 덮지 않는다. 덮으면 접기도 «고치기» 도 안 눌린다. */
+  const ZONES = [
+    { sel:'.pcard .pcol-q',            z:'q' },
+    { sel:'.pcard .pcol-ans',          z:'a' },
+    { sel:'.pcard .pcol-ez',           z:'e' },
+    { sel:'#ovl #ovLeft',              z:'q' },
+    { sel:'#ovl .seg[data-seg="a"]',   z:'a' },
+    { sel:'#ovl .seg[data-seg="e"]',   z:'e' }
+  ];
+  const idOf = host => {
+    const c = host.closest('.pcard');
+    if(c) return c.dataset.id;
+    if(host.closest('#ovl') && typeof OVID !== 'undefined') return OVID;
+    return null;
+  };
+
+  function mount(){
+    ZONES.forEach(({sel,z}) => $$(sel).forEach(host => {
+      if(host.__ink) { fit(host); return; }
+      host.__ink = 1; host.__zone = z;
+      host.classList.add('inkhost');
+      const cv = document.createElement('canvas');
+      cv.className = 'inkl';
+      host.appendChild(cv);
+      host.__cv = cv;
+      bind(host, cv);
+      new ResizeObserver(() => fit(host)).observe(host);
+      fit(host);
+    }));
+  }
+
+  /* 이름표 아래부터 칸 끝까지가 필기판이다 */
+  function fit(host){
+    const cv = host.__cv; if(!cv) return;
+    const lab = host.querySelector(':scope > .plabel, :scope > .plab');
+    const top = lab ? lab.offsetTop + lab.offsetHeight + 2 : 0;
+    cv.style.top = top + 'px';
+    const w = host.clientWidth, h = Math.max(0, host.clientHeight - top);
+    if(!w || !h) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const nw = Math.round(w * dpr), nh = Math.round(h * dpr);
+    if(cv.width !== nw || cv.height !== nh){
+      cv.width = nw; cv.height = nh;
+      cv.style.width = w + 'px'; cv.style.height = h + 'px';
+    }
+    draw(host);
+  }
+
+  /* ══ ③ 그리기 ══
+     점을 x/W · y/W 로 적는다(둘 다 «폭» 으로 나눈다). 높이로 나누면 글이 늘어날 때
+     써 둔 글씨가 세로로 찌그러진다. 폭으로만 나누면 비율이 안 깨진다. */
+  function seg(ctx, S, i, W){
+    const a = S.pts[i-1], b = S.pts[i];
+    ctx.beginPath();
+    ctx.lineWidth = Math.max(.6, ((a[2] + b[2]) / 2) * W);
+    ctx.moveTo(a[0]*W, a[1]*W);
+    ctx.lineTo(b[0]*W, b[1]*W);
+    ctx.stroke();
+  }
+  function one(ctx, S, W, from){
+    ctx.save();
+    ctx.globalAlpha = S.a == null ? 1 : S.a;
+    ctx.strokeStyle = S.c;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    if(S.pts.length === 1){
+      const p = S.pts[0];
+      ctx.beginPath();
+      ctx.arc(p[0]*W, p[1]*W, Math.max(.4, p[2]*W/2), 0, 6.284);
+      ctx.fillStyle = S.c; ctx.fill();
+    }
+    for(let i = Math.max(1, from || 1); i < S.pts.length; i++) seg(ctx, S, i, W);
+    ctx.restore();
+  }
+  function draw(host){
+    const cv = host.__cv, id = idOf(host); if(!cv || !id) return;
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,cv.width,cv.height);
+    const W = cv.width;
+    load(id, host.__zone).forEach(S => one(ctx, S, W));
+  }
+  function redrawAll(){ $$('.inkhost').forEach(draw); }
+
+  /* ══ ④ 펜 받기 ══ */
+  let HOVERT = 0;
+  function penSeen(){
+    B.classList.add('inkpenhover');
+    clearTimeout(HOVERT);
+    HOVERT = setTimeout(() => B.classList.remove('inkpenhover'), 1400);
+  }
+  /* 손바닥 걸러내기 — 펜을 한 번이라도 본 뒤로는 «펜만» 인 동안 살갗을 안 받는다.
+     대신 canvas 의 touch-action 을 열어 두어 손가락은 그대로 화면을 굴린다. */
+  function allow(e){
+    if(e.pointerType === 'pen'){ penSeen(); return true; }
+    if(e.pointerType === 'mouse') return true;
+    return !PENONLY;
+  }
+  const eraserTip = e => e.pointerType === 'pen' && (e.buttons & 32) === 32;
+
+  /* ★ 삼킨 점 받기 — 반드시 빈 배열을 대비해야 한다.
+     getCoalescedEvents() 는 «믿을 수 있는» 이벤트가 아니거나 브라우저 사정에 따라
+     빈 배열을 준다. 그대로 forEach 를 돌리면 점이 하나도 안 쌓여 «펜을 그어도
+     아무것도 안 그려지는» 꼴이 된다. 예전 필기가 안 되던 것도 여기였다. */
+  function coalesced(e){
+    let a = null;
+    try{ a = e.getCoalescedEvents ? e.getCoalescedEvents() : null; }catch(x){}
+    return (a && a.length) ? a : [e];
+  }
+
+  function bind(host, cv){
+    let cur = null, drawn = 0, PID = null;
+    const ctx = cv.getContext('2d');
+
+    const at = e => {
+      const b = cv.getBoundingClientRect();
+      const W = b.width || 1;
+      return [ (e.clientX - b.left) / W, (e.clientY - b.top) / W ];
+    };
+    /* 필압 → 굵기. 폭으로 나눠 적어야 화면이 커져도 굵기 비율이 그대로다. */
+    const wOf = (e, b) => {
+      const base = (TOOL === 'hi' ? WIDTH * 5 : WIDTH) / (b || 1);
+      if(e.pointerType !== 'pen') return base;
+      const pr = e.pressure > 0 ? e.pressure : .5;
+      return base * clamp(.45 + pr * 1.35, .45, 1.9);
+    };
+    function erase(p){
+      const id = idOf(host); if(!id) return;
+      const list = load(id, host.__zone);
+      const R = .028;
+      const keep = list.filter(S => !S.pts.some(q => Math.hypot(q[0]-p[0], q[1]-p[1]) < R));
+      if(keep.length !== list.length){
+        BAG[`${id}:${host.__zone}`] = keep; store(id, host.__zone); draw(host);
+      }
+    }
+
+    cv.addEventListener('pointerenter', e => { if(e.pointerType === 'pen') penSeen(); });
+    cv.addEventListener('pointerover',  e => { if(e.pointerType === 'pen') penSeen(); });
+
+    cv.addEventListener('pointerdown', e => {
+      if(!ON || !allow(e)) return;
+      const id = idOf(host); if(!id) return;
+      e.preventDefault(); e.stopPropagation();
+      try{ cv.setPointerCapture(e.pointerId); }catch(x){}
+      PID = e.pointerId;
+      if(TOOL === 'er' || eraserTip(e)){ cur = null; return erase(at(e)); }
+      const b = cv.getBoundingClientRect().width;
+      cur = TOOL === 'hi'
+        ? { c:'#FDE047', a:.40, pts:[[...at(e), wOf(e,b)]] }
+        : { c:COLOR,     a:1,   pts:[[...at(e), wOf(e,b)]] };
+      load(id, host.__zone).push(cur);
+      drawn = 1;
+      one(ctx, cur, cv.width);
+    });
+
+    cv.addEventListener('pointermove', e => {
+      if(!ON || PID !== e.pointerId) return;
+      if(!allow(e)) return;
+      e.preventDefault(); e.stopPropagation();
+      const evs = coalesced(e);
+      if(TOOL === 'er' || eraserTip(e)){ evs.forEach(ev => erase(at(ev))); return; }
+      if(!cur) return;
+      const b = cv.getBoundingClientRect().width;
+      /* ★ 삼킨 점까지 모두 받되, 새로 들어온 마디만 덧그린다.
+         획 전체를 다시 그리면 점이 쌓일수록 느려져 S펜을 못 따라간다. */
+      evs.forEach(ev => cur.pts.push([...at(ev), wOf(ev,b)]));
+      one(ctx, cur, cv.width, drawn);
+      drawn = cur.pts.length;
+    });
+
+    const end = () => {
+      if(PID == null) return;
+      PID = null;
+      if(cur){
+        const id = idOf(host);
+        if(id){ store(id, host.__zone); LAST = { id, z:host.__zone }; }
+        cur = null;
+      }
+      draw(host);
+    };
+    ['pointerup','pointercancel','lostpointercapture'].forEach(t => cv.addEventListener(t, end));
+  }
+
+  /* ══ ⑤ 도구줄 ══ */
+  let BARE = null;
+  function bar(){
+    if(BARE) return BARE;
+    BARE = document.createElement('div');
+    BARE.className = 'pbar mini';
+    BARE.innerHTML =
+      `<button class="fab" type="button" title="필기 (S펜)">✍</button>
+       <button type="button" data-off title="필기 끄기">✍ 켬</button><span class="sep"></span>
+       ${COLORS.map(c => `<button type="button" class="sw" data-c="${c}" style="background:${c}"></button>`).join('')}
+       <span class="sep"></span><span class="wl">굵기</span>
+       ${WIDTHS.map((w,i) => `<button type="button" data-w="${w}">${['│','┃','█'][i]}</button>`).join('')}
+       <span class="sep"></span>
+       <button type="button" data-t="hi" title="형광펜">🖍</button>
+       <button type="button" data-t="er" title="지우개">지우개</button>
+       <button type="button" data-undo title="되돌리기">↶</button>
+       <button type="button" data-clear title="이 문항 필기 전부 지우기">비우기</button>
+       <span class="sep"></span>
+       <button type="button" data-only title="펜으로만 쓰기 — 손바닥·손가락은 안 그려집니다">✋ 펜만</button>`;
+    document.body.appendChild(BARE);
+
+    BARE.querySelector('.fab').onclick = () => toggle(true);
+    BARE.addEventListener('click', e => {
+      const b = e.target.closest('button'); if(!b || b.classList.contains('fab')) return;
+      if(b.hasAttribute('data-off'))  return toggle(false);
+      if(b.dataset.c){ COLOR = b.dataset.c; TOOL = 'pen'; set('pen:color', COLOR); return paint(); }
+      if(b.dataset.w){ WIDTH = +b.dataset.w; set('pen:width', b.dataset.w); return paint(); }
+      if(b.dataset.t){ TOOL = (TOOL === b.dataset.t) ? 'pen' : b.dataset.t; return paint(); }
+      if(b.hasAttribute('data-only')){
+        PENONLY = !PENONLY; set('pen:only', PENONLY ? '1' : '0');
+        B.classList.toggle('inkfinger', !PENONLY);
+        return paint();
+      }
+      if(b.hasAttribute('data-undo')) return undo();
+      if(b.hasAttribute('data-clear')) return clearOne();
+    });
+    return BARE;
+  }
+  function paint(){
+    const t = bar();
+    $$('[data-c]', t).forEach(b => b.classList.toggle('on', b.dataset.c === COLOR && TOOL !== 'er'));
+    $$('[data-w]', t).forEach(b => b.classList.toggle('on', +b.dataset.w === WIDTH));
+    $$('[data-t]', t).forEach(b => b.classList.toggle('on', b.dataset.t === TOOL));
+    t.querySelector('[data-only]').classList.toggle('on', PENONLY);
+    t.querySelector('[data-off]').classList.toggle('on', ON);
+  }
+  function toggle(v){
+    ON = v == null ? !ON : v;
+    B.classList.toggle('inkon', ON);
+    B.classList.toggle('inkfinger', ON && !PENONLY);
+    bar().classList.toggle('mini', !ON);
+    if(ON){ mount(); redrawAll(); }
+    paint();
+  }
+
+  /* 되돌리기·비우기는 «지금 보고 있는 문항» 을 다룬다 */
+  function curId(){
+    if($('#ovl') && $('#ovl').classList.contains('on') && typeof OVID !== 'undefined') return OVID;
+    const hosts = $$('.pcard .inkhost');
+    for(const h of hosts){
+      const r = h.getBoundingClientRect();
+      if(r.top < innerHeight * .6 && r.bottom > 0) return idOf(h);
+    }
+    return hosts.length ? idOf(hosts[0]) : null;
+  }
+  function undo(){
+    const id = curId(); if(!id) return;
+    /* 가장 나중에 그은 칸부터 무른다. 칸이 셋이라 «어디서» 를 골라야 하는데,
+       그냥 순서대로 뒤지면 문제 칸에 그은 뒤에도 쉬운 풀이 칸이 먼저 물러진다. */
+    const order = (LAST && String(LAST.id) === String(id))
+      ? [LAST.z, ...['q','a','e'].filter(z => z !== LAST.z)]
+      : ['a','q','e'];
+    for(const z of order){
+      const L = load(id, z);
+      if(L.length){ L.pop(); store(id, z); redrawAll(); return; }
+    }
+  }
+  function clearOne(){
+    const id = curId(); if(!id) return;
+    if(!confirm('이 문항에 쓴 필기를 전부 지웁니다.')) return;
+    ['q','a','e'].forEach(z => { BAG[`${id}:${z}`] = []; store(id, z); });
+    redrawAll();
+  }
+
+  /* ══ ⑥ 화면이 바뀌면 다시 씌우고 다시 그린다 ══ */
+  bar(); paint();
+  B.classList.toggle('inkfinger', !PENONLY);
+  let t0 = 0;
+  const refresh = () => { clearTimeout(t0); t0 = setTimeout(() => { if(ON){ mount(); redrawAll(); } }, 60); };
+  ['#list','#ovl'].forEach(sel => {
+    const wait = setInterval(() => {
+      const n = document.querySelector(sel);
+      if(!n) return;
+      clearInterval(wait);
+      new MutationObserver(refresh).observe(n, { childList:true, subtree:true });
+    }, 250);
+    setTimeout(() => clearInterval(wait), 20000);
+  });
+  addEventListener('resize', refresh);
+  window.__pen = { toggle, redrawAll, mount };
 })();
 </script>
 
