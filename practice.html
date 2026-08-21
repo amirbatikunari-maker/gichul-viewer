@@ -4417,7 +4417,7 @@ body.exam-mode .pcard{box-shadow:0 0 0 2px rgba(29,78,216,.08),var(--shadow)}
 
 <script src="./music.js" defer></script>
 <!-- DATA ISOLATION CONTRACT: practice/written mistakes stay in study domain; never write into iv-/iv: interview data. -->
-<script src="./app-enhance.js?v=96" defer></script>
+<script src="./app-enhance.js?v=97" defer></script>
 
 <!-- ══════════════════════════════════════════════════════════════
      v89 · 상단 도구 3칸 재배치 · 문항 레일 · 진도율
@@ -6621,6 +6621,128 @@ body.onlyimport #boxFiles,body.onlyimport #boxImport{display:block!important}
     setTimeout(() => clearInterval(wait), 20000);
   });
   setInterval(() => addBtns(), 1500);
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v97 · 한눈에 보기에서도 고쳐 쓰기 · 좌우 단추 걷어내고 폭 넓히기
+           옮겨 간 안내 지우기 · 처음부터 다 보이게 · 칸 이름을 눌러 접기
+
+     ① 한눈에 보기(.ovl)는 z-index 2000 인데 고쳐 쓰는 창은 999 였다.
+        단추는 눌렸지만 창이 «뒤에» 깔려 아무 일도 안 일어나는 것처럼 보였다.
+     ② 좌우 넘김 단추는 화면 양옆을 먹고 글을 가린다. 걷어내고 그만큼 폭을 넓힌다.
+     ③ «자동 변환 탭으로 옮겼습니다» 안내는 이미 다 아는 이야기라 자리만 먹는다.
+     ④ 가리기·보기 단추를 없애고, 칸 이름을 누르면 그 칸이 접히게 한다.
+        처음에는 다 펴 두고, 한 문항씩 본다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* ── ① 고쳐 쓰는 창을 맨 위로 ── */
+.edw{z-index:100020!important}
+
+/* ── ② 좌우 넘김 단추 걷어내기 · 폭은 화면 끝까지 ── */
+.edgenav{display:none!important}
+body:not(.onlyimport) .wrap{max-width:none!important}
+@media(min-width:1100px){
+  body:not(.onlyimport) .wrap{padding-left:20px!important;padding-right:20px!important}
+}
+@media(max-width:760px){
+  body:not(.onlyimport) .wrap{padding-left:9px!important;padding-right:9px!important}
+}
+/* 세 칸을 넓어진 폭에 맞춰 다시 나눈다 */
+@media(min-width:1500px){
+  .pgrid.split3{grid-template-columns:minmax(0,1.02fr) minmax(0,1fr) minmax(0,1.12fr)!important;
+    gap:20px!important}
+}
+
+/* ── ③ 옮겨 간 자리 안내 지우기 ── */
+.movednote{display:none!important}
+
+/* ── ④ 가리기·보기 단추 걷어내기 ── */
+.ansbtn{display:none!important}
+#fAns,#fEz{display:none!important}
+
+/* 칸 이름을 눌러 접는다 */
+.plabel,.ovl .plab{cursor:pointer;-webkit-user-select:none;user-select:none}
+.plabel:hover,.ovl .plab:hover{color:var(--accent,#2563eb)}
+.plabel::before,.ovl .plab::before{content:"▾";flex:0 0 auto;font-size:9px;opacity:.5;
+  transform:translateY(-1px);letter-spacing:0}
+.pfold > .plabel::before,.pfold > .plab::before{content:"▸"}
+.pfold > *:not(.plabel):not(.plab){display:none!important}
+/* 접힌 칸은 자리를 거의 안 먹는다 */
+.pcol.pfold,.ez.pfold{min-height:0}
+.ovl .pane.pfold{flex:0 0 auto;overflow:hidden}
+</style>
+<script>
+(function(){
+  'use strict';
+  const $  = (s,r=document)=>r.querySelector(s);
+  const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
+  const NAMES = ['문제','답안','쉬운 풀이'];
+  const KEY = 'prac:fold3';
+
+  /* 접은 칸은 이 기기에 남는다 — 목록을 다시 그려도 그대로 접혀 있다 */
+  let FOLD = {};
+  try{ FOLD = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; }catch(e){ FOLD = {}; }
+  const save = () => { try{ localStorage.setItem(KEY, JSON.stringify(FOLD)); }catch(e){} };
+
+  const nameOf = lab => {
+    const t = (lab.childNodes[0] && lab.childNodes[0].textContent || lab.textContent || '').trim();
+    return NAMES.includes(t) ? t : null;
+  };
+  /* 접을 덩어리 — 이름표를 담고 있는 상자 그 자체다.
+     문제·답안은 .pcol, 쉬운 풀이는 .ez, 한눈에 보기는 .pane 또는 .seg. */
+  const boxOf = lab => lab.parentElement;
+
+  function applyFold(root){
+    $$('.plabel, .ovl .plab', root || document).forEach(lab => {
+      const n = nameOf(lab); if(!n) return;
+      const box = boxOf(lab); if(!box) return;
+      box.classList.toggle('pfold', !!FOLD[n]);
+      if(!lab.__fold){
+        lab.__fold = 1;
+        lab.addEventListener('click', e => {
+          if(e.target.closest && e.target.closest('.edb')) return;   /* 고치기 단추는 비켜 준다 */
+          e.preventDefault(); e.stopPropagation();
+          FOLD[n] = !FOLD[n]; save();
+          applyFold();
+        });
+      }
+    });
+  }
+  window.__pracFold = applyFold;
+
+  /* ══ 처음 켤 때 — 다 보이게, 한 문항씩 ══
+     단추를 없앴으니 손으로 못 켠다. 이미 있는 손잡이를 한 번 눌러 상태만 맞춘다
+     (그래야 이 기기에 남는 설정까지 같이 맞는다). */
+  let done = 0;
+  const boot = setInterval(() => {
+    if(!$('#list')) return;
+    if(done++ > 40){ clearInterval(boot); return; }
+    let ok = true;
+    try{
+      if(typeof HIDE_ALL !== 'undefined' && HIDE_ALL && $('#fAns')) $('#fAns').click();
+      else if(typeof HIDE_ALL === 'undefined') ok = false;
+      if(typeof EZ_HIDE !== 'undefined' && EZ_HIDE && $('#fEz')) $('#fEz').click();
+      if(typeof ONEUP !== 'undefined' && !ONEUP && $('#fOne')) $('#fOne').click();
+    }catch(e){ ok = false; }
+    if(ok){ clearInterval(boot); applyFold(); }
+  }, 200);
+  setTimeout(() => clearInterval(boot), 15000);
+
+  applyFold();
+  ['#list', '#ovl'].forEach(sel => {
+    const wait = setInterval(() => {
+      const n = document.querySelector(sel);
+      if(!n) return;
+      clearInterval(wait);
+      new MutationObserver(() => setTimeout(() => applyFold(n), 20))
+        .observe(n, { childList:true, subtree:true });
+      applyFold(n);
+    }, 250);
+    setTimeout(() => clearInterval(wait), 20000);
+  });
+  setInterval(() => applyFold(), 1500);
 })();
 </script>
 
