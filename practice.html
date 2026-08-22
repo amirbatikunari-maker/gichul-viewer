@@ -11620,6 +11620,158 @@ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded'
 })();
 </script>
 
+
+<!-- ══════════════════════════════════════════════════════════════
+     v131 · 뜻이 보이게 — 색과 굵기
+
+     검은 글씨만 죽 이어지면 «무엇이 주어졌고 무엇을 구하라는 건지» 를
+     매번 처음부터 다시 읽어야 한다. 그래서 글의 구실에 따라 색을 나눈다.
+
+       값·단위   숫자는 굵게, 단위는 옅게        6600[V] → 눈에 먼저 값이 잡힌다
+       묻는 말   구하시오·쓰시오·설명하시오       파랑 굵게 — 무엇을 하라는지
+       조건      단, / 다만 / 제외 / 반드시      주황 — 놓치면 틀리는 자리
+       용어      수용률·%임피던스·자기유지 …      초록 — 출제기준 낱말표를 그대로 씀
+       차례      (1) ① 1단계                    굵게 — 덩어리의 머리
+       답        답 : …                          노란 바탕
+
+     규칙 ──
+       · 글자는 하나도 바꾸지 않는다. 감싸기만 한다.
+         (형광펜·주석이 글자 수를 세어 자리를 잡으므로, 한 글자라도 늘면 어긋난다)
+       · 수식(KaTeX) 안에는 손대지 않는다. 이미 제 모양이 있다.
+       · «색 끄기» 로 언제든 되돌린다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+body.hl-on .hl-num{font-weight:800;color:var(--ink)}
+body.hl-on .hl-unit{color:var(--ink-2);font-weight:600;font-size:.94em}
+body.hl-on .hl-ask{font-weight:800;color:#1B4FD8}
+body.hl-on .hl-cond{font-weight:700;color:#B26A00;
+  background:linear-gradient(180deg,transparent 62%,rgba(255,196,87,.30) 62%)}
+body.hl-on .hl-warn{font-weight:800;color:#B02A26}
+body.hl-on .hl-term{font-weight:700;color:#0E6B45}
+body.hl-on .hl-step{font-weight:800;color:var(--ink)}
+body.rd-night.hl-on .hl-ask{color:#8FBBFF}
+body.rd-night.hl-on .hl-cond{color:#F0C36B;background:none}
+body.rd-night.hl-on .hl-warn{color:#FF9A94}
+body.rd-night.hl-on .hl-term{color:#7ADCAE}
+body.rd-night.hl-on .hl-unit{color:#9FB0C4}
+</style>
+<script>
+(function(){
+'use strict';
+const KEY='prac:hl:v1';
+let ON=(()=>{ try{ return localStorage.getItem(KEY)!=='0' }catch(e){ return true } })();
+
+/* ── 용어 — 출제기준 낱말표를 그대로 쓴다 (따로 만들지 않는다) ── */
+function terms(){
+  const out=new Set([
+    '수용률','부등률','부하율','역률','%임피던스','임피던스','단락전류','차단용량','정격전압',
+    '기준용량','절연저항','접지저항','절연내력','자기유지','인터록','시퀀스','논리식','진리표',
+    '전압강하','허용전류','조명률','감광보상률','보수율','광속','조도','축전지','보호계전기',
+    '변류기','계기용변압기','피뢰기','차단기','단로기','전력용콘덴서','직렬리액터','수전설비'
+  ]);
+  try{
+    (window.NCS_GIJUN?.silgi?.majors||[]).forEach(M=>(M.keys||[]).forEach(k=>{
+      if(k && k.length>=3) out.add(k);
+    }));
+  }catch(e){}
+  return [...out].sort((a,b)=>b.length-a.length);
+}
+let RE_TERM=null;
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const escRe=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+
+const UNIT='(?:\\[[^\\]]{1,10}\\]|kVA|MVA|kVar|kWh|kV|kA|kW|VA|mm2|mm|cm|km|℃|Ω|%|A|V|W|m|s)';
+const RE_NUM  = new RegExp('(\\d[\\d,]*(?:\\.\\d+)?)\\s*('+UNIT+')','g');
+const RE_ASK  = /(구하시오|구하라|쓰시오|쓰라|설명하시오|기술하시오|작성하시오|산정하시오|선정하시오|계산하시오|나열하시오|답하시오|완성하시오|비교하시오)/g;
+const RE_COND = /(단,|다만,|제외한|제외하고|반드시|주의|유의|단서|조건은)/g;
+const RE_WARN = /(자주\s?틀리는|틀리기\s?쉬운|주의할\s?점|하지\s?않는다|아니다|안\s?된다)/g;
+const RE_STEP = /(^|\s)(\(\d{1,2}\)|[①-⑩]|\d{1,2}단계|[가-하]\))/g;
+
+const SKIP='.katex,.katex-display,.ann-badge,.annlist,.aiann-list,.dupwrap,.relwrap,'
+         + 'code,pre,script,style,textarea,input,button,select,.imsz,.cropbar,.hlwrap';
+
+function paintNode(tn){
+  const raw=tn.nodeValue;
+  if(!raw || raw.length<2 || !/[가-힣0-9]/.test(raw)) return false;
+  let h=esc(raw), before=h;
+  h=h.replace(RE_NUM,(m,a,b)=>`<b class="hl-num">${a}</b><span class="hl-unit">${b}</span>`);
+  h=h.replace(RE_ASK,'<span class="hl-ask">$1</span>');
+  h=h.replace(RE_COND,'<span class="hl-cond">$1</span>');
+  h=h.replace(RE_WARN,'<span class="hl-warn">$1</span>');
+  h=h.replace(RE_STEP,'$1<b class="hl-step">$2</b>');
+  if(RE_TERM) h=h.replace(RE_TERM,'<span class="hl-term">$1</span>');
+  if(h===before) return false;
+  const sp=document.createElement('span');
+  sp.className='hlwrap'; sp.innerHTML=h;
+  /* ★ 글자 수가 하나라도 달라지면 형광펜·주석 자리가 어긋난다 — 다르면 되돌린다 */
+  if((sp.textContent||'').length !== raw.length) return false;
+  tn.parentNode.replaceChild(sp,tn);
+  return true;
+}
+function paint(root){
+  if(!ON) return;
+  if(!RE_TERM){
+    const t=terms().filter(x=>x.length>=3).slice(0,300).map(escRe);
+    if(t.length) RE_TERM=new RegExp('('+t.join('|')+')','g');
+  }
+  const hosts=(root||document).querySelectorAll('.qmd,.ez,.easybox,#ovl .pane');
+  hosts.forEach(host=>{
+    if(host.dataset.hled==='1') return;
+    host.dataset.hled='1';
+    const w=document.createTreeWalker(host,NodeFilter.SHOW_TEXT,{
+      acceptNode(n){
+        if(!n.nodeValue||!n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        if(n.parentElement&&n.parentElement.closest(SKIP)) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    const list=[]; let n;
+    while((n=w.nextNode())) list.push(n);
+    list.forEach(tn=>{ try{ paintNode(tn) }catch(e){} });
+  });
+}
+function clear(root){
+  (root||document).querySelectorAll('.hlwrap').forEach(sp=>{
+    const p=sp.parentNode; if(!p) return;
+    p.replaceChild(document.createTextNode(sp.textContent||''),sp);
+    p.normalize&&p.normalize();
+  });
+  (root||document).querySelectorAll('[data-hled]').forEach(h=>delete h.dataset.hled);
+}
+function apply(){
+  document.body.classList.toggle('hl-on',ON);
+  if(ON) paint(); else clear();
+  document.querySelectorAll('[data-hlsw]').forEach(b=>b.classList.toggle('on',ON));
+}
+
+/* 고르개 — 읽기 결 줄 옆에 */
+const boot=setInterval(()=>{
+  const row=document.querySelector('.rdsw');
+  if(!row) return;
+  if(!row.querySelector('[data-hlsw]')){
+    const b=document.createElement('button');
+    b.type='button'; b.dataset.hlsw=''; b.textContent='색';
+    b.title='값·묻는 말·조건·용어에 색과 굵기를 넣습니다';
+    b.addEventListener('click',()=>{
+      ON=!ON; try{ localStorage.setItem(KEY,ON?'1':'0') }catch(e){}
+      apply();
+    });
+    row.appendChild(b);
+  }
+  apply(); clearInterval(boot);
+},700);
+setTimeout(()=>clearInterval(boot),25000);
+
+const w1=setInterval(()=>{ const l=document.getElementById('list'); if(!l) return; clearInterval(w1);
+  new MutationObserver(()=>setTimeout(()=>paint(l),80)).observe(l,{childList:true});
+  setTimeout(()=>paint(l),300);
+},400);
+setTimeout(()=>clearInterval(w1),20000);
+setInterval(()=>{ const o=document.getElementById('ovl');
+  if(o&&o.classList.contains('on')) paint(o); },1200);
+})();
+</script>
+
 <!-- 끌어서 고른 자리를 AI 가 풀어 준다 (일반 · 한눈에 공통) -->
 <script src="./ai-explain.js" defer></script>
 
