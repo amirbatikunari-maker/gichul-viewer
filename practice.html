@@ -11113,6 +11113,17 @@ setTimeout(()=>clearInterval(w2),25000);
   border:1px solid var(--line,#e2e8f0);background:#fff;cursor:pointer;
   font:600 10px/1.4 var(--font-d,system-ui);color:var(--ink-2,#475569)}
 .dupwrap .it:hover{border-color:#a97fdd;color:#6b2fb3}
+.relb{flex:none;display:inline-flex;align-items:center;height:19px;padding:0 7px;border-radius:9px;
+  border:1px solid #a9d5e6;background:#eff9fd;color:#0e6d8c;cursor:pointer;
+  font:800 9.5px/1 var(--font-m,monospace)}
+.relb:hover{border-color:#5fb6d4}
+.relwrap{margin:6px 0 0;padding:7px 9px;border:1px dashed #a9d5e6;border-radius:9px;background:#f6fcfe}
+.relwrap .t{font:800 9px/1 var(--font-m,monospace);letter-spacing:.08em;color:#0e6d8c;margin-bottom:5px}
+.relwrap .it{display:inline-flex;align-items:center;gap:5px;margin:0 5px 4px 0;padding:2px 7px;
+  border-radius:7px;border:1px solid var(--line,#e2e8f0);background:#fff;cursor:pointer;
+  font:600 10px/1.4 var(--font-d,system-ui);color:var(--ink-2,#475569)}
+.relwrap .it:hover{border-color:#5fb6d4;color:#0e6d8c}
+.relwrap .it b{font:800 9px/1 var(--font-m,monospace);color:#0e6d8c}
 </style>
 <script>
 (function(){
@@ -11133,11 +11144,29 @@ function norm(r){
     .trim();
 }
 const shingles=t=>{ const s=new Set(); for(let i=0;i<=t.length-5;i+=1) s.add(t.slice(i,i+5)); return s };
-function jac(a,b){
-  if(!a.size||!b.size) return 0;
+/* 얼마나 겹치나 — 두 가지로 잰다.
+     자카드 : 서로 얼마나 같은가 (양쪽 기준)
+     포함율 : 짧은 쪽이 긴 쪽 안에 얼마나 들어 있는가
+   짧은 문장은 낱말 하나만 달라도 자카드가 뚝 떨어진다.
+   그래서 «느슨» 에서는 포함율도 함께 본다(뒤에 단서만 붙은 것 따위를 잡으려고). */
+function meas(a,b){
+  if(!a.size||!b.size) return {j:0,c:0};
   const [x,y]=a.size<b.size?[a,b]:[b,a];
   let hit=0; x.forEach(v=>{ if(y.has(v)) hit++ });
-  return hit/(a.size+b.size-hit);
+  return { j:hit/(a.size+b.size-hit), c:hit/Math.max(1,x.size) };
+}
+const LEVELS={
+  strict:{ nm:'엄격', j:0.92, c:0,    r:0,    d:'글자까지 거의 같은 것만' },
+  normal:{ nm:'보통', j:0.85, c:0,    r:0,    d:'그림·빈칸·부호만 다른 것' },
+  loose: { nm:'느슨', j:0.72, c:0.90, r:0.55, d:'뒤에 단서가 붙은 정도까지' }
+};
+let LV=(()=>{ try{ return LEVELS[localStorage.getItem('prac:duplv:v1')]?localStorage.getItem('prac:duplv:v1'):'normal' }
+              catch(e){ return 'normal' } })();
+function same(sa,sb,la,lb){
+  const L=LEVELS[LV]||LEVELS.normal, m=meas(sa,sb);
+  if(m.j>=L.j) return true;
+  if(L.c && m.c>=L.c && Math.min(la,lb)/Math.max(1,la,lb)>=L.r) return true;
+  return false;
 }
 /* 대표 고르기 — 쓸모가 많은 것을 남긴다 */
 function better(a,b){
@@ -11149,6 +11178,7 @@ function better(a,b){
 
 /* ══ ② 묶기 (틈날 때 잘게) ══ */
 let GROUPS=new Map();      /* 대표 id → [겹치는 row …] */
+let REL=new Map();         /* id → [{id, sim} …]  닮음 0.35 이상 */
 let HIDE=new Set();        /* 감출 id */
 let SIG='', BUSY=false, READY=false;
 const idle=fn=>(window.requestIdleCallback?requestIdleCallback(()=>fn(),{timeout:250}):setTimeout(fn,0));
@@ -11198,7 +11228,8 @@ function build(){
         for(const o of list){
           const oid=String(o.id);
           if(oid===id||seen.has(oid)) continue;
-          if(jac(shin.get(id),shin.get(oid))>=0.85) mates.push(o);
+          if(same(shin.get(id),shin.get(oid),
+                  (norms.get(id)||'').length,(norms.get(oid)||'').length)) mates.push(o);
         }
         if(!mates.length) continue;
         seen.add(id); mates.forEach(m=>seen.add(String(m.id)));
@@ -11210,6 +11241,68 @@ function build(){
     if(i<keys.length) return idle(pass2);
     return idle(done);
   }
+  /* ── 연관 문제 (0.35 이상 닮은 것) ──
+     중복(0.85)은 «같은 문제» 지만, 0.35 쯤이면 «값만 다르거나 뒤 물음만 바뀐»
+     한 핏줄의 문제다. 그것들을 이어 두면 하나를 풀고 나머지를 바로 볼 수 있다.
+     전부와 견주면 1261×1261 이 되므로, 드문 다섯 글자를 나눠 담아
+     «같은 조각을 나눠 가진 것» 만 후보로 올린다. */
+  const REL_MIN=0.35, REL_MAX=8;
+  let RINV=null, rids=null;
+  function relPrep(){
+    try{
+      const df=new Map(); RINV=new Map(); rids=[...norms.keys()];
+      const setOf=new Map();
+      rids.forEach(id=>{
+        const t=(norms.get(id)||'').slice(0,500);
+        const set=[]; for(let k=0;k<=t.length-5;k+=3) set.push(t.slice(k,k+5));
+        const uniq=[...new Set(set)];
+        setOf.set(id,uniq);
+        uniq.forEach(g=>df.set(g,(df.get(g)||0)+1));
+      });
+      rids.forEach(id=>{
+        const uniq=setOf.get(id)||[];
+        uniq.filter(g=>df.get(g)<=40)
+            .sort((a,b)=>df.get(a)-df.get(b)).slice(0,24)
+            .forEach(g=>{ (RINV.get(g)||RINV.set(g,[]).get(g)).push(id) });
+      });
+      RSET=setOf;
+      i=0; return idle(relScan);
+    }catch(e){ finish(); }
+  }
+  let RSET=null;
+  function relScan(){
+    try{
+      const t0=performance.now();
+      while(i<rids.length && performance.now()-t0<12){
+        const id=rids[i++];
+        const mine=RSET.get(id)||[]; if(mine.length<6) continue;
+        const share=new Map();
+        mine.forEach(g=>{ const L=RINV.get(g); if(!L||L.length>60) return;
+          L.forEach(o=>{ if(o!==id) share.set(o,(share.get(o)||0)+1) }); });
+        if(!share.size) continue;
+        const cand=[...share.entries()].filter(([,n])=>n>=3)
+          .sort((a,b)=>b[1]-a[1]).slice(0,60).map(([o])=>o);
+        if(!cand.length) continue;
+        const A=shingles(norms.get(id)||'');
+        const out=[];
+        cand.forEach(o=>{
+          const m=meas(A,shingles(norms.get(o)||''));
+          if(m.j>=REL_MIN) out.push({ id:o, sim:+m.j.toFixed(3) });
+        });
+        if(out.length){
+          out.sort((a,b)=>b.sim-a.sim);
+          REL.set(id,out.slice(0,REL_MAX));
+        }
+      }
+      if(i<rids.length) return idle(relScan);
+      finish();
+    }catch(e){ finish(); }
+  }
+  function finish(){
+    try{ stamp() }catch(e){}
+    try{ window.__pracLog&&window.__pracLog(`연관 문제 ${REL.size}문항에 이어 두었습니다 (닮음 0.35 이상)`) }catch(e){}
+  }
+
   function done(){
     GROUPS=new Map(); HIDE=new Set();
     reps.forEach(({rep,all})=>{
@@ -11222,6 +11315,7 @@ function build(){
     try{ stamp() }catch(e){}
     if(ON()) { try{ drawList() }catch(e){} }
     try{ window.__pracLog&&window.__pracLog(`겹치는 문항 ${HIDE.size}개를 ${GROUPS.size}덩어리로 묶었습니다`) }catch(e){}
+    REL=new Map(); i=0; idle(relPrep);          /* 이어서 연관 문제를 잇는다 */
   }
   idle(pass1);
 }
@@ -11268,7 +11362,45 @@ function stamp(){
     b.textContent=`중복 ${g.length}문항`;
     b.title=g.map(nameOf).join(' · ')+'\n눌러서 어느 회차인지 봅니다';
   });
+  stampRel();
 }
+function stampRel(){
+  $$('#list > .pcard').forEach(card=>{
+    const head=card.querySelector('.phead'); if(!head) return;
+    const id=String(card.dataset.id||'');
+    const rel=REL.get(id);
+    let b=head.querySelector('.relb');
+    if(!rel||!rel.length){ b&&b.remove(); return; }
+    if(!b){
+      b=document.createElement('button');
+      b.type='button'; b.className='relb';
+      b.addEventListener('click',e=>{ e.preventDefault(); e.stopPropagation(); openRel(card,id); });
+      const cv=head.querySelector('.cvbadge');
+      cv?head.insertBefore(b,cv):head.appendChild(b);
+    }
+    b.textContent=`🔗 연관 ${rel.length}`;
+    b.title='값이나 뒷물음만 다른 «한 핏줄» 문항입니다 — 눌러서 봅니다';
+  });
+}
+function openRel(card,id){
+  let box=card.querySelector('.relwrap');
+  if(box){ box.remove(); return; }
+  const rel=REL.get(id)||[];
+  box=document.createElement('div'); box.className='relwrap';
+  box.innerHTML=`<div class="t">연관 문제 ${rel.length} — 닮은 정도 순 · 눌러서 그 문항으로</div>`
+    + rel.map(x=>{
+        const r=rowOf(x.id); if(!r) return '';
+        return `<span class="it" data-go="${r.id}">${nameOf(r)}`
+             + `<b>${Math.round(x.sim*100)}%</b></span>`;
+      }).join('');
+  card.querySelector('.phead').after(box);
+  box.addEventListener('click',e=>{
+    const it=e.target.closest('[data-go]'); if(!it) return;
+    const r=rowOf(it.dataset.go); if(!r) return;
+    try{ ovOpen(r.id) }catch(x){}
+  });
+}
+window.__pracRel=id=>REL.get(String(id))||[];
 function openList(card,id){
   const g=GROUPS.get(id)||[]; 
   let box=card.querySelector('.dupwrap');
@@ -11297,9 +11429,18 @@ function mountChip(){
     FOLD=!FOLD; try{ localStorage.setItem(KEY,FOLD?'1':'0') }catch(e){}
     paint(); try{ drawList() }catch(e){}
   });
+  const sel=document.createElement('select');
+  sel.title='어느 정도까지 «같다» 고 볼지';
+  sel.innerHTML=Object.entries(LEVELS).map(([k,v])=>
+    `<option value="${k}"${k===LV?' selected':''}>${v.nm} — ${v.d}</option>`).join('');
+  sel.addEventListener('change',()=>{
+    LV=sel.value; try{ localStorage.setItem('prac:duplv:v1',LV) }catch(e){}
+    SIG=''; READY=false; HIDE=new Set(); GROUPS=new Map();   /* 처음부터 다시 센다 */
+    paint(); build();
+  });
   const clear=row.querySelector('[data-clear]');
-  clear?row.insertBefore(sep,clear):row.appendChild(sep);
-  clear?row.insertBefore(b,clear):row.appendChild(b);
+  const put=el=>clear?row.insertBefore(el,clear):row.appendChild(el);
+  put(sep); put(b); put(sel);
   paint();
   setInterval(paint,2000);
 }
@@ -11315,6 +11456,167 @@ const boot=setInterval(()=>{
 const w=setInterval(()=>{ const l=$('#list'); if(!l) return; clearInterval(w);
   new MutationObserver(()=>setTimeout(stamp,60)).observe(l,{childList:true}); },400);
 setTimeout(()=>clearInterval(w),20000);
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v130 · 읽기 결 — 졸리지 않게
+
+     지금 화면이 졸린 까닭은 넷이다.
+       ① 바탕이 회녹색(#E9ECE6)이라 종이 같지 않고 흐리다. 글자와의 차이도 얕다.
+       ② 줄간격 1.45 · 글자 13px — 표와 수식이 섞이면 한 덩어리로 뭉쳐 보인다.
+       ③ «무엇을 묻는 문제인가 / 주어진 값 / 푸는 순서» 가 본문과 같은 굵기라
+          눈이 멈출 자리가 없다. 어디부터 읽어야 할지 매번 다시 찾는다.
+       ④ 답이 본문에 묻혀 있다. 정작 제일 먼저 보고 싶은 것이 제일 안 보인다.
+
+     그래서 ──
+       · 바탕을 따뜻한 종이색으로, 글자를 더 진하게(대비 12:1 안팎)
+       · 본문 14.5px · 줄간격 1.72, 해설은 조금 더 넉넉하게
+       · 해설의 소제목을 «색 띠 + 굵은 글씨» 로 세워 눈이 걸리게
+       · 답 줄에 노란 바탕을 깔아 먼저 보이게
+       · 결은 세 가지 — 종이 / 기본 / 밤 — 로 고를 수 있게
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* ── ① 결(테마) ─────────────────────────────────────── */
+body.rd-paper{
+  --paper:#F6F2E9; --card:#FFFDF8; --ink:#1A1D23; --ink-2:#4C566A; --rule:#E2DACA;
+  --accent:#1B4FD8; --ok:#0F6B44; --stamp:#B02A26;
+}
+body.rd-plain{
+  --paper:#EEF1F5; --card:#FFFFFF; --ink:#141A22; --ink-2:#4A5563; --rule:#DDE3EA;
+}
+body.rd-night{
+  --paper:#12161C; --card:#1A2029; --ink:#E8EDF4; --ink-2:#A5B2C2; --rule:#2C3542;
+  --accent:#7FB0FF; --ok:#6FD79E; --stamp:#FF9A94;
+}
+body.rd-night img{filter:brightness(.92) contrast(1.04)}
+body.rd-night .katex{color:#E8EDF4}
+
+/* ── ② 글자 결 ─────────────────────────────────────── */
+body.rd-on{
+  --fs:14.5px; --fs-ez:14.5px; --lh:1.72; --lh-ez:1.78;
+  --font-d:Pretendard,"Pretendard Variable","IBM Plex Sans KR",
+           -apple-system,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+}
+@media(min-width:1100px){ body.rd-on{ --fs:15px; --fs-ez:14.5px } }
+body.rd-on{ text-rendering:optimizeLegibility; -webkit-font-smoothing:antialiased }
+body.rd-on .qmd,body.rd-on .easybox,body.rd-on .ez,body.rd-on #ovl .pane{
+  letter-spacing:-.004em; word-break:keep-all; overflow-wrap:anywhere;
+}
+body.rd-on .qmd p,body.rd-on .ez p,body.rd-on .easybox p{margin:0 0 .62em}
+body.rd-on .ez li,body.rd-on .qmd li{margin:0 0 .35em}
+body.rd-on .ez ul,body.rd-on .ez ol{padding-left:1.15em}
+
+/* 수식이 글자보다 커서 줄이 들뜨던 것 */
+body.rd-on .katex{font-size:1.02em}
+body.rd-on .katex-display{margin:.5em 0}
+
+/* ── ③ 해설 소제목 — 눈이 멈출 자리 ──────────────────
+   «무엇을 묻는 문제인가» 처럼 굵은 글씨 한 줄만 있는 문단을 소제목으로 세운다. */
+body.rd-on .ez p:has(> strong:only-child),
+body.rd-on .easybox p:has(> strong:only-child){
+  margin:1.15em 0 .45em; padding:.28em 0 .28em .62em;
+  border-left:3px solid var(--accent); background:transparent;
+}
+body.rd-on .ez p:has(> strong:only-child) strong,
+body.rd-on .easybox p:has(> strong:only-child) strong{
+  font-weight:800; font-size:1.02em; letter-spacing:-.01em; color:var(--ink);
+}
+body.rd-on .ez h3,body.rd-on .ez h4,body.rd-on .easybox h3,body.rd-on .easybox h4{
+  margin:1.15em 0 .45em; padding:.28em 0 .28em .62em;
+  border-left:3px solid var(--accent); font-size:1.02em; font-weight:800;
+}
+/* 첫 소제목은 위 여백을 덜어 준다 */
+body.rd-on .ez > :first-child{margin-top:0}
+
+/* ── ④ 답 줄은 먼저 보이게 ── */
+body.rd-on .ez p:has(> strong:only-child):is([data-ans]),
+body.rd-on .ansline{
+  border-left-color:#E0A100; background:linear-gradient(90deg,rgba(255,214,102,.22),transparent 70%);
+}
+body.rd-on .ans-hl{background:linear-gradient(180deg,transparent 58%,rgba(255,214,102,.55) 58%);
+  padding:0 .1em;border-radius:2px}
+
+/* ── 칸을 종이처럼 ── */
+body.rd-on .box,body.rd-on .pcard,body.rd-on #ovl .pane{
+  background:var(--card); border-color:var(--rule);
+}
+body.rd-on .pcard{box-shadow:0 1px 2px rgba(16,24,40,.05)}
+body.rd-night.rd-on .pcard{box-shadow:none}
+/* 문제 · 답안 · 쉬운 풀이 이름표를 또렷하게 */
+body.rd-on .plabel,body.rd-on .plab{
+  font-weight:800; letter-spacing:.02em; color:var(--ink-2); opacity:1;
+}
+/* 표는 줄무늬로 — 칸이 많으면 눈이 미끄러진다 */
+body.rd-on .qmd table,body.rd-on .ez table{border-collapse:collapse}
+body.rd-on .qmd table tr:nth-child(even) td,
+body.rd-on .ez table tr:nth-child(even) td{background:rgba(0,0,0,.022)}
+body.rd-night.rd-on .qmd table tr:nth-child(even) td,
+body.rd-night.rd-on .ez table tr:nth-child(even) td{background:rgba(255,255,255,.04)}
+body.rd-on .qmd th,body.rd-on .ez th{font-weight:800}
+
+/* ── 고르개 ── */
+.rdsw{display:inline-flex;gap:3px;align-items:center;margin-left:6px}
+.rdsw button{height:26px;padding:0 9px;border:1px solid var(--rule);border-radius:8px;
+  background:var(--card);color:var(--ink);cursor:pointer;
+  font:700 10.5px/1 var(--font-d);white-space:nowrap}
+.rdsw button.on{background:var(--ink);border-color:var(--ink);color:var(--card)}
+</style>
+<script>
+(function(){
+'use strict';
+const KEY='prac:read:v1';
+const THEMES=[['paper','종이'],['plain','기본'],['night','밤']];
+let V=(()=>{ try{ return Object.assign({on:true,th:'paper'},JSON.parse(localStorage.getItem(KEY)||'{}')) }
+             catch(e){ return {on:true,th:'paper'} } })();
+function apply(){
+  const b=document.body; if(!b) return;
+  b.classList.toggle('rd-on',!!V.on);
+  THEMES.forEach(([k])=>b.classList.toggle('rd-'+k, V.on && V.th===k));
+  document.querySelectorAll('.rdsw [data-th]').forEach(x=>x.classList.toggle('on',V.on&&x.dataset.th===V.th));
+  document.querySelectorAll('.rdsw [data-rdoff]').forEach(x=>x.classList.toggle('on',!V.on));
+}
+function save(){ try{ localStorage.setItem(KEY,JSON.stringify(V)) }catch(e){} }
+
+/* «답 : 100[MVA]» 같은 줄을 찾아 노랗게 — 먼저 보이는 것이 답이어야 한다 */
+function markAns(root){
+  (root||document).querySelectorAll('.ez p, .easybox p, .qmd p').forEach(p=>{
+    if(p.dataset.ansd) return;
+    p.dataset.ansd='1';
+    const t=(p.textContent||'').trim();
+    if(/^답\s*[:：]/.test(t)||/^\s*답\s*$/.test(t)) p.classList.add('ansline');
+  });
+}
+const boot=setInterval(()=>{
+  if(!document.body) return;
+  apply(); markAns();
+  const host=document.querySelector('.deck .dcol-view')||document.querySelector('.cvbar')?.parentElement;
+  if(host&&!document.querySelector('.rdsw')){
+    const w=document.createElement('div'); w.className='rdsw';
+    w.innerHTML=`<span style="font:700 9px/1 var(--font-m);letter-spacing:.1em;color:var(--ink-2)">읽기</span>`
+      + THEMES.map(([k,n])=>`<button type="button" data-th="${k}">${n}</button>`).join('')
+      + `<button type="button" data-rdoff>예전</button>`;
+    host.appendChild(w);
+    w.addEventListener('click',e=>{
+      const b=e.target.closest('button'); if(!b) return;
+      if(b.hasAttribute('data-rdoff')) V.on=false;
+      else { V.on=true; V.th=b.dataset.th; }
+      save(); apply();
+    });
+    apply();
+    clearInterval(boot);
+  }
+},600);
+setTimeout(()=>clearInterval(boot),25000);
+
+const w=setInterval(()=>{ const l=document.getElementById('list'); if(!l) return; clearInterval(w);
+  new MutationObserver(()=>setTimeout(()=>markAns(l),60)).observe(l,{childList:true}); markAns(l); },400);
+setTimeout(()=>clearInterval(w),20000);
+setInterval(()=>{ const o=document.getElementById('ovl');
+  if(o&&o.classList.contains('on')) markAns(o); },1500);
+
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',apply); else apply();
 })();
 </script>
 
