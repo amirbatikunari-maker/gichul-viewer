@@ -8405,8 +8405,12 @@ function ncsOf(r){
 /* ══ ③ 주제 묶기 · 확률 · 등급 ══ */
 let TAG=null, SIG='';
 function build(){
+  /* ★ 목록을 «거르는 중» 에는 절대 다시 세지 않는다.
+     예전에는 걸러진 목록으로 등급을 새로 매기다가, 걸러진 목록이
+     또 새 열쇠가 되어 셈이 끝없이 되풀이됐다 — 화면이 뻗던 두 번째 까닭이다. */
+  if(window.__pracSwap) return TAG;
   const rows=rowsAll();
-  const sig=rows.length+'|'+(rows[0]?.id||'')+'|'+(rows[rows.length-1]?.id||'');
+  const sig=rows.length;                       /* 순서가 바뀌어도 다시 세지 않는다 */
   if(TAG&&SIG===sig) return TAG;
   if(!rows.length) return null;
   SIG=sig;
@@ -8483,6 +8487,9 @@ window.__pracTagReset=()=>{ TAG=null; SIG=''; };
 
 /* ══ ④ 문항 머리에 적기 — «가 글자» 왼쪽 ══ */
 function stamp(root){
+  try{ stamp_(root) }catch(e){ try{ console.warn('문항 뱃지를 붙이지 못했습니다', e) }catch(x){} }
+}
+function stamp_(root){
   $$('#list > .pcard',root||document).forEach(card=>{
     const head=card.querySelector('.phead'); if(!head) return;
     const t=info(card.dataset.id); if(!t) return;
@@ -8517,7 +8524,8 @@ const fsave=()=>{ try{ localStorage.setItem(FKEY,JSON.stringify(F)) }catch(e){} 
 
 function rowPass(r){
   if(!F.tier&&!F.type&&!F.ncs) return true;
-  const t=info(r.id); if(!t) return true;
+  let t=null; try{ t=info(r.id) }catch(e){ return true }
+  if(!t) return true;
   if(F.tier&&t.tier!==F.tier) return false;
   if(F.type&&t.type!==F.type) return false;
   if(F.ncs&&(t.ncs?.name||'')!==F.ncs) return false;
@@ -8532,15 +8540,25 @@ function hook(){
   const wrapped=function(){
     if(!F.tier&&!F.type&&!F.ncs&&!F.sort) return orig.apply(this,arguments);
     const all=rowsAll();
-    let use=all.filter(rowPass);
-    if(F.sort==='hot'){
-      use=use.slice().sort((a,b)=>{
-        const x=info(a.id)?.p??0, y=info(b.id)?.p??0;
-        return y-x || (b.year-a.year) || (b.session-a.session);
-      });
-    }
-    try{ ROWS=use; return orig.apply(this,arguments); }
-    finally{ ROWS=all; }
+    let use;
+    try{
+      use=all.filter(rowPass);
+      if(F.sort==='hot'){
+        use=use.slice().sort((a,b)=>{
+          const x=info(a.id)?.p??0, y=info(b.id)?.p??0;
+          return y-x || (b.year-a.year) || (b.session-a.session);
+        });
+      }
+      if(!use.length) use=all;            /* 하나도 안 남으면 거르지 않은 것으로 */
+    }catch(e){ use=all }
+    try{
+      window.__pracSwap=true; ROWS=use;
+      return orig.apply(this,arguments);
+    }catch(e){
+      /* 거르다 무엇이 잘못돼도 «아무것도 안 나오는 화면» 은 만들지 않는다 */
+      try{ console.warn('거르기에서 문제가 생겨 전체 목록으로 되돌립니다', e) }catch(x){}
+      ROWS=all; return orig.apply(this,arguments);
+    }finally{ ROWS=all; window.__pracSwap=false; }
   };
   wrapped.__tag=1;
   window.drawList=wrapped;
@@ -8736,99 +8754,145 @@ let AI=(()=>{ try{ return JSON.parse(localStorage.getItem(AKEY)||'{}') }catch(e)
 const asave=()=>{ try{ localStorage.setItem(AKEY,JSON.stringify(AI)) }catch(e){} };
 window.__ncsAI=()=>AI;
 
-/* ══ ④ 세 겹 판정 ══ */
-let CACHE=new Map(), CSIG='';
-function prep(){
-  const R=rowsAll();
-  const sig=R.length+'|'+(R[0]?.id||'')+'|'+Object.keys(AI).length;
-  if(CSIG===sig&&CACHE.size) return CACHE;
-  CSIG=sig; CACHE=new Map();
-  const D=docs(); if(!D) return CACHE;
+/* ══ ④ 세 겹 판정 ══
+   ★ 여기가 «한눈에를 누르면 화면이 뻗던» 자리였다.
+     1200문항의 벡터를 «한 번에» 세느라 브라우저가 몇 초씩 멈췄고,
+     하필 그 사이에 누른 단추는 먹지 않았다(멈춘 것이지 죽은 것이 아니다).
+     그래서 셈을 잘게 쪼개 «틈날 때마다» 조금씩 돌린다.
+       · 한 조각은 12ms 를 넘기지 않는다 — 손가락이 늘 먼저다.
+       · 아직 다 못 셌으면 그냥 «없음» 으로 답한다. 화면은 먼저 뜬다.
+       · 다 세고 나면 그때 뱃지를 붙인다.
+     자료가 들어오는 중(문항 수가 계속 바뀔 때)에는 아예 세지 않는다. */
+let NC=new Map(), NSIG='', NBUSY=false, NREADY=false;
+const idle = fn => (window.requestIdleCallback
+  ? requestIdleCallback(()=>fn(), { timeout:220 })
+  : setTimeout(fn, 0));
+const sigNow = () => rowsAll().length + '|' + Object.keys(AI).length;
 
-  /* ── 2층: 닮은 정도 ── */
-  const qv=new Map();
-  R.forEach(r=>{
-    const t=(r.q_md||r.q_text||'');
-    if(!CLEAN(t)) return;
-    qv.set(String(r.id), vec(bag(t,900)));
-  });
+function startClassify(){
+  if(NBUSY) return;
+  const R=rowsAll(); if(!R.length) return;
+  const D=docs(); if(!D) return;
+  if(window.__pracSwap) return;                 /* 목록을 거르는 중에는 손대지 않는다 */
+  NBUSY=true; NSIG=sigNow();
+
   const dv=D.map(d=>({d,v:vec(d.b)}));
+  const out=new Map(), firm=[], vecs=new Map();
+  let i=0;
 
-  const firm=[];                                  /* 확실히 붙은 것 — 표 던지기의 밑천 */
-  /* 손으로 고른 낱말표는 «정확하지만 잘 안 걸린다», 닮은 정도는 «늘 걸리지만 흐리다».
-     둘을 더한다 — 낱말이 걸린 항목에 조금 더 무게를 얹는 정도로. */
-  const KW=new Map();
-  R.forEach(r=>{ try{ const k=window.__pracTagKeyword&&window.__pracTagKeyword(r);
-    if(k) KW.set(String(r.id),k) }catch(e){} });
-  qv.forEach((v,id)=>{
-    const k=KW.get(id);
-    let b1=null,b2=0;
-    dv.forEach(({d,v:w})=>{
-      let s=cos(v,w);
-      if(k&&d.major.name===k.name) s += 0.05 + Math.min(k.sc,15)*0.004;
-      if(!b1||s>b1.s){ b2=b1?b1.s:0; b1={s,d} } else if(s>b2) b2=s;
-    });
-    if(!b1) return;
-    const margin=b1.s>0?(b1.s-b2)/b1.s:0;
-    const conf=b1.s;
-    const o={ name:b1.d.major.name, short:b1.d.major.short, sub:b1.d.sub,
-              src:'sim', conf:+conf.toFixed(3), margin:+margin.toFixed(2) };
-    CACHE.set(id,o);
-    if(conf>=0.13&&margin>=0.10) firm.push({id,v,o});
-  });
+  /* ── 1단계: 문항마다 출제기준과 닮은 정도 ── */
+  function pass1(){
+    try{
+      const t0=performance.now();
+      while(i<R.length && performance.now()-t0<12){
+        const r=R[i++];
+        const raw=(r.q_md||r.q_text||'');
+        if(!CLEAN(raw)) continue;
+        const v=vec(bag(raw,900));
+        vecs.set(String(r.id),v);
+        let k=null; try{ k=window.__pracTagKeyword&&window.__pracTagKeyword(r) }catch(e){}
+        let b1=null,b2=0;
+        for(const {d,v:w} of dv){
+          let s=cos(v,w);
+          if(k&&d.major.name===k.name) s += 0.05 + Math.min(k.sc,15)*0.004;
+          if(!b1||s>b1.s){ b2=b1?b1.s:0; b1={s,d} } else if(s>b2) b2=s;
+        }
+        if(!b1) continue;
+        const margin=b1.s>0?(b1.s-b2)/b1.s:0;
+        const o={ name:b1.d.major.name, short:b1.d.major.short, sub:b1.d.sub,
+                  src:'sim', conf:+b1.s.toFixed(3), margin:+margin.toFixed(2) };
+        if(b1.s>=0.085) out.set(String(r.id),o);
+        if(b1.s>=0.13&&margin>=0.10) firm.push({id:String(r.id),v,o});
+      }
+      if(i<R.length) return idle(pass1);
+      i=0; return idle(pass2prep);
+    }catch(e){ return fail(e) }
+  }
 
-  /* ── 1층: 흐릿한 것은 «비슷한 문항» 에게 물어본다 ── */
-  const inv=new Map();
-  firm.forEach((f,i)=>{
-    [...f.v.entries()].sort((a,b)=>b[1]-a[1]).slice(0,14)
-      .forEach(([k])=>{ (inv.get(k)||inv.set(k,[]).get(k)).push(i) });
-  });
-  qv.forEach((v,id)=>{
-    const cur=CACHE.get(id);
-    if(!cur||(cur.conf>=0.13&&cur.margin>=0.10)) return;
-    const cand=new Map();
-    [...v.entries()].sort((a,b)=>b[1]-a[1]).slice(0,14).forEach(([k])=>{
-      (inv.get(k)||[]).forEach(i=>{ if(firm[i].id!==id) cand.set(i,1) });
-    });
-    if(!cand.size) return;
-    const near=[...cand.keys()].map(i=>({i,s:cos(v,firm[i].v)}))
-      .sort((a,b)=>b.s-a.s).slice(0,5).filter(x=>x.s>=0.18);
-    if(near.length<2) return;
-    const vote=new Map();
-    near.forEach(x=>{
-      const o=firm[x.i].o, k=o.name+'|'+o.sub;
-      vote.set(k,(vote.get(k)||0)+x.s);
-    });
-    const [best,w]=[...vote.entries()].sort((a,b)=>b[1]-a[1])[0];
-    const tot=[...vote.values()].reduce((t,x)=>t+x,0)||1;
-    if(w/tot<0.5) return;
-    const [nm,sb]=best.split('|');
-    const M=G().silgi.majors.find(m=>m.name===nm);
-    CACHE.set(id,{ name:nm, short:M?M.short:nm, sub:sb, src:'knn',
-                   conf:+(w/tot).toFixed(2), near:near.length });
-  });
+  /* ── 2단계: 흐릿한 것은 «비슷한 문항» 에게 물어본다 ── */
+  let inv=null, todo=null;
+  function pass2prep(){
+    try{
+      inv=new Map();
+      firm.forEach((f,n)=>{
+        [...f.v.entries()].sort((a,b)=>b[1]-a[1]).slice(0,14)
+          .forEach(([k])=>{ (inv.get(k)||inv.set(k,[]).get(k)).push(n) });
+      });
+      todo=[...vecs.keys()].filter(id=>{
+        const cur=out.get(id);
+        return !cur || cur.conf<0.13 || cur.margin<0.10;
+      });
+      return idle(pass2);
+    }catch(e){ return fail(e) }
+  }
+  function pass2(){
+    try{
+      const t0=performance.now();
+      while(i<todo.length && performance.now()-t0<12){
+        const id=todo[i++], v=vecs.get(id);
+        const cand=new Map();
+        [...v.entries()].sort((a,b)=>b[1]-a[1]).slice(0,14).forEach(([k])=>{
+          (inv.get(k)||[]).forEach(n=>{ if(firm[n].id!==id) cand.set(n,1) });
+        });
+        if(!cand.size) continue;
+        const near=[...cand.keys()].map(n=>({n,s:cos(v,firm[n].v)}))
+          .sort((a,b)=>b.s-a.s).slice(0,5).filter(x=>x.s>=0.18);
+        if(near.length<2) continue;
+        const vote=new Map();
+        near.forEach(x=>{ const o=firm[x.n].o; const k=o.name+'|'+o.sub;
+          vote.set(k,(vote.get(k)||0)+x.s) });
+        const top=[...vote.entries()].sort((a,b)=>b[1]-a[1])[0];
+        if(!top) continue;
+        const tot=[...vote.values()].reduce((t,x)=>t+x,0)||1;
+        if(top[1]/tot<0.5) continue;
+        const [nm,sb]=top[0].split('|');
+        const M=G().silgi.majors.find(m=>m.name===nm);
+        out.set(id,{ name:nm, short:M?M.short:nm, sub:sb, src:'knn',
+                     conf:+(top[1]/tot).toFixed(2), near:near.length });
+      }
+      if(i<todo.length) return idle(pass2);
+      return idle(done);
+    }catch(e){ return fail(e) }
+  }
 
-  /* ── 너무 흐릿하면 아예 비운다 — 억지로 붙이지 않는다 ── */
-  [...CACHE.entries()].forEach(([id,o])=>{
-    if(o.src==='sim'&&o.conf<0.085) CACHE.delete(id);
-  });
-
-  /* ── 3층: AI 가 붙인 것이 있으면 그것이 이긴다 ── */
-  Object.entries(AI).forEach(([id,a])=>{
-    if(!a||!a.name) return;
-    const M=G().silgi.majors.find(m=>m.name===a.name);
-    if(!M) return;
-    CACHE.set(String(id),{ name:a.name, short:M.short, sub:a.sub||'', src:'ai',
-                           conf:1, why:a.why||'' });
-  });
-  return CACHE;
+  /* ── 3단계: AI 가 붙인 것이 있으면 그것이 이긴다 ── */
+  function done(){
+    try{
+      Object.entries(AI).forEach(([id,a])=>{
+        if(!a||!a.name) return;
+        const M=G().silgi.majors.find(m=>m.name===a.name);
+        if(!M) return;
+        out.set(String(id),{ name:a.name, short:M.short, sub:a.sub||'',
+                             src:'ai', conf:1, why:a.why||'' });
+      });
+      NC=out; NREADY=true; NBUSY=false;
+      /* 다 셌으니 이제 뱃지를 붙인다 — 화면을 한 번만 다시 그린다 */
+      try{ window.__pracTagReset&&window.__pracTagReset(); }catch(e){}
+      try{ drawList(); }catch(e){}
+    }catch(e){ fail(e) }
+  }
+  function fail(e){
+    NBUSY=false; NREADY=true;                    /* 실패해도 화면은 살아 있어야 한다 */
+    try{ console.warn('출제기준 분류를 마치지 못했습니다', e) }catch(x){}
+  }
+  idle(pass1);
 }
-window.__ncsClassify = r => prep().get(String(r.id)) || null;
 
-/* 뱃지 설명에 «어느 층에서 붙었나» 를 적는다 */
-const SRCTXT={ ai:'AI 가 읽고 골랐습니다', sim:'출제기준 원문과 닮은 정도로 골랐습니다',
-               knn:'비슷한 문항들이 가진 항목으로 골랐습니다' };
-window.__ncsWhy = o => o ? (SRCTXT[o.src]||'') + (o.conf!=null&&o.src!=='ai'?` (닮음 ${o.conf})`:'') : '';
+/* 아직 다 못 셌으면 «없음» 으로 답한다 — 절대 기다리게 하지 않는다 */
+window.__ncsClassify = r => { try{ return NC.get(String(r.id))||null }catch(e){ return null } };
+window.__ncsReady = () => NREADY;
+
+/* 자료가 잠잠해지면(3초) 그때 한 번 센다 — 들어오는 중에는 세지 않는다 */
+let lastN=-1, calm=0;
+setInterval(()=>{
+  try{
+    const n=rowsAll().length;
+    if(n!==lastN){ lastN=n; calm=0; return; }
+    if(!n) return;
+    calm++;
+    if(calm===3 && NSIG!==sigNow()) startClassify();
+  }catch(e){}
+},1000);
 
 /* ══ ⑤ AI 한꺼번에 분류 ══ */
 function listForPrompt(){
@@ -8901,7 +8965,7 @@ async function aiRun(scope){
   try{ cvSay(`AI 분류 ${ok}개 완료`+(bad?` · ${bad}개 실패`:'')) }catch(e){}
 }
 function refresh(){
-  CSIG='';
+  NSIG='';                       /* 다시 세게 만든다 (다음 조용한 틈에 잘게 돈다) */
   try{ window.__pracTagReset&&window.__pracTagReset() }catch(e){}
   try{ drawList() }catch(e){}
 }
@@ -8921,12 +8985,45 @@ function mountBtns(){
 }
 setInterval(mountBtns,800); mountBtns();
 
-/* 자료가 들어오면 한 번 다시 센다 */
-let n0=0;
-setInterval(()=>{
-  const n=rowsAll().length;
-  if(n&&n!==n0){ n0=n; DOCS=null; IDF=null; CSIG=''; try{ window.__pracTagReset&&window.__pracTagReset() }catch(e){} }
-},1500);
+/* 출제기준 쪽 벡터는 자료가 바뀌어도 그대로다 — 다시 만들지 않는다 */
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v106 · 뻗었을 때 «뻗었다고 말하는» 장치
+
+     화면이 멎으면 왜 멎었는지 알 길이 없었다. 두 가지를 둔다.
+       ① 어디선가 오류가 나면 위쪽 알림줄에 한 줄로 적는다(조용히 죽지 않는다).
+       ② 오류가 잇달아 세 번 나면 새로 붙인 분류·거르기를 스스로 끈다.
+          공부를 못 하게 되는 것보다는 기능 하나를 잃는 편이 낫다.
+     ══════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+'use strict';
+let n=0, offed=false;
+function say(t){
+  try{ const el=document.getElementById('cvStat'); if(el) el.textContent=t; }catch(e){}
+}
+function trouble(where, err){
+  n++;
+  const m=(err&&(err.message||err))||'까닭을 알 수 없음';
+  say(`⚠ ${where} 에서 문제가 있었습니다 — ${String(m).slice(0,80)}`);
+  try{ console.error('[gichul]', where, err) }catch(e){}
+  if(n>=3&&!offed){
+    offed=true;
+    try{
+      localStorage.setItem('prac:tagfilter:v1','{"tier":"","type":"","ncs":"","sort":""}');
+      window.__ncsClassify=()=>null;
+      window.__pracTagReset&&window.__pracTagReset();
+      drawList();
+    }catch(e){}
+    say('⚠ 문제가 되풀이되어 «등급·유형·출제기준» 거르기를 껐습니다. 새로고침하면 다시 켜집니다.');
+  }
+}
+addEventListener('error', e=>{ if(e&&e.message) trouble('화면', e.error||e.message) });
+addEventListener('unhandledrejection', e=>trouble('뒷일', e&&e.reason));
+window.__pracTrouble=trouble;
 })();
 </script>
 
