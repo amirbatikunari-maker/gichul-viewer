@@ -12538,5 +12538,148 @@ setTimeout(()=>clearInterval(t),30000);
 })();
 </script>
 
+
+<!-- ══════════════════════════════════════════════════════════════
+     v140 · ① 글 쓰는 중에 문항이 넘어가던 것  ② 기본 편집 단추
+
+     ① 전역 단축키가 «INPUT · TEXTAREA 면 비켜 간다» 로만 막혀 있다.
+        오른쪽 미리 보기는 contenteditable 이라 그 그물에 안 걸린다.
+        그래서 글 쓰다가 ←→ 를 누르면 문항이 넘어가 버렸다(글은 저장 전).
+        고치기 창 안에서 눌린 키는 바깥으로 안 내보낸다.
+        다만 Esc(닫기) · Ctrl+Enter(저장) · Tab 은 그대로 흘려보낸다.
+
+     ② 블로그 편집기처럼 굵게·목록·표·수식 단추를 붙인다.
+        왼쪽(글) 에 커서가 있으면 마크다운으로, 오른쪽(화면) 에 있으면
+        그 자리에서 바로 먹인다. 어느 쪽에 있든 같은 단추를 쓴다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+.edbar{display:flex;align-items:center;gap:3px;padding:6px 14px;flex-wrap:wrap;
+  border-bottom-width:1px;border-bottom-style:solid;border-bottom-color:#e6eaf0;
+  border-bottom-color:var(--line,#e6eaf0);flex:0 0 auto}
+.edbar button{height:28px;min-width:30px;padding:0 8px;border-radius:7px;cursor:pointer;
+  border-width:1px;border-style:solid;border-color:#e2e8f0;border-color:var(--line,#e2e8f0);
+  background:#fff;background:var(--surface,#fff);color:#475569;color:var(--ink-2,#475569);
+  font-weight:600;font-size:12px;line-height:1}
+.edbar button:hover{border-color:#2563eb;border-color:var(--accent,#2563eb);
+  color:#2563eb;color:var(--accent,#2563eb)}
+.edbar .b{font-weight:800}
+.edbar .i{font-style:italic}
+.edbar .sep{width:1px;height:16px;margin:0 4px;background:#e6eaf0;background:var(--line,#e6eaf0)}
+.edbar .where{margin-left:auto;font-weight:600;font-size:9.5px;color:#94a3b8;color:var(--muted,#94a3b8)}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s);
+
+/* ══ ① 창 안의 키는 바깥으로 안 내보낸다 ══
+   window 의 «잡는 단계» 에 건다. 다만 이 블록은 맨 나중에 실려서
+   먼저 걸린 창 자신의 손잡이(Esc · Ctrl+Enter)보다 «뒤» 에 온다.
+   그러니 그 둘은 여기서 막지 않아도 이미 지나간 뒤다 — 그래도 명시해 둔다. */
+addEventListener('keydown', e=>{
+  const w=$('.edw');
+  if(!w || !w.classList.contains('on')) return;
+  if(!e.target || !e.target.closest || !e.target.closest('.edw')) return;
+  if(e.key==='Escape' || e.key==='Tab' || e.ctrlKey || e.metaKey) return;
+  e.stopPropagation();          /* 기본 동작(글자 입력)은 그대로 둔다 */
+}, true);
+
+/* ══ ② 편집 단추 ══ */
+const BTN=[
+  ['b','굵게','<b class="b">B</b>'],
+  ['i','기울임','<span class="i">I</span>'],
+  ['code','코드','&lt;/&gt;'],
+  ['|'],
+  ['h','소제목','H'],
+  ['ul','목록','• 목록'],
+  ['ol','번호','1. 번호'],
+  ['|'],
+  ['table','표 넣기','▦ 표'],
+  ['math','수식','$ 수식'],
+  ['|'],
+  ['undo','되돌리기','↶'],
+  ['redo','다시','↷']
+];
+
+function build(W){
+  if(W.querySelector('.edbar')) return;
+  const bar=document.createElement('div');
+  bar.className='edbar';
+  bar.innerHTML=BTN.map(x=> x[0]==='|'
+    ? '<span class="sep"></span>'
+    : `<button type="button" data-k="${x[0]}" title="${x[1]}">${x[2]}</button>`).join('')
+    + '<span class="where" id="edWhere">왼쪽 글</span>';
+  const tools=W.querySelector('.tools');
+  const orig=W.querySelector('.edorig');
+  (orig||tools) ? (orig||tools).after(bar) : W.querySelector('.body')?.before(bar);
+
+  const ta=$('#edTa',W), prev=$('#edPrev',W), where=$('#edWhere',bar);
+  let side='ta';
+  ta && ta.addEventListener('focus',()=>{ side='ta'; where.textContent='왼쪽 글'; });
+  prev && prev.addEventListener('focus',()=>{ side='prev'; where.textContent='오른쪽 화면'; });
+
+  /* 왼쪽(글) — 고른 자리를 마크다운으로 감싼다 */
+  const MD={
+    b:['**','**','굵게'], i:['*','*','기울임'], code:['`','`','코드'],
+    math:['$','$','x']
+  };
+  function wrap(k){
+    const s=ta.selectionStart, e=ta.selectionEnd;
+    const sel=ta.value.slice(s,e);
+    if(MD[k]){
+      const [a,z,ph]=MD[k];
+      const body=sel||ph;
+      ta.value=ta.value.slice(0,s)+a+body+z+ta.value.slice(e);
+      ta.selectionStart=s+a.length; ta.selectionEnd=s+a.length+body.length;
+    }else{
+      const line0=ta.value.lastIndexOf('\n',s-1)+1;
+      const pre=k==='h'?'#### ':k==='ul'?'- ':k==='ol'?'1. ':'';
+      if(k==='table'){
+        const t='\n| 구분 | 값 |\n|---|---|\n|  |  |\n|  |  |\n';
+        ta.value=ta.value.slice(0,s)+t+ta.value.slice(e);
+        ta.selectionStart=ta.selectionEnd=s+t.length;
+      }else if(pre){
+        ta.value=ta.value.slice(0,line0)+pre+ta.value.slice(line0);
+        ta.selectionStart=ta.selectionEnd=s+pre.length;
+      }
+    }
+    ta.focus();
+    ta.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+
+  /* 오른쪽(화면) — 그 자리에서 바로 먹인다 */
+  const CMD={ b:'bold', i:'italic', ul:'insertUnorderedList', ol:'insertOrderedList',
+              undo:'undo', redo:'redo' };
+  function live(k){
+    prev.focus();
+    try{
+      if(CMD[k]) return document.execCommand(CMD[k],false,null);
+      if(k==='h') return document.execCommand('formatBlock',false,'h4');
+      if(k==='code') return document.execCommand('insertHTML',false,
+        '<code>'+(getSelection().toString()||'코드')+'</code>');
+      if(k==='math') return document.execCommand('insertText',false,'$x$');
+      if(k==='table') return document.execCommand('insertHTML',false,
+        '<table><thead><tr><th>구분</th><th>값</th></tr></thead>'
+        +'<tbody><tr><td>&nbsp;</td><td>&nbsp;</td></tr>'
+        +'<tr><td>&nbsp;</td><td>&nbsp;</td></tr></tbody></table><p><br></p>');
+    }catch(x){}
+    prev.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+
+  bar.addEventListener('mousedown',e=>{ if(e.target.closest('button')) e.preventDefault(); });
+  bar.addEventListener('click',e=>{
+    const b=e.target.closest('button[data-k]'); if(!b) return;
+    e.preventDefault(); e.stopPropagation();
+    const k=b.dataset.k;
+    if(side==='prev' && prev && prev.getAttribute('contenteditable')==='true') live(k);
+    else if(ta) wrap(k);
+  });
+}
+
+const t=setInterval(()=>{ const W=$('.edw'); if(W) build(W); },400);
+setTimeout(()=>clearInterval(t),60000);
+})();
+</script>
+
 </body>
 </html>
