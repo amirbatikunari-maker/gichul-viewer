@@ -10418,15 +10418,36 @@ setInterval(()=>{
   border-radius:8px;background:var(--surface,#fff);color:var(--ink,#0f172a);cursor:pointer;
   font:700 10.5px/1 var(--font-d,system-ui)}
 .cvpanel .run button:disabled{opacity:.4;cursor:default}
-.cvpanel .log{margin-top:7px;max-height:150px;overflow:auto;padding-top:6px;
-  border-top:1px dashed var(--line,#e2e8f0)}
-.cvpanel .log[hidden]{display:none}
-.cvpanel .log .li{font:500 10px/1.6 var(--font-m,monospace);color:var(--ink-2,#475569);
-  white-space:pre-wrap;word-break:break-word}
-.cvpanel .log .li.ok{color:#166534}
-.cvpanel .log .li.bad{color:#b42033}
-.cvpanel .tagnote,.cvpanel #tagNote{margin-top:8px;padding-top:7px;
-  border-top:1px dashed var(--line,#e2e8f0)}
+/* 셈줄은 고르기 띠 안에서 «초기화» 옆에 나란히 */
+#tagNote.inline{margin:0 0 0 4px;align-self:center;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;max-width:100%;font:500 10px/1.5 var(--font-d,system-ui)}
+@media(min-width:1000px){ #tagNote.inline{max-width:none} }
+
+/* ── 화면 아래 붙박이 실시간 기록 ── */
+.joblog{position:fixed;left:12px;bottom:12px;z-index:1400;width:min(430px,calc(100vw - 24px));
+  border-radius:12px;overflow:hidden;background:#0f172a;color:#e2e8f0;
+  border:1px solid rgba(148,163,184,.35);box-shadow:0 16px 44px rgba(2,6,23,.42)}
+.joblog .h{display:flex;align-items:center;gap:7px;padding:7px 9px;cursor:pointer;
+  background:rgba(255,255,255,.05)}
+.joblog .h b{font:800 11px/1 var(--font-d,system-ui)}
+.joblog .h .n{font:700 9.5px/1 var(--font-m,monospace);color:#94a3b8;
+  padding:2px 6px;border-radius:999px;background:rgba(148,163,184,.18)}
+.joblog .h .sp{flex:1}
+.joblog .h button{height:24px;padding:0 8px;border:1px solid rgba(148,163,184,.35);border-radius:7px;
+  background:transparent;color:#cbd5e1;cursor:pointer;font:700 10px/1 var(--font-d,system-ui)}
+.joblog.live .h{background:rgba(34,197,94,.16)}
+.joblog .b{display:none;max-height:32vh;overflow:auto;padding:8px 10px 10px;
+  font:500 10.5px/1.7 var(--font-m,monospace)}
+.joblog.open .b{display:block}
+.joblog .li{white-space:pre-wrap;word-break:break-word;color:#cbd5e1}
+.joblog .li.ok{color:#86efac}
+.joblog .li.bad{color:#fca5a5}
+@media(max-width:820px){
+  .joblog{left:8px;right:8px;width:auto;bottom:calc(8px + env(safe-area-inset-bottom) + var(--mobnav,72px))}
+  .joblog .b{max-height:38vh}
+}
+/* 다른 떠 있는 것들과 겹치지 않게 — 판이 펴져 있으면 오른쪽 도크를 살짝 올린다 */
+body:has(.joblog.open) .odock{bottom:calc(56px + env(safe-area-inset-bottom))}
 </style>
 <script>
 (function(){
@@ -10461,18 +10482,37 @@ const hook=setInterval(()=>{
   if(typeof window.cvRow==='function'&&!window.cvRow.__fail){
     const o=window.cvRow;
     const g=async function(r){
-      try{ const out=await o.apply(this,arguments);
-        noteFail('cv',r.id,(r.q_url&&!r.q_md)||(r.a_url&&!r.a_md)); return out; }
-      catch(e){ noteFail('cv',r.id,true); throw e; }
+      const nm=`${r.year}년 제${r.session}회 ${r.no}번`;
+      try{
+        const out=await o.apply(this,arguments);
+        const bad=(r.q_url&&!r.q_md)||(r.a_url&&!r.a_md);
+        noteFail('cv',r.id,bad);
+        addLog(`변환 ${bad?'✕':'✓'} ${nm}`+(bad?' — 못 바꿨습니다':''), bad?'bad':'ok');
+        return out;
+      }catch(e){
+        noteFail('cv',r.id,true);
+        addLog(`변환 ✕ ${nm} — ${(e&&e.message)||e}`,'bad');
+        throw e;
+      }
     };
     g.__fail=1; window.cvRow=g; done++;
   }
   if(typeof window.ezMake==='function'&&!window.ezMake.__fail){
     const o=window.ezMake;
     const g=async function(id){
-      try{ const out=await o.apply(this,arguments);
-        const r=rowOf(id); noteFail('ez',id,!(r&&r.easy_md)); return out; }
-      catch(e){ noteFail('ez',id,true); throw e; }
+      const r0=rowOf(id);
+      const nm=r0?`${r0.year}년 제${r0.session}회 ${r0.no}번`:`#${id}`;
+      try{
+        const out=await o.apply(this,arguments);
+        const r=rowOf(id), bad=!(r&&r.easy_md);
+        noteFail('ez',id,bad);
+        addLog(`해설 ${bad?'✕':'✓'} ${nm}`+(bad?' — 못 썼습니다':''), bad?'bad':'ok');
+        return out;
+      }catch(e){
+        noteFail('ez',id,true);
+        addLog(`해설 ✕ ${nm} — ${(e&&e.message)||e}`,'bad');
+        throw e;
+      }
     };
     g.__fail=1; window.ezMake=g; done++;
   }
@@ -10509,27 +10549,23 @@ function build(){
       <button type="button" data-r="cv" class="warn">↻ 실패만 다시 변환</button>
       <button type="button" data-r="ez" class="warn">↻ 실패만 다시 해석</button>
       <button type="button" data-clear>실패 기록 지우기</button>
-      <button type="button" data-logtoggle>▾ 기록</button>
-    </div>
-    <div class="log" data-log hidden></div>`;
+      <button type="button" data-logtoggle>▾ 실시간 기록</button>
+    </div>`;
   host.appendChild(panel);
   panel.addEventListener('click',e=>{
     const b=e.target.closest('button'); if(!b) return;
     if(b.hasAttribute('data-clear')){ F={cv:[],ez:[]}; fsave(); paint(); return; }
     if(b.hasAttribute('data-stop')){ stopAll(); return; }
-    if(b.hasAttribute('data-logtoggle')){
-      const el=panel.querySelector('[data-log]');
-      el.hidden=!el.hidden; b.textContent=(el.hidden?'▾':'▴')+' 기록'; return;
-    }
+    if(b.hasAttribute('data-logtoggle')){ toggleLog(); return; }
     if(b.dataset.r) retry(b.dataset.r);
   });
   return panel;
 }
 function paint(){
   if(!build()) return;
-  /* «금 248 · 은 276 …» 셈줄은 문제 찾기 칸보다 여기가 제자리다 — 늦게 생기므로 볼 때마다 확인한다 */
-  const note=document.getElementById('tagNote');
-  if(note&&note.parentElement!==panel) panel.appendChild(note);
+  /* «금 248 · 은 276 …» 셈줄은 고르기 띠의 «초기화» 바로 옆이 제자리다 */
+  const note=document.getElementById('tagNote'), row=document.getElementById('tagRow');
+  if(note&&row&&note.parentElement!==row){ note.classList.add('inline'); row.appendChild(note); }
   prune();
   const c=counts();
   ['cv','ez'].forEach(k=>{
@@ -10556,7 +10592,10 @@ function stopAll(){
 function runTick(){
   if(!panel) return;
   const box=panel.querySelector('[data-run]');
-  const on=running();
+  const on=running() || !!document.querySelector('.jobbar.on');
+  /* 돌기 시작하면 아래 기록창을 저절로 편다 — 흘러가는 것을 봐야 하니까 */
+  if(on && !runTick._was){ toggleLog(true); }
+  runTick._was=on;
   box.hidden=!on && !SNAP;
   if(on&&!SNAP){ const c=counts(); SNAP={ cv:c.cv.ok, ez:c.ez.ok, at:Date.now() }; }
   if(!on&&SNAP&&Date.now()-SNAP.at>1500&&!running()){
@@ -10574,28 +10613,64 @@ function runTick(){
     + (min?` · ${min}분째`:'');
   panel.querySelector('[data-stop]').disabled=!on;
 }
-/* 알림줄(#cvStat)에 뜨는 말을 그대로 기록으로 모은다 — 어느 작업이든 한 곳에 쌓인다 */
-function addLog(t){
+/* ══ 실시간 기록 — 화면 아래에 붙박이로 ══
+   돌아가는 동안 «지금 몇 번째 문항을 하고 있나» 가 흘러가야 한다.
+   그래서 기록창을 도구 판에서 떼어 화면 아래에 붙이고,
+   문항 하나가 끝날 때마다 그 자리에서 한 줄씩 쌓는다. */
+let LOGBOX=null;
+function logBox(){
+  if(LOGBOX) return LOGBOX;
+  LOGBOX=document.createElement('div');
+  LOGBOX.className='joblog';
+  LOGBOX.innerHTML=`<div class="h">
+      <b>실시간 기록</b><span class="n" data-n>0</span><span class="sp"></span>
+      <button type="button" data-clr title="비우기">비우기</button>
+      <button type="button" data-min title="접기/펴기">▾</button>
+    </div><div class="b" data-lines></div>`;
+  document.body.appendChild(LOGBOX);
+  LOGBOX.querySelector('[data-clr]').onclick=()=>{
+    LOGBOX.querySelector('[data-lines]').innerHTML=''; LOGBOX.querySelector('[data-n]').textContent='0'; };
+  LOGBOX.querySelector('[data-min]').onclick=()=>toggleLog();
+  LOGBOX.querySelector('.h').onclick=e=>{ if(!e.target.closest('button')) toggleLog(); };
+  return LOGBOX;
+}
+function toggleLog(force){
+  const b=logBox();
+  const on = force==null ? !b.classList.contains('open') : !!force;
+  b.classList.toggle('open',on);
+  b.querySelector('[data-min]').textContent = on?'▴':'▾';
+  const t=panel&&panel.querySelector('[data-logtoggle]');
+  if(t) t.textContent=(on?'▴':'▾')+' 실시간 기록';
+}
+function addLog(t,kind){
   t=String(t||'').trim(); if(!t||t===LASTLINE) return;
   LASTLINE=t;
-  const el=panel&&panel.querySelector('[data-log]'); if(!el) return;
+  const b=logBox(), el=b.querySelector('[data-lines]');
   const now=new Date();
-  const hh=String(now.getHours()).padStart(2,'0'), mm=String(now.getMinutes()).padStart(2,'0');
+  const hh=String(now.getHours()).padStart(2,'0'), mm=String(now.getMinutes()).padStart(2,'0'),
+        ss=String(now.getSeconds()).padStart(2,'0');
   const line=document.createElement('div');
-  line.className='li'+(/실패|못|오류|끊/.test(t)?' bad':(/완료|됨|성공/.test(t)?' ok':''));
-  line.textContent=`${hh}:${mm}  ${t}`;
-  el.prepend(line);
-  while(el.children.length>60) el.lastChild.remove();
+  line.className='li '+(kind||(/실패|못|오류|끊/.test(t)?'bad':(/완료|됨|성공|✓/.test(t)?'ok':'')));
+  line.textContent=`${hh}:${mm}:${ss}  ${t}`;
+  el.appendChild(line);                                  /* 새 줄이 아래로 흘러간다 */
+  while(el.children.length>300) el.firstChild.remove();
+  el.scrollTop=el.scrollHeight;
+  b.querySelector('[data-n]').textContent=el.children.length;
+  b.classList.add('live'); clearTimeout(addLog._t);
+  addLog._t=setTimeout(()=>b.classList.remove('live'),1200);
 }
 window.__pracLog=addLog;
-const wstat=setInterval(()=>{
-  const st=$('#cvStat'); if(!st) return; clearInterval(wstat);
-  let last=st.textContent;
-  /* 지켜보되, 우리가 쓰는 곳은 다른 자리라 스스로를 깨울 일이 없다 */
-  new MutationObserver(()=>{ const t=st.textContent; if(t!==last){ last=t; addLog(t); } })
-    .observe(st,{childList:true,characterData:true,subtree:true});
-},400);
-setTimeout(()=>clearInterval(wstat),20000);
+
+/* 어느 띠에서 흘러나오든 그대로 받아 적는다 (#cvStat · 위쪽 작업띠) */
+['#cvStat','.jobbar [data-msg]'].forEach(sel=>{
+  const w=setInterval(()=>{
+    const st=document.querySelector(sel); if(!st) return; clearInterval(w);
+    let last=st.textContent;
+    new MutationObserver(()=>{ const t=st.textContent; if(t!==last){ last=t; addLog(t); } })
+      .observe(st,{childList:true,characterData:true,subtree:true});
+  },500);
+  setTimeout(()=>clearInterval(w),30000);
+});
 
 setInterval(()=>{ paint(); runTick(); },1200);
 setTimeout(()=>{ paint(); runTick(); },1200);
