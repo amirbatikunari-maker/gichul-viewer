@@ -7790,15 +7790,15 @@ body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb)
 .ovpop .msg{margin-top:6px;font:500 10.5px/1.5 var(--font-d,system-ui);color:var(--muted,#64748b)}
 
 /* ── 한눈에 바탕 ── */
-.ovl.pbg-grid .pane{background-image:
+body.pbg-grid .ovl .pane{background-image:
   linear-gradient(rgba(37,99,235,.10) 1px,transparent 1px),
   linear-gradient(90deg,rgba(37,99,235,.10) 1px,transparent 1px);
   background-size:22px 22px}
-.ovl.pbg-rule .pane{background-image:linear-gradient(rgba(37,99,235,.13) 1px,transparent 1px);
+body.pbg-rule .ovl .pane{background-image:linear-gradient(rgba(37,99,235,.13) 1px,transparent 1px);
   background-size:100% 28px}
-.ovl.pbg-cream .pane{background-color:#fbf6ea}
-.ovl.pbg-mint  .pane{background-color:#f0f7f2}
-.ovl.pbg-slate .pane{background-color:#eef2f7}
+body.pbg-cream .ovl .pane{background-color:#fbf6ea}
+body.pbg-mint  .ovl .pane{background-color:#f0f7f2}
+body.pbg-slate .ovl .pane{background-color:#eef2f7}
 
 @media(max-width:820px){
   .ovdock{left:6px;gap:5px;padding:5px;border-radius:11px}
@@ -7930,11 +7930,17 @@ $('#ezRedoAll') ?.addEventListener('click',()=>redo('all'));
 /* ══ ③ 한눈에 왼쪽 도크 ══════════════════════════════════════ */
 const BKEY='prac:ovbg:v1';
 let BG=(()=>{ try{ return localStorage.getItem(BKEY)||'none' }catch(e){ return 'none' } })();
+/* ★★ 여기가 «왼쪽 도크를 켜면 통째로 멎던» 자리다 ★★
+   바탕을 칠하려고 #ovl 의 class 를 건드렸는데, 하필 그 class 를 지켜보는 감시자가
+   다시 이 함수를 부른다 → 칠하고 · 깨고 · 칠하고 … 끝이 없다.
+   MutationObserver 는 «마이크로태스크» 라서 이 고리는 화면에 숨 쉴 틈조차 주지 않는다.
+   그래서 도로 끄는 것도, 재는 것도 소용이 없었다(잴 틈이 없으니까).
+   고침: 바탕은 #ovl 이 아니라 body 에 칠한다 — 지켜보는 곳을 아예 건드리지 않는다. */
 function paintBG(){
-  const ovl=$('#ovl'); if(!ovl) return;
-  ['grid','rule','cream','mint','slate'].forEach(k=>ovl.classList.remove('pbg-'+k));
-  if(BG!=='none') ovl.classList.add('pbg-'+BG);
-  $$('#ovPop .grp[data-bg] button').forEach(b=>b.classList.toggle('on',b.dataset.v===BG));
+  const b=document.body; if(!b) return;
+  ['grid','rule','cream','mint','slate'].forEach(k=>b.classList.remove('pbg-'+k));
+  if(BG!=='none') b.classList.add('pbg-'+BG);
+  $$('#ovPop .grp[data-bg] button').forEach(x=>x.classList.toggle('on',x.dataset.v===BG));
 }
 function setBG(v){ BG=v; try{ localStorage.setItem(BKEY,v) }catch(e){} paintBG(); }
 
@@ -8010,7 +8016,10 @@ function syncDock(){
 }
 const boot=setInterval(()=>{
   const ovl=$('#ovl'); if(!ovl) return; clearInterval(boot);
-  new MutationObserver(syncDock).observe(ovl,{attributes:true,attributeFilter:['class']});
+  let SMUTE=false;
+  new MutationObserver(()=>{ if(SMUTE) return;
+    SMUTE=true; try{ syncDock() }catch(e){} setTimeout(()=>{ SMUTE=false },60);
+  }).observe(ovl,{attributes:true,attributeFilter:['class']});
   syncDock(); paintBG();
 },200);
 setTimeout(()=>clearInterval(boot),20000);
@@ -8038,7 +8047,7 @@ html,body{overscroll-behavior-x:none}
 .ovl,.ovl .ob,.ovl .pane{overscroll-behavior-x:none}
 /* 넘기는 동안 살짝 따라오게 */
 .ovl .ob{transition:transform .16s ease-out}
-.ovl.swiping .ob{transition:none}
+body.ovswiping .ovl .ob{transition:none}
 </style>
 <script>
 (function(){
@@ -8069,7 +8078,10 @@ function attach(){
     if(SW.lock===null){
       if(Math.abs(dx)<18&&Math.abs(dy)<18) return;
       SW.lock=Math.abs(dx)>Math.abs(dy)*1.4?'h':'v';
-      if(SW.lock==='h') $('#ovl')?.classList.add('swiping');
+      /* ★ 예전에는 #ovl 에 붙였다. 그런데 #ovl 의 class 를 지켜보는 감시자가 아홉이라,
+         손가락을 밀 때마다 수식 그리기·주석 다시 칠하기까지 통째로 깨어났다.
+         body 에 붙이면 아무도 안 깬다. */
+      if(SW.lock==='h') document.body.classList.add('ovswiping');
     }
     if(SW.lock!=='h') return;
     e.preventDefault();
@@ -8080,7 +8092,7 @@ function attach(){
     if(!SW||(e.pointerId!=null&&e.pointerId!==SW.id)) return;
     const dx=(e.clientX??SW.x)-SW.x, lock=SW.lock;
     SW=null;
-    const ovl=$('#ovl'); ovl?.classList.remove('swiping');
+    const ovl=$('#ovl'); document.body.classList.remove('ovswiping');
     const b=body(); if(b) b.style.transform='';
     if(lock!=='h'||Math.abs(dx)<64) return;
     /* 왼쪽으로 밀면 다음, 오른쪽으로 밀면 이전 — 위쪽 단추와 같은 것을 누른다 */
@@ -9993,10 +10005,18 @@ function sampleId(){
   }catch(e){ return null }
 }
 
-function check(){
+const PROBE='prac:ovprobe:v1';
+function probeOn(k){ try{ localStorage.setItem(PROBE,JSON.stringify({k,at:Date.now()})) }catch(e){} }
+function probeOff(){ try{ localStorage.removeItem(PROBE) }catch(e){} }
+
+function check(k){
   return new Promise(res=>{
     const id=sampleId();
     if(!id) return res({ok:false,why:'잴 문항이 없습니다'});
+    /* ★ 화면이 통째로 멎으면 아무것도 잴 수 없다(재는 코드도 같이 멎으니까).
+       그래서 «지금 이 겹을 켜고 여는 중» 이라고 먼저 적어 둔다.
+       멎어서 새로고침하면, 다음에 뜰 때 이 발자국을 보고 그 겹을 꺼 준다. */
+    if(k) probeOn(k);
     const e0=errs;
 
     /* ★ 무엇을 세는가 — 여기가 지난번에 틀렸던 곳.
@@ -10019,6 +10039,7 @@ function check(){
     try{ (window.ovOpen||function(){})(id); openMs=Math.round(performance.now()-t0); }
     catch(x){
       mo.disconnect(); if(d0) window.ovDraw=d0; if(l0) window.drawList=l0;
+      probeOff();
       return res({ok:false,why:'여는 중 오류: '+((x&&x.message)||x)});
     }
     setTimeout(()=>{ counting=true; drawN=0; listN=0; }, 450);   /* 처음 그리기는 빼고 센다 */
@@ -10028,6 +10049,7 @@ function check(){
       if(l0) window.drawList=l0;
       try{ (window.ovClose||function(){})(); }catch(x){}
       const de=errs-e0;
+      probeOff();
       const ok = openMs<=1200 && drawN<=1 && listN<=1 && settle<=14 && de===0;
       res({ ok, openMs, paints:settle, drawN, listN, errs:de,
             why: ok?'' : [
@@ -10072,7 +10094,7 @@ function build(){
     window.OVL.set(k,next); paint();
     if(!next){ mark(k,'',''); log(`«${nameOf(k)}» 를 껐습니다.`); return; }
     mark(k,'재는 중','run');
-    const r=await check();
+    const r=await check(k);
     if(r.ok){ mark(k,'정상','ok'); log(`«${nameOf(k)}» 켬 — 정상 (여는 데 ${r.openMs}ms · 판 다시 그리기 ${r.drawN}번)`); }
     else{ window.OVL.set(k,false); paint(); mark(k,'이상','bad');
           log(`«${nameOf(k)}» 를 켜니 이상 — ${r.why}\n→ 도로 껐습니다.`); }
@@ -10105,7 +10127,7 @@ async function seq(){
   /* 바닥부터 — 모두 끄고, 기본 판만 남긴 채 하나씩 올린다 */
   LAYERS.forEach(L=>window.OVL.set(L.k,false)); paint();
   log('모두 끈 상태에서 시작합니다.');
-  const base=await check();
+  const base=await check(null);
   if(!base.ok){
     log(`⚠ 아무 겹도 안 켠 «기본 판» 부터 이상합니다 — ${base.why}\n   겹 문제가 아닙니다. 이 줄을 그대로 알려 주세요.`);
     btn.disabled=false; btn.textContent='▶ 차례로 켜며 검증'; running=false; return;
@@ -10116,7 +10138,7 @@ async function seq(){
     mark(L.k,'재는 중','run');
     window.OVL.set(L.k,true); paint();
     await new Promise(r=>setTimeout(r,250));
-    const r=await check();
+    const r=await check(L.k);
     if(r.ok){ mark(L.k,'정상','ok'); log(`✓ ${L.n} — 정상 (${r.openMs}ms · ${r.paints}번)`); }
     else{
       window.OVL.set(L.k,false); paint();
@@ -10153,6 +10175,25 @@ setTimeout(()=>clearInterval(mt),30000);
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&box?.classList.contains('on')) box.classList.remove('on');
 });
+
+/* 지난번에 멎은 채로 끝났다면 — 그 겹을 꺼 두고 알려 준다 */
+(function(){
+  let v=null;
+  try{ v=JSON.parse(localStorage.getItem(PROBE)||'null') }catch(e){}
+  if(!v||!v.k) return;
+  probeOff();
+  try{ window.OVL.set(v.k,false) }catch(e){}
+  setTimeout(()=>{
+    try{ window.OVLPAINT&&window.OVLPAINT() }catch(e){}
+    const nm=nameOf(v.k);
+    try{ const el=document.getElementById('cvStat');
+      if(el) el.textContent=`⚠ 지난번 «${nm}» 을 켜는 중에 화면이 멎었습니다 — 그 겹을 꺼 두었습니다.`; }catch(e){}
+    build(); box.classList.add('on'); paint();
+    mark(v.k,'멎음','bad');
+    log(`⚠ 지난번 «${nm}» 을 켜자 화면이 통째로 멎었습니다(잴 틈도 없이).\n→ 그 겹을 꺼 두었습니다. 나머지는 그대로입니다.`);
+  },1800);
+})();
+
 paint();
 })();
 </script>
