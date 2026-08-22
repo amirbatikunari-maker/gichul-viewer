@@ -823,6 +823,9 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
         <button class="chip" id="fText" type="button" title="그림 대신 «글자로 바꾼 것» 으로 봅니다">가 글자로 보기</button>
         <button class="chip" id="cvGap" type="button" title="아직 글자로 안 바뀐 문항을 골라 글자로 바꿉니다">⚡ 변환</button>
         <button class="chip" id="ezRun" type="button" title="해설이 없는 문항의 쉬운 풀이를 한꺼번에 씁니다">✎ 자동 해설 진행</button>
+        <button class="chip" id="ezRedoSess" type="button" title="지금 고른 회차의 쉬운 풀이를 «지우고» 다시 씁니다">↻ 이 회차 다시 해석</button>
+        <button class="chip" id="ezRedoAll" type="button" title="이 과목 전 회차의 쉬운 풀이를 «지우고» 다시 씁니다">↻ 전 회차 다시 해석</button>
+        <button class="chip" id="ezSetup" type="button" title="쉬운 풀이를 어떤 결로 쓸지 정합니다">⚙ 해설 설정</button>
         <button class="chip" id="cvStop" type="button" hidden>중지</button>
         <span class="cvsep"></span>
         <select id="fSize" title="글자 크기">
@@ -4681,7 +4684,9 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
     put(v1,$('#fOne')); put(v1,$('#fText')); put(v1,$('#fSplit')); put(v1,$('#fSize'));
     put(v1,$('#fAns')); put(v1,$('#fEz'));
     put(v2,$('#sessionStart')); put(v2,$('#reviewWrong')); put(v2,$('#reviewMarked'));
-    put(v2,menu('🛠 도구','글자 변환 · 자동 해설',['한꺼번에 처리',$('#cvGap'),$('#ezRun'),$('#cvStop')]));
+    put(v2,menu('🛠 도구','글자 변환 · 자동 해설 · 다시 해석',
+      ['한꺼번에 처리',$('#cvGap'),$('#ezRun'),$('#cvStop'),
+       '쉬운 풀이 다시 해석 (기존 것을 지우고 새로)',$('#ezRedoSess'),$('#ezRedoAll'),$('#ezSetup')]));
     put(v2,$('.bgm'));
     put(v2,menu('⋯','그 밖에',['그 밖에',$('#qHelp'),$('#logoutBtn')]));
     /* 변환 진행 상황은 «보기» 칸 머리에 붙여 둔다 */
@@ -5250,11 +5255,14 @@ body.ann-open .aic-fab,body.ann-open .app-float,body.ann-open .app-network{opaci
   function textOf(root){
     return units(root).map(u=>u.atom?'\u0001':u.n.nodeValue).join('');
   }
-  function offsetOf(root,container,offset){
+  /* ★ bias — 수식 덩어리 «안» 을 가리킬 때 앞으로 붙일지 뒤로 붙일지.
+     예전에는 시작도 끝도 덩어리 «앞» 을 돌려줬다. 그래서 수식만 골라 잡으면
+     시작=끝이 되어 길이가 0 이 되고, 띠가 아예 안 떴다(글자만 되던 까닭). */
+  function offsetOf(root,container,offset,bias){
     const us=units(root); let off=0;
     for(const u of us){
       if(u.atom){
-        if(u.n===container||u.n.contains(container)) return off;
+        if(u.n===container||u.n.contains(container)) return bias==='e' ? off+1 : off;
         off+=1; continue;
       }
       if(u.n===container) return off+Math.min(offset,u.len);
@@ -5429,8 +5437,8 @@ body.ann-open .aic-fab,body.ann-open .app-float,body.ann-open .app-network{opaci
     if(el.nodeType===3) el=el.parentElement;
     el=el?.closest?.('[data-ann]');
     if(!el) return null;
-    const a=offsetOf(el,r.startContainer,r.startOffset);
-    const b=offsetOf(el,r.endContainer,r.endOffset);
+    const a=offsetOf(el,r.startContainer,r.startOffset,'s');
+    const b=offsetOf(el,r.endContainer,r.endOffset,'e');
     const s0=Math.min(a,b), e0=Math.max(a,b);
     if(e0-s0<1) return null;
     return {el,key:el.dataset.ann,s:s0,e:e0,rect:r.getBoundingClientRect()};
@@ -5484,6 +5492,11 @@ body.ann-open .aic-fab,body.ann-open .app-float,body.ann-open .app-network{opaci
     getSelection()?.removeAllRanges(); hideBar();
     repaintAll();
   }
+  /* ── 밖에서 쓰는 손잡이 ──
+     ai-explain.js 가 «AI 가 쓴 글» 을 이 주석함에 그대로 넣을 때 쓴다.
+     고른 자리(SEL)는 단추를 누르는 순간 이미 풀려 있을 수 있으므로 되돌려 넣을 수 있게 열어 둔다. */
+  window.__pracAnnAPI={ getSel:()=>SEL, setSel:v=>{ SEL=v }, addNote:t=>add('n',null,t) };
+
   bar.addEventListener('click',e=>{
     const d=e.target.closest('[data-c]'); const a=e.target.closest('[data-a]');
     if(d) return add('h',d.dataset.c);
@@ -7088,6 +7101,24 @@ body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb)
 .pbar .sep{width:1px;height:22px;background:var(--line,#e2e8f0)}
 .pbar .wl{font:800 9.5px/1 var(--font-d,system-ui);color:var(--muted,#64748b);letter-spacing:.1em}
 @media(max-width:620px){ .pbar{right:8px;bottom:10px;gap:5px;padding:7px} .pbar button{min-width:34px;height:34px;padding:0 7px} }
+
+/* ── 도구줄: 지금 무엇이 그어지는지 ── */
+.pbar .tip{display:flex;align-items:center;justify-content:center;width:30px;height:30px;
+  border:1px solid var(--line,#e2e8f0);border-radius:9px;background:var(--surface-2,#f7f9fc)}
+.pbar .tip i{display:block}
+.pbar .swrow{display:flex;align-items:center;gap:7px}
+/* 펜 색과 형광 색은 서로 다른 줄이다 — 지금 쓰는 쪽만 보인다 */
+.pbar .swrow[data-row="hi"]{display:none}
+.pbar.is-hi .swrow[data-row="pen"]{display:none}
+.pbar.is-hi .swrow[data-row="hi"]{display:flex}
+.pbar.is-er .swrow{opacity:.35;pointer-events:none}
+.pbar .swrow[data-row="hi"] .sw{border-radius:5px}
+
+/* ── S펜 호버 표시 ── */
+.penhover{position:fixed;z-index:100045;pointer-events:none;opacity:0;transition:opacity .12s;
+  box-shadow:0 1px 5px rgba(15,23,42,.28)}
+.penhover.on{opacity:1}
+.penhover.er{background:transparent!important}
 </style>
 <script>
 (function(){
@@ -7097,16 +7128,24 @@ body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb)
   const B  = document.body;
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 
-  const COLORS = ['#BE2B26','#1D4ED8','#137A4B','#10233D'];
-  const WIDTHS = [2.0, 3.4, 6.0];
+  const COLORS   = ['#BE2B26','#1D4ED8','#137A4B','#10233D'];
+  /* 형광펜은 «펜 색을 옅게» 가 아니라 아예 다른 팔레트다.
+     예전에는 무슨 색을 골라도 노랑(#FDE047)으로만 그어져서
+     설정한 색과 나오는 색이 달랐다. */
+  const HICOLORS = ['#FDE047','#86EFAC','#93C5FD','#F9A8D4'];
+  const WIDTHS   = [2.0, 3.4, 6.0];
+  const ALPHAS   = [['연',.20],['보통',.36],['진',.58]];
   const get = (k,d)=>{ try{ const v=localStorage.getItem(k); return v==null?d:v; }catch(e){ return d; } };
   const set = (k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
 
   let ON      = false;
   let TOOL    = 'pen';                                  /* pen | hi | er */
   let COLOR   = get('pen:color', COLORS[0]);
+  let HICOLOR = get('pen:hicolor', HICOLORS[0]);
+  let ALPHA   = +get('pen:alpha', .36);          /* 형광펜 농도 */
   let WIDTH   = +get('pen:width', WIDTHS[1]);
   let PENONLY = get('pen:only','1') !== '0';
+  let PRESS   = get('pen:press','1') !== '0';    /* 필압 쓰기 */
 
   /* ══ ① 남기기 ══
      예전 그림 필기는 ink 자루의 q · a 를 쓴다. 칸 필기는 Lq · La · Le 로 따로 둔다.
@@ -7238,7 +7277,11 @@ body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb)
     if(e.pointerType === 'mouse') return true;
     return !PENONLY;
   }
-  const eraserTip = e => e.pointerType === 'pen' && (e.buttons & 32) === 32;
+  /* S펜 뒤쪽 지우개·옆 단추 — 브라우저·기기마다 다르게 온다.
+     크롬은 지우개를 buttons&32 로, 삼성인터넷·일부 펌웨어는 옆 단추를 buttons&2 로 준다.
+     button 값(2·5)으로만 오는 경우도 있어 셋 다 받는다. */
+  const eraserTip = e => e.pointerType === 'pen' &&
+    (((e.buttons & 32) === 32) || ((e.buttons & 2) === 2) || e.button === 5 || e.button === 2);
 
   /* ★ 삼킨 점 받기 — 반드시 빈 배열을 대비해야 한다.
      getCoalescedEvents() 는 «믿을 수 있는» 이벤트가 아니거나 브라우저 사정에 따라
@@ -7260,11 +7303,28 @@ body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb)
       return [ (e.clientX - b.left) / W, (e.clientY - b.top) / W ];
     };
     /* 필압 → 굵기. 폭으로 나눠 적어야 화면이 커져도 굵기 비율이 그대로다. */
+    /* 필압 → 굵기.
+       ★ 예전에는 pressure 가 0 이거나 늘 같은 값(0.5·1)으로만 들어오는 기기에서
+         굵기가 통째로 고정됐다 — «필압이 안 먹는다» 가 이것이다.
+         이제 두 갈래로 본다: 세기가 실제로 흔들리면 그것을 쓰고,
+         고정값만 오면 «긋는 빠르기» 로 굵기를 흔든다(빠를수록 가늘게). */
+    let PREV = null;                                   /* [x, y, t] */
     const wOf = (e, b) => {
       const base = (TOOL === 'hi' ? WIDTH * 5 : WIDTH) / (b || 1);
-      if(e.pointerType !== 'pen') return base;
-      const pr = e.pressure > 0 ? e.pressure : .5;
-      return base * clamp(.45 + pr * 1.35, .45, 1.9);
+      if(e.pointerType === 'mouse' || !PRESS) return base;
+      const pr = e.pressure;
+      if(typeof pr === 'number' && pr > 0 && pr < 1)
+        return base * clamp(.35 + pr * 1.75, .35, 2.1);
+      /* 세기를 못 받는 기기 — 빠르기로 대신한다 */
+      const p = at(e), now = performance.now();
+      let f = 1;
+      if(PREV){
+        const d  = Math.hypot(p[0]-PREV[0], p[1]-PREV[1]);
+        const dt = Math.max(8, now - PREV[2]);
+        f = clamp(1.25 - (d / dt) * 26, .55, 1.25);
+      }
+      PREV = [p[0], p[1], now];
+      return base * f;
     };
     function erase(p){
       const id = idOf(host); if(!id) return;
@@ -7287,9 +7347,10 @@ body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb)
       PID = e.pointerId;
       if(TOOL === 'er' || eraserTip(e)){ cur = null; return erase(at(e)); }
       const b = cv.getBoundingClientRect().width;
+      PREV = null;
       cur = TOOL === 'hi'
-        ? { c:'#FDE047', a:.40, pts:[[...at(e), wOf(e,b)]] }
-        : { c:COLOR,     a:1,   pts:[[...at(e), wOf(e,b)]] };
+        ? { c:HICOLOR, a:ALPHA, pts:[[...at(e), wOf(e,b)]] }
+        : { c:COLOR,   a:1,     pts:[[...at(e), wOf(e,b)]] };
       load(id, host.__zone).push(cur);
       drawn = 1;
       one(ctx, cur, cv.width);
@@ -7331,16 +7392,22 @@ body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb)
     BARE.className = 'pbar mini';
     BARE.innerHTML =
       `<button class="fab" type="button" title="필기 (S펜)">✍</button>
-       <button type="button" data-off title="필기 끄기">✍ 켬</button><span class="sep"></span>
-       ${COLORS.map(c => `<button type="button" class="sw" data-c="${c}" style="background:${c}"></button>`).join('')}
+       <button type="button" data-off title="필기 끄기">✍ 켬</button>
+       <span class="tip" data-tip title="지금 그어지는 모양"><i></i></span><span class="sep"></span>
+       <button type="button" data-t="pen" title="펜">✏ 펜</button>
+       <button type="button" data-t="hi"  title="형광펜">🖍 형광</button>
+       <button type="button" data-t="er"  title="지우개">🧽 지우개</button><span class="sep"></span>
+       <span class="swrow" data-row="pen">${COLORS.map(c => `<button type="button" class="sw" data-c="${c}" style="background:${c}"></button>`).join('')}</span>
+       <span class="swrow" data-row="hi">${HICOLORS.map(c => `<button type="button" class="sw" data-hc="${c}" style="background:${c}"></button>`).join('')}</span>
        <span class="sep"></span><span class="wl">굵기</span>
        ${WIDTHS.map((w,i) => `<button type="button" data-w="${w}">${['│','┃','█'][i]}</button>`).join('')}
+       <span class="swrow" data-row="hi"><span class="wl">농도</span>
+       ${ALPHAS.map(([n,a]) => `<button type="button" data-a="${a}">${n}</button>`).join('')}</span>
        <span class="sep"></span>
-       <button type="button" data-t="hi" title="형광펜">🖍</button>
-       <button type="button" data-t="er" title="지우개">지우개</button>
        <button type="button" data-undo title="되돌리기">↶</button>
        <button type="button" data-clear title="이 문항 필기 전부 지우기">비우기</button>
        <span class="sep"></span>
+       <button type="button" data-press title="필압 — 누르는 세기(또는 긋는 빠르기)에 따라 굵기가 달라집니다">필압</button>
        <button type="button" data-only title="펜으로만 쓰기 — 손바닥·손가락은 안 그려집니다">✋ 펜만</button>`;
     document.body.appendChild(BARE);
 
@@ -7349,8 +7416,13 @@ body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb)
       const b = e.target.closest('button'); if(!b || b.classList.contains('fab')) return;
       if(b.hasAttribute('data-off'))  return toggle(false);
       if(b.dataset.c){ COLOR = b.dataset.c; TOOL = 'pen'; set('pen:color', COLOR); return paint(); }
+      if(b.dataset.hc){ HICOLOR = b.dataset.hc; TOOL = 'hi'; set('pen:hicolor', HICOLOR); return paint(); }
+      if(b.dataset.a){ ALPHA = +b.dataset.a; TOOL = 'hi'; set('pen:alpha', b.dataset.a); return paint(); }
       if(b.dataset.w){ WIDTH = +b.dataset.w; set('pen:width', b.dataset.w); return paint(); }
-      if(b.dataset.t){ TOOL = (TOOL === b.dataset.t) ? 'pen' : b.dataset.t; return paint(); }
+      if(b.dataset.t){ TOOL = b.dataset.t; return paint(); }
+      if(b.hasAttribute('data-press')){
+        PRESS = !PRESS; set('pen:press', PRESS ? '1' : '0'); return paint();
+      }
       if(b.hasAttribute('data-only')){
         PENONLY = !PENONLY; set('pen:only', PENONLY ? '1' : '0');
         B.classList.toggle('inkfinger', !PENONLY);
@@ -7363,11 +7435,27 @@ body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb)
   }
   function paint(){
     const t = bar();
-    $$('[data-c]', t).forEach(b => b.classList.toggle('on', b.dataset.c === COLOR && TOOL !== 'er'));
-    $$('[data-w]', t).forEach(b => b.classList.toggle('on', +b.dataset.w === WIDTH));
-    $$('[data-t]', t).forEach(b => b.classList.toggle('on', b.dataset.t === TOOL));
+    t.classList.toggle('is-hi', TOOL === 'hi');
+    t.classList.toggle('is-er', TOOL === 'er');
+    $$('[data-c]',  t).forEach(b => b.classList.toggle('on', b.dataset.c === COLOR));
+    $$('[data-hc]', t).forEach(b => b.classList.toggle('on', b.dataset.hc === HICOLOR));
+    $$('[data-a]',  t).forEach(b => b.classList.toggle('on', +b.dataset.a === ALPHA));
+    $$('[data-w]',  t).forEach(b => b.classList.toggle('on', +b.dataset.w === WIDTH));
+    $$('[data-t]',  t).forEach(b => b.classList.toggle('on', b.dataset.t === TOOL));
     t.querySelector('[data-only]').classList.toggle('on', PENONLY);
+    t.querySelector('[data-press]').classList.toggle('on', PRESS);
     t.querySelector('[data-off]').classList.toggle('on', ON);
+    /* 지금 무엇이 그어지는지 눈으로 — 색 · 굵기 · 농도를 그대로 보여 준다 */
+    const tip = t.querySelector('[data-tip] i');
+    if(tip){
+      const hi = TOOL === 'hi';
+      tip.style.background  = TOOL === 'er' ? 'transparent' : (hi ? HICOLOR : COLOR);
+      tip.style.opacity     = TOOL === 'er' ? 1 : (hi ? ALPHA + .25 : 1);
+      tip.style.width = tip.style.height = Math.round(clamp((hi ? WIDTH*3.2 : WIDTH*2.2), 6, 22)) + 'px';
+      tip.style.border = TOOL === 'er' ? '2px dashed #94a3b8' : '0';
+      tip.style.borderRadius = hi ? '3px' : '50%';
+    }
+    hoverPaint();
   }
   function toggle(v){
     ON = v == null ? !ON : v;
@@ -7406,6 +7494,47 @@ body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb)
     ['q','a','e'].forEach(z => { BAG[`${id}:${z}`] = []; store(id, z); });
     redrawAll();
   }
+
+  /* ══ ⑤-2 S펜을 가까이 대면 «여기에 그어집니다» 를 보여 준다 ══
+     예전에는 펜을 띄워도 아무 표시가 없어서, 어디에 닿을지 손으로 재야 했다.
+     펜이 화면 위를 떠다니는 동안(buttons 0) 점을 따라다니게 한다. */
+  let HDOT = null;
+  function hoverDot(){
+    if(HDOT) return HDOT;
+    HDOT = document.createElement('div');
+    HDOT.className = 'penhover';
+    document.body.appendChild(HDOT);
+    return HDOT;
+  }
+  function hoverPaint(){
+    const d = HDOT; if(!d) return;
+    const hi = TOOL === 'hi';
+    const px = clamp((hi ? WIDTH * 4.5 : WIDTH * 3), 10, 40);
+    d.style.width = d.style.height = px + 'px';
+    d.style.borderRadius = hi ? '4px' : '50%';
+    d.style.background = TOOL === 'er' ? 'transparent' : (hi ? HICOLOR : COLOR);
+    d.style.opacity = TOOL === 'er' ? 1 : (hi ? .45 : .55);
+    d.style.border = TOOL === 'er' ? '2px dashed #64748b' : '1px solid rgba(255,255,255,.85)';
+  }
+  let HOFF = 0;
+  function hoverAt(e){
+    if(!ON || e.pointerType !== 'pen') return;
+    penSeen();
+    const d = hoverDot();
+    hoverPaint();
+    const px = parseFloat(d.style.width) || 14;
+    d.style.left = (e.clientX - px/2) + 'px';
+    d.style.top  = (e.clientY - px/2) + 'px';
+    d.classList.add('on');
+    d.classList.toggle('er', TOOL === 'er' || eraserTip(e));
+    clearTimeout(HOFF);
+    HOFF = setTimeout(() => d.classList.remove('on'), 700);
+  }
+  ['pointermove','pointerrawupdate','pointerover'].forEach(t => {
+    try{ document.addEventListener(t, hoverAt, { passive:true, capture:true }); }catch(x){}
+  });
+  document.addEventListener('pointerdown', e => { if(e.pointerType === 'pen') hoverAt(e); }, true);
+  document.addEventListener('pointerleave', () => HDOT?.classList.remove('on'), true);
 
   /* ══ ⑥ 화면이 바뀌면 다시 씌우고 다시 그린다 ══ */
   bar(); paint();
@@ -7493,6 +7622,1316 @@ body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb)
   }, true);
 })();
 </script>
+
+<!-- ══════════════════════════════════════════════════════════════
+     v94 · ① 쉬운 풀이 «다시 해석» (이 회차 / 전 회차)  ② 해설 결 설정
+           ③ «한눈에» 왼쪽 도크 — 음악 · 바탕(모눈·줄눈·배경) · 다시 해석
+     ──────────────────────────────────────────────────────────────
+     ① «자동 해설 진행» 은 «없는 것만» 채운다. 이미 쓴 해설이 마음에 안 들 때
+        쓸 것이 없었다. 여기서는 있는 것을 지우고 처음부터 다시 쓴다.
+     ② 어떤 결로 쓸지(입문/실전 · 짧게/자세히 · 따로 부탁할 말)를 한 번 정해 두면
+        새로 쓰는 해설과 다시 쓰는 해설에 모두 그대로 붙는다.
+     ③ 한눈에 판은 화면을 통째로 덮어서 위쪽 단추 말고는 손댈 것이 없었다.
+        왼쪽 가장자리에 세로 도크를 붙여 거기서 바로 다룬다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* ── 한눈에 왼쪽 도크 ── */
+.ovdock{position:fixed;left:8px;top:50%;transform:translateY(-50%);z-index:60;
+  display:none;flex-direction:column;gap:6px;padding:6px;border-radius:13px;
+  background:var(--surface,#fff);border:1px solid var(--line,#d7dee8);
+  box-shadow:0 12px 34px rgba(15,23,42,.2)}
+.ovl.on ~ .ovdock,.ovdock.on{display:flex}
+.ovdock>button{width:36px;height:36px;border:1px solid var(--line,#e2e8f0);border-radius:10px;
+  background:var(--surface-2,#f6f8fb);color:var(--ink,#0f172a);cursor:pointer;
+  font:700 14px/1 var(--font-d,system-ui);display:grid;place-items:center}
+.ovdock>button.on{background:var(--ink,#111827);border-color:var(--ink,#111827);color:#fff}
+.ovdock>button small{display:block;font:700 7.5px/1 var(--font-m,monospace);margin-top:2px;opacity:.8}
+
+.ovpop{position:fixed;left:52px;top:50%;transform:translateY(-50%);z-index:61;display:none;
+  width:min(250px,calc(100vw - 70px));max-height:76vh;overflow:auto;padding:10px;
+  border-radius:13px;background:var(--surface,#fff);border:1px solid var(--line,#d7dee8);
+  box-shadow:0 16px 44px rgba(15,23,42,.26)}
+.ovpop.on{display:block}
+.ovpop h5{margin:0 0 6px;font:800 10px/1 var(--font-m,monospace);letter-spacing:.09em;color:var(--muted,#64748b)}
+.ovpop .grp{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 10px}
+.ovpop .grp button{flex:1 1 auto;min-width:64px;height:30px;padding:0 8px;cursor:pointer;
+  border:1px solid var(--line,#e2e8f0);border-radius:9px;background:var(--surface-2,#f6f8fb);
+  color:var(--ink,#0f172a);font:700 11px/1 var(--font-d,system-ui)}
+.ovpop .grp button.on{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+.ovpop textarea{width:100%;min-height:56px;resize:vertical;border:1px solid var(--line,#e2e8f0);
+  border-radius:9px;padding:7px;font:500 11.5px/1.5 var(--font-d,system-ui);
+  background:var(--surface-2,#fbfcfe);color:var(--ink,#0f172a)}
+.ovpop .go{width:100%;height:33px;margin-top:7px;border:0;border-radius:9px;background:#111827;color:#fff;
+  cursor:pointer;font:800 11.5px/1 var(--font-d,system-ui)}
+.ovpop .msg{margin-top:6px;font:500 10.5px/1.5 var(--font-d,system-ui);color:var(--muted,#64748b)}
+
+/* ── 한눈에 바탕 ── */
+.ovl.pbg-grid .pane{background-image:
+  linear-gradient(rgba(37,99,235,.10) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(37,99,235,.10) 1px,transparent 1px);
+  background-size:22px 22px}
+.ovl.pbg-rule .pane{background-image:linear-gradient(rgba(37,99,235,.13) 1px,transparent 1px);
+  background-size:100% 28px}
+.ovl.pbg-cream .pane{background-color:#fbf6ea}
+.ovl.pbg-mint  .pane{background-color:#f0f7f2}
+.ovl.pbg-slate .pane{background-color:#eef2f7}
+
+@media(max-width:820px){
+  .ovdock{left:6px;gap:5px;padding:5px;border-radius:11px}
+  .ovdock>button{width:32px;height:32px;font-size:13px}
+  .ovpop{left:44px;width:min(230px,calc(100vw - 58px))}
+}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+
+/* ══ ① 해설 결 설정 ══════════════════════════════════════════ */
+const CKEY='prac:ezcfg:v1';
+const DEF={level:'보통',len:'보통',extra:''};
+let CFGZ=(()=>{ try{ return Object.assign({},DEF,JSON.parse(localStorage.getItem(CKEY)||'{}')) }catch(e){ return {...DEF} } })();
+const csave=()=>{ try{ localStorage.setItem(CKEY,JSON.stringify(CFGZ)) }catch(e){} };
+window.__pracEzCfg=()=>CFGZ;
+
+function tail(){
+  const lv={ '입문':'전공을 처음 보는 사람 기준으로, 용어부터 풀어 써라.',
+             '보통':'기초는 안다고 보고, 막히는 곳만 짚어 풀어 써라.',
+             '실전':'시험장에서 손이 가는 순서로 써라. 군말은 빼고 계산 절차 위주로.' }[CFGZ.level]||'';
+  const ln={ '짧게':'전체를 열두 줄 안쪽으로 줄여 써라.',
+             '보통':'',
+             '자세히':'중간 식을 하나도 건너뛰지 말고, 왜 그 식을 쓰는지까지 붙여 써라.' }[CFGZ.len]||'';
+  const ex=(CFGZ.extra||'').trim();
+  const bits=[lv,ln,ex?('추가 요청: '+ex):''].filter(Boolean);
+  return bits.length ? '\n\n[이번에 지킬 것]\n'+bits.map(b=>'- '+b).join('\n') : '';
+}
+/* 원래 쓰던 물음글 뒤에 결만 붙인다 — 본 글은 건드리지 않는다 */
+try{
+  if(typeof easyPrompt==='function' && !easyPrompt.__wrapped){
+    const base=easyPrompt;
+    const wrapped=function(){ return base.apply(this,arguments)+tail() };
+    wrapped.__wrapped=true;
+    window.easyPrompt=wrapped;
+  }
+}catch(e){}
+
+/* 설정 판 (도구 탭 · 한눈에 도크 양쪽에서 같은 것을 연다) */
+function cfgHTML(){
+  const g=(k,arr)=>`<div class="grp" data-k="${k}">`+arr.map(v=>
+    `<button type="button" data-v="${v}" class="${CFGZ[k]===v?'on':''}">${v}</button>`).join('')+`</div>`;
+  return `<h5>깊이</h5>${g('level',['입문','보통','실전'])}
+    <h5>길이</h5>${g('len',['짧게','보통','자세히'])}
+    <h5>따로 부탁할 말</h5>
+    <textarea data-extra placeholder="예) 단위 환산은 매번 적어 줘 / 표 대신 줄글로">${(CFGZ.extra||'').replace(/</g,'&lt;')}</textarea>`;
+}
+function wireCfg(root){
+  $$('.grp',root).forEach(g=>g.addEventListener('click',e=>{
+    const b=e.target.closest('button[data-v]'); if(!b) return;
+    CFGZ[g.dataset.k]=b.dataset.v; csave();
+    $$('button',g).forEach(x=>x.classList.toggle('on',x===b));
+  }));
+  const ta=$('[data-extra]',root);
+  ta?.addEventListener('input',()=>{ CFGZ.extra=ta.value; csave(); });
+}
+$('#ezSetup')?.addEventListener('click',()=>{
+  const box=document.createElement('div');
+  box.className='ovpop on';
+  box.style.cssText='left:50%;top:50%;transform:translate(-50%,-50%);z-index:100060;width:min(320px,calc(100vw - 28px))';
+  box.innerHTML=`<h5>쉬운 풀이 결</h5>${cfgHTML()}<button type="button" class="go" data-x>다 됐습니다</button>
+    <div class="msg">여기서 정한 결은 새로 쓰는 해설과 «다시 해석» 에 모두 붙습니다.</div>`;
+  document.body.appendChild(box); wireCfg(box);
+  box.querySelector('[data-x]').onclick=()=>box.remove();
+});
+
+/* ══ ② 쉬운 풀이 다시 해석 ═══════════════════════════════════ */
+const rowsAll=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
+const say=t=>{ try{ cvSay(t) }catch(e){} };
+
+async function redo(scope){
+  let busy=false;
+  try{ busy = CVBUSY || EZBUSY }catch(e){}
+  if(busy) return alert('지금 다른 작업이 돌고 있습니다.');
+
+  const yr=$('#fYear')?.value||'', ss=$('#fSess')?.value||'';
+  let pool=rowsAll().filter(r=>r.q_url||r.q_md);
+  let label='이 과목 전 회차';
+  if(scope==='sess'){
+    if(!ss && !yr){
+      /* 회차를 안 고른 채로 눌렀다면 지금 보고 있는 문항의 회차를 쓴다 */
+      const cur=rowsAll().find(r=>String(r.id)===String(typeof OVID!=='undefined'?OVID:''))
+              || (Array.isArray(window.SHOWN)?window.SHOWN[0]:null);
+      if(!cur) return alert('먼저 연도·회차를 고르거나, 문항을 하나 열어 주세요.');
+      pool=pool.filter(r=>String(r.year)===String(cur.year)&&String(r.session)===String(cur.session));
+      label=`${cur.year}년 제${cur.session}회`;
+    }else{
+      pool=pool.filter(r=>(!yr||String(r.year)===String(yr))&&(!ss||String(r.session)===String(ss)));
+      label=`${yr||'모든 연도'} ${ss?('제'+ss+'회'):''}`.trim();
+    }
+  }
+  const done=pool.filter(r=>r.easy_md).length;
+  if(!pool.length) return alert('해당하는 문항이 없습니다.');
+  if(!confirm(`${label} — ${pool.length}개의 쉬운 풀이를 «지우고» 처음부터 다시 씁니다.\n`
+    +`이미 써 둔 해설 ${done}개는 사라집니다.\n`
+    +`한 개에 20~40초쯤 걸리므로 대략 ${Math.ceil(pool.length*30/60)}분입니다.\n`
+    +`결: ${CFGZ.level} · ${CFGZ.len}${(CFGZ.extra||'').trim()?' · 따로 부탁한 말 있음':''}\n\n계속할까요?`)) return;
+
+  try{ EZBUSY=true; CVSTOP=false; }catch(e){}
+  const stop=$('#cvStop'), prog=$('#cvProg'), bar=$('#cvBar');
+  if(stop) stop.hidden=false; if(prog) prog.hidden=false;
+  ['#cvGap','#ezRun','#ezRedoSess','#ezRedoAll'].forEach(s=>{ const b=$(s); if(b) b.disabled=true });
+
+  let ok=0,bad=0,n=0;
+  for(const r of pool){
+    let s=false; try{ s=CVSTOP }catch(e){}
+    if(s) break;
+    n++;
+    say(`다시 해석 ${n}/${pool.length} — ${r.year}년 제${r.session}회 ${r.no}번 · 됨 ${ok}`+(bad?` · 실패 ${bad}`:''));
+    if(bar) bar.style.width=(n/pool.length*100)+'%';
+    try{
+      r.easy_md=null;                       /* 먼저 지운다 — 그래야 새로 쓴다 */
+      await ezMake(r.id,true,true);
+      r.easy_md?ok++:bad++;
+    }catch(e){ bad++; }
+    await new Promise(x=>setTimeout(x,400));
+  }
+  if(stop) stop.hidden=true; if(prog) prog.hidden=true;
+  ['#cvGap','#ezRun','#ezRedoSess','#ezRedoAll'].forEach(s=>{ const b=$(s); if(b) b.disabled=false });
+  try{ EZBUSY=false }catch(e){}
+  say(`다시 해석 ${ok}개 완료`+(bad?` · ${bad}개 실패`:''));
+  try{ drawList(); cvCount(); }catch(e){}
+}
+$('#ezRedoSess')?.addEventListener('click',()=>redo('sess'));
+$('#ezRedoAll') ?.addEventListener('click',()=>redo('all'));
+
+/* ══ ③ 한눈에 왼쪽 도크 ══════════════════════════════════════ */
+const BKEY='prac:ovbg:v1';
+let BG=(()=>{ try{ return localStorage.getItem(BKEY)||'none' }catch(e){ return 'none' } })();
+function paintBG(){
+  const ovl=$('#ovl'); if(!ovl) return;
+  ['grid','rule','cream','mint','slate'].forEach(k=>ovl.classList.remove('pbg-'+k));
+  if(BG!=='none') ovl.classList.add('pbg-'+BG);
+  $$('#ovPop .grp[data-bg] button').forEach(b=>b.classList.toggle('on',b.dataset.v===BG));
+}
+function setBG(v){ BG=v; try{ localStorage.setItem(BKEY,v) }catch(e){} paintBG(); }
+
+const dock=document.createElement('div'); dock.className='ovdock';
+dock.innerHTML=`<button type="button" data-d="music" title="배경 음악">♪</button>
+  <button type="button" data-d="bg" title="바탕 — 모눈 · 줄눈 · 배경">▦</button>
+  <button type="button" data-d="ez" title="쉬운 풀이 다시 해석">✎</button>`;
+const pop=document.createElement('div'); pop.className='ovpop'; pop.id='ovPop';
+document.body.append(dock,pop);
+
+const MUSIC=[['jazz','재즈'],['fantasy','판타지'],['off','끄기']];
+function openPop(kind){
+  if(pop.dataset.k===kind && pop.classList.contains('on')) return closePop();
+  pop.dataset.k=kind;
+  if(kind==='music'){
+    let cur='off'; try{ cur=window.BGM?.mode||'off' }catch(e){}
+    pop.innerHTML=`<h5>배경 음악</h5><div class="grp" data-m>`+
+      MUSIC.map(([v,n])=>`<button type="button" data-v="${v}" class="${cur===v?'on':''}">${n}</button>`).join('')+
+      `</div><div class="msg">소리는 이 기기에서 그 자리에서 만들어 냅니다.</div>`;
+    pop.querySelector('[data-m]').addEventListener('click',e=>{
+      const b=e.target.closest('button[data-v]'); if(!b) return;
+      try{ window.BGM?.set(b.dataset.v) }catch(x){}
+      $$('button',pop.querySelector('[data-m]')).forEach(x=>x.classList.toggle('on',x===b));
+    });
+  }
+  if(kind==='bg'){
+    const opts=[['none','없음'],['grid','모눈'],['rule','줄눈'],['cream','미색'],['mint','연녹'],['slate','회청']];
+    pop.innerHTML=`<h5>바탕</h5><div class="grp" data-bg>`+
+      opts.map(([v,n])=>`<button type="button" data-v="${v}" class="${BG===v?'on':''}">${n}</button>`).join('')+
+      `</div><div class="msg">한눈에 판에만 깔립니다. 필기·형광펜에는 영향이 없습니다.</div>`;
+    pop.querySelector('[data-bg]').addEventListener('click',e=>{
+      const b=e.target.closest('button[data-v]'); if(!b) return; setBG(b.dataset.v);
+    });
+  }
+  if(kind==='ez'){
+    pop.innerHTML=`<h5>쉬운 풀이 결</h5>${cfgHTML()}
+      <button type="button" class="go" data-one>이 문항 다시 해석</button>
+      <div class="msg" data-msg>지금 보고 있는 한 문항만 지우고 새로 씁니다.</div>`;
+    wireCfg(pop);
+    pop.querySelector('[data-one]').onclick=async()=>{
+      let id=null; try{ id=OVID }catch(e){}
+      if(!id) return alert('먼저 문항을 한눈에 열어 주세요.');
+      const btn=pop.querySelector('[data-one]'), msg=pop.querySelector('[data-msg]');
+      btn.disabled=true; msg.textContent='다시 쓰는 중입니다… 20~40초쯤 걸립니다.';
+      try{
+        const r=rowsAll().find(x=>String(x.id)===String(id));
+        if(r) r.easy_md=null;
+        await ezMake(id,true);
+        msg.textContent='새로 썼습니다.';
+      }catch(e){ msg.textContent='쓰지 못했습니다 — '+(e.message||e); }
+      btn.disabled=false;
+    };
+  }
+  pop.classList.add('on');
+  $$('.ovdock>button').forEach(b=>b.classList.toggle('on',b.dataset.d===kind));
+}
+function closePop(){ pop.classList.remove('on'); pop.dataset.k=''; $$('.ovdock>button').forEach(b=>b.classList.remove('on')); }
+dock.addEventListener('click',e=>{
+  const b=e.target.closest('[data-d]'); if(!b) return;
+  e.stopPropagation(); openPop(b.dataset.d);
+});
+document.addEventListener('pointerdown',e=>{
+  if(e.target.closest('.ovpop')||e.target.closest('.ovdock')) return;
+  closePop();
+});
+addEventListener('keydown',e=>{ if(e.key==='Escape') closePop(); });
+
+/* 한눈에 판이 열릴 때만 도크를 보인다 */
+function syncDock(){
+  const on=!!$('#ovl')?.classList.contains('on');
+  dock.classList.toggle('on',on);
+  if(!on) closePop(); else paintBG();
+}
+const boot=setInterval(()=>{
+  const ovl=$('#ovl'); if(!ovl) return; clearInterval(boot);
+  new MutationObserver(syncDock).observe(ovl,{attributes:true,attributeFilter:['class']});
+  syncDock(); paintBG();
+},200);
+setTimeout(()=>clearInterval(boot),20000);
+})();
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════
+     v101 · «한눈에» 에서 옆으로 밀면 문항이 넘어가게
+
+     지금까지 무슨 일이 있었나 ──
+     한눈에 판은 화면을 통째로 덮지만, 그 위에서 옆으로 미는 손짓을 아무도
+     받지 않았다. 그래서 그 손짓이 그대로 브라우저에게 갔고,
+     브라우저는 그것을 «뒤로 가기» 로 알아들었다 — 바로 앞에 보던 필기뷰어로
+     튕겨 나간 까닭이 이것이다(앱이 탭을 바꾼 것이 아니다).
+
+     그래서 세 겹으로 막는다.
+       ① 한눈에 판 위의 가로 손짓을 우리가 먼저 받아 이전·다음 문항으로 쓴다.
+       ② 가로 넘침으로 생기는 «뒤로/앞으로» 를 CSS 로 끈다.
+       ③ 그래도 뒤로 가기가 들어오면, 판을 «닫는 것» 으로 받아넘긴다.
+          (한눈에를 열 때 발자국을 하나 남겨 두고, 뒤로 가기가 그것을 먹게 한다.)
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* ② 가로 넘침이 뒤로가기로 바뀌는 것을 끈다 */
+html,body{overscroll-behavior-x:none}
+.ovl,.ovl .ob,.ovl .pane{overscroll-behavior-x:none}
+/* 넘기는 동안 살짝 따라오게 */
+.ovl .ob{transition:transform .16s ease-out}
+.ovl.swiping .ob{transition:none}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s);
+const ovlOn=()=>!!$('#ovl')?.classList.contains('on');
+
+/* ── ① 가로 손짓 ── */
+let SW=null;
+function body(){ return $('#ovl .ob') }
+function attach(){
+  const ovl=$('#ovl'); if(!ovl||ovl.__sw) return false;
+  ovl.__sw=1;
+
+  ovl.addEventListener('pointerdown',e=>{
+    if(!ovlOn()) return;
+    /* 글자를 고르는 중 · 필기 중 · 단추 위에서는 넘기지 않는다 */
+    if(document.body.classList.contains('inkon')) return;
+    if(e.target.closest('button,a,input,select,textarea,canvas,.annbar,.annpop,.aix-panel,.ovdock,.ovpop')) return;
+    if(e.pointerType==='mouse' && e.button!==0) return;
+    if(e.pointerType==='mouse' && e.target.closest('.qmd,.easybox,.ez,.otx,p,li,td,th,h4')) return;
+    SW={ x:e.clientX, y:e.clientY, id:e.pointerId, lock:null };
+  },{passive:true});
+
+  ovl.addEventListener('pointermove',e=>{
+    if(!SW||e.pointerId!==SW.id) return;
+    const dx=e.clientX-SW.x, dy=e.clientY-SW.y;
+    if(SW.lock===null){
+      if(Math.abs(dx)<18&&Math.abs(dy)<18) return;
+      SW.lock=Math.abs(dx)>Math.abs(dy)*1.4?'h':'v';
+      if(SW.lock==='h') $('#ovl')?.classList.add('swiping');
+    }
+    if(SW.lock!=='h') return;
+    e.preventDefault();
+    const b=body(); if(b) b.style.transform=`translateX(${dx*.4}px)`;
+  },{passive:false});
+
+  const end=e=>{
+    if(!SW||(e.pointerId!=null&&e.pointerId!==SW.id)) return;
+    const dx=(e.clientX??SW.x)-SW.x, lock=SW.lock;
+    SW=null;
+    const ovl=$('#ovl'); ovl?.classList.remove('swiping');
+    const b=body(); if(b) b.style.transform='';
+    if(lock!=='h'||Math.abs(dx)<64) return;
+    /* 왼쪽으로 밀면 다음, 오른쪽으로 밀면 이전 — 위쪽 단추와 같은 것을 누른다 */
+    (dx<0?$('#ovNext'):$('#ovPrev'))?.click();
+  };
+  ['pointerup','pointercancel','lostpointercapture'].forEach(t=>ovl.addEventListener(t,end,{passive:true}));
+  return true;
+}
+
+/* ── ③ 뒤로 가기는 «판 닫기» 로 ── */
+let MARK=false;
+function watch(){
+  const ovl=$('#ovl'); if(!ovl) return;
+  new MutationObserver(()=>{
+    const on=ovl.classList.contains('on');
+    if(on&&!MARK){
+      MARK=true;
+      try{ history.pushState({ovl:1},''); }catch(e){}
+    }else if(!on&&MARK){
+      MARK=false;
+      /* 단추로 닫았을 때 남은 발자국을 조용히 걷어낸다 */
+      try{ if(history.state&&history.state.ovl) history.back(); }catch(e){}
+    }
+  }).observe(ovl,{attributes:true,attributeFilter:['class']});
+}
+addEventListener('popstate',()=>{
+  if(!ovlOn()) return;
+  MARK=false;
+  $('#ovClose')?.click();
+});
+
+const boot=setInterval(()=>{ if(attach()){ watch(); clearInterval(boot); } },200);
+setTimeout(()=>clearInterval(boot),20000);
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v102 · 그림 자르기
+
+     크기만 줄이면 «작아진 그림 전체» 가 남는다. 정작 보고 싶은 건
+     결선도 한 귀퉁이인데 옆에 붙은 표·여백까지 같이 작아질 뿐이다.
+     그래서 자르기를 붙인다 — 크기 막대의 «✂ 자르기».
+
+     두 갈래로 다르게 자른다.
+       · 원본에서 오려 온 그림([[그림 …]]) — 좌표를 다시 계산해 «진짜로» 오려 낸다.
+         이미 그렇게 만들어진 그림이라, 자르면 화질이 더 좋아진다.
+       · 붙인 그림(![](주소)) — 원본을 건드릴 수 없으니 보이는 자리만 가린다
+         (clip-path + 음수 여백). 잘린 만큼 자리도 같이 줄어든다.
+     둘 다 글(마크다운)에 남아 Supabase 로 올라가므로 한눈에 보기에서도 같다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+.cropov{position:fixed;z-index:100032;display:none;background:rgba(15,23,42,.45)}
+.cropov.on{display:block}
+.cropbox{position:absolute;box-shadow:0 0 0 9999px rgba(15,23,42,.45);
+  outline:2px solid #fff;cursor:move;
+  background-image:linear-gradient(rgba(255,255,255,.35) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.35) 1px,transparent 1px);
+  background-size:33.333% 33.333%}
+.cropbox i{position:absolute;width:22px;height:22px;border-radius:50%;
+  background:#fff;border:2px solid var(--accent,#2563eb);touch-action:none}
+.cropbox i[data-h="nw"]{left:-11px;top:-11px;cursor:nwse-resize}
+.cropbox i[data-h="ne"]{right:-11px;top:-11px;cursor:nesw-resize}
+.cropbox i[data-h="sw"]{left:-11px;bottom:-11px;cursor:nesw-resize}
+.cropbox i[data-h="se"]{right:-11px;bottom:-11px;cursor:nwse-resize}
+.cropbar{position:fixed;z-index:100033;display:none;gap:6px;align-items:center;
+  padding:8px 10px;border-radius:12px;background:var(--surface,#fff);
+  border:1px solid var(--line,#e2e8f0);box-shadow:0 14px 40px rgba(15,23,42,.28)}
+.cropbar.on{display:flex}
+.cropbar button{height:32px;padding:0 12px;border:1px solid var(--line,#e2e8f0);border-radius:9px;
+  background:var(--surface,#fff);color:var(--ink,#0f172a);cursor:pointer;
+  font:700 11.5px/1 var(--font-d,system-ui)}
+.cropbar button.go{background:var(--accent,#2563eb);border-color:var(--accent,#2563eb);color:#fff}
+.cropbar .t{font:800 10px/1 var(--font-m,monospace);color:var(--muted,#64748b);margin-right:2px}
+img.cropped{background:#fff}
+</style>
+<script>
+(function(){
+'use strict';
+const $  = (s,r=document)=>r.querySelector(s);
+const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rowOf = id => (typeof ROWS!=='undefined'?ROWS:[]).find(x=>String(x.id)===String(id));
+
+/* ══ ① «@l,t,w,h» 가 붙은 붙인그림 표기를 알아본다 ══
+   v98 의 크기 표기 뒤에 자른 자리를 덧붙인다. 빈칸이 들어가므로
+   기본 마크다운 파서는 이 표기를 지나치고, 여기서 우리가 받는다. */
+const CROPRE=/!\[([^\]\n]*)\]\(\s*([^)\s]+)\s*(?:=\s*(\d{1,3})\s*%)?\s*@\s*([\d.]+),([\d.]+),([\d.]+),([\d.]+)\s*\)/g;
+const cropped = h => String(h==null?'':h).replace(CROPRE,(m,a,u,p,l,t,w,hh)=>
+  `<img class="mdimg cropped" src="${u}" alt="${a.replace(/"/g,'')}" `
+  + (p?`style="width:${clamp(+p,5,100)}%" `:'')
+  + `data-crop="${l},${t},${w},${hh}" loading="lazy">`);
+
+['mdLite','mdRich'].forEach(n=>{
+  const fn=window[n];
+  if(typeof fn!=='function'||fn.__crop) return;
+  const w=function(md){ return cropped(fn(md)) };
+  w.__crop=1; w.__sz=fn.__sz; w.__img=fn.__img; w.__tex=fn.__tex; w.__sci=fn.__sci;
+  window[n]=w;
+});
+
+/* ══ ② 붙인그림을 보이는 자리만 남긴다 ══
+   테두리를 잘라 내고, 잘려 나간 만큼 자리도 줄인다(음수 여백).
+   그림이 다시 그려지거나 폭이 바뀌면 다시 잰다. */
+const RO = new ResizeObserver(es=>es.forEach(e=>paintOne(e.target)));
+function boxOf(im){
+  const v=(im.dataset.crop||'').split(',').map(Number);
+  return v.length===4&&v.every(n=>!isNaN(n)) ? {l:v[0],t:v[1],w:v[2],h:v[3]} : null;
+}
+function paintOne(im){
+  const b=boxOf(im);
+  if(!b){ im.style.clipPath=''; im.style.margin=''; im.classList.remove('cropped'); return }
+  im.classList.add('cropped');
+  const W=im.offsetWidth, H=im.offsetHeight;
+  if(!W||!H) return;
+  im.style.clipPath=`inset(${(b.t*100).toFixed(3)}% ${((1-b.l-b.w)*100).toFixed(3)}% `
+                  + `${((1-b.t-b.h)*100).toFixed(3)}% ${(b.l*100).toFixed(3)}%)`;
+  im.style.margin=`${-(b.t*H).toFixed(1)}px ${-((1-b.l-b.w)*W).toFixed(1)}px `
+                + `${-((1-b.t-b.h)*H).toFixed(1)}px ${-(b.l*W).toFixed(1)}px`;
+}
+function paintAllCrops(root){
+  $$('img[data-crop]',root||document).forEach(im=>{
+    if(!im.__cro){ im.__cro=1; RO.observe(im); im.addEventListener('load',()=>paintOne(im)); }
+    paintOne(im);
+  });
+}
+
+/* ══ ③ 글에 자른 자리를 적어 넣는다 ══ */
+function writeImgCrop(md,url,box){
+  const q=url.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const re=new RegExp('!\\[([^\\]\\n]*)\\]\\(\\s*'+q+'\\s*(?:=\\s*(\\d{1,3})\\s*%)?\\s*(?:@[\\d.,\\s]+)?\\s*\\)','g');
+  return String(md||'').replace(re,(m,a,p)=>{
+    const sz=p?` =${p}%`:'';
+    const cr=box?` @${[box.l,box.t,box.w,box.h].map(v=>+v.toFixed(4)).join(',')}`:'';
+    return `![${a}](${url}${sz}${cr})`;
+  });
+}
+const nums=s=>String(s||'').split(',').map(v=>parseFloat(v)).filter(v=>!isNaN(v));
+const sameBox=(a,b)=>{ const x=nums(a),y=nums(b);
+  return x.length===4&&y.length===4&&x.every((v,i)=>Math.abs(v-y[i])<0.002) };
+/* 오려 온 그림 — 원본 좌표계에서 다시 잡는다 */
+function writeFigCrop(md,oldKey,next){
+  return String(md||'').replace(/\[\[\s*그림\s*([0-9.,\s]*?)(\s*=\s*\d{1,3}\s*%)?\s*\]\]/g,(m,c,sz)=>{
+    if(!sameBox(c,oldKey)) return m;
+    return `[[그림 ${next.map(v=>+v.toFixed(3)).join(',')}${sz?sz.replace(/\s+/g,''):''}]]`;
+  });
+}
+
+/* ══ ④ 어느 글의 그림인가 (v98 과 같은 규칙) ══ */
+function fieldOf(el){
+  if(el.closest('.easybox')||el.closest('.ez')) return 'easy_md';
+  if(el.closest('#ovl')){
+    if(el.closest('#ovLeft')) return 'q_md';
+    const seg=el.closest('.seg');
+    return seg&&seg.dataset.seg==='a' ? 'a_md' : 'q_md';
+  }
+  const q=el.closest('[data-qmd]');
+  if(q) return q.getAttribute('data-qmd')==='a' ? 'a_md' : 'q_md';
+  return null;
+}
+function idOf(el){
+  const c=el.closest('.pcard');
+  if(c) return c.dataset.id;
+  if(el.closest('#ovl')&&typeof OVID!=='undefined') return OVID;
+  return null;
+}
+
+/* ══ ⑤ 자르기 판 ══ */
+let OV=null, BAR=null, CUR=null, BOX={l:.05,t:.05,w:.9,h:.9};
+function build(){
+  if(OV) return;
+  OV=document.createElement('div'); OV.className='cropov';
+  OV.innerHTML=`<div class="cropbox"><i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i></div>`;
+  BAR=document.createElement('div'); BAR.className='cropbar';
+  BAR.innerHTML=`<span class="t">자르기</span>
+    <button type="button" class="go" data-ok>✂ 이대로 자르기</button>
+    <button type="button" data-reset>원래대로</button>
+    <button type="button" data-cancel>취소</button>`;
+  document.body.append(OV,BAR);
+
+  BAR.querySelector('[data-cancel]').onclick=stop;
+  BAR.querySelector('[data-reset]').onclick=()=>apply(null);
+  BAR.querySelector('[data-ok]').onclick=()=>apply(BOX);
+
+  /* 끌어서 옮기고, 모서리를 잡아 늘린다 */
+  let drag=null;
+  OV.addEventListener('pointerdown',e=>{
+    const h=e.target.closest('i[data-h]');
+    const inBox=e.target.closest('.cropbox');
+    if(!h&&!inBox) return;
+    e.preventDefault();
+    OV.setPointerCapture?.(e.pointerId);
+    drag={ h:h?h.dataset.h:null, x:e.clientX, y:e.clientY, b:{...BOX} };
+  });
+  OV.addEventListener('pointermove',e=>{
+    if(!drag||!CUR) return;
+    e.preventDefault();
+    const r=CUR.im.getBoundingClientRect();
+    const dx=(e.clientX-drag.x)/r.width, dy=(e.clientY-drag.y)/r.height;
+    const b={...drag.b};
+    const MIN=.05;
+    if(!drag.h){
+      b.l=clamp(b.l+dx,0,1-b.w); b.t=clamp(b.t+dy,0,1-b.h);
+    }else{
+      if(drag.h.includes('w')){ const nl=clamp(b.l+dx,0,b.l+b.w-MIN); b.w=b.w+(b.l-nl); b.l=nl; }
+      if(drag.h.includes('e')){ b.w=clamp(b.w+dx,MIN,1-b.l); }
+      if(drag.h.includes('n')){ const nt=clamp(b.t+dy,0,b.t+b.h-MIN); b.h=b.h+(b.t-nt); b.t=nt; }
+      if(drag.h.includes('s')){ b.h=clamp(b.h+dy,MIN,1-b.t); }
+    }
+    BOX=b; place();
+  });
+  ['pointerup','pointercancel'].forEach(t=>OV.addEventListener(t,()=>{drag=null}));
+}
+function place(){
+  if(!CUR||!CUR.im.isConnected) return stop();
+  const r=CUR.im.getBoundingClientRect();
+  OV.style.left=r.left+'px'; OV.style.top=r.top+'px';
+  OV.style.width=r.width+'px'; OV.style.height=r.height+'px';
+  const bx=OV.querySelector('.cropbox');
+  bx.style.left=(BOX.l*r.width)+'px';   bx.style.top=(BOX.t*r.height)+'px';
+  bx.style.width=(BOX.w*r.width)+'px';  bx.style.height=(BOX.h*r.height)+'px';
+  const bw=BAR.offsetWidth||300, bh=BAR.offsetHeight||46;
+  let top=r.bottom+10; if(top+bh>innerHeight-8) top=Math.max(8,r.top-bh-10);
+  BAR.style.top=Math.round(top)+'px';
+  BAR.style.left=Math.round(clamp(r.left+r.width/2-bw/2,8,innerWidth-bw-8))+'px';
+}
+function start(im){
+  build();
+  const f=im.closest('figure[data-fig]');
+  CUR={ im, id:idOf(im), field:fieldOf(im),
+        kind:f?'fig':'img', key:f?(f.dataset.fig||''):(im.getAttribute('src')||''), fig:f };
+  /* 이미 잘라 둔 그림이면 그 자리를 그대로 보여 준다.
+     오려 온 그림은 «이미 잘린 것» 이 화면에 있으므로 늘 전체에서 시작한다. */
+  const b=boxOf(im);
+  BOX = (CUR.kind==='img'&&b) ? {...b} : {l:.05,t:.05,w:.9,h:.9};
+  if(CUR.kind==='img'&&b){ im.style.clipPath=''; im.style.margin=''; }
+  OV.classList.add('on'); BAR.classList.add('on');
+  place();
+}
+function stop(){
+  if(CUR&&CUR.kind==='img') paintOne(CUR.im);
+  CUR=null;
+  OV?.classList.remove('on'); BAR?.classList.remove('on');
+}
+
+async function apply(box){
+  if(!CUR) return;
+  const { im, id, field, kind, key, fig } = CUR;
+  if(kind==='img'){
+    if(box){ im.dataset.crop=[box.l,box.t,box.w,box.h].map(v=>+v.toFixed(4)).join(','); }
+    else delete im.dataset.crop;
+    paintOne(im);
+    save(id, field, md => writeImgCrop(md, key, box));
+    stop(); return;
+  }
+  /* 오려 온 그림 — 지금 네모를 원본 좌표로 옮긴다 */
+  const o=nums(key);
+  if(o.length!==4){ stop(); return }
+  const x0=Math.min(o[0],o[2]), y0=Math.min(o[1],o[3]);
+  const W=Math.abs(o[2]-o[0]), H=Math.abs(o[3]-o[1]);
+  const next = box
+    ? [x0+box.l*W, y0+box.t*H, x0+(box.l+box.w)*W, y0+(box.t+box.h)*H]
+    : null;
+  if(!next){ stop(); return }                     /* 오려 온 그림은 «원래대로» 가 없다 */
+  save(id, field, md => writeFigCrop(md, key, next));
+  /* 화면에도 바로 — figFill 이 다시 오려 준다 */
+  if(fig){
+    fig.dataset.fig = next.map(v=>+v.toFixed(3)).join(',');
+    delete fig.dataset.done;
+    const wait=document.createElement('span'); wait.className='figwait'; wait.textContent='오려 내는 중…';
+    im.replaceWith(wait);
+    const r=rowOf(id);
+    try{ await figFill(fig.parentElement||fig, field==='a_md'?r.a_url:r.q_url); }catch(e){}
+  }
+  stop();
+}
+
+let CHAIN=Promise.resolve();
+function save(id, field, fn){
+  if(!id||!field) return;
+  CHAIN=CHAIN.then(async()=>{
+    const r=rowOf(id); if(!r) return;
+    const next=fn(r[field]);
+    if(next===r[field]) return;
+    try{
+      const up=await sb.from('practicals').update({ [field]: next }).eq('id', r.id);
+      if(up.error) throw up.error;
+      r[field]=next;
+    }catch(e){ try{ log('자른 자리를 남기지 못했습니다 — '+(e.message||e)) }catch(_){} }
+  });
+}
+
+/* ══ ⑥ 크기 막대에 «✂ 자르기» 를 끼운다 ══ */
+function inject(){
+  const bar=$('.imsz'); if(!bar||$('[data-crop-btn]',bar)) return;
+  const b=document.createElement('button');
+  b.type='button'; b.dataset.cropBtn=''; b.textContent='✂ 자르기';
+  b.title='그림에서 볼 자리만 남깁니다';
+  bar.insertBefore(b, bar.querySelector('[data-x]'));
+  b.addEventListener('click',e=>{
+    e.preventDefault(); e.stopPropagation();
+    const im=$('.mdimg.sel, .qmd figure img.sel');
+    if(!im) return;
+    bar.classList.remove('on');
+    start(im);
+  });
+}
+setInterval(inject,700); inject();
+
+addEventListener('scroll',()=>{ if(CUR) place() },true);
+addEventListener('resize',()=>{ if(CUR) place() });
+addEventListener('keydown',e=>{ if(e.key==='Escape'&&CUR){ e.preventDefault(); e.stopPropagation(); stop(); } },true);
+
+paintAllCrops();
+['#list','#ovl'].forEach(sel=>{
+  const wait=setInterval(()=>{
+    const n=document.querySelector(sel); if(!n) return;
+    clearInterval(wait);
+    new MutationObserver(()=>setTimeout(()=>paintAllCrops(n),30)).observe(n,{childList:true,subtree:true});
+    paintAllCrops(n);
+  },250);
+  setTimeout(()=>clearInterval(wait),20000);
+});
+setInterval(()=>paintAllCrops(),1500);
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v103 · 문항 분류 — 등급(금·은·동) · 유형(단답·계산·회로·서술) · 출제확률
+
+     필기뷰어는 «금·은·동» 으로 골라 볼 수 있는데 실기에는 그것이 없었다.
+     실기는 회차당 문항이 적고 같은 주제가 해마다 돌아오므로,
+     오히려 «무엇이 또 나올 것인가» 가 더 뚜렷하게 보인다.
+
+     어떻게 세나 (감이 아니라 세어서) ──
+       ① 주제 묶기 : 드문 낱말을 함께 쓰는 문항끼리 한 덩어리로 본다.
+                     («변압기»처럼 아무 데나 있는 말은 주제어로 쓰지 않는다.)
+       ② 출제확률 : 그 덩어리가 «몇 %의 회차에» 나왔나. 회차가 20회고 그중
+                     12회에 나왔으면 60%. 다음 회차에도 나올 눈금으로 읽는다.
+       ③ 등급     : 확률 × 최근성 × 덩어리 크기로 점수를 매겨 줄 세운 뒤,
+                     점수 총합의 위 25% 를 만드는 문항이 «금». 개수로 끊지 않으므로
+                     회차를 더 넣으면 경계도 알아서 움직인다.
+       ④ 유형     : 문제 글투로 가른다. 구하시오/계산 → 계산,
+                     결선도·시퀀스·그림 → 회로·도면, 쓰시오/명칭 → 단답,
+                     설명·이유 → 서술.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* ── 문항 머리의 확률·유형·등급 ── */
+.fqb{flex:none;display:inline-flex;align-items:center;gap:3px;height:19px;padding:0 7px;
+  border-radius:9px;font:800 10px/1 var(--font-m,monospace);letter-spacing:.02em;
+  background:var(--surface-2,#eef2f7);color:var(--ink-2,#475569);border:1px solid var(--line,#e2e8f0)}
+.fqb.g{background:#fff7e0;border-color:#e9c46a;color:#8a6100}
+.fqb.s{background:#f2f5f9;border-color:#c3ccd8;color:#4a5768}
+.fqb.b{background:#fdf0e6;border-color:#dcb08a;color:#8a552a}
+.fqb.ty{background:#eef4ff;border-color:#bcd3f7;color:#1d4ed8}
+.fqb.ncs{background:#edf7f0;border-color:#a9d8bb;color:#166534}
+.fqb.ncs.ai{background:#e6f4ff;border-color:#8ec5f0;color:#0b4d8c}
+.fqb.hot{background:#ffeef0;border-color:#f5b5bd;color:#b42033}
+@media(max-width:620px){ .fqb{height:17px;padding:0 5px;font-size:9px;gap:2px} }
+
+/* ── 문제 찾기 칸을 촘촘하게 ── */
+.deck .dcol-find select,.deck .dcol-find input{max-width:150px;font-size:11.5px!important}
+.deck .dcol-find .drow{gap:5px}
+.deck .dcol-find .chip{font-size:11px;padding:0 8px}
+.tagrow{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:4px}
+.tagrow .tl{font:800 9px/1 var(--font-m,monospace);letter-spacing:.1em;color:var(--muted,#64748b);margin-right:2px}
+.tagrow select{height:26px;max-width:170px;border:1px solid var(--line,#e2e8f0);border-radius:8px;
+  background:var(--surface,#fff);color:var(--ink,#0f172a);font:700 10.5px/1 var(--font-d,system-ui);padding:0 6px}
+.tagrow button{height:26px;padding:0 9px;border:1px solid var(--line,#e2e8f0);border-radius:8px;
+  background:var(--surface,#fff);color:var(--ink,#0f172a);cursor:pointer;
+  font:700 10.5px/1 var(--font-d,system-ui);white-space:nowrap}
+.tagrow button.on{background:var(--ink,#111827);border-color:var(--ink,#111827);color:#fff}
+.tagrow button.g.on{background:#b8860b;border-color:#b8860b}
+.tagrow button.s.on{background:#64748b;border-color:#64748b}
+.tagrow button.b.on{background:#a4653a;border-color:#a4653a}
+.tagrow .sep{width:1px;height:16px;background:var(--line,#e2e8f0);margin:0 3px}
+.tagnote{font:500 10px/1.5 var(--font-d,system-ui);color:var(--muted,#64748b);margin-top:3px}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const rowsAll=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
+
+/* ══ ① 낱말 뽑기 ══ */
+const STOP=new Set(('것 이것 그것 다음 아래 위의 경우 때 대하여 대한 관하여 구하시오 구하라 쓰시오 쓰라 하시오 하라 설명 이때 각각 모두 사용 이용 다만 단위 조건 문제 답안 계산 과정 답 정격 사용하는 그림 같은 있는 없는 하는 되는 이며 이고 한다 된다 얼마 무엇 어떤 몇개 개의 시의 값은 값을').split(/\s+/));
+function toks(r){
+  const src=((r.q_md||r.q_text||'')+' ').slice(0,600);
+  return [...new Set((src.match(/[가-힣A-Za-z]{2,}/g)||[])
+    .map(w=>w.replace(/(으로|에서|에는|이다|한다|인가|하면|보다|까지|부터|에게|에서는|하여|하고|이란|라고)$/,''))
+    .filter(w=>w.length>=2&&!STOP.has(w)))];
+}
+
+/* ══ ② 유형 ══ */
+const TYPES=[
+  ['계산','계산'],
+  ['회로','회로·도면'],
+  ['단답','단답'],
+  ['서술','서술']
+];
+function typeOf(r){
+  const t=(r.q_md||r.q_text||'');
+  let calc=0,circ=0,short_=0,desc=0;
+  if(/구하시오|구하라|계산|산출|얼마|몇\s*\[|용량|전류|전압|역률|효율|손실|저항|리액턴스|전력|백분율|퍼센트|kVA|kW|MVA|\[A\]|\[V\]|\[kW\]|\[kVA\]/.test(t)) calc+=2;
+  if(/\$|\\dfrac|\\sqrt|=\s*\d/.test(t)) calc+=1;
+  if(/결선도|단선도|복선도|시퀀스|회로|도면|접점|계전기|타임차트|논리|래더|배치도|블록선도/.test(t)) circ+=2;
+  if(r.q_url&&/\[\[\s*그림/.test(t)) circ+=1;
+  if(/설명하시오|기술하시오|서술|이유|까닭|목적|역할|기능|비교하시오/.test(t)) desc+=2;
+  if(/쓰시오|쓰라|명칭|용어|약호|기호|무엇인가|나열|들시오|답하시오/.test(t)) short_+=2;
+  const best=[[calc,'계산'],[circ,'회로'],[desc,'서술'],[short_,'단답']].sort((a,b)=>b[0]-a[0])[0];
+  return best[0]>0?best[1]:'단답';
+}
+
+/* ══ ②-2 NCS 출제기준 항목 ══
+   ncs-gijun.js 에 담아 둔 «주요항목별 낱말 꾸러미» 와 문제 글을 맞대 본다.
+   그 항목에서만 쓰는 말(keys)은 3점, 출제기준 문장에서 자동으로 뽑은 말(weak)은 1점.
+   가장 점수가 높은 항목을 붙이고, 어느 것도 못 맞추면 비워 둔다(억지로 붙이지 않는다). */
+function ncsOf(r){
+  const G=window.NCS_GIJUN; if(!G) return null;
+  const raw=((r.q_md||r.q_text||'')+' '+(r.a_md||r.a_text||'')).slice(0,900);
+  if(!raw.trim()) return null;
+  /* ★ 빈칸을 걷어내고 맞댄다 — «전력용 콘덴서» 와 «전력용콘덴서» 가 서로 다른 말이
+     되어 낱말이 통째로 안 걸리던 것을 막는다. */
+  const t=raw.replace(/\s+/g,'');
+  const has=k=>t.includes(String(k).replace(/\s+/g,''));
+  let best=null;
+  G.silgi.majors.forEach(M=>{
+    let sc=0;
+    M.keys.forEach(k=>{ if(has(k)) sc+=3 });
+    (M.weak||[]).forEach(k=>{ if(has(k)) sc+=1 });
+    if(has(M.name)) sc+=4;
+    if(!best||sc>best.sc) best={sc,M};
+  });
+  if(!best||best.sc<3) return null;
+  /* 세부항목까지 — 같은 방식으로 한 겹 더 */
+  let sub=null,ss=0;
+  (best.M.subs||[]).forEach(S=>{
+    let x=0; (S.keys||[]).forEach(k=>{ if(has(k)) x+=1 });
+    if(has(S.name.replace(/하기$/,''))) x+=3;
+    if(x>ss){ ss=x; sub=S.name }
+  });
+  return { name:best.M.name, short:best.M.short, sub, sc:best.sc };
+}
+
+/* ══ ③ 주제 묶기 · 확률 · 등급 ══ */
+let TAG=null, SIG='';
+function build(){
+  const rows=rowsAll();
+  const sig=rows.length+'|'+(rows[0]?.id||'')+'|'+(rows[rows.length-1]?.id||'');
+  if(TAG&&SIG===sig) return TAG;
+  if(!rows.length) return null;
+  SIG=sig;
+
+  const N=rows.length;
+  const T=rows.map(toks);
+  const df=new Map();
+  T.forEach(ts=>ts.forEach(t=>df.set(t,(df.get(t)||0)+1)));
+  const COMMON=Math.max(6,Math.floor(N*0.05)), RARE=Math.max(2,Math.floor(N*0.012));
+  const keys=T.map(ts=>ts.filter(t=>{ const d=df.get(t); return d>=2&&d<=COMMON }));
+
+  const inv=new Map();
+  keys.forEach((ks,i)=>ks.forEach(t=>{ (inv.get(t)||inv.set(t,[]).get(t)).push(i) }));
+  const pair=new Map(), strong=new Map();
+  inv.forEach((list,t)=>{
+    if(list.length>40) return;
+    const rare=df.get(t)<=RARE;
+    for(let a=0;a<list.length;a++) for(let b=a+1;b<list.length;b++){
+      const k=list[a]+'|'+list[b];
+      pair.set(k,(pair.get(k)||0)+1);
+      if(rare) strong.set(k,true);
+    }
+  });
+  const par=[...Array(N).keys()];
+  const find=x=>par[x]===x?x:(par[x]=find(par[x]));
+  const uni=(a,b)=>{ a=find(a); b=find(b); if(a!==b) par[b]=a };
+  pair.forEach((n,k)=>{ if(n>=2||strong.get(k)){ const [a,b]=k.split('|').map(Number); uni(a,b) } });
+
+  /* 회차 최신 순서 */
+  const exams=[...new Set(rows.map(r=>`${r.year}-${r.session}`))]
+    .sort((a,b)=>{ const [ay,as]=a.split('-').map(Number), [by,bs]=b.split('-').map(Number);
+                   return (by-ay)||(bs-as) });
+  const rank={}; exams.forEach((e,i)=>rank[e]=i);
+  const NE=Math.max(1,exams.length);
+
+  const groups=new Map();
+  for(let i=0;i<N;i++){ const g=find(i); (groups.get(g)||groups.set(g,[]).get(g)).push(i) }
+
+  const out=new Map();                              /* row.id → {p, tier, type, key} */
+  const score=[];
+  groups.forEach(idxs=>{
+    const R=new Set(idxs.map(i=>`${rows[i].year}-${rows[i].session}`)).size;
+    const C=idxs.length;
+    const fresh=Math.min(...idxs.map(i=>rank[`${rows[i].year}-${rows[i].session}`]??NE));
+    const p=Math.round(clamp(R/NE,0.02,0.98)*100);
+    const exposure=0.55*(R/NE)+0.30*Math.pow(0.8,fresh)+0.15*(C/(C+2));
+    const freq=new Map();
+    idxs.forEach(i=>keys[i].forEach(t=>freq.set(t,(freq.get(t)||0)+1)));
+    const key=[...freq.entries()].sort((a,b)=>b[1]-a[1]||(df.get(a[0])-df.get(b[0])))[0]?.[0]||'';
+    idxs.forEach(i=>{
+      const r=rows[i];
+      const o={ p, R, C, key, type:typeOf(r), exp:exposure,
+                ncs:(window.__ncsClassify ? window.__ncsClassify(r) : ncsOf(r)) };
+      out.set(String(r.id),o); score.push([exposure,String(r.id)]);
+    });
+  });
+  /* 점수 총합의 몫으로 금·은·동을 끊는다 */
+  score.sort((a,b)=>b[0]-a[0]);
+  const total=score.reduce((t,x)=>t+x[0],0)||1;
+  const order=['g','s','b','r'];
+  let acc=0,bucket=0;
+  score.forEach(([sc,id])=>{
+    while(bucket<3&&acc>=total*(bucket+1)/4) bucket++;
+    out.get(id).tier=order[bucket];
+    acc+=sc;
+  });
+  return (TAG=out);
+}
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)) }
+const info=id=>{ const m=build(); return m?m.get(String(id))||null:null };
+window.__pracTag=info;
+window.__pracTagKeyword=ncsOf;                 /* 낱말표만 쓰는 예전 방식 — 되돌림용 */
+window.__pracTagReset=()=>{ TAG=null; SIG=''; };
+
+/* ══ ④ 문항 머리에 적기 — «가 글자» 왼쪽 ══ */
+function stamp(root){
+  $$('#list > .pcard',root||document).forEach(card=>{
+    const head=card.querySelector('.phead'); if(!head) return;
+    const t=info(card.dataset.id); if(!t) return;
+    const sig=`${t.p}|${t.tier}|${t.type}|${t.ncs?t.ncs.short:''}`;
+    if(head.dataset.fqsig===sig) return;
+    head.dataset.fqsig=sig;
+    head.querySelectorAll('.fqb').forEach(x=>x.remove());
+    const cv=head.querySelector('.cvbadge');
+    const mk=(cls,txt,title)=>{ const s=document.createElement('span');
+      s.className='fqb '+cls; s.textContent=txt; s.title=title; return s };
+    const TL={g:'금',s:'은',b:'동',r:'—'};
+    const frag=[
+      mk(t.p>=60?'hot':'', '출제 '+t.p+'%',
+         `같은 주제가 ${t.R}개 회차에 나왔습니다 (묶인 문항 ${t.C}개${t.key?' · '+t.key:''})`),
+      mk('ty', TYPES.find(x=>x[0]===t.type)?.[1]||t.type, '문제 유형'),
+      ...(t.ncs ? [mk('ncs'+(t.ncs.src==='ai'?' ai':''), (t.ncs.src==='ai'?'✓ ':'')+t.ncs.short,
+          `출제기준 ${t.ncs.name}${t.ncs.sub?' › '+t.ncs.sub:''}`
+          + `\n${window.__ncsWhy?window.__ncsWhy(t.ncs):''}`
+          + (t.ncs.why?`\n«${t.ncs.why}»`:'')
+          + `\n(${window.NCS_GIJUN?.period||''})`)] : []),
+      mk(t.tier, TL[t.tier], '등급 — 금·은·동은 «점수 총합의 몫» 으로 끊습니다')
+    ];
+    frag.forEach(el=>cv?head.insertBefore(el,cv):head.appendChild(el));
+  });
+}
+
+/* ══ ⑤ 고르기 띠 ══ */
+const FKEY='prac:tagfilter:v1';
+let F=(()=>{ try{ return Object.assign({tier:'',type:'',ncs:'',sort:''},JSON.parse(localStorage.getItem(FKEY)||'{}')) }
+            catch(e){ return {tier:'',type:'',ncs:'',sort:''} } })();
+const fsave=()=>{ try{ localStorage.setItem(FKEY,JSON.stringify(F)) }catch(e){} };
+
+function rowPass(r){
+  if(!F.tier&&!F.type&&!F.ncs) return true;
+  const t=info(r.id); if(!t) return true;
+  if(F.tier&&t.tier!==F.tier) return false;
+  if(F.type&&t.type!==F.type) return false;
+  if(F.ncs&&(t.ncs?.name||'')!==F.ncs) return false;
+  return true;
+}
+
+/* drawList 를 감싼다 — 목록을 만들기 «직전» 에 ROWS 를 걸러 두고, 만든 뒤 되돌린다.
+   목록·랜덤·한 문항씩·진도까지 모두 원래 길을 그대로 타므로 따로 손볼 것이 없다. */
+function hook(){
+  if(typeof drawList!=='function'||drawList.__tag) return false;
+  const orig=drawList;
+  const wrapped=function(){
+    if(!F.tier&&!F.type&&!F.ncs&&!F.sort) return orig.apply(this,arguments);
+    const all=rowsAll();
+    let use=all.filter(rowPass);
+    if(F.sort==='hot'){
+      use=use.slice().sort((a,b)=>{
+        const x=info(a.id)?.p??0, y=info(b.id)?.p??0;
+        return y-x || (b.year-a.year) || (b.session-a.session);
+      });
+    }
+    try{ ROWS=use; return orig.apply(this,arguments); }
+    finally{ ROWS=all; }
+  };
+  wrapped.__tag=1;
+  window.drawList=wrapped;
+  return true;
+}
+
+function paintChips(){
+  const row=$('#tagRow'); if(!row) return;
+  $$('button[data-tier]',row).forEach(b=>b.classList.toggle('on',b.dataset.tier===F.tier&&!!F.tier));
+  $$('button[data-type]',row).forEach(b=>b.classList.toggle('on',b.dataset.type===F.type&&!!F.type));
+  $$('button[data-sort]',row).forEach(b=>b.classList.toggle('on',b.dataset.sort===F.sort&&!!F.sort));
+  const note=$('#tagNote');
+  if(note){
+    const m=build();
+    if(!m){ note.textContent=''; return }
+    const n=rowsAll().filter(rowPass).length;
+    const cnt={g:0,s:0,b:0,r:0};
+    m.forEach(v=>cnt[v.tier]=(cnt[v.tier]||0)+1);
+    let un=0; m.forEach(v=>{ if(!v.ncs) un++ });
+    note.textContent=`금 ${cnt.g} · 은 ${cnt.s} · 동 ${cnt.b} · 나머지 ${cnt.r}`
+      + (window.NCS_GIJUN?`   · 출제기준 미분류 ${un}문항`:'')
+      + ((F.tier||F.type||F.ncs)?`   → 지금 조건 ${n}문항`:'');
+  }
+}
+function mount(){
+  const find=$('.deck .dcol-find'); if(!find||$('#tagRow')) return false;
+  const box=document.createElement('div');
+  box.innerHTML=`<div class="tagrow" id="tagRow">
+      <span class="tl">등급</span>
+      <button type="button" class="g" data-tier="g" title="또 나올 확률이 가장 높은 무리">금</button>
+      <button type="button" class="s" data-tier="s">은</button>
+      <button type="button" class="b" data-tier="b">동</button>
+      <span class="sep"></span><span class="tl">유형</span>
+      <button type="button" data-type="계산">계산</button>
+      <button type="button" data-type="회로">회로·도면</button>
+      <button type="button" data-type="단답">단답</button>
+      <button type="button" data-type="서술">서술</button>
+      <span class="sep"></span><span class="tl">출제기준</span>
+      <select id="tagNcs" title="한국산업인력공단 출제기준(2024.1.1.~2026.12.31.) 주요항목"><option value="">전체 항목</option></select>
+      <span class="sep"></span>
+      <button type="button" data-sort="hot" title="출제확률이 높은 순서로 줄 세웁니다">🔥 빈출순</button>
+      <button type="button" data-clear>초기화</button>
+    </div>
+    <div class="tagnote" id="tagNote"></div>`;
+  find.appendChild(box);
+
+  /* 출제기준 주요항목 채우기 */
+  const sel=$('#tagNcs',box);
+  if(sel&&window.NCS_GIJUN){
+    window.NCS_GIJUN.silgi.majors.forEach(M=>{
+      const o=document.createElement('option');
+      o.value=M.name; o.textContent=M.name; sel.appendChild(o);
+    });
+    sel.value=F.ncs||'';
+    sel.addEventListener('change',()=>{
+      F.ncs=sel.value; fsave(); paintChips();
+      try{ RAND=null }catch(x){}
+      try{ drawList() }catch(x){}
+    });
+  }
+
+  box.addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    if(b.hasAttribute('data-clear')){ F={tier:'',type:'',ncs:'',sort:''}; if(sel) sel.value=''; }
+    else if(b.dataset.tier!=null) F.tier = F.tier===b.dataset.tier?'':b.dataset.tier;
+    else if(b.dataset.type!=null) F.type = F.type===b.dataset.type?'':b.dataset.type;
+    else if(b.dataset.sort!=null) F.sort = F.sort===b.dataset.sort?'':b.dataset.sort;
+    fsave(); paintChips();
+    try{ RAND=null }catch(x){}
+    try{ drawList() }catch(x){}
+  });
+  paintChips();
+  return true;
+}
+
+/* ══ ⑥ 붙이기 ══ */
+let done=false;
+const boot=setInterval(()=>{
+  hook();
+  if(mount()) done=true;
+  if(done&&rowsAll().length){ build(); paintChips(); stamp(); }
+},400);
+setTimeout(()=>clearInterval(boot),30000);
+
+const wait=setInterval(()=>{
+  const list=$('#list'); if(!list) return;
+  clearInterval(wait);
+  new MutationObserver(()=>setTimeout(()=>{ stamp(); paintChips(); },60))
+    .observe(list,{childList:true});
+  stamp();
+},250);
+setTimeout(()=>clearInterval(wait),20000);
+})();
+</script>
+
+<!-- 한국산업인력공단 출제기준 (2024.1.1.~2026.12.31.) — 분류에 쓴다 -->
+<script src="./ncs-gijun.js"></script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v105 · 분류를 «낱말 걸리면 끝» 에서 세 겹으로
+
+     낱말표만 쓰면 두 가지가 늘 걸린다.
+       · 출제기준에 없는 말로 물으면(«머레이 루프법») 아무 데도 안 붙는다.
+       · 낱말 하나가 잘못 걸리면 통째로 엉뚱한 항목이 된다.
+
+     그래서 층을 셋으로 나눈다. 위층이 있으면 위층을 쓴다.
+       ③ AI 판정  — 출제기준 항목표를 통째로 주고 문항을 읽혀 고르게 한다.
+                    도구 탭에서 한꺼번에 돌리고, 결과는 남는다(다시 안 부른다).
+       ② 닮은 정도 — 출제기준 «원문» 과 문항 글을 TF-IDF 로 재서 가장 닮은 항목.
+                    글자 두 짝(바이그램)까지 세므로 어미·조사가 달라도 걸린다.
+       ① 표 던지기 — 그래도 흐릿하면, 이미 붙은 «비슷한 문항» 다섯을 찾아
+                    그들이 가진 항목에 표를 던지게 한다(같은 주제는 같은 항목이다).
+     어느 층에서 붙었는지는 뱃지에 손가락을 올리면 나온다.
+     ══════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const rowsAll=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
+const G=()=>window.NCS_GIJUN;
+
+/* ══ ① 글을 셈할 수 있는 꼴로 ══
+   낱말(2글자 이상)과 «글자 두 짝» 을 함께 쓴다.
+   한국어는 어미·조사가 붙어 낱말이 자꾸 어긋나는데, 글자 두 짝은 그것을 넘어간다.
+   («수용률을», «수용률은» → 둘 다 «수용/용률» 을 가진다) */
+const CLEAN=t=>String(t||'')
+  .replace(/\$[^$]*\$/g,' ')                 /* 수식은 뺀다 — 기호가 죄다 같아 섞인다 */
+  .replace(/\[\[[^\]]*\]\]/g,' ')
+  .replace(/https?:\/\/\S+/g,' ')
+  .replace(/[^가-힣A-Za-z0-9]+/g,' ')
+  .replace(/\s+/g,' ').trim();
+function bag(t,cap){
+  const s=CLEAN(t).slice(0,cap||900);
+  const m=new Map();
+  const add=(k,w)=>m.set(k,(m.get(k)||0)+w);
+  (s.match(/[가-힣]{2,}|[A-Za-z]{2,}|\d{2,}/g)||[]).forEach(w=>{
+    add(w,1.0);
+    if(w.length>3) add(w.slice(0,2),0.3);
+  });
+  const h=s.replace(/ /g,'');
+  for(let i=0;i<h.length-1;i++){
+    const g=h.slice(i,i+2);
+    if(/[가-힣]{2}/.test(g)) add('#'+g,0.55);
+  }
+  return m;
+}
+
+/* ══ ② 출제기준 쪽 벡터 ══ */
+let DOCS=null, IDF=null;
+function docs(){
+  if(DOCS) return DOCS;
+  const g=G(); if(!g) return null;
+  DOCS=[];
+  g.silgi.majors.forEach(M=>{
+    (M.subs||[]).forEach(S=>{
+      /* 항목 이름은 여러 번 적어 무게를 준다 — 이름이 곧 그 항목의 알맹이다 */
+      const txt=[S.name,S.name,S.name,(S.keys||[]).join(' '),(S.keys||[]).join(' '),
+                 S.text||'',M.name,M.name,(M.keys||[]).join(' ')].join(' ');
+      DOCS.push({ major:M, sub:S.name, b:bag(txt,2000) });
+    });
+  });
+  return DOCS;
+}
+/* 흔한 말은 값을 낮춘다 — «검토할 수 있다» 같은 말이 점수를 다 먹지 않게 */
+function idf(){
+  if(IDF) return IDF;
+  const D=docs()||[], R=rowsAll();
+  const df=new Map(); let N=0;
+  const seen=b=>{ N++; new Set(b.keys()).forEach(k=>df.set(k,(df.get(k)||0)+1)) };
+  D.forEach(d=>seen(d.b));
+  R.slice(0,900).forEach(r=>seen(bag((r.q_md||r.q_text||''),700)));
+  IDF=new Map();
+  df.forEach((n,k)=>IDF.set(k, Math.log((N+1)/(n+0.5))));
+  return IDF;
+}
+function vec(b){
+  const I=idf(), v=new Map(); let n=0;
+  b.forEach((tf,k)=>{
+    const w=(1+Math.log(tf))*(I.get(k)||Math.log(30));
+    if(w>0){ v.set(k,w); n+=w*w; }
+  });
+  n=Math.sqrt(n)||1;
+  v.forEach((w,k)=>v.set(k,w/n));
+  return v;
+}
+const cos=(a,b)=>{ let s=0; const [x,y]=a.size<b.size?[a,b]:[b,a];
+  x.forEach((w,k)=>{ const u=y.get(k); if(u) s+=w*u }); return s };
+
+/* ══ ③ AI 가 붙여 둔 표 ══ */
+const AKEY='prac:ncsai:v1';
+let AI=(()=>{ try{ return JSON.parse(localStorage.getItem(AKEY)||'{}') }catch(e){ return {} } })();
+const asave=()=>{ try{ localStorage.setItem(AKEY,JSON.stringify(AI)) }catch(e){} };
+window.__ncsAI=()=>AI;
+
+/* ══ ④ 세 겹 판정 ══ */
+let CACHE=new Map(), CSIG='';
+function prep(){
+  const R=rowsAll();
+  const sig=R.length+'|'+(R[0]?.id||'')+'|'+Object.keys(AI).length;
+  if(CSIG===sig&&CACHE.size) return CACHE;
+  CSIG=sig; CACHE=new Map();
+  const D=docs(); if(!D) return CACHE;
+
+  /* ── 2층: 닮은 정도 ── */
+  const qv=new Map();
+  R.forEach(r=>{
+    const t=(r.q_md||r.q_text||'');
+    if(!CLEAN(t)) return;
+    qv.set(String(r.id), vec(bag(t,900)));
+  });
+  const dv=D.map(d=>({d,v:vec(d.b)}));
+
+  const firm=[];                                  /* 확실히 붙은 것 — 표 던지기의 밑천 */
+  /* 손으로 고른 낱말표는 «정확하지만 잘 안 걸린다», 닮은 정도는 «늘 걸리지만 흐리다».
+     둘을 더한다 — 낱말이 걸린 항목에 조금 더 무게를 얹는 정도로. */
+  const KW=new Map();
+  R.forEach(r=>{ try{ const k=window.__pracTagKeyword&&window.__pracTagKeyword(r);
+    if(k) KW.set(String(r.id),k) }catch(e){} });
+  qv.forEach((v,id)=>{
+    const k=KW.get(id);
+    let b1=null,b2=0;
+    dv.forEach(({d,v:w})=>{
+      let s=cos(v,w);
+      if(k&&d.major.name===k.name) s += 0.05 + Math.min(k.sc,15)*0.004;
+      if(!b1||s>b1.s){ b2=b1?b1.s:0; b1={s,d} } else if(s>b2) b2=s;
+    });
+    if(!b1) return;
+    const margin=b1.s>0?(b1.s-b2)/b1.s:0;
+    const conf=b1.s;
+    const o={ name:b1.d.major.name, short:b1.d.major.short, sub:b1.d.sub,
+              src:'sim', conf:+conf.toFixed(3), margin:+margin.toFixed(2) };
+    CACHE.set(id,o);
+    if(conf>=0.13&&margin>=0.10) firm.push({id,v,o});
+  });
+
+  /* ── 1층: 흐릿한 것은 «비슷한 문항» 에게 물어본다 ── */
+  const inv=new Map();
+  firm.forEach((f,i)=>{
+    [...f.v.entries()].sort((a,b)=>b[1]-a[1]).slice(0,14)
+      .forEach(([k])=>{ (inv.get(k)||inv.set(k,[]).get(k)).push(i) });
+  });
+  qv.forEach((v,id)=>{
+    const cur=CACHE.get(id);
+    if(!cur||(cur.conf>=0.13&&cur.margin>=0.10)) return;
+    const cand=new Map();
+    [...v.entries()].sort((a,b)=>b[1]-a[1]).slice(0,14).forEach(([k])=>{
+      (inv.get(k)||[]).forEach(i=>{ if(firm[i].id!==id) cand.set(i,1) });
+    });
+    if(!cand.size) return;
+    const near=[...cand.keys()].map(i=>({i,s:cos(v,firm[i].v)}))
+      .sort((a,b)=>b.s-a.s).slice(0,5).filter(x=>x.s>=0.18);
+    if(near.length<2) return;
+    const vote=new Map();
+    near.forEach(x=>{
+      const o=firm[x.i].o, k=o.name+'|'+o.sub;
+      vote.set(k,(vote.get(k)||0)+x.s);
+    });
+    const [best,w]=[...vote.entries()].sort((a,b)=>b[1]-a[1])[0];
+    const tot=[...vote.values()].reduce((t,x)=>t+x,0)||1;
+    if(w/tot<0.5) return;
+    const [nm,sb]=best.split('|');
+    const M=G().silgi.majors.find(m=>m.name===nm);
+    CACHE.set(id,{ name:nm, short:M?M.short:nm, sub:sb, src:'knn',
+                   conf:+(w/tot).toFixed(2), near:near.length });
+  });
+
+  /* ── 너무 흐릿하면 아예 비운다 — 억지로 붙이지 않는다 ── */
+  [...CACHE.entries()].forEach(([id,o])=>{
+    if(o.src==='sim'&&o.conf<0.085) CACHE.delete(id);
+  });
+
+  /* ── 3층: AI 가 붙인 것이 있으면 그것이 이긴다 ── */
+  Object.entries(AI).forEach(([id,a])=>{
+    if(!a||!a.name) return;
+    const M=G().silgi.majors.find(m=>m.name===a.name);
+    if(!M) return;
+    CACHE.set(String(id),{ name:a.name, short:M.short, sub:a.sub||'', src:'ai',
+                           conf:1, why:a.why||'' });
+  });
+  return CACHE;
+}
+window.__ncsClassify = r => prep().get(String(r.id)) || null;
+
+/* 뱃지 설명에 «어느 층에서 붙었나» 를 적는다 */
+const SRCTXT={ ai:'AI 가 읽고 골랐습니다', sim:'출제기준 원문과 닮은 정도로 골랐습니다',
+               knn:'비슷한 문항들이 가진 항목으로 골랐습니다' };
+window.__ncsWhy = o => o ? (SRCTXT[o.src]||'') + (o.conf!=null&&o.src!=='ai'?` (닮음 ${o.conf})`:'') : '';
+
+/* ══ ⑤ AI 한꺼번에 분류 ══ */
+function listForPrompt(){
+  return G().silgi.majors.map((M,i)=>
+    `${i+1}. ${M.name}\n   ` + (M.subs||[]).map(S=>S.name).join(' / ')).join('\n');
+}
+function promptFor(r){
+  const q=(r.q_md||r.q_text||'').slice(0,1100);
+  return `너는 한국산업인력공단 «전기기사» 출제기준(${G().period})으로 기출 문항을 분류하는 사람이다.
+
+[실기 과목: ${G().silgi.subject}]
+${listForPrompt()}
+
+[분류할 문항]
+${q}
+
+[할 일]
+위 목록에서 이 문항이 «가장 맞는» 주요항목 하나와 세부항목 하나를 고른다.
+목록에 없는 이름을 지어내지 마라. 정말 어느 것에도 안 맞으면 major 를 빈 문자열로 둔다.
+유형은 계산 · 회로 · 단답 · 서술 중 하나다.
+
+아래 JSON «만» 출력한다. 앞뒤에 말이나 코드펜스를 붙이지 마라.
+{"major":"주요항목 이름","sub":"세부항목 이름","type":"계산|회로|단답|서술","why":"고른 까닭 한 줄"}`;
+}
+function parseJSON(t){
+  const s=String(t||'').replace(/```[a-z]*/gi,'').trim();
+  const i=s.indexOf('{'), j=s.lastIndexOf('}');
+  if(i<0||j<i) return null;
+  try{ return JSON.parse(s.slice(i,j+1)) }catch(e){ return null }
+}
+async function aiOne(r){
+  const md=await askAI(promptFor(r), null, 400);
+  const j=parseJSON(md); if(!j) throw new Error('판정을 읽지 못했습니다');
+  const M=G().silgi.majors.find(m=>m.name===(j.major||'').trim());
+  if(!M){ AI[String(r.id)]={ name:'', sub:'', why:'해당 없음' }; return false; }
+  const sub=(M.subs||[]).find(S=>S.name===(j.sub||'').trim());
+  AI[String(r.id)]={ name:M.name, sub:sub?sub.name:'', type:j.type||'', why:(j.why||'').slice(0,90) };
+  return true;
+}
+async function aiRun(scope){
+  let busy=false; try{ busy=CVBUSY||EZBUSY }catch(e){}
+  if(busy) return alert('지금 다른 작업이 돌고 있습니다.');
+  const yr=$('#fYear')?.value||'', ss=$('#fSess')?.value||'';
+  let pool=rowsAll().filter(r=>r.q_md||r.q_text);
+  if(scope==='sess') pool=pool.filter(r=>(!yr||String(r.year)===String(yr))&&(!ss||String(r.session)===String(ss)));
+  if(scope!=='again') pool=pool.filter(r=>!AI[String(r.id)]);
+  if(!pool.length) return alert('AI 로 분류할 문항이 없습니다 (이미 다 돼 있습니다).');
+  if(!confirm(`${pool.length}개를 AI 가 출제기준 항목에 붙입니다.\n`
+    +`한 개에 3~6초쯤 걸리므로 대략 ${Math.ceil(pool.length*4.5/60)}분입니다.\n`
+    +`«중지» 를 눌러도 거기까지는 남습니다. 계속할까요?`)) return;
+
+  try{ CVSTOP=false }catch(e){}
+  const stop=$('#cvStop'), prog=$('#cvProg'), bar=$('#cvBar');
+  if(stop) stop.hidden=false; if(prog) prog.hidden=false;
+  ['#ncsAiRun','#ncsAiSess'].forEach(x=>{ const b=$(x); if(b) b.disabled=true });
+  let ok=0,bad=0,n=0;
+  for(const r of pool){
+    let s=false; try{ s=CVSTOP }catch(e){}
+    if(s) break;
+    n++;
+    try{ cvSay(`AI 분류 ${n}/${pool.length} — ${r.year}년 제${r.session}회 ${r.no}번 · 됨 ${ok}`+(bad?` · 실패 ${bad}`:'')) }catch(e){}
+    if(bar) bar.style.width=(n/pool.length*100)+'%';
+    try{ (await aiOne(r)) ? ok++ : ok++; }catch(e){ bad++; }
+    if(n%10===0){ asave(); refresh(); }
+    await new Promise(x=>setTimeout(x,250));
+  }
+  asave(); refresh();
+  if(stop) stop.hidden=true; if(prog) prog.hidden=true;
+  ['#ncsAiRun','#ncsAiSess'].forEach(x=>{ const b=$(x); if(b) b.disabled=false });
+  try{ cvSay(`AI 분류 ${ok}개 완료`+(bad?` · ${bad}개 실패`:'')) }catch(e){}
+}
+function refresh(){
+  CSIG='';
+  try{ window.__pracTagReset&&window.__pracTagReset() }catch(e){}
+  try{ drawList() }catch(e){}
+}
+
+/* 도구 탭에 단추를 끼운다 — «다시 해석» 옆 */
+function mountBtns(){
+  const host=$('#ezRedoAll')?.parentElement; if(!host||$('#ncsAiRun')) return;
+  const mk=(id,txt,title)=>{ const b=document.createElement('button');
+    b.className='chip'; b.type='button'; b.id=id; b.textContent=txt; b.title=title; return b };
+  const a=mk('ncsAiSess','🏷 이 회차 AI 분류','지금 고른 회차를 AI 가 출제기준 항목에 붙입니다');
+  const b=mk('ncsAiRun','🏷 전체 AI 분류','아직 안 붙은 문항을 AI 가 출제기준 항목에 붙입니다');
+  const c=mk('ncsAiClear','↺ AI 분류 지우기','AI 가 붙인 표를 지우고 닮은 정도로 되돌립니다');
+  host.append(a,b,c);
+  a.onclick=()=>aiRun('sess');
+  b.onclick=()=>aiRun('all');
+  c.onclick=()=>{ if(!confirm('AI 가 붙인 분류를 모두 지웁니다.')) return; AI={}; asave(); refresh(); };
+}
+setInterval(mountBtns,800); mountBtns();
+
+/* 자료가 들어오면 한 번 다시 센다 */
+let n0=0;
+setInterval(()=>{
+  const n=rowsAll().length;
+  if(n&&n!==n0){ n0=n; DOCS=null; IDF=null; CSIG=''; try{ window.__pracTagReset&&window.__pracTagReset() }catch(e){} }
+},1500);
+})();
+</script>
+
+<!-- 끌어서 고른 자리를 AI 가 풀어 준다 (일반 · 한눈에 공통) -->
+<script src="./ai-explain.js" defer></script>
 
 </body>
 </html>
