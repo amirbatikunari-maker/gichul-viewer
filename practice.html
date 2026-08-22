@@ -12429,5 +12429,114 @@ setTimeout(()=>clearInterval(h),30000);
 })();
 </script>
 
+
+<!-- ══════════════════════════════════════════════════════════════
+     v139 · 위쪽 도구 정리 (기능은 하나도 안 건드린다)
+
+     지금 문제는 «단추가 많다» 가 아니다. 성격이 다른 것들이 다 같은 크기·
+     같은 세기로 평평하게 깔려 있어서, 눈이 40개를 하나씩 훑어야 하는 것이다.
+       · 크기가 제각각 — 27 · 28 · 30 · 32 · 34px 가 섞여 있다
+       · 다 진하다 — 파랑·검정·금은동·빨강이 전부 «켜진 것» 처럼 보인다
+       · 줄이 안 갈린다 — 고르는 것과 보는 방식이 한 덩어리로 붙어 있다
+
+     그래서 세 가지만 한다. 지우지도, 옮기지도, 고치지도 않는다.
+       ① 한 벌로 통일 — 높이 30px · 같은 모서리 · 같은 글자
+       ② 켜진 것만 진하게 — 꺼진 것은 다 회색 테두리. 눈이 «지금 걸린 것» 만 본다
+       ③ 줄을 갈라 준다 — 줄 사이에 옅은 선. 무엇을 고르는 줄인지 라벨을 살린다
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* ══ ① 한 벌로 통일 ══
+   var() 를 홑값으로 먼저 깔고 그 위에 덮는다 — 변수를 못 읽는 자리에서도
+   색이 통째로 날아가지 않는다. (그러면 «켜진 것» 이 안 보인다) */
+.deck .dcol{padding:11px 13px}
+.deck .dhead{margin-bottom:8px}
+.deck .dhead b{font-weight:800;font-size:11.5px;line-height:1;letter-spacing:.02em}
+.deck .dhead small{font-weight:600;font-size:10px;line-height:1;color:#94a3b8;color:var(--muted,#94a3b8)}
+
+.deck .drow,.deck .tagrow{display:flex;flex-wrap:wrap;align-items:center;gap:5px;
+  padding:7px 0;margin:0}
+.deck .drow:not(:first-of-type),.deck .tagrow{
+  border-top-width:1px;border-top-style:solid;border-top-color:#eef1f5;
+  border-top-color:var(--line,#eef1f5)}
+
+.deck .drow > button,.deck .drow > select,.deck .drow > input,
+.deck .tagrow > button,.deck .tagrow > select,
+.deck .dp-act > button{
+  height:30px!important;min-height:30px!important;
+  padding:0 10px!important;border-radius:8px!important;
+  font-weight:600!important;font-size:11.5px!important;line-height:1!important;
+  border-width:1px!important;border-style:solid!important;
+  border-color:#e2e8f0!important;border-color:var(--line,#e2e8f0)!important;
+  background:#fff!important;background:var(--surface,#fff)!important;
+  color:#475569!important;color:var(--ink-2,#475569)!important;
+  box-shadow:none!important}
+.deck .drow > select,.deck .tagrow > select{padding-right:24px!important;min-width:96px}
+.deck .drow > input{flex:1 1 150px;min-width:120px;color:#0f172a!important;color:var(--ink,#0f172a)!important}
+.deck .drow > button:hover,.deck .tagrow > button:hover{border-color:#b8c1cf!important}
+
+/* ══ ② 켜진 것만 진하게 ══ */
+.deck .drow > button.on,.deck .tagrow > button.on,.deck .drow > button[aria-pressed="true"]{
+  background:#111827!important;background:var(--ink,#111827)!important;
+  border-color:#111827!important;border-color:var(--ink,#111827)!important;
+  color:#fff!important}
+/* 등급은 제 색을 지키되, 꺼져 있으면 «점» 으로만 알려 준다 */
+.deck .tagrow > button[data-tier]{padding-left:22px!important;position:relative}
+.deck .tagrow > button[data-tier]::before{content:"";position:absolute;left:9px;top:50%;
+  width:7px;height:7px;margin-top:-3.5px;border-radius:50%;background:currentColor;opacity:.5}
+.deck .tagrow > button.g{color:#a16207!important}
+.deck .tagrow > button.s{color:#64748b!important}
+.deck .tagrow > button.b{color:#b45309!important}
+.deck .tagrow > button.r{color:#78716c!important}
+.deck .tagrow > button.g.on{background:#a16207!important;border-color:#a16207!important;color:#fff!important}
+.deck .tagrow > button.s.on{background:#64748b!important;border-color:#64748b!important;color:#fff!important}
+.deck .tagrow > button.b.on{background:#b45309!important;border-color:#b45309!important;color:#fff!important}
+.deck .tagrow > button.r.on{background:#78716c!important;border-color:#78716c!important;color:#fff!important}
+.deck .tagrow > button.on::before{opacity:1;background:#fff}
+/* «이어풀기» 하나만 눈에 띄면 된다 — 여기서 시작하니까 */
+.deck .dp-act > button.go{background:#2563eb!important;background:var(--accent,#2563eb)!important;
+  border-color:#2563eb!important;border-color:var(--accent,#2563eb)!important;
+  color:#fff!important;font-weight:800!important}
+.deck .dp-act > button.mini{min-width:30px;padding:0 8px!important}
+
+/* ══ ③ 줄을 갈라 주고 라벨을 살린다 ══ */
+.deck .tagrow .tl,.deck .drow > .tl{font-weight:800;font-size:9.5px;line-height:1;
+  color:#94a3b8;color:var(--muted,#94a3b8);letter-spacing:.12em;margin:0 3px 0 0;flex:0 0 auto}
+.deck .tagrow .tl2{display:none}                    /* «겹쳐 고를 수 있습니다» — 한 번 보면 안다 */
+.deck .tagrow .sep{width:1px;height:15px;background:#e6eaf0;background:var(--line,#e6eaf0);
+  margin:0 5px;flex:0 0 auto}
+.deck .tagnote{font-weight:500;font-size:9.5px;line-height:1.5;
+  color:#b6c0cc;color:var(--muted,#b6c0cc);padding:5px 0 0;
+  border-top-width:1px;border-top-style:solid;border-top-color:#eef1f5}
+.deck .dp-note{font-weight:500;font-size:9.5px;line-height:1.4;color:#b6c0cc;margin-top:7px}
+
+/* 진행 상자 — 숫자가 주인공이다 */
+.deck .dp-nums b{font-weight:800}
+.deck .dp-act{gap:5px;margin-top:9px}
+
+/* 관리 작업(변환·해석)은 그대로 두되, 한 덩어리로 묶여 보이게 */
+.deck .dcol-view #cvProg{margin-top:9px;padding-top:9px;
+  border-top-width:1px;border-top-style:solid;border-top-color:#eef1f5}
+</style>
+<script>
+(function(){
+'use strict';
+/* 줄 라벨이 없는 줄에 이름을 붙여 준다 — 무엇을 고르는 줄인지 알게.
+   요소를 옮기거나 지우지 않는다. 앞에 글자 하나만 끼운다. */
+const LABEL=[['#dFind1','과목'],['#dFind2','찾기'],['#dView1','보기'],['#dView2','기능']];
+function tag(){
+  LABEL.forEach(([sel,name])=>{
+    const row=document.querySelector(sel);
+    if(!row||row.querySelector(':scope > .tl')) return;
+    if(!row.children.length) return;
+    const s=document.createElement('span');
+    s.className='tl'; s.textContent=name;
+    row.insertBefore(s,row.firstChild);
+  });
+}
+const t=setInterval(()=>{ if(document.querySelector('.deck')){ tag(); } },500);
+setTimeout(()=>clearInterval(t),30000);
+})();
+</script>
+
 </body>
 </html>
