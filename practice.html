@@ -10398,12 +10398,35 @@ setInterval(()=>{
 .cvpanel .nums{flex:none;font:700 9.5px/1.3 var(--font-m,monospace);color:var(--muted,#64748b);
   min-width:104px;text-align:right}
 .cvpanel .nums em{font-style:normal;color:#dc2626}
+.cvpanel .nums i{font-style:normal;color:#166534}
 .cvpanel .acts{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
 .cvpanel .acts button{height:27px;padding:0 9px;border:1px solid var(--line,#e2e8f0);border-radius:8px;
   background:var(--surface-2,#f7f9fc);color:var(--ink,#0f172a);cursor:pointer;
   font:700 10.5px/1 var(--font-d,system-ui)}
 .cvpanel .acts button:disabled{opacity:.45;cursor:default}
 .cvpanel .acts button.warn{border-color:#f0b4b4;color:#b42033;background:#fff6f6}
+.cvpanel .run{display:flex;align-items:center;gap:7px;margin-top:8px;padding:6px 8px;
+  border:1px solid var(--line,#e2e8f0);border-radius:9px;background:var(--surface-2,#f7f9fc)}
+.cvpanel .run[hidden]{display:none}
+.cvpanel .run .dot{flex:none;width:8px;height:8px;border-radius:50%;background:#16a34a;
+  box-shadow:0 0 0 3px rgba(22,163,74,.16);animation:cvp 1.4s ease-in-out infinite}
+@keyframes cvp{50%{opacity:.35}}
+.cvpanel .run .txt{flex:1;min-width:0;font:600 10.5px/1.4 var(--font-d,system-ui);color:var(--ink-2,#475569)}
+.cvpanel .run .txt b.ok{color:#16a34a}
+.cvpanel .run .txt b.no{color:#dc2626}
+.cvpanel .run button{flex:none;height:26px;padding:0 10px;border:1px solid var(--line,#e2e8f0);
+  border-radius:8px;background:var(--surface,#fff);color:var(--ink,#0f172a);cursor:pointer;
+  font:700 10.5px/1 var(--font-d,system-ui)}
+.cvpanel .run button:disabled{opacity:.4;cursor:default}
+.cvpanel .log{margin-top:7px;max-height:150px;overflow:auto;padding-top:6px;
+  border-top:1px dashed var(--line,#e2e8f0)}
+.cvpanel .log[hidden]{display:none}
+.cvpanel .log .li{font:500 10px/1.6 var(--font-m,monospace);color:var(--ink-2,#475569);
+  white-space:pre-wrap;word-break:break-word}
+.cvpanel .log .li.ok{color:#166534}
+.cvpanel .log .li.bad{color:#b42033}
+.cvpanel .tagnote,.cvpanel #tagNote{margin-top:8px;padding-top:7px;
+  border-top:1px dashed var(--line,#e2e8f0)}
 </style>
 <script>
 (function(){
@@ -10477,21 +10500,36 @@ function build(){
   panel.innerHTML=`
     <div class="ln"><b>글자 변환</b><div class="bar" data-b="cv"></div><span class="nums" data-n="cv"></span></div>
     <div class="ln"><b>쉬운 풀이</b><div class="bar" data-b="ez"></div><span class="nums" data-n="ez"></span></div>
+    <div class="run" data-run hidden>
+      <span class="dot"></span>
+      <span class="txt" data-runtxt>돌고 있습니다…</span>
+      <button type="button" data-stop>■ 중지</button>
+    </div>
     <div class="acts">
       <button type="button" data-r="cv" class="warn">↻ 실패만 다시 변환</button>
       <button type="button" data-r="ez" class="warn">↻ 실패만 다시 해석</button>
       <button type="button" data-clear>실패 기록 지우기</button>
-    </div>`;
+      <button type="button" data-logtoggle>▾ 기록</button>
+    </div>
+    <div class="log" data-log hidden></div>`;
   host.appendChild(panel);
   panel.addEventListener('click',e=>{
     const b=e.target.closest('button'); if(!b) return;
     if(b.hasAttribute('data-clear')){ F={cv:[],ez:[]}; fsave(); paint(); return; }
+    if(b.hasAttribute('data-stop')){ stopAll(); return; }
+    if(b.hasAttribute('data-logtoggle')){
+      const el=panel.querySelector('[data-log]');
+      el.hidden=!el.hidden; b.textContent=(el.hidden?'▾':'▴')+' 기록'; return;
+    }
     if(b.dataset.r) retry(b.dataset.r);
   });
   return panel;
 }
 function paint(){
   if(!build()) return;
+  /* «금 248 · 은 276 …» 셈줄은 문제 찾기 칸보다 여기가 제자리다 — 늦게 생기므로 볼 때마다 확인한다 */
+  const note=document.getElementById('tagNote');
+  if(note&&note.parentElement!==panel) panel.appendChild(note);
   prune();
   const c=counts();
   ['cv','ez'].forEach(k=>{
@@ -10499,14 +10537,68 @@ function paint(){
     const pOk=v.all?Math.round(v.ok/v.all*100):0;
     const pNo=v.all?Math.min(100-pOk,Math.round(v.fail/v.all*100)):0;
     bar.innerHTML=`<i class="ok" style="width:${pOk}%"></i><i class="no" style="width:${pNo}%"></i>`;
-    num.innerHTML=`${v.ok}/${v.all} (${pOk}%) · 남음 ${v.all-v.ok}`
+    num.innerHTML=`<i>성공 ${v.ok}</i>/${v.all} (${pOk}%) · 남음 ${v.all-v.ok}`
       + (v.fail?` · <em>실패 ${v.fail}</em>`:'');
   });
   const on=k=>{ const b=panel.querySelector(`[data-r="${k}"]`); if(b) b.disabled=!F[k].length; };
   on('cv'); on('ez');
 }
-setInterval(paint,2000);
-setTimeout(paint,1200);
+/* ══ 이번 실행 — 성공 · 실패 · 중지 ══
+   돌기 시작할 때의 셈을 찍어 두고, 지금 셈과 견줘 «이번에 몇 개나 됐나» 를 보여 준다.
+   그래서 변환이든 해설이든 AI 분류든, 어느 것을 돌려도 같은 자리에 나온다. */
+let SNAP=null, LASTLINE='';
+function running(){ const p=$('#cvProg'); return !!p && !p.hidden }
+function stopAll(){
+  try{ CVSTOP=true }catch(e){}
+  const b=$('#cvStop'); if(b&&!b.hidden) b.click();
+  addLog('중지를 눌렀습니다 — 여기까지는 저장됩니다.');
+}
+function runTick(){
+  if(!panel) return;
+  const box=panel.querySelector('[data-run]');
+  const on=running();
+  box.hidden=!on && !SNAP;
+  if(on&&!SNAP){ const c=counts(); SNAP={ cv:c.cv.ok, ez:c.ez.ok, at:Date.now() }; }
+  if(!on&&SNAP&&Date.now()-SNAP.at>1500&&!running()){
+    /* 끝났으면 마지막 셈만 남기고 접는다 */
+    setTimeout(()=>{ if(!running()){ SNAP=null; if(panel) panel.querySelector('[data-run]').hidden=true; } },8000);
+  }
+  if(!SNAP) return;
+  const c=counts();
+  const okCv=c.cv.ok-SNAP.cv, okEz=c.ez.ok-SNAP.ez;
+  const min=Math.round((Date.now()-SNAP.at)/60000);
+  panel.querySelector('[data-runtxt]').innerHTML =
+    (on?'돌고 있습니다':'끝났습니다') + ' · '
+    + `<b class="ok">성공 +${Math.max(0,okCv+okEz)}</b>`
+    + (F.cv.length+F.ez.length ? ` · <b class="no">실패 ${F.cv.length+F.ez.length}</b>` : '')
+    + (min?` · ${min}분째`:'');
+  panel.querySelector('[data-stop]').disabled=!on;
+}
+/* 알림줄(#cvStat)에 뜨는 말을 그대로 기록으로 모은다 — 어느 작업이든 한 곳에 쌓인다 */
+function addLog(t){
+  t=String(t||'').trim(); if(!t||t===LASTLINE) return;
+  LASTLINE=t;
+  const el=panel&&panel.querySelector('[data-log]'); if(!el) return;
+  const now=new Date();
+  const hh=String(now.getHours()).padStart(2,'0'), mm=String(now.getMinutes()).padStart(2,'0');
+  const line=document.createElement('div');
+  line.className='li'+(/실패|못|오류|끊/.test(t)?' bad':(/완료|됨|성공/.test(t)?' ok':''));
+  line.textContent=`${hh}:${mm}  ${t}`;
+  el.prepend(line);
+  while(el.children.length>60) el.lastChild.remove();
+}
+window.__pracLog=addLog;
+const wstat=setInterval(()=>{
+  const st=$('#cvStat'); if(!st) return; clearInterval(wstat);
+  let last=st.textContent;
+  /* 지켜보되, 우리가 쓰는 곳은 다른 자리라 스스로를 깨울 일이 없다 */
+  new MutationObserver(()=>{ const t=st.textContent; if(t!==last){ last=t; addLog(t); } })
+    .observe(st,{childList:true,characterData:true,subtree:true});
+},400);
+setTimeout(()=>clearInterval(wstat),20000);
+
+setInterval(()=>{ paint(); runTick(); },1200);
+setTimeout(()=>{ paint(); runTick(); },1200);
 
 /* ══ ③ 실패한 것만 다시 ══ */
 async function retry(kind){
