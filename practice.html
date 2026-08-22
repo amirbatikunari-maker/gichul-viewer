@@ -4421,7 +4421,7 @@ body.exam-mode .pcard{box-shadow:0 0 0 2px rgba(29,78,216,.08),var(--shadow)}
 
 <script src="./music.js" defer></script>
 <!-- DATA ISOLATION CONTRACT: practice/written mistakes stay in study domain; never write into iv-/iv: interview data. -->
-<script src="./app-enhance.js?v=99" defer></script>
+<script src="./app-enhance.js?v=100" defer></script>
 
 <!-- ══════════════════════════════════════════════════════════════
      v89 · 상단 도구 3칸 재배치 · 문항 레일 · 진도율
@@ -6300,7 +6300,7 @@ body.onlyimport #boxFiles,body.onlyimport #boxImport{display:block!important}
 /* 글 사이에 끼워 넣은 그림 */
 .mdimg{display:block;max-width:100%;height:auto;margin:8px 0;background:#fff;
   border:1px solid var(--line,#e2e8f0);border-radius:8px;cursor:zoom-in}
-.ovl .mdimg{width:auto!important;max-width:100%}
+/* .ovl .mdimg 폭 규칙은 v100 으로 옮겼다 — !important 가 낱줄 크기를 눌렀다 */
 .mdimg.zoom{cursor:zoom-out;max-width:none}
 
 /* ── 고쳐 쓰는 창 ── */
@@ -7423,6 +7423,74 @@ body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb)
   });
   addEventListener('resize', refresh);
   window.__pen = { toggle, redrawAll, mount };
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v100 · 줄인 그림 가운데로 · 한눈에 보기에서도 크기가 먹게 · 머리띠 겹침
+
+     ① 그림을 줄이면 왼쪽에 붙어 허전했다. 가운데로 세운다.
+     ② ★ 한눈에 보기에서는 크기 조절이 «아예» 안 먹고 있었다.
+        .ovl .mdimg{width:auto!important} 가 붙어 있어서, 낱줄(inline) 로 준
+        width:50% 를 «!important» 가 눌러 버렸다. 낱줄보다 !important 가 세다.
+        그 !important 를 걷어내면 낱줄이 이긴다.
+     ③ 번호를 넘기면 문항 첫머리가 위 띠(이동줄·문항줄·카드머리) 밑으로 파고들었다.
+        scrollIntoView 는 카드 꼭대기를 화면 0 에 맞출 뿐, 붙어 있는 띠 높이를 모른다.
+        scroll-margin-top 으로 그 높이만큼 미리 비켜 세운다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* ── ① 줄인 그림은 가운데 ── */
+.mdimg,.qmd figure img{margin-left:auto;margin-right:auto}
+.qmd figure{text-align:center}
+.qmd figure img{display:block}
+/* 원본 크기로 편 그림은 칸보다 넓다 — 가운데로 밀면 왼쪽이 잘려 안 보인다 */
+.mdimg.raw,.qmd figure img.raw{margin-left:0;margin-right:0}
+
+/* ── ② 한눈에 보기에서도 크기가 먹게 ──
+   !important 를 걷어낸다. .ovl .mdimg(0,2,0) 가 .ovl img(0,1,1) 를 이기므로
+   폭을 안 정한 그림은 여전히 제 크기로 서고, 정한 그림은 낱줄 값이 이긴다. */
+.ovl .mdimg,.ovl .qmd figure img{width:auto;max-width:100%}
+.ovl .mdimg{margin-left:auto;margin-right:auto}
+
+/* ── ③ 번호를 넘길 때 머리띠 밑으로 파고들지 않게 ── */
+#list > .pcard{scroll-margin-top:calc(var(--headtop, 0px) + 8px)}
+#list > .pcard > .phead{scroll-margin-top:calc(var(--headtop, 0px) + 8px)}
+</style>
+<script>
+(function(){
+  'use strict';
+  /* 붙어 있는 띠는 화면 폭·접힘에 따라 높이가 달라진다.
+     --headtop 은 이미 다른 곳에서 재고 있지만, 한 문항씩 넘기는 순간에는
+     아직 안 고쳐져 있을 때가 있다. 넘긴 뒤 한 번 더 맞춰 준다. */
+  function nudge(){
+    const card = document.querySelector('#list > .pcard.show');
+    if(!card) return;
+    const cs = getComputedStyle(document.documentElement);
+    const top = parseFloat(cs.getPropertyValue('--headtop')) || 0;
+    const r = card.getBoundingClientRect();
+    /* 카드 꼭대기가 띠 밑으로 파고든 만큼만 되돌린다 (2px 은 반올림 여유) */
+    if(r.top < top - 2 && r.bottom > top){
+      scrollBy({ top: r.top - top - 8, behavior:'auto' });
+    }
+  }
+  let t = 0;
+  const later = () => { clearTimeout(t); t = setTimeout(nudge, 90); };
+
+  const wait = setInterval(() => {
+    const list = document.querySelector('#list');
+    if(!list) return;
+    clearInterval(wait);
+    new MutationObserver(later).observe(list, { childList:true, subtree:false });
+  }, 250);
+  setTimeout(() => clearInterval(wait), 20000);
+
+  addEventListener('keydown', e => {
+    if(/^Arrow(Left|Right)$/.test(e.key) && !/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName)) later();
+  });
+  document.addEventListener('click', e => {
+    if(e.target.closest && e.target.closest('#prail .pb, .pnav .zb, [data-go]')) later();
+  }, true);
 })();
 </script>
 

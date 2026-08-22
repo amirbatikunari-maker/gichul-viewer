@@ -2,7 +2,7 @@
    ★ HTML 페이지(index/upload/ingest 등)는 네트워크를 먼저 시도한다.
      예전 버전은 "일단 캐시된 걸 보여주고 끝"이라 새 배포가 반영 안 됐다.
      지금은 "새 버전을 먼저 받아보고, 인터넷이 끊겼을 때만 캐시로 대신한다". */
-const SHELL = "shell-v99", DATA = "data-v2";
+const SHELL = "shell-v100", DATA = "data-v2";
 const FILES = ["./","./index.html","./config.js","./ai-chat.js","./ai-viewer.js","./music.js","./manifest.json","./icon.svg","./practice.html","./calc.html","./upload.html","./ingest.html","./interview.html","./portfolio.html","./app-enhance.css","./app-enhance.js","./calc-engine.js"];
 
 self.addEventListener("install", e => {
