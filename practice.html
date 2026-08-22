@@ -1016,6 +1016,46 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
   else paint();
 })();
 const OVFLAG = k => { try{ return window.OVL ? window.OVL.get(k) : true }catch(e){ return true } };
+
+/* ══════════════════════════════════════════════════════════════
+   감시자 폭주 끊기 (storm breaker)
+   ──────────────────────────────────────────────────────────────
+   화면이 «통째로» 멎는 멈춤은 거의 다 이 꼴이다 —
+   감시자가 무언가를 고치고, 그 고침이 자기를 다시 깨우고, 또 고치고 …
+   MutationObserver 의 알림은 «마이크로태스크» 라서, 이 고리가 돌기 시작하면
+   화면 그리기도 · 손가락도 · 심지어 주소창 이동까지 끼어들 틈이 없다.
+   (다른 사이트로 못 넘어가는 것이 그 증거다.)
+
+   그래서 모든 감시자를 한 겹 감싼다. 1초에 400번 넘게 깨어나면
+   그 감시자를 «끊고», 어떤 코드였는지 이름을 남긴다.
+   기능 하나를 잃는 것이 화면이 죽는 것보다 낫다.
+   ══════════════════════════════════════════════════════════════ */
+(function(){
+  const Native=window.MutationObserver;
+  if(!Native||Native.__guarded) return;
+  window.__moStorm=[];
+  function Guarded(cb){
+    let n=0,t0=0;
+    const inst=new Native(function(recs,obs){
+      const now=Date.now();
+      if(now-t0>1000){ t0=now; n=0; }
+      if(++n>400){
+        try{ obs.disconnect() }catch(e){}
+        const src=String(cb).replace(/\s+/g,' ').slice(0,140);
+        window.__moStorm.push(src);
+        try{ console.error('[감시자 폭주] 끊었습니다 →',src) }catch(e){}
+        try{ const el=document.getElementById('cvStat');
+          if(el) el.textContent='⚠ 감시자 하나가 폭주해 끊었습니다 — '+src.slice(0,70); }catch(e){}
+        return;
+      }
+      return cb.call(this,recs,obs);
+    });
+    return inst;
+  }
+  Guarded.prototype=Native.prototype;
+  Guarded.__guarded=1;
+  window.MutationObserver=Guarded;
+})();
 </script>
 <script src="./config.js"></script>
 <script>
@@ -7764,7 +7804,11 @@ body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb)
   display:none;flex-direction:column;gap:6px;padding:6px;border-radius:13px;
   background:var(--surface,#fff);border:1px solid var(--line,#d7dee8);
   box-shadow:0 12px 34px rgba(15,23,42,.2)}
-.ovl.on ~ .ovdock,.ovdock.on{display:flex}
+/* ★ 도크를 보이고 감추는 데 감시자를 쓰지 않는다.
+   판이 열리면 ovOpen 이 body 에 ovlopen 을 붙여 준다 — 그것만 보면 된다.
+   (예전에는 #ovl 의 class 를 지켜보다가, 그 안에서 다시 #ovl 의 class 를 바꿔
+    스스로를 깨웠다. 그 고리가 화면을 통째로 멈춰 세웠다.) */
+body.ovlopen.ovl-dock .ovdock{display:flex}
 .ovdock>button{width:36px;height:36px;border:1px solid var(--line,#e2e8f0);border-radius:10px;
   background:var(--surface-2,#f6f8fb);color:var(--ink,#0f172a);cursor:pointer;
   font:700 14px/1 var(--font-d,system-ui);display:grid;place-items:center}
@@ -8008,21 +8052,16 @@ document.addEventListener('pointerdown',e=>{
 });
 addEventListener('keydown',e=>{ if(e.key==='Escape') closePop(); });
 
-/* 한눈에 판이 열릴 때만 도크를 보인다 */
-function syncDock(){
-  const on=!!$('#ovl')?.classList.contains('on') && OVFLAG('dock');
-  dock.classList.toggle('on',on);
-  if(!on) closePop(); else paintBG();
-}
-const boot=setInterval(()=>{
-  const ovl=$('#ovl'); if(!ovl) return; clearInterval(boot);
-  let SMUTE=false;
-  new MutationObserver(()=>{ if(SMUTE) return;
-    SMUTE=true; try{ syncDock() }catch(e){} setTimeout(()=>{ SMUTE=false },60);
-  }).observe(ovl,{attributes:true,attributeFilter:['class']});
-  syncDock(); paintBG();
-},200);
-setTimeout(()=>clearInterval(boot),20000);
+/* 한눈에 판이 닫히면 작은 창만 접어 준다 — 보이고 감추는 것은 CSS 가 한다.
+   지켜보는 것(MutationObserver)을 아예 쓰지 않으므로 스스로를 깨울 길이 없다. */
+let WASOPEN=false;
+setInterval(()=>{
+  const on=document.body.classList.contains('ovlopen');
+  if(on===WASOPEN) return;
+  WASOPEN=on;
+  if(!on) closePop();
+},400);
+paintBG();
 })();
 </script>
 
@@ -10017,6 +10056,7 @@ function check(k){
        그래서 «지금 이 겹을 켜고 여는 중» 이라고 먼저 적어 둔다.
        멎어서 새로고침하면, 다음에 뜰 때 이 발자국을 보고 그 겹을 꺼 준다. */
     if(k) probeOn(k);
+    try{ window.__moStorm=[] }catch(e){}
     const e0=errs;
 
     /* ★ 무엇을 세는가 — 여기가 지난번에 틀렸던 곳.
@@ -10050,14 +10090,16 @@ function check(k){
       try{ (window.ovClose||function(){})(); }catch(x){}
       const de=errs-e0;
       probeOff();
-      const ok = openMs<=1200 && drawN<=1 && listN<=1 && settle<=14 && de===0;
+      const storm=(window.__moStorm||[]).length;
+      const ok = openMs<=1200 && drawN<=1 && listN<=1 && settle<=14 && de===0 && storm===0;
       res({ ok, openMs, paints:settle, drawN, listN, errs:de,
             why: ok?'' : [
               openMs>1200 ? `여는 데 ${openMs}ms` : '',
               drawN>1     ? `판 다시 그리기 ${drawN}번` : '',
               listN>1     ? `목록 다시 그리기 ${listN}번` : '',
               settle>14   ? `잠잠해진 뒤에도 ${settle}번 바뀜` : '',
-              de          ? `오류 ${de}건` : ''
+              de          ? `오류 ${de}건` : '',
+              storm       ? `감시자 폭주 ${storm}건 — ${(window.__moStorm[0]||'').slice(0,60)}` : ''
             ].filter(Boolean).join(' · ') });
     },1900);
   });

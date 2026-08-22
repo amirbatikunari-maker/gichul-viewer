@@ -19,7 +19,9 @@ const $  = (s,r=document)=>r.querySelector(s);
 const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
 const CFG = window.APP_CONFIG || {};
 const ENDPOINTS = [CFG.WORKER_URL, CFG.WORKER_BACKUP_URL].filter(Boolean);
-const PRAC = /practice\.html/i.test(location.pathname);
+/* ★ 배포 주소는 «/practice» 로 확장자가 없다. 예전 검사는 «practice.html» 만 봐서
+   실기뷰어에서도 필기뷰어용 길(문서 전체를 지켜보는 감시자)이 돌고 있었다. */
+const PRAC = /(^|\/)practice(\.html)?$/i.test(location.pathname) || !!document.getElementById('ovl');
 const esc = s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 /* ── 글자 세는 법 — 실기 쪽 주석함과 «똑같은» 규칙이어야 자리가 안 밀린다 ── */
