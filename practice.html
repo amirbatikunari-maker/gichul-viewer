@@ -10371,6 +10371,182 @@ setInterval(()=>{
 })();
 </script>
 
+
+<!-- ══════════════════════════════════════════════════════════════
+     v122 · 진행률 바 · 실패한 것만 다시
+
+     지금까지 «몇 개가 됐고 몇 개가 남았나» 는 글줄 하나로만 알 수 있었고,
+     «하다가 실패한 것» 은 아예 따로 잡히지 않아 다시 돌리려면
+     처음부터 전부 갈아엎는 수밖에 없었다(수백 개를 다시 부른다).
+
+     그래서 두 가지를 붙인다.
+       ① 진행률 바 — 글자 변환 · 쉬운 풀이 두 줄. 됨 / 남음 / 실패를 눈으로 본다.
+       ② 실패 기록 — 돌다가 못 한 문항의 번호를 남겨 두고,
+          «실패만 다시» 로 그것들만 골라 다시 부른다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+.cvpanel{margin-top:8px;padding:9px 10px;border:1px solid var(--line,#e2e8f0);border-radius:11px;
+  background:var(--surface,#fff)}
+.cvpanel .ln{display:flex;align-items:center;gap:7px;margin:0 0 4px}
+.cvpanel .ln:last-of-type{margin-bottom:0}
+.cvpanel .ln b{flex:none;width:64px;font:800 10px/1.3 var(--font-d,system-ui);color:var(--ink,#0f172a)}
+.cvpanel .bar{flex:1;height:9px;border-radius:999px;background:var(--surface-2,#eef2f7);
+  overflow:hidden;display:flex}
+.cvpanel .bar i{display:block;height:100%}
+.cvpanel .bar i.ok{background:#16a34a}
+.cvpanel .bar i.no{background:#dc2626}
+.cvpanel .nums{flex:none;font:700 9.5px/1.3 var(--font-m,monospace);color:var(--muted,#64748b);
+  min-width:104px;text-align:right}
+.cvpanel .nums em{font-style:normal;color:#dc2626}
+.cvpanel .acts{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.cvpanel .acts button{height:27px;padding:0 9px;border:1px solid var(--line,#e2e8f0);border-radius:8px;
+  background:var(--surface-2,#f7f9fc);color:var(--ink,#0f172a);cursor:pointer;
+  font:700 10.5px/1 var(--font-d,system-ui)}
+.cvpanel .acts button:disabled{opacity:.45;cursor:default}
+.cvpanel .acts button.warn{border-color:#f0b4b4;color:#b42033;background:#fff6f6}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s);
+const rowsAll=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
+const rowOf=id=>rowsAll().find(r=>String(r.id)===String(id));
+const say=t=>{ try{ cvSay(t) }catch(e){} };
+
+/* ══ ① 실패 기록 ══ */
+const FKEY='prac:fails:v1';
+let F=(()=>{ try{ return Object.assign({cv:[],ez:[]},JSON.parse(localStorage.getItem(FKEY)||'{}')) }
+            catch(e){ return {cv:[],ez:[]} } })();
+const fsave=()=>{ try{ localStorage.setItem(FKEY,JSON.stringify(F)) }catch(e){} };
+function noteFail(kind,id,failed){
+  const a=F[kind], k=String(id), i=a.indexOf(k);
+  if(failed){ if(i<0) a.push(k); }
+  else if(i>=0) a.splice(i,1);
+  fsave();
+}
+/* 이미 잘 된 문항은 실패 목록에서 지워 준다(밖에서 따로 돌렸을 수도 있다) */
+function prune(){
+  const cv=F.cv.filter(id=>{ const r=rowOf(id); if(!r) return false;
+    return (r.q_url&&!r.q_md)||(r.a_url&&!r.a_md) });
+  const ez=F.ez.filter(id=>{ const r=rowOf(id); return r&&!r.easy_md });
+  if(cv.length!==F.cv.length||ez.length!==F.ez.length){ F.cv=cv; F.ez=ez; fsave(); }
+}
+
+/* 원래 함수를 감싸 «됐나 안 됐나» 만 적어 둔다 — 하는 일은 그대로다 */
+const hook=setInterval(()=>{
+  let done=0;
+  if(typeof window.cvRow==='function'&&!window.cvRow.__fail){
+    const o=window.cvRow;
+    const g=async function(r){
+      try{ const out=await o.apply(this,arguments);
+        noteFail('cv',r.id,(r.q_url&&!r.q_md)||(r.a_url&&!r.a_md)); return out; }
+      catch(e){ noteFail('cv',r.id,true); throw e; }
+    };
+    g.__fail=1; window.cvRow=g; done++;
+  }
+  if(typeof window.ezMake==='function'&&!window.ezMake.__fail){
+    const o=window.ezMake;
+    const g=async function(id){
+      try{ const out=await o.apply(this,arguments);
+        const r=rowOf(id); noteFail('ez',id,!(r&&r.easy_md)); return out; }
+      catch(e){ noteFail('ez',id,true); throw e; }
+    };
+    g.__fail=1; window.ezMake=g; done++;
+  }
+  if(done>=2) clearInterval(hook);
+},400);
+setTimeout(()=>clearInterval(hook),20000);
+
+/* ══ ② 진행률 ══ */
+function counts(){
+  const rows=rowsAll();
+  const cvAll=rows.filter(r=>r.q_url||r.a_url);
+  const cvOk=cvAll.filter(r=>(!r.q_url||r.q_md)&&(!r.a_url||r.a_md));
+  const ezAll=rows.filter(r=>r.q_url||r.q_md);
+  const ezOk=ezAll.filter(r=>r.easy_md);
+  return {
+    cv:{ all:cvAll.length, ok:cvOk.length, fail:F.cv.length },
+    ez:{ all:ezAll.length, ok:ezOk.length, fail:F.ez.length }
+  };
+}
+let panel=null;
+function build(){
+  if(panel) return panel;
+  const host=$('.deck .dcol-view')||$('.cvbar')?.parentElement; if(!host) return null;
+  panel=document.createElement('div'); panel.className='cvpanel';
+  panel.innerHTML=`
+    <div class="ln"><b>글자 변환</b><div class="bar" data-b="cv"></div><span class="nums" data-n="cv"></span></div>
+    <div class="ln"><b>쉬운 풀이</b><div class="bar" data-b="ez"></div><span class="nums" data-n="ez"></span></div>
+    <div class="acts">
+      <button type="button" data-r="cv" class="warn">↻ 실패만 다시 변환</button>
+      <button type="button" data-r="ez" class="warn">↻ 실패만 다시 해석</button>
+      <button type="button" data-clear>실패 기록 지우기</button>
+    </div>`;
+  host.appendChild(panel);
+  panel.addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    if(b.hasAttribute('data-clear')){ F={cv:[],ez:[]}; fsave(); paint(); return; }
+    if(b.dataset.r) retry(b.dataset.r);
+  });
+  return panel;
+}
+function paint(){
+  if(!build()) return;
+  prune();
+  const c=counts();
+  ['cv','ez'].forEach(k=>{
+    const v=c[k], bar=panel.querySelector(`[data-b="${k}"]`), num=panel.querySelector(`[data-n="${k}"]`);
+    const pOk=v.all?Math.round(v.ok/v.all*100):0;
+    const pNo=v.all?Math.min(100-pOk,Math.round(v.fail/v.all*100)):0;
+    bar.innerHTML=`<i class="ok" style="width:${pOk}%"></i><i class="no" style="width:${pNo}%"></i>`;
+    num.innerHTML=`${v.ok}/${v.all} (${pOk}%) · 남음 ${v.all-v.ok}`
+      + (v.fail?` · <em>실패 ${v.fail}</em>`:'');
+  });
+  const on=k=>{ const b=panel.querySelector(`[data-r="${k}"]`); if(b) b.disabled=!F[k].length; };
+  on('cv'); on('ez');
+}
+setInterval(paint,2000);
+setTimeout(paint,1200);
+
+/* ══ ③ 실패한 것만 다시 ══ */
+async function retry(kind){
+  let busy=false; try{ busy=CVBUSY||EZBUSY }catch(e){}
+  if(busy) return alert('지금 다른 작업이 돌고 있습니다.');
+  prune();
+  const ids=F[kind].slice();
+  if(!ids.length) return alert('다시 할 실패 기록이 없습니다.');
+  const what=kind==='cv'?'글자 변환':'쉬운 풀이';
+  if(!confirm(`지난번에 실패한 ${ids.length}개만 골라 ${what}을 다시 시도합니다.\n`
+    +`대략 ${Math.ceil(ids.length*(kind==='cv'?25:30)/60)}분입니다. 계속할까요?`)) return;
+
+  try{ if(kind==='cv') CVBUSY=true; else EZBUSY=true; CVSTOP=false; }catch(e){}
+  const stop=$('#cvStop'), prog=$('#cvProg'), bar=$('#cvBar');
+  if(stop) stop.hidden=false; if(prog) prog.hidden=false;
+  let ok=0,bad=0,n=0;
+  for(const id of ids){
+    let s=false; try{ s=CVSTOP }catch(e){}
+    if(s) break;
+    const r=rowOf(id); if(!r){ noteFail(kind,id,false); continue; }
+    n++;
+    say(`실패 재시도 ${n}/${ids.length} — ${r.year}년 제${r.session}회 ${r.no}번 · 됨 ${ok}`+(bad?` · 실패 ${bad}`:''));
+    if(bar) bar.style.width=(n/ids.length*100)+'%';
+    try{
+      if(kind==='cv'){ await window.cvRow(r,true); ((r.q_url&&!r.q_md)||(r.a_url&&!r.a_md))?bad++:ok++; }
+      else{ r.easy_md=null; await window.ezMake(r.id,true,true); r.easy_md?ok++:bad++; }
+    }catch(e){ bad++; }
+    paint();
+    await new Promise(x=>setTimeout(x,400));
+  }
+  if(stop) stop.hidden=true; if(prog) prog.hidden=true;
+  try{ if(kind==='cv') CVBUSY=false; else EZBUSY=false; }catch(e){}
+  say(`실패 재시도 — ${ok}개 됨` + (bad?` · ${bad}개는 또 실패`:'') + (ok?' (목록에서 뺐습니다)':''));
+  try{ drawList(); cvCount(); }catch(e){}
+  paint();
+}
+window.__pracRetry=retry;
+})();
+</script>
+
 <!-- 끌어서 고른 자리를 AI 가 풀어 준다 (일반 · 한눈에 공통) -->
 <script src="./ai-explain.js" defer></script>
 
