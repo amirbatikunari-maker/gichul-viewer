@@ -3148,8 +3148,10 @@ async function ezMake(id, force, quiet){
     r.easy_md = md;
     if(box) box.innerHTML = mdLite(md);
     /* 단추 줄(다시 해석하기 · 고쳐 쓰기 · 지우기)을 손으로 끼워 맞추면 손잡이가 어긋난다.
-       한 번 다시 그리는 편이 확실하다. 필기는 저장돼 있으므로 그대로 되살아난다. */
-    if(!quiet) drawList();
+       한 번 다시 그리는 편이 확실하다. 필기는 저장돼 있으므로 그대로 되살아난다.
+       ★ 다만 «한눈에» 를 보고 있는 중이면 그 판이 닫힌 뒤로 미룬다 —
+         보고 있는 화면 밑에서 목록을 갈아엎으면 얹힌 것들이 한꺼번에 다시 돈다. */
+    if(!quiet) (window.__pracRedraw || drawList)();
     if(String(OVID) === String(r.id)) ovDraw();   /* 한눈에 보기가 열려 있으면 거기도 갈아 끼운다 */
     drawRail?.();
   }catch(e){
@@ -8198,13 +8200,41 @@ function start(im){
 }
 function stop(){
   if(CUR&&CUR.kind==='img') paintOne(CUR.im);
+  if(CUR&&CUR.kind==='raw') try{ window.__rawFixPaint&&window.__rawFixPaint() }catch(e){}
   CUR=null;
   OV?.classList.remove('on'); BAR?.classList.remove('on');
 }
 
+/* ── 원본 그림(글자로 안 바뀐 것)도 같은 판으로 자른다 ──
+   적어 넣을 글이 없으므로 이 기기에 남긴다(v111 이 들고 있는 자루). */
+window.__rawCropStart=function(im,key){
+  build();
+  CUR={ im, id:null, field:null, kind:'raw', key, fig:null };
+  let cur=null;
+  try{ cur=(window.__rawFix&&window.__rawFix()[key]||{}).c }catch(e){}
+  BOX = Array.isArray(cur) ? {l:cur[0],t:cur[1],w:cur[2],h:cur[3]} : {l:.05,t:.05,w:.9,h:.9};
+  /* 잘라 둔 것을 잠시 풀어야 «원본 위에» 네모를 그릴 수 있다 */
+  im.style.removeProperty('clip-path'); im.style.removeProperty('margin');
+  OV.classList.add('on'); BAR.classList.add('on');
+  place();
+};
+
 async function apply(box){
   if(!CUR) return;
   const { im, id, field, kind, key, fig } = CUR;
+  if(kind==='raw'){
+    try{
+      const bag=window.__rawFix?window.__rawFix():null;
+      if(bag){
+        if(box) bag[key]=Object.assign({},bag[key],{c:[+box.l.toFixed(4),+box.t.toFixed(4),+box.w.toFixed(4),+box.h.toFixed(4)]});
+        else if(bag[key]) delete bag[key].c;
+        if(bag[key]&&!bag[key].w&&!bag[key].c) delete bag[key];
+        localStorage.setItem('prac:imgfix:v1',JSON.stringify(bag));
+      }
+      window.__rawFixPaint&&window.__rawFixPaint();
+    }catch(e){}
+    stop(); return;
+  }
   if(kind==='img'){
     if(box){ im.dataset.crop=[box.l,box.t,box.w,box.h].map(v=>+v.toFixed(4)).join(','); }
     else delete im.dataset.crop;
@@ -8420,7 +8450,7 @@ function ensure(){
     try{ buildNow() }catch(e){ try{ console.warn('등급을 세지 못했습니다',e) }catch(x){} }
     BUILDING=false;
     try{ stamp(); paintChips(); }catch(e){}
-    if(anyOn()){ try{ drawList() }catch(e){} }
+    if(anyOn()){ try{ (window.__pracRedraw||drawList)() }catch(e){} }
   };
   (window.requestIdleCallback ? requestIdleCallback(()=>run(),{timeout:500}) : setTimeout(run,80));
   return TAG;
@@ -8976,9 +9006,11 @@ function startClassify(){
                              src:'ai', conf:1, why:a.why||'' });
       });
       NC=out; NREADY=true; NBUSY=false;
-      /* 다 셌으니 이제 뱃지를 붙인다 — 화면을 한 번만 다시 그린다 */
+      /* 다 셌으니 이제 뱃지를 붙인다 — 다만 «한눈에» 를 보고 있는 중이면
+         그 판이 닫힌 뒤로 미룬다. 보고 있는 화면을 밑에서 다시 그리면
+         그 위에 얹힌 것들(주석·필기·그림 오리기)이 한꺼번에 다시 돌아 멎는다. */
       try{ window.__pracTagReset&&window.__pracTagReset(); }catch(e){}
-      try{ drawList(); }catch(e){}
+      try{ (window.__pracRedraw||drawList)(); }catch(e){}
     }catch(e){ fail(e) }
   }
   function fail(e){
@@ -9325,6 +9357,278 @@ setTimeout(()=>{
   if(!document.querySelector('.app-float [data-favorite]')) gone('fav');
   if(!window.openCmd) gone('menu');
 },2500);
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v110 · «한눈에» 를 누르면 줄이 파래지고 화면이 멎던 것
+
+     두 가지가 겹쳤다.
+       ① 문항 머리줄이 통째로 «글자 선택» 되었다(파란 줄).
+          손가락으로 누르면 브라우저가 그 줄을 골라 버리고, 그때부터
+          형광펜 띠 · AI 띠 · 주석이 모두 «무언가 골랐다» 고 여겨 따라 붙었다.
+          머리줄은 누르는 곳이지 읽는 곳이 아니다 — 고를 수 없게 못 박는다.
+       ② «한눈에» 를 보고 있는 동안 밑에서 목록을 다시 그리는 일이 있었다.
+          목록이 다시 그려지면 그 위에 얹힌 것들(주석 · 필기 · 그림 오리기 ·
+          수식 그리기)이 한꺼번에 다시 돌고, 그것이 또 다시 그리기를 부른다.
+          한 바퀴 돌기 시작하면 끝이 없다 — 그래서 두 겹으로 막는다.
+            · 한눈에가 열려 있는 동안에는 다시 그리기를 «미뤄» 둔다.
+            · 그래도 1.5초에 여덟 번을 넘게 다시 그리려 들면 끊고 알린다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* ① 머리줄은 고를 수 없다 — 파란 줄도, 헛도는 띠도 여기서 끝난다 */
+#list > .pcard > .phead,
+#list > .pcard > .phead *,
+.ovl .oh, .ovl .oh *, .ovl .otabs, .ovl .otabs *{
+  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none}
+/* 누를 때 파랗게 번지는 기본 표시도 없앤다 */
+#list > .pcard > .phead{-webkit-tap-highlight-color:transparent}
+</style>
+<script>
+(function(){
+'use strict';
+const ovlOpen=()=>!!document.getElementById('ovl')?.classList.contains('on');
+
+/* ② 다시 그리기 문지기 */
+let pending=false, stamps=[];
+function later(){
+  if(pending) return; pending=true;
+  const tick=()=>{
+    if(ovlOpen()) return setTimeout(tick,400);   /* 판이 닫힐 때까지 기다린다 */
+    pending=false;
+    try{ window.drawList&&window.drawList() }catch(e){}
+  };
+  setTimeout(tick,300);
+}
+window.__pracRedraw=function(){
+  if(ovlOpen()) return later();
+  try{ window.drawList&&window.drawList() }catch(e){}
+};
+
+/* 되풀이 끊기 — 어떤 길로 들어와도 여기서 걸린다 */
+const wrap=setInterval(()=>{
+  if(typeof window.drawList!=='function'||window.drawList.__guard) return;
+  clearInterval(wrap);
+  const inner=window.drawList;
+  const guarded=function(){
+    const now=Date.now();
+    stamps=stamps.filter(t=>now-t<1500);
+    if(stamps.length>=8){
+      try{ window.__pracTrouble&&window.__pracTrouble('목록 다시 그리기가 되풀이되어 끊었습니다',
+            new Error('redraw loop')) }catch(e){}
+      stamps=[]; return;
+    }
+    stamps.push(now);
+    return inner.apply(this,arguments);
+  };
+  guarded.__guard=1; guarded.__tag=inner.__tag;
+  window.drawList=guarded;
+},300);
+setTimeout(()=>clearInterval(wrap),20000);
+
+/* «한눈에» 가 닫히면 미뤄 둔 것을 한 번만 그린다 */
+const w0=setInterval(()=>{
+  const o=document.getElementById('ovl'); if(!o) return; clearInterval(w0);
+  new MutationObserver(()=>{ if(!o.classList.contains('on')&&pending) later(); })
+    .observe(o,{attributes:true,attributeFilter:['class']});
+},300);
+setTimeout(()=>clearInterval(w0),20000);
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v111 · 원본 그림에도 크기 · 자르기
+
+     지금까지 크기·자르기는 «글자로 바꾼» 문항의 그림에만 붙어 있었다.
+     아직 그림 그대로인 문항(머리에 «그림» 이라고 붙은 것)에서는 눌러도
+     확대만 될 뿐 아무 도구도 안 떴다 — 버튼이 사라진 것이 아니라
+     처음부터 그 자리에 없었던 것이다.
+
+     여기서는 원본 그림에도 같은 손질을 붙인다. 다만 한 가지가 다르다.
+       · 글자로 바꾼 그림 — 손질한 값이 글에 적혀 Supabase 로 올라간다(어느 기기에서나 같다).
+       · 원본 그림      — 적어 넣을 글이 없다. 그래서 이 기기에만 남는다.
+     그 차이는 도구줄에 그대로 적어 둔다. 모르고 쓰는 것보다 낫다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+.rawfix{position:fixed;z-index:100031;display:none;align-items:center;gap:7px;
+  padding:7px 10px;border:1px solid var(--line,#e2e8f0);border-radius:11px;
+  background:var(--surface,#fff);box-shadow:0 12px 34px rgba(15,23,42,.20);flex-wrap:wrap;
+  max-width:calc(100vw - 20px)}
+.rawfix.on{display:flex}
+.rawfix .t{font:800 10px/1 var(--font-d,system-ui);color:var(--muted,#64748b);letter-spacing:.1em}
+.rawfix input[type=range]{width:130px;accent-color:var(--accent,#2563eb)}
+.rawfix .v{font:800 11px/1 var(--font-m,monospace);color:var(--ink,#0f172a);min-width:38px;text-align:right}
+.rawfix button{height:26px;padding:0 9px;border:1px solid var(--line,#e2e8f0);border-radius:8px;
+  background:var(--surface,#fff);color:var(--ink,#0f172a);cursor:pointer;font:700 10.5px/1 var(--font-d,system-ui)}
+.rawfix button:hover{border-color:var(--accent,#2563eb);color:var(--accent,#2563eb)}
+.rawfix .sep{width:1px;height:16px;background:var(--line,#e2e8f0)}
+.rawfix .note{flex-basis:100%;font:500 9.5px/1.4 var(--font-d,system-ui);color:var(--muted,#94a3b8)}
+/* 손질한 그림은 여백 자르기 창에 갇히지 않게 */
+.pz-stage.rawfixed,.tw.rawfixed,.imgbox.rawfixed{overflow:visible!important}
+img.rawfixed{background:#fff}
+@media(max-width:620px){ .rawfix input[type=range]{width:96px} }
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const RAW='.pz .pz-stage img, .ovl .tw img, .ovl .imgbox img';
+
+/* ── 이 기기에 남긴다 (적어 넣을 글이 없는 그림이므로) ── */
+const KEY='prac:imgfix:v1';
+let FIX=(()=>{ try{ return JSON.parse(localStorage.getItem(KEY)||'{}') }catch(e){ return {} } })();
+const save=()=>{ try{ localStorage.setItem(KEY,JSON.stringify(FIX)) }catch(e){} };
+
+/* ── 어느 문항의 어느 쪽 그림인가 ── */
+function keyOf(im){
+  const st=im.closest('.pz-stage');
+  if(st&&st.dataset.qid) return st.dataset.qid+':'+(st.dataset.mkhost||'q');
+  if(im.closest('#ovl')){
+    let id=null; try{ id=OVID }catch(e){}
+    if(!id) return null;
+    if(im.closest('#ovLeft')) return id+':q';
+    const seg=im.closest('.seg');
+    return id+':'+(seg&&seg.dataset.seg==='a'?'a':'q');
+  }
+  return null;
+}
+
+/* ── 그리기 ── */
+const RO=new ResizeObserver(es=>es.forEach(e=>paint(e.target)));
+function paint(im){
+  const k=keyOf(im); const f=k?FIX[k]:null;
+  const host=im.closest('.pz-stage,.tw,.imgbox');
+  if(!f){
+    im.style.removeProperty('clip-path'); im.style.removeProperty('margin');
+    if(!im.dataset.rawW) im.style.removeProperty('width');
+    im.classList.remove('rawfixed'); host?.classList.remove('rawfixed');
+    return;
+  }
+  if(f.w&&f.w<100){ im.style.width=f.w+'%'; im.style.maxWidth='100%'; }
+  else im.style.removeProperty('width');
+  if(Array.isArray(f.c)){
+    const [l,t,w,h]=f.c;
+    const W=im.offsetWidth, H=im.offsetHeight;
+    if(W&&H){
+      im.style.clipPath=`inset(${(t*100).toFixed(2)}% ${((1-l-w)*100).toFixed(2)}% `
+                      + `${((1-t-h)*100).toFixed(2)}% ${(l*100).toFixed(2)}%)`;
+      im.style.margin=`${-(t*H).toFixed(1)}px ${-((1-l-w)*W).toFixed(1)}px `
+                    + `${-((1-t-h)*H).toFixed(1)}px ${-(l*W).toFixed(1)}px`;
+    }
+    im.classList.add('rawfixed'); host?.classList.add('rawfixed');
+  }else{
+    im.style.removeProperty('clip-path'); im.style.removeProperty('margin');
+    im.classList.remove('rawfixed'); host?.classList.remove('rawfixed');
+  }
+}
+function paintAll(root){
+  $$(RAW,root||document).forEach(im=>{
+    if(!im.__rawf){ im.__rawf=1; RO.observe(im); im.addEventListener('load',()=>paint(im)); }
+    paint(im);
+  });
+}
+
+/* ── 도구줄 ── */
+let BAR=null, CUR=null;
+function bar(){
+  if(BAR) return BAR;
+  BAR=document.createElement('div'); BAR.className='rawfix';
+  BAR.innerHTML=`<span class="t">크기</span>
+    <input type="range" min="15" max="100" step="1" value="100">
+    <b class="v">100%</b><span class="sep"></span>
+    <button type="button" data-p="50">50</button>
+    <button type="button" data-p="70">70</button>
+    <button type="button" data-p="100">100</button>
+    <span class="sep"></span>
+    <button type="button" data-crop>✂ 자르기</button>
+    <button type="button" data-zoom>⤢ 확대</button>
+    <button type="button" data-reset>원래대로</button>
+    <button type="button" data-x>✕</button>
+    <span class="note">이 그림은 아직 «글자» 로 안 바뀐 원본이라, 손질한 값은 이 기기에만 남습니다.
+      어느 기기에서나 같게 하려면 «⚡ 변환» 으로 글자로 바꾼 뒤 손질하세요.</span>`;
+  document.body.appendChild(BAR);
+  BAR.addEventListener('pointerdown',e=>e.stopPropagation());
+
+  const rg=BAR.querySelector('input'), vv=BAR.querySelector('.v');
+  const put=p=>{
+    if(!CUR) return;
+    vv.textContent=p+'%';
+    const k=CUR.k; FIX[k]=Object.assign({},FIX[k],{w:p});
+    if(p>=100) delete FIX[k].w;
+    if(!FIX[k].w&&!FIX[k].c) delete FIX[k];
+    save(); paint(CUR.im); place();
+  };
+  rg.addEventListener('input',()=>put(+rg.value));
+  $$('button[data-p]',BAR).forEach(b=>b.onclick=()=>{ rg.value=b.dataset.p; put(+b.dataset.p) });
+  BAR.querySelector('[data-x]').onclick=close;
+  BAR.querySelector('[data-reset]').onclick=()=>{
+    if(!CUR) return; delete FIX[CUR.k]; save(); paint(CUR.im); rg.value=100; vv.textContent='100%'; place();
+  };
+  BAR.querySelector('[data-zoom]').onclick=()=>{
+    if(!CUR) return;
+    CUR.im.classList.toggle('zoom');
+    CUR.im.closest('.tw')?.classList.toggle('on');
+    place();
+  };
+  BAR.querySelector('[data-crop]').onclick=()=>{ if(CUR) crop(CUR.im, CUR.k); };
+  return BAR;
+}
+function place(){
+  if(!BAR||!CUR||!CUR.im.isConnected) return close();
+  const r=CUR.im.getBoundingClientRect();
+  const w=BAR.offsetWidth||360, h=BAR.offsetHeight||44;
+  let top=r.bottom+8; if(top+h>innerHeight-6) top=Math.max(6,r.top-h-8);
+  BAR.style.top=Math.round(top)+'px';
+  BAR.style.left=Math.round(clamp(r.left+r.width/2-w/2,6,innerWidth-w-6))+'px';
+}
+function open(im){
+  const k=keyOf(im); if(!k) return;
+  bar();
+  CUR={im,k};
+  const f=FIX[k]||{};
+  BAR.querySelector('input').value=f.w||100;
+  BAR.querySelector('.v').textContent=(f.w||100)+'%';
+  BAR.classList.add('on'); place();
+}
+function close(){ BAR?.classList.remove('on'); CUR=null; }
+
+/* ── 자르기 — v102 의 판을 그대로 빌려 쓴다 ── */
+function crop(im,k){
+  close();
+  if(window.__rawCropStart) return window.__rawCropStart(im,k);
+  alert('자르기 판을 아직 불러오지 못했습니다. 잠시 뒤 다시 눌러 주세요.');
+}
+
+/* ── 그림을 누르면 도구줄 ── */
+addEventListener('click',e=>{
+  const im=e.target&&e.target.closest&&e.target.closest(RAW);
+  if(im){
+    if(!keyOf(im)) return;
+    e.preventDefault(); e.stopPropagation();
+    if(CUR&&CUR.im===im) close(); else open(im);
+    return;
+  }
+  if(BAR&&BAR.classList.contains('on')&&!e.target.closest('.rawfix')&&!e.target.closest('.cropov,.cropbar')) close();
+},true);
+addEventListener('keydown',e=>{ if(e.key==='Escape'&&CUR){ e.preventDefault(); close(); } },true);
+addEventListener('scroll',()=>{ if(CUR) place() },true);
+addEventListener('resize',()=>{ if(CUR) place() });
+
+paintAll();
+['#list','#ovl'].forEach(sel=>{
+  const wait=setInterval(()=>{
+    const n=document.querySelector(sel); if(!n) return; clearInterval(wait);
+    new MutationObserver(()=>setTimeout(()=>paintAll(n),40)).observe(n,{childList:true,subtree:true});
+    paintAll(n);
+  },250);
+  setTimeout(()=>clearInterval(wait),20000);
+});
+setInterval(()=>paintAll(),3000);
+window.__rawFix=()=>FIX;
+window.__rawFixPaint=paintAll;
 })();
 </script>
 
