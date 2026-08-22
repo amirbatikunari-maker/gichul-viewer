@@ -13098,7 +13098,23 @@ function wire(){
 }
 const wt=setInterval(()=>{ if($('.edw')){ wire(); if($('.edw').__cellbr) clearInterval(wt); } },400);
 
-/* ══════════ ② 동시에 돌리기 ══════════ */
+/* ══════════ ② 동시에 돌리기 ══════════
+   v144 · 동시 개수를 32까지 · «자동» 으로 스스로 올리고 내리기
+
+   8이 멀쩡하다면 병목은 브라우저가 아니라 중계 서버 쪽이다.
+   그 선이 어디인지는 날마다 다르므로 «자동» 을 둔다 —
+     · 4~8개로 몸을 풀고
+     · 거절(429·과부하) 없이 매끄러우면 4개씩 올리고
+     · 거절이 15%를 넘으면 30%씩 줄인다
+   올리고 내리는 것은 «지금 돌고 있는 일꾼 수» 만 바꾼다.
+   프롬프트·모델·해설 결은 그대로다 — 결과물 질은 안 바뀐다.
+
+   ★ 무한정 올리면 안 되는 이유
+     ① 중계(Worker)와 Gemini 쪽 분당 한도가 먼저 막힌다 — 거절만 늘고 총 시간은 그대로다.
+     ② 한 문항마다 그림을 내려받고 Supabase 에 한 줄씩 쓴다. 32를 넘기면
+        그쪽이 밀리기 시작한다.
+     ③ 폰에서는 메모리가 먼저 죽는다. 폰이면 8~12 위로는 권하지 않는다.
+   ══════════════════════════════════════ */
 const rowsAll=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
 const needCv = r => !!((r.q_url&&!r.q_md)||(r.a_url&&!r.a_md));
 const needEz = r => !r.easy_md && !!(r.q_url||r.q_md);
@@ -13113,8 +13129,10 @@ function failDel(id){
   try{ localStorage.setItem(FKEY,JSON.stringify(F)) }catch(e){}
 }
 
-const CKEY='prac:fastn:v1';
-let CONC=(()=>{ const n=parseInt(localStorage.getItem(CKEY)||'4',10); return [2,4,6,8].includes(n)?n:4 })();
+const OPTS=[4,8,12,16,24,32];
+const CKEY='prac:fastn:v1', AKEY='prac:fastauto:v1';
+let CONC=(()=>{ const n=parseInt(localStorage.getItem(CKEY)||'8',10); return OPTS.includes(n)?n:8 })();
+let AUTO=(()=>{ try{ return localStorage.getItem(AKEY)==='1' }catch(e){ return false } })();
 let RUN=false;
 
 const say=t=>{ try{ cvSay(t) }catch(e){ const el=$('#cvStat'); if(el) el.textContent=t } };
@@ -13122,6 +13140,7 @@ const stopped=()=>{ try{ return !!CVSTOP }catch(e){ return false } };
 const naptime=ms=>new Promise(r=>setTimeout(r,ms));
 const mmss=s=>{ s=Math.max(0,Math.round(s)); const m=Math.floor(s/60);
   return m?`${m}분 ${String(s%60).padStart(2,'0')}초 남음`:`${s}초 남음` };
+const BUSYISH = e => /429|quota|rate|too many|과부하|overload|503|502|너무 많|한도/i.test(String((e&&e.message)||e));
 
 function poolOf(scope){
   const yr=$('#fYear')?.value||'', ss=$('#fSess')?.value||'';
@@ -13138,21 +13157,22 @@ function poolOf(scope){
 }
 
 /* 한 문항을 끝까지 — 글자 변환 다음에 쉬운 풀이.
-   중계가 «너무 많다» 고 거절하면 잠깐 쉬었다 한 번만 더 해 본다. */
+   거절당하면 조금씩 다르게 쉬었다(같이 몰려 들어가지 않게) 두 번까지 더 해 본다.
+   돌려준 값 : null(됨) 또는 { why, busy } */
 async function doOne(r){
-  const busyish = e => /429|quota|rate|too many|과부하|overload|503/i.test(String((e&&e.message)||e));
-  for(let try_=0; try_<2; try_++){
+  for(let k=0; k<3; k++){
     try{
       if(needCv(r)) await cvRow(r,false);
       if(needEz(r)) await ezMake(r.id,false,true);
       if(needCv(r)||needEz(r)) throw new Error('돌렸으나 채워지지 않음');
       return null;
     }catch(e){
-      if(try_===0 && busyish(e)){ await naptime(3000+Math.random()*2000); continue; }
-      return (e&&e.message)||String(e);
+      const busy=BUSYISH(e);
+      if(k<2 && busy){ await naptime(1500*(k+1)*(1+Math.random())); continue; }
+      return { why:(e&&e.message)||String(e), busy };
     }
   }
-  return '알 수 없음';
+  return { why:'알 수 없음', busy:false };
 }
 
 async function fast(scope){
@@ -13163,46 +13183,98 @@ async function fast(scope){
   const pool=poolOf(scope);
   if(!pool.length) return alert('할 일이 없습니다 — 이 범위는 이미 다 돼 있습니다.');
   const nCv=pool.filter(needCv).length, nEz=pool.filter(needEz).length;
-  const per=32;                                   /* 한 문항에 대략 이 정도 걸린다 */
-  if(!confirm(`${scope==='sess'?'이 회차':'전체'} — ${pool.length}개를 «동시에 ${CONC}개» 씩 돌립니다.\n`
+  const per=32;
+  const guess = AUTO ? '자동으로 맞춰 갑니다' : `대략 ${Math.ceil(pool.length*per/CONC/60)}분`;
+  if(!confirm(`${scope==='sess'?'이 회차':'전체'} — ${pool.length}개를 `
+    +(AUTO?'«자동» 으로':`«동시에 ${CONC}개» 씩`)+` 돌립니다.\n`
     +`· 글자 변환 ${nCv}개\n· 쉬운 풀이 ${nEz}개\n\n`
     +`프롬프트·모델·결은 지금 설정 그대로입니다 — 결과물 질은 안 바뀝니다.\n`
-    +`혼자 돌리면 ${Math.ceil(pool.length*per/60)}분, 지금 설정이면 대략 ${Math.ceil(pool.length*per/CONC/60)}분입니다.\n`
-    +`중계가 거절하면(429) 실패가 늘 수 있습니다 — 그때는 동시 개수를 낮추세요.\n\n계속할까요?`)) return;
+    +`혼자 돌리면 ${Math.ceil(pool.length*per/60)}분, 지금 설정이면 ${guess}입니다.\n\n계속할까요?`)) return;
 
   RUN=true;
   try{ CVSTOP=false; CVBUSY=true; EZBUSY=true; }catch(e){}
-  const stop=$('#cvStop'), prog=$('#cvProg'), bar=$('#cvBar');
-  if(stop) stop.hidden=false; if(prog) prog.hidden=false;
+  const stopb=$('#cvStop'), prog=$('#cvProg'), bar=$('#cvBar');
+  if(stopb) stopb.hidden=false; if(prog) prog.hidden=false;
   $$('.fastwrap button').forEach(b=>b.disabled=true);
 
   const t0=Date.now();
-  let i=0, ok=0, bad=0, done=0;
+  let idx=0, done=0, ok=0, bad=0, active=0, hot=0;
+  let target = AUTO ? Math.min(8, CONC) : CONC;      /* 자동이면 8부터 몸을 푼다 */
+  const recent=[];                                   /* 최근 결과 — true 면 거절당한 것 */
+  let note='';
 
-  const worker=async()=>{
-    while(true){
-      if(stopped()) return;
-      const k=i++; if(k>=pool.length) return;
-      const r=pool[k];
-      const why=await doOne(r);
-      done++;
-      if(why){ bad++; failPut(r.id,why); } else { ok++; failDel(r.id); }
-      const el=(Date.now()-t0)/1000;
-      const eta=done>CONC ? mmss(el/done*(pool.length-done)) : '';
-      say(`동시 ${CONC}개 — ${done}/${pool.length} · 됨 ${ok}`+(bad?` · 실패 ${bad}`:'')+(eta?`  ${eta}`:''));
-      if(bar) bar.style.width=(done/pool.length*100)+'%';
-      if(done%12===0){ try{ drawList(); cvCount(); }catch(e){} }
+  /* 거절이 잦으면 줄이고, 매끄러우면 올린다 */
+  function tune(){
+    if(!AUTO) return;
+    const w=recent.slice(-16);
+    if(w.length<8) return;
+    const rate=w.filter(Boolean).length/w.length;
+    if(rate>0.15){
+      const t=Math.max(2,Math.floor(target*0.7));
+      if(t!==target){ target=t; note=`↓${target}`; recent.length=0; }
+    }else if(rate===0 && w.length>=12 && target<48){
+      target=Math.min(48,target+4); note=`↑${target}`; recent.length=0;
     }
-  };
-  await Promise.all(Array.from({length:CONC},worker));
+  }
+
+  async function worker(){
+    active++;
+    try{
+      while(true){
+        if(stopped()) return;
+        if(active>target) return;                    /* 줄이기로 했으면 조용히 빠진다 */
+        const k=idx++; if(k>=pool.length) return;
+        const r=pool[k];
+        const bad0=await doOne(r);
+        done++;
+        recent.push(!!(bad0&&bad0.busy));
+        if(bad0){ bad++; if(bad0.busy) hot++; failPut(r.id,bad0.why); }
+        else { ok++; failDel(r.id); }
+        tune();
+        const el=(Date.now()-t0)/1000;
+        const eta=done>target ? mmss(el/done*(pool.length-done)) : '';
+        say(`동시 ${active}/${target}${AUTO?' (자동'+(note?' '+note:'')+')':''} — ${done}/${pool.length}`
+          +` · 됨 ${ok}`+(bad?` · 실패 ${bad}`:'')+(hot?` · 거절 ${hot}`:'')+(eta?`  ${eta}`:''));
+        if(bar) bar.style.width=(done/pool.length*100)+'%';
+        if(done%12===0){ try{ drawList(); cvCount(); }catch(e){} }
+      }
+    }finally{ active--; }
+  }
+
+  /* 일꾼을 «지금 목표만큼» 채워 둔다. 목표가 오르면 그때 더 뽑는다.
+     ★ 32개를 같은 순간에 던지면 첫머리에서만 몰려 거절당한다 — 150ms 씩 벌려 넣는다.
+     ★ 뽑기로 정한 일꾼은 아직 시작 전이어도 «pending» 으로 세어 둔다.
+       안 그러면 목표가 8인데 20개가 한꺼번에 뽑힌다. */
+  const live=new Set();
+  let pending=0;
+  function spawn(){
+    let n=0;
+    while(active+pending<target && idx<pool.length && !stopped()){
+      pending++;
+      const d=n++*150;
+      const p=(async()=>{ await naptime(d); pending--; return worker(); })()
+                .finally(()=>live.delete(p));
+      live.add(p);
+    }
+  }
+  spawn();
+  const sup=setInterval(spawn,400);                 /* 목표가 오르면 그때 더 뽑는다 */
+  while(!stopped() && (live.size || idx<pool.length)){
+    if(live.size) await Promise.race(live); else await naptime(200);
+    spawn();
+  }
+  clearInterval(sup);
+  try{ await Promise.all(live) }catch(e){}
 
   try{ CVBUSY=false; EZBUSY=false; }catch(e){}
   RUN=false;
-  if(stop) stop.hidden=true; if(prog) prog.hidden=true;
+  if(stopb) stopb.hidden=true; if(prog) prog.hidden=true;
   $$('.fastwrap button').forEach(b=>b.disabled=false);
   const took=Math.round((Date.now()-t0)/1000);
-  say((stopped()?'중지했습니다. ':'')+`${ok}개 완료`+(bad?` · ${bad}개 실패 (실패 자루에 남겼습니다)`:'')
-      +` · ${Math.floor(took/60)}분 ${took%60}초 걸림`);
+  say((stopped()?'중지했습니다. ':'')+`${ok}개 완료`+(bad?` · ${bad}개 실패`:'')
+      +(hot?` (그중 거절 ${hot})`:'')
+      +` · ${Math.floor(took/60)}분 ${took%60}초 걸림`
+      +(done?` · 한 개당 ${(took/done).toFixed(1)}초`:''));
   try{ drawList(); cvCount(); }catch(e){}
 }
 
@@ -13222,13 +13294,19 @@ const mt=setInterval(()=>{
 
   const w=document.createElement('div');
   w.className='fastwrap';
-  w.innerHTML='<span>동시</span>'+[2,4,6,8].map(n=>
-    `<button type="button" class="chip" data-n="${n}">${n}</button>`).join('');
-  const sync=()=>$$('button[data-n]',w).forEach(x=>x.classList.toggle('on',+x.dataset.n===CONC));
+  w.innerHTML='<span>동시</span>'
+    +OPTS.map(n=>`<button type="button" class="chip" data-n="${n}">${n}</button>`).join('')
+    +'<button type="button" class="chip" data-auto="1" title="거절이 없으면 스스로 올리고, 거절이 잦으면 스스로 줄입니다">자동</button>';
+  const sync=()=>{
+    $$('button[data-n]',w).forEach(x=>x.classList.toggle('on',!AUTO && +x.dataset.n===CONC));
+    $$('button[data-auto]',w).forEach(x=>x.classList.toggle('on',AUTO));
+  };
   w.addEventListener('click',e=>{
-    const x=e.target.closest('button[data-n]'); if(!x) return;
+    const x=e.target.closest('button'); if(!x) return;
     e.stopPropagation();
-    CONC=+x.dataset.n; try{ localStorage.setItem(CKEY,String(CONC)) }catch(e2){}
+    if(x.dataset.auto){ AUTO=!AUTO; try{ localStorage.setItem(AKEY,AUTO?'1':'0') }catch(e2){} }
+    else if(x.dataset.n){ AUTO=false; CONC=+x.dataset.n;
+      try{ localStorage.setItem(CKEY,String(CONC)); localStorage.setItem(AKEY,'0') }catch(e2){} }
     sync();
   });
   sync();
@@ -13238,7 +13316,6 @@ const mt=setInterval(()=>{
   b.onclick=()=>fast('sess');
 },700);
 setTimeout(()=>clearInterval(mt),40000);
-
 addEventListener('beforeunload',e=>{ if(RUN){ e.preventDefault(); e.returnValue=''; } });
 window.__pracFast=fast;
 })();
