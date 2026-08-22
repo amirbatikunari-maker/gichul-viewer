@@ -12676,8 +12676,9 @@ function build(W){
   });
 }
 
-const t=setInterval(()=>{ const W=$('.edw'); if(W) build(W); },400);
-setTimeout(()=>clearInterval(t),60000);
+/* ★ 예전에는 60초 뒤에 시계를 껐다. 창(.edw)은 «처음 고쳐 쓰기를 누를 때» 만들어지므로,
+   1분이 지난 뒤에 열면 이 단추 줄이 아예 안 붙었다. 붙고 나서 끈다. */
+const t=setInterval(()=>{ const W=$('.edw'); if(W){ build(W); clearInterval(t); } },400);
 })();
 </script>
 
@@ -12838,6 +12839,408 @@ setTimeout(()=>clearInterval(tm),40000);
 hook(); build();
 
 window.__pracTodo=(m)=>apply(m||'any');
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v142 · 고쳐 쓰는 창 — 글자 크기 · 표 간격 · 여러 줄 수식
+
+     세 가지가 없었다.
+       ① 글자 크기. 왼쪽 글은 13px, 오른쪽 화면은 14px 로 박혀 있어
+          표가 많은 문항은 눈이 아프고, 반대로 폰에서는 너무 크다.
+       ② 표 간격. 칸 여백이 4px 8px 로 고정이라 다섯 칸짜리 표가
+          가로로 넘쳐 스크롤바가 생겼다.
+       ③ 여러 줄 수식. mdRich 는 «한 줄 = 한 문단» 이라
+          $$ 를 열고 다음 줄에 내용을 쓰면 문단이 갈려 KaTeX 가 못 그렸다.
+          여는 $$ 부터 닫는 $$ 까지를 한 줄로 이어 붙여 넘긴다 —
+          이제 아래처럼 «보기 좋게» 써도 그려진다.
+
+            $$
+            \begin{aligned}
+            P &= VI\cos\theta \\
+              &= 200 \times 5 \times 0.8 = 800\ [\text{W}]
+            \end{aligned}
+            $$
+
+     크기·간격은 이 기기에 기억해 둔다. 저장되는 «글» 은 하나도 안 바뀐다 —
+     보이는 결만 바꾼다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+.edw{--edfs:13px;--edpf:14px;--edlh:1.7;--edtp:4px 8px;--edtf:1em;--edtlh:1.5}
+.edw textarea{font-size:var(--edfs)!important;line-height:var(--edlh)!important}
+.edw .prev{font-size:var(--edpf)!important;line-height:var(--edlh)!important}
+.edw .prev table{font-size:var(--edtf)!important;line-height:var(--edtlh)!important}
+.edw .prev td,.edw .prev th{padding:var(--edtp)!important}
+.edw .tblwrap{overflow-x:auto}
+
+.edvw{display:flex;align-items:center;gap:3px;padding:2px 4px;border-radius:8px;
+  border:1px solid var(--line,#e2e8f0);background:var(--surface-2,#f7f9fc)}
+.edvw > span{font:700 10px/1 var(--font-d,system-ui);color:var(--muted,#64748b);padding:0 3px}
+.edvw button{height:22px!important;min-width:24px;padding:0 6px!important;border-radius:6px!important;
+  font:700 10.5px/1 var(--font-d,system-ui)!important}
+.edvw button.on{background:var(--accent,#2563eb)!important;border-color:var(--accent,#2563eb)!important;color:#fff!important}
+.edvw b{min-width:22px;text-align:center;font:800 10.5px/1 var(--font-m,monospace);color:var(--ink,#0f172a)}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s);
+
+/* ══ ① 여러 줄 수식을 한 줄로 이어 붙인다 ══
+   여는 $$ (또는 \[) 를 만나면 닫을 때까지 모아서 한 줄로 넘긴다.
+   글 자체는 안 건드린다 — 그릴 때만 이어 붙인다. */
+function joinMath(src){
+  const lines=String(src==null?'':src).split('\n');
+  const out=[]; let buf=null, close='';
+  for(const raw of lines){
+    const t=raw.trim();
+    if(buf===null){
+      if(t.startsWith('$$') && !(t.length>4 && t.endsWith('$$'))){ buf=[t]; close='$$'; continue; }
+      if(t.startsWith('\\[') && !t.endsWith('\\]')){ buf=[t]; close='\\]'; continue; }
+      out.push(raw); continue;
+    }
+    buf.push(t);
+    /* 닫는 $$ 를 안 쓴 글이 뒤를 통째로 삼키지 않게 — 40줄에서 손을 뗀다 */
+    if(t.endsWith(close)){ out.push(buf.join(' ')); buf=null; }
+    else if(buf.length>40){ out.push(...buf); buf=null; }
+  }
+  if(buf) out.push(...buf);
+  return out.join('\n');
+}
+['mdRich','mdLite'].forEach(k=>{
+  const f=window[k];
+  if(typeof f!=='function' || f.__mlmath) return;
+  const w=function(src){ return f.call(this, joinMath(src)); };
+  w.__mlmath=1;
+  try{ window[k]=w }catch(e){}
+});
+
+/* ══ ② 글자 크기 · 표 간격 ══ */
+const KEY='prac:edview:v1';
+const STEPS=[11,12,13,14,15,16,17,18,20];
+const DENS={
+  s:{ tp:'1px 5px',  tf:'.92em', tlh:'1.25', nm:'좁게' },
+  m:{ tp:'4px 8px',  tf:'1em',   tlh:'1.5',  nm:'보통' },
+  l:{ tp:'8px 12px', tf:'1.02em',tlh:'1.75', nm:'넓게' }
+};
+let V=(()=>{ try{ return Object.assign({fs:13,td:'m'},JSON.parse(localStorage.getItem(KEY)||'{}')) }
+            catch(e){ return {fs:13,td:'m'} } })();
+const save=()=>{ try{ localStorage.setItem(KEY,JSON.stringify(V)) }catch(e){} };
+
+function paint(W){
+  if(!W) return;
+  const d=DENS[V.td]||DENS.m;
+  W.style.setProperty('--edfs',V.fs+'px');
+  W.style.setProperty('--edpf',(V.fs+1)+'px');
+  W.style.setProperty('--edlh',V.fs>=16?'1.75':'1.7');
+  W.style.setProperty('--edtp',d.tp);
+  W.style.setProperty('--edtf',d.tf);
+  W.style.setProperty('--edtlh',d.tlh);
+  const n=W.querySelector('#edFsN'); if(n) n.textContent=V.fs;
+  W.querySelectorAll('.edvw button[data-td]').forEach(b=>b.classList.toggle('on',b.dataset.td===V.td));
+}
+
+function mount(W){
+  if(!W || W.querySelector('.edvw')) return;
+  const tools=W.querySelector('.tools'); if(!tools) return;
+
+  const g=document.createElement('span');
+  g.className='edvw';
+  g.innerHTML=`<button type="button" data-fs="-1" title="글자 작게">가−</button>
+    <b id="edFsN">13</b>
+    <button type="button" data-fs="1" title="글자 크게">가＋</button>
+    <span>표</span>
+    <button type="button" data-td="s" title="칸 여백을 줄여 표를 좁게">좁게</button>
+    <button type="button" data-td="m" title="기본 간격">보통</button>
+    <button type="button" data-td="l" title="칸 여백을 늘려 읽기 편하게">넓게</button>`;
+  const hint=tools.querySelector('.hint');
+  hint ? tools.insertBefore(g,hint) : tools.appendChild(g);
+
+  g.addEventListener('mousedown',e=>{ if(e.target.closest('button')) e.preventDefault() });
+  g.addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    e.preventDefault(); e.stopPropagation();
+    if(b.dataset.fs){
+      const i=STEPS.indexOf(V.fs);
+      const j=Math.max(0,Math.min(STEPS.length-1,(i<0?2:i)+(+b.dataset.fs)));
+      V.fs=STEPS[j];
+    }else if(b.dataset.td) V.td=b.dataset.td;
+    save(); paint(W);
+  });
+
+  paint(W);
+}
+
+/* ── 여러 줄 수식 틀 넣기 ── */
+const TPL='\n$$\n\\begin{aligned}\nP &= V I \\cos\\theta \\\\\n  &= 200 \\times 5 \\times 0.8 = 800\\ [\\text{W}]\n\\end{aligned}\n$$\n';
+function addAligned(W){
+  const bar=W.querySelector('.edbar');
+  if(!bar || bar.querySelector('#edAlign')) return;
+  const b=document.createElement('button');
+  b.type='button'; b.id='edAlign'; b.textContent='≡ 여러 줄 수식';
+  b.title='여러 줄로 이어지는 계산을 = 위치를 맞춰 세로로 씁니다 (줄바꿈은 \\\\)';
+  const where=bar.querySelector('.where');
+  where ? bar.insertBefore(b,where) : bar.appendChild(b);
+  b.addEventListener('mousedown',e=>e.preventDefault());
+  b.onclick=e=>{
+    e.preventDefault(); e.stopPropagation();
+    const ta=W.querySelector('#edTa'); if(!ta) return;
+    const s=ta.selectionStart, en=ta.selectionEnd;
+    ta.value=ta.value.slice(0,s)+TPL+ta.value.slice(en);
+    ta.selectionStart=ta.selectionEnd=s+TPL.length;
+    ta.focus();
+    ta.dispatchEvent(new Event('input',{bubbles:true}));
+  };
+}
+
+/* 창은 «처음 고쳐 쓰기를 누를 때» 만들어진다 — 생길 때까지 지켜본다 */
+const t=setInterval(()=>{
+  const W=$('.edw'); if(!W) return;
+  mount(W);                 /* 크기·간격 손잡이 */
+  addAligned(W);            /* 단추 줄(v140)이 늦게 붙어도 그때 끼운다 */
+  if(W.querySelector('.edvw') && W.querySelector('#edAlign')) clearInterval(t);
+},400);
+
+window.__pracEdView=()=>V;
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v143 · ① 표 칸 안에서 줄바꿈  ② 여러 개를 «동시에» 돌리기
+
+     ① 마크다운 표는 «한 줄 = 한 행» 이다. 그래서 칸 안에서 엔터를 쳐도
+        되돌아올 때 한 줄로 눌려 버렸다(cell 이 줄바꿈을 빈칸으로 바꾼다).
+        칸 안의 줄바꿈만 <br> 로 적어 두고, 그릴 때 다시 줄바꿈으로 되살린다.
+        · 왼쪽 글에서 : 칸 안에 <br> 라고 쓰면 거기서 줄이 바뀐다.
+        · 오른쪽 화면에서 : 칸 안에서 엔터를 치면 알아서 <br> 로 적힌다.
+        수식 안(\\)이 아니라 «칸 안» 이라는 점이 다르다 — $…$ 안에서는
+        여전히 줄이 안 바뀐다(KaTeX 규칙). 칸을 두 줄로 쓰고 싶으면
+        수식을 두 토막으로 끊고 사이에 <br> 를 넣으면 된다.
+
+     ② 지금까지는 한 문항을 끝내야 다음 문항을 시작했다(한 개에 20~40초).
+        1,200개면 며칠이다. 같은 프롬프트·같은 모델 그대로 두고
+        «동시에 몇 개씩» 만 늘린다 — 결과물 결은 하나도 안 바뀌고,
+        기다리는 시간만 동시 개수만큼 줄어든다.
+        너무 올리면 중계 서버가 거절한다(429). 4로 시작해 보고 늘린다.
+        거절당한 것은 잠깐 쉬었다 한 번 더 해 보고, 그래도 안 되면
+        실패 자루에 남는다 — «↻ 실패·안 된 것 다시» 로 주우면 된다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+.edw .prev td .cbr,.edw .prev th .cbr{display:block;height:0;font-size:0;line-height:0;color:transparent}
+.fastwrap{display:flex;align-items:center;gap:3px;margin-top:4px}
+.fastwrap > span{font:700 10px/1 var(--font-d,system-ui);color:var(--muted,#64748b);padding:0 3px}
+.dmenu-pop .fastwrap button{display:inline-flex!important;align-items:center;justify-content:center;
+  width:auto!important;min-width:30px;padding:0 8px!important;text-align:center!important;margin:0!important}
+.fastwrap button.on{background:var(--accent,#2563eb)!important;border-color:var(--accent,#2563eb)!important;color:#fff!important}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+
+/* ══════════ ① 표 칸 안 줄바꿈 ══════════ */
+
+/* 그릴 때 — 글에 적힌 <br> 를 진짜 줄바꿈으로 되살린다.
+   (마크다운을 그리는 쪽이 &lt;br&gt; 로 막아 두었으므로 그것만 푼다) */
+['mdRich','mdLite'].forEach(k=>{
+  const f=window[k];
+  if(typeof f!=='function' || f.__cellbr) return;
+  const w=function(src){
+    return String(f.apply(this,arguments)).replace(/&lt;\s*br\s*\/?\s*&gt;/gi,'<br>');
+  };
+  w.__cellbr=1; w.__mlmath=f.__mlmath;
+  try{ window[k]=w }catch(e){}
+});
+
+/* 되돌릴 때 — 오른쪽 화면에서 친 엔터를 <br> 로 적어 둔다.
+   ★ 살아 있는 화면은 안 건드린다(커서가 튄다). 똑같이 뜬 사본을 만들어
+     그 사본에서만 칸 안의 줄바꿈을 «<br>» 라는 글자로 바꾼 뒤 글로 되돌린다.
+   ★ 창이 쓰는 손잡이보다 «나중에» 걸어 두었으므로, 창이 한 줄로 눌러 놓은
+     것을 이쪽이 다시 제대로 고쳐 적는다. */
+function cellFix(){
+  const W=$('.edw'); if(!W || !W.classList.contains('on')) return;
+  const prev=$('#edPrev',W), ta=$('#edTa',W);
+  if(!prev || !ta) return;
+  if(prev.getAttribute('contenteditable')!=='true') return;
+  if(typeof window.__htmlToMd!=='function') return;
+  /* 칸 안에 줄바꿈거리가 없으면 손대지 않는다 */
+  if(!prev.querySelector('td br, th br, td div, td p, th div, th p')) return;
+
+  const c=prev.cloneNode(true);
+  $$('td,th',c).forEach(td=>{
+    $$('br',td).forEach(b=>b.replaceWith(document.createTextNode('<br>')));
+    $$('div,p',td).forEach(d=>{
+      const solo = !d.previousSibling && !(d.previousElementSibling);
+      const bits=[...d.childNodes];
+      if(!solo) d.before(document.createTextNode('<br>'));
+      bits.forEach(x=>d.before(x));
+      d.remove();
+    });
+  });
+  let md='';
+  try{ md=window.__htmlToMd(c) }catch(e){ return }
+  if(md && md!==ta.value) ta.value=md;
+}
+
+function wire(){
+  const W=$('.edw'); if(!W || W.__cellbr) return;
+  const prev=$('#edPrev',W), ta=$('#edTa',W);
+  if(!prev||!ta) return;
+  W.__cellbr=1;
+  let t=0;
+  prev.addEventListener('input',()=>{ clearTimeout(t); t=setTimeout(cellFix,300); });
+  prev.addEventListener('blur',()=>setTimeout(cellFix,0));
+  const save=$('#edSave',W);
+  if(save) save.addEventListener('pointerdown',cellFix,true);   /* 창이 먼저 훑은 뒤 다시 고친다 */
+  W.addEventListener('keydown',e=>{ if((e.ctrlKey||e.metaKey)&&e.key==='Enter') cellFix(); },true);
+}
+const wt=setInterval(()=>{ if($('.edw')){ wire(); if($('.edw').__cellbr) clearInterval(wt); } },400);
+
+/* ══════════ ② 동시에 돌리기 ══════════ */
+const rowsAll=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
+const needCv = r => !!((r.q_url&&!r.q_md)||(r.a_url&&!r.a_md));
+const needEz = r => !r.easy_md && !!(r.q_url||r.q_md);
+const FAILS  = ()=>{ try{ return (window.__pracFail&&window.__pracFail())||{} }catch(e){ return {} } };
+const FKEY='prac:jobfail:v1';
+function failPut(id,why){
+  const F=FAILS(); F[String(id)]={ why:String(why||'').slice(0,80), at:Date.now() };
+  try{ localStorage.setItem(FKEY,JSON.stringify(F)) }catch(e){}
+}
+function failDel(id){
+  const F=FAILS(); delete F[String(id)];
+  try{ localStorage.setItem(FKEY,JSON.stringify(F)) }catch(e){}
+}
+
+const CKEY='prac:fastn:v1';
+let CONC=(()=>{ const n=parseInt(localStorage.getItem(CKEY)||'4',10); return [2,4,6,8].includes(n)?n:4 })();
+let RUN=false;
+
+const say=t=>{ try{ cvSay(t) }catch(e){ const el=$('#cvStat'); if(el) el.textContent=t } };
+const stopped=()=>{ try{ return !!CVSTOP }catch(e){ return false } };
+const naptime=ms=>new Promise(r=>setTimeout(r,ms));
+const mmss=s=>{ s=Math.max(0,Math.round(s)); const m=Math.floor(s/60);
+  return m?`${m}분 ${String(s%60).padStart(2,'0')}초 남음`:`${s}초 남음` };
+
+function poolOf(scope){
+  const yr=$('#fYear')?.value||'', ss=$('#fSess')?.value||'';
+  let rows=rowsAll();
+  if(scope==='sess'){
+    if(yr||ss) rows=rows.filter(r=>(!yr||String(r.year)===String(yr))&&(!ss||String(r.session)===String(ss)));
+    else{
+      const c=(Array.isArray(window.SHOWN)?window.SHOWN:[])[0];
+      if(c) rows=rows.filter(r=>String(r.year)===String(c.year)&&String(r.session)===String(c.session));
+    }
+  }
+  const F=FAILS();
+  return rows.filter(r=>needCv(r)||needEz(r)||F[String(r.id)]);
+}
+
+/* 한 문항을 끝까지 — 글자 변환 다음에 쉬운 풀이.
+   중계가 «너무 많다» 고 거절하면 잠깐 쉬었다 한 번만 더 해 본다. */
+async function doOne(r){
+  const busyish = e => /429|quota|rate|too many|과부하|overload|503/i.test(String((e&&e.message)||e));
+  for(let try_=0; try_<2; try_++){
+    try{
+      if(needCv(r)) await cvRow(r,false);
+      if(needEz(r)) await ezMake(r.id,false,true);
+      if(needCv(r)||needEz(r)) throw new Error('돌렸으나 채워지지 않음');
+      return null;
+    }catch(e){
+      if(try_===0 && busyish(e)){ await naptime(3000+Math.random()*2000); continue; }
+      return (e&&e.message)||String(e);
+    }
+  }
+  return '알 수 없음';
+}
+
+async function fast(scope){
+  if(RUN) return alert('이미 돌고 있습니다.');
+  let busy=false; try{ busy=CVBUSY||EZBUSY }catch(e){}
+  if(busy) return alert('다른 작업이 돌고 있습니다. 그것부터 끝내거나 중지해 주세요.');
+
+  const pool=poolOf(scope);
+  if(!pool.length) return alert('할 일이 없습니다 — 이 범위는 이미 다 돼 있습니다.');
+  const nCv=pool.filter(needCv).length, nEz=pool.filter(needEz).length;
+  const per=32;                                   /* 한 문항에 대략 이 정도 걸린다 */
+  if(!confirm(`${scope==='sess'?'이 회차':'전체'} — ${pool.length}개를 «동시에 ${CONC}개» 씩 돌립니다.\n`
+    +`· 글자 변환 ${nCv}개\n· 쉬운 풀이 ${nEz}개\n\n`
+    +`프롬프트·모델·결은 지금 설정 그대로입니다 — 결과물 질은 안 바뀝니다.\n`
+    +`혼자 돌리면 ${Math.ceil(pool.length*per/60)}분, 지금 설정이면 대략 ${Math.ceil(pool.length*per/CONC/60)}분입니다.\n`
+    +`중계가 거절하면(429) 실패가 늘 수 있습니다 — 그때는 동시 개수를 낮추세요.\n\n계속할까요?`)) return;
+
+  RUN=true;
+  try{ CVSTOP=false; CVBUSY=true; EZBUSY=true; }catch(e){}
+  const stop=$('#cvStop'), prog=$('#cvProg'), bar=$('#cvBar');
+  if(stop) stop.hidden=false; if(prog) prog.hidden=false;
+  $$('.fastwrap button').forEach(b=>b.disabled=true);
+
+  const t0=Date.now();
+  let i=0, ok=0, bad=0, done=0;
+
+  const worker=async()=>{
+    while(true){
+      if(stopped()) return;
+      const k=i++; if(k>=pool.length) return;
+      const r=pool[k];
+      const why=await doOne(r);
+      done++;
+      if(why){ bad++; failPut(r.id,why); } else { ok++; failDel(r.id); }
+      const el=(Date.now()-t0)/1000;
+      const eta=done>CONC ? mmss(el/done*(pool.length-done)) : '';
+      say(`동시 ${CONC}개 — ${done}/${pool.length} · 됨 ${ok}`+(bad?` · 실패 ${bad}`:'')+(eta?`  ${eta}`:''));
+      if(bar) bar.style.width=(done/pool.length*100)+'%';
+      if(done%12===0){ try{ drawList(); cvCount(); }catch(e){} }
+    }
+  };
+  await Promise.all(Array.from({length:CONC},worker));
+
+  try{ CVBUSY=false; EZBUSY=false; }catch(e){}
+  RUN=false;
+  if(stop) stop.hidden=true; if(prog) prog.hidden=true;
+  $$('.fastwrap button').forEach(b=>b.disabled=false);
+  const took=Math.round((Date.now()-t0)/1000);
+  say((stopped()?'중지했습니다. ':'')+`${ok}개 완료`+(bad?` · ${bad}개 실패 (실패 자루에 남겼습니다)`:'')
+      +` · ${Math.floor(took/60)}분 ${took%60}초 걸림`);
+  try{ drawList(); cvCount(); }catch(e){}
+}
+
+/* ── 도구 차림표에 끼운다 («실패·안 된 것 다시» 옆) ── */
+const mt=setInterval(()=>{
+  const host=document.getElementById('ezRedoAll')?.parentElement;
+  if(!host) return;
+  clearInterval(mt);
+  if(document.getElementById('fastAll')) return;
+
+  const mk=(id,txt,title)=>{ const b=document.createElement('button');
+    b.className='chip'; b.type='button'; b.id=id; b.textContent=txt; b.title=title; return b };
+  const lab=document.createElement('div');
+  lab.className='dmenu-lab'; lab.textContent='동시에 돌리기 (빠르게)';
+  const a=mk('fastAll','⚡⚡ 전체 빠르게','안 된 것과 지난번 실패한 것을 동시에 여러 개씩 돌립니다');
+  const b=mk('fastSess','⚡⚡ 이 회차 빠르게','지금 고른 회차만 동시에 여러 개씩 돌립니다');
+
+  const w=document.createElement('div');
+  w.className='fastwrap';
+  w.innerHTML='<span>동시</span>'+[2,4,6,8].map(n=>
+    `<button type="button" class="chip" data-n="${n}">${n}</button>`).join('');
+  const sync=()=>$$('button[data-n]',w).forEach(x=>x.classList.toggle('on',+x.dataset.n===CONC));
+  w.addEventListener('click',e=>{
+    const x=e.target.closest('button[data-n]'); if(!x) return;
+    e.stopPropagation();
+    CONC=+x.dataset.n; try{ localStorage.setItem(CKEY,String(CONC)) }catch(e2){}
+    sync();
+  });
+  sync();
+
+  host.append(lab,a,b,w);
+  a.onclick=()=>fast('all');
+  b.onclick=()=>fast('sess');
+},700);
+setTimeout(()=>clearInterval(mt),40000);
+
+addEventListener('beforeunload',e=>{ if(RUN){ e.preventDefault(); e.returnValue=''; } });
+window.__pracFast=fast;
 })();
 </script>
 
