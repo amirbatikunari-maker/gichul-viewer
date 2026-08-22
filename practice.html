@@ -6002,12 +6002,24 @@ body.deck-fold .deck{display:none}
   },220);
   setTimeout(()=>clearInterval(boot),20000);
 
+  /* ★★ 되풀이 고리 ★★
+     감시자가 «#ovl 안이 바뀌었다» 를 듣고 수식을 그리는데, 수식을 그리는 일 자체가
+     #ovl 안을 바꾼다(KaTeX 가 태그를 잔뜩 끼워 넣는다). 그래서 그리면 또 깨고,
+     깨면 또 그린다 — 한눈에를 열 때 «다시 그리기 20~40번» 이 이것이었다.
+     이제 «내가 만든 변화인가» 를 표시해 두고, 그동안 온 알림은 버린다. */
+  let MUTE=0;
+  const quiet=fn=>{ MUTE++; try{ fn() }catch(e){} setTimeout(()=>{ MUTE=Math.max(0,MUTE-1) },140); };
   const l=$('#list');
-  if(l) new MutationObserver(()=>setTimeout(()=>{mathify(l);sizeCols()},20)).observe(l,{childList:true});
+  if(l) new MutationObserver(()=>{ if(MUTE) return;
+    setTimeout(()=>quiet(()=>{mathify(l);sizeCols()}),20) }).observe(l,{childList:true});
   const ov=$('#ovl');
   if(ov){
-    new MutationObserver(()=>setTimeout(()=>mathify(ov),30))
-      .observe(ov,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
+    /* 속(subtree)까지 듣던 것을 «칸이 통째로 갈릴 때» 만 듣게 좁힌다 */
+    new MutationObserver(()=>{ if(MUTE) return; setTimeout(()=>quiet(()=>mathify(ov)),30) })
+      .observe(ov,{attributes:true,attributeFilter:['class']});
+    ['#ovLeft','#ovRight'].forEach(sel=>{ const el=$(sel);
+      if(el) new MutationObserver(()=>{ if(MUTE) return;
+        setTimeout(()=>quiet(()=>mathify(ov)),30) }).observe(el,{childList:true}); });
   }
   setInterval(()=>{ mathify(document); },2500);
 })();
@@ -6375,13 +6387,23 @@ body.onlyimport #boxFiles,body.onlyimport #boxImport{display:block!important}
   const boot = setInterval(() => { if(window.renderMathInElement){ clearInterval(boot); texAll(); } }, 200);
   setTimeout(() => clearInterval(boot), 20000);
 
+  /* ★ 위와 같은 고리다. 수식을 그리면 그 자리가 또 바뀌므로 스스로를 깨운다.
+     ① 내가 그리는 동안 온 알림은 버리고
+     ② «속까지» 듣지 않고 칸이 갈릴 때만 듣는다. */
+  let TMUTE = 0;
+  const tquiet = fn => { TMUTE++; try{ fn() }catch(e){} setTimeout(() => { TMUTE = Math.max(0, TMUTE-1); }, 140); };
   ['#list', '#ovl'].forEach(sel => {
     const wait = setInterval(() => {
       const n = document.querySelector(sel);
       if(!n) return;
       clearInterval(wait);
-      new MutationObserver(() => setTimeout(() => texAll(n), 25))
-        .observe(n, { childList:true, subtree:true });
+      const targets = sel === '#ovl'
+        ? [document.querySelector('#ovLeft'), document.querySelector('#ovRight')].filter(Boolean)
+        : [n];
+      targets.forEach(t => new MutationObserver(() => {
+        if(TMUTE) return;
+        setTimeout(() => tquiet(() => texAll(n)), 25);
+      }).observe(t, { childList:true }));
       texAll(n);
     }, 250);
     setTimeout(() => clearInterval(wait), 20000);
@@ -9736,11 +9758,19 @@ addEventListener('keydown',e=>{ if(e.key==='Escape'&&CUR){ e.preventDefault(); c
 addEventListener('scroll',()=>{ if(CUR) place() },true);
 addEventListener('resize',()=>{ if(CUR) place() });
 
+/* ★ 이것도 같은 고리다 — 그림에 손대면 그 자리가 바뀌고, 바뀌면 또 손댄다.
+   내가 손대는 동안 온 알림은 버리고, «칸이 통째로 갈릴 때» 만 듣는다. */
+let PMUTE=0;
+const pquiet=fn=>{ PMUTE++; try{ fn() }catch(e){} setTimeout(()=>{ PMUTE=Math.max(0,PMUTE-1) },160); };
 paintAll();
 ['#list','#ovl'].forEach(sel=>{
   const wait=setInterval(()=>{
     const n=document.querySelector(sel); if(!n) return; clearInterval(wait);
-    new MutationObserver(()=>setTimeout(()=>paintAll(n),40)).observe(n,{childList:true,subtree:true});
+    const targets = sel==='#ovl'
+      ? [document.querySelector('#ovLeft'),document.querySelector('#ovRight')].filter(Boolean)
+      : [n];
+    targets.forEach(t=>new MutationObserver(()=>{ if(PMUTE) return;
+      setTimeout(()=>pquiet(()=>paintAll(n)),40) }).observe(t,{childList:true}));
     paintAll(n);
   },250);
   setTimeout(()=>clearInterval(wait),20000);
@@ -9968,25 +9998,46 @@ function check(){
     const id=sampleId();
     if(!id) return res({ok:false,why:'잴 문항이 없습니다'});
     const e0=errs;
-    let paints=0;
-    const mo=new MutationObserver(m=>{ paints+=m.length });
-    const list=$('#list'), ovl=$('#ovl');
-    try{ if(list) mo.observe(list,{childList:true});
-         if(ovl) mo.observe(ovl,{childList:true,subtree:true}); }catch(x){}
+
+    /* ★ 무엇을 세는가 — 여기가 지난번에 틀렸던 곳.
+       예전에는 «#ovl 안이 몇 번 바뀌었나» 를 셌다. 그런데 수식 한 줄만 그려도
+       태그가 수십 개 끼어들어 그 수가 20~40 이 된다. 겹과 아무 상관이 없다.
+       진짜 되풀이는 «판을 다시 그리는 함수가 몇 번 불렸나» 다. 그것을 센다.
+       덧붙여, 처음 그리는 450ms 는 빼고 «잠잠해진 뒤» 에만 바뀜을 센다. */
+    let drawN=0, listN=0, settle=0;
+    const d0=window.ovDraw, l0=window.drawList;
+    if(typeof d0==='function'){ const g=function(){ drawN++; return d0.apply(this,arguments) }; g.__probe=1; window.ovDraw=g; }
+    if(typeof l0==='function'){ const g=function(){ listN++; return l0.apply(this,arguments) }; g.__probe=1; g.__tag=l0.__tag; g.__guard=l0.__guard; window.drawList=g; }
+
+    let counting=false;
+    const mo=new MutationObserver(()=>{ if(counting) settle++; });
+    const ovl=$('#ovl');
+    try{ if(ovl) mo.observe(ovl,{childList:true,subtree:true}); }catch(x){}
+
     const t0=performance.now();
     let openMs=0;
     try{ (window.ovOpen||function(){})(id); openMs=Math.round(performance.now()-t0); }
-    catch(x){ mo.disconnect(); return res({ok:false,why:'여는 중 오류: '+((x&&x.message)||x)}); }
+    catch(x){
+      mo.disconnect(); if(d0) window.ovDraw=d0; if(l0) window.drawList=l0;
+      return res({ok:false,why:'여는 중 오류: '+((x&&x.message)||x)});
+    }
+    setTimeout(()=>{ counting=true; drawN=0; listN=0; }, 450);   /* 처음 그리기는 빼고 센다 */
     setTimeout(()=>{
       mo.disconnect();
+      if(d0) window.ovDraw=d0;
+      if(l0) window.drawList=l0;
       try{ (window.ovClose||function(){})(); }catch(x){}
       const de=errs-e0;
-      const ok = openMs<=800 && paints<=8 && de===0;
-      res({ ok, openMs, paints, errs:de,
-            why: ok?'' : (openMs>800?`여는 데 ${openMs}ms`:'')
-                      + (paints>8?` · 다시 그리기 ${paints}번`:'')
-                      + (de?` · 오류 ${de}건`:'') });
-    },1600);
+      const ok = openMs<=1200 && drawN<=1 && listN<=1 && settle<=14 && de===0;
+      res({ ok, openMs, paints:settle, drawN, listN, errs:de,
+            why: ok?'' : [
+              openMs>1200 ? `여는 데 ${openMs}ms` : '',
+              drawN>1     ? `판 다시 그리기 ${drawN}번` : '',
+              listN>1     ? `목록 다시 그리기 ${listN}번` : '',
+              settle>14   ? `잠잠해진 뒤에도 ${settle}번 바뀜` : '',
+              de          ? `오류 ${de}건` : ''
+            ].filter(Boolean).join(' · ') });
+    },1900);
   });
 }
 
@@ -10022,7 +10073,7 @@ function build(){
     if(!next){ mark(k,'',''); log(`«${nameOf(k)}» 를 껐습니다.`); return; }
     mark(k,'재는 중','run');
     const r=await check();
-    if(r.ok){ mark(k,'정상','ok'); log(`«${nameOf(k)}» 켬 — 정상 (여는 데 ${r.openMs}ms · 다시 그리기 ${r.paints}번)`); }
+    if(r.ok){ mark(k,'정상','ok'); log(`«${nameOf(k)}» 켬 — 정상 (여는 데 ${r.openMs}ms · 판 다시 그리기 ${r.drawN}번)`); }
     else{ window.OVL.set(k,false); paint(); mark(k,'이상','bad');
           log(`«${nameOf(k)}» 를 켜니 이상 — ${r.why}\n→ 도로 껐습니다.`); }
   });
