@@ -13959,8 +13959,16 @@ function relabel(){
   if(!Object.keys(L).length) return;
 
   /* 연도 거르개 */
+  /* ★★ 여기가 «연도를 고르면 문제가 하나도 안 나오던» 자리다.
+     연도 칸은 <option>9001</option> 처럼 value 없이 만들어진다. value 를 안 적으면
+     브라우저가 «보이는 글자» 를 값으로 쓴다. 그래서 글자만 «단답 (9001)» 로 바꿔 놓으면
+     값까지 «단답 (9001)» 이 되어, 9001 과 견주는 거르개가 한 개도 못 찾았다.
+     글자를 바꾸기 «전에» 값을 숫자로 못 박아 둔다. */
   $$('#fYear option').forEach(o=>{
-    const y=o.value; if(!y) return;
+    const y=(o.getAttribute('value')!==null ? o.value : o.textContent.trim()).match(/\d{3,5}/)?.[0]
+          || o.value;
+    if(!y) return;
+    if(o.getAttribute('value')===null || o.value!==y) o.setAttribute('value',y);
     const n=nameOf(y);
     const want = n ? `${n} (${y})` : y;
     if(o.textContent!==want) o.textContent=want;
@@ -14162,7 +14170,12 @@ const wait=setInterval(()=>{
   const w=async function(doc,name,MODE){
     let out=await orig.apply(this,arguments);
     if(!Array.isArray(out) || !out.length) return out;
-    if(document.getElementById('impMerge')?.checked) out=mergeSub(out);
+    const useX  = !!document.getElementById('impMerge')?.checked;
+    const useAns= !!document.getElementById('impArrow')?.checked;
+    if(useX||useAns){
+      try{ out=await refine(doc,out,{useX,useAns,MODE}) }
+      catch(e){ try{ log('   ⚠ 다듬다가 멈췄습니다 — '+((e&&e.message)||e)) }catch(x){} }
+    }
     if(!on()) return out;
     const M=man();
     if(!M){
@@ -14194,26 +14207,105 @@ setTimeout(()=>clearInterval(wait),30000);
    장이 바뀌며 번호가 1로 돌아가는 자리는 대개 새 쪽에서 시작하므로 살아남는다.
    혹시 몰라 연달아 12개까지만 붙인다. */
 const byDoc=(a,b)=>((a.start?.page||0)-(b.start?.page||0))||((a.start?.top||0)-(b.start?.top||0));
-function mergeSub(list){
+
+/* ══ ①-2 들여쓰기로 «보기 항목» 을 가려내고, «▶» 를 답안 표시로 쓴다 ══
+
+   실제 PDF(단답 25~01년)를 좌표까지 뜯어보면 이렇게 생겼다.
+     x=42.5  «6. 한국전기설비규정에 의거하여 …»   ← 진짜 문제 (왼쪽 마진)
+     x=60.6  «1. 고압 가공전선이 …»               ← 그 문제 안의 보기 (들여쓰기)
+     x=42.5  «▶ ① 0.8 ② 0.4 ③ 0.6»              ← 답
+
+   그러니 가릴 잣대는 «번호» 가 아니라 «들여쓰기» 다. 552개 중 왼쪽 마진에 붙은 것이
+   516개, 들여쓴 것이 36개였다 — 번호로 어림잡아 102개를 붙이던 것보다 훨씬 정확하다.
+   그리고 이 책에는 «답안작성» 이라는 말이 없다. 답은 언제나 «▶» 로 시작한다.
+   그 줄을 찾아 그 앞을 문제, 뒤를 답으로 자른다.
+
+   그림에서 글자 자리를 다시 읽어야 하므로 쪽마다 한 번 더 훑는다(쪽당 한 번만, 담아 둔다). */
+async function pageLines(doc, p, cache){
+  if(cache.has(p)) return cache.get(p);
+  const page=await doc.getPage(p);
+  const vp=page.getViewport({scale:1});
+  const tc=await page.getTextContent();
+  const keys=[], map=new Map(), xs=new Map();
+  for(const it of tc.items){
+    if(!it.str.trim()) continue;
+    const pt=vp.convertToViewportPoint(it.transform[4], it.transform[5]);
+    const y=pt[1], x=pt[0];
+    let k=keys.find(v=>Math.abs(v-y)<4);
+    if(k===undefined){ keys.push(y); k=y; }
+    map.set(k,(map.get(k)||'')+it.str);
+    xs.set(k, Math.min(xs.has(k)?xs.get(k):1e9, x));
+  }
+  const arr=[...map.entries()].map(([y,txt])=>({y, x:xs.get(y), txt:txt.trim()}))
+              .sort((a,b)=>a.y-b.y);
+  cache.set(p,arr);
+  return arr;
+}
+const ARROW=/^\s*[▶►▷➤]/;
+
+function mergeInto(prev,it){
+  prev.end = it.end || prev.end;
+  prev.lastPage = it.lastPage || prev.lastPage;
+  prev.text = (prev.text||'') + '\n' + (it.text||'');
+  if(!prev.ansAt && it.ansAt) prev.ansAt = it.ansAt;
+}
+
+async function refine(doc, list, opt){
   const ord=list.slice().sort(byDoc);
-  const keep=[]; let run=0, merged=0;
-  for(const it of ord){
-    const prev=keep[keep.length-1];
-    const samePage = prev && (it.start?.page===prev.lastPage || it.start?.page===prev.start?.page);
-    const back = prev && (+it.no<=+prev.no);
-    if(prev && samePage && back && run<12){
-      prev.end = it.end || prev.end;
-      prev.lastPage = it.lastPage || prev.lastPage;
-      prev.text = (prev.text||'') + '\n' + (it.text||'');
-      if(!prev.ansAt && it.ansAt) prev.ansAt = it.ansAt;
-      run++; merged++; continue;
+  const cache=new Map();
+
+  /* ① 문항마다 «그 줄이 얼마나 들여써졌나» 를 잰다 */
+  if(opt.useX){
+    for(const it of ord){
+      it.__x=0;
+      try{
+        const L=await pageLines(doc, it.start.page, cache);
+        const y=(it.start.top||0)+8;
+        const hit=L.find(l=>Math.abs(l.y-y)<7) || L.find(l=>l.y>=y-3);
+        if(hit) it.__x=hit.x;
+      }catch(e){}
     }
-    keep.push(it); run=0;
+    const xs=ord.map(i=>i.__x).filter(v=>v>0).sort((a,b)=>a-b);
+    if(xs.length>=10){
+      const margin=xs[Math.floor(xs.length*0.1)];      /* 아래쪽 10% 자리 ≒ 왼쪽 마진 */
+      const keep=[]; let merged=0;
+      for(const it of ord){
+        const prev=keep[keep.length-1];
+        if(prev && it.__x>0 && it.__x > margin+6){ mergeInto(prev,it); merged++; continue; }
+        keep.push(it);
+      }
+      /* 너무 많이 붙으면 잘못 잰 것이다 — 손대지 않는다 */
+      if(merged && merged < ord.length*0.45){
+        try{ log(`   들여쓴 «보기 항목» ${merged}개를 앞 문제에 붙였습니다 (${ord.length} → ${keep.length}문항, 마진 ${margin.toFixed(0)}pt)`) }catch(e){}
+        ord.length=0; ord.push(...keep);
+      }else if(merged){
+        try{ log(`   ⚠ 들여쓰기로 가려내려 했으나 ${merged}개나 걸려 그대로 두었습니다`) }catch(e){}
+      }
+    }
   }
-  if(merged){
-    try{ log(`   보기 항목 ${merged}개를 앞 문제에 도로 붙였습니다 (${ord.length} → ${keep.length}문항)`) }catch(e){}
+
+  /* ② «▶» 를 답안 표시로 삼는다 */
+  if(opt.useAns && opt.MODE==='qa'){
+    let got=0;
+    for(const it of ord){
+      if(it.ansAt) continue;
+      const p0=it.start.page, p1=(it.end&&it.end.page)||it.lastPage||p0;
+      let hit=null;
+      for(let p=p0; p<=p1 && !hit; p++){
+        let L; try{ L=await pageLines(doc,p,cache) }catch(e){ break }
+        for(const l of L){
+          if(p===p0 && l.y <= (it.start.top||0)+12) continue;
+          if(it.end && p===it.end.page && it.end.top!=null && l.y >= it.end.top) break;
+          if(ARROW.test(l.txt)){ hit={ page:p, top:Math.max(0,l.y-8) }; break; }
+        }
+      }
+      if(hit){ it.ansAt=hit; got++; }
+    }
+    if(got){ try{ log(`   «▶» 를 찾아 답안 자리를 ${got}개 잡았습니다`) }catch(e){} }
   }
-  return keep;
+
+  ord.forEach(x=>{ delete x.__x });
+  return ord;
 }
 
 /* ══ ② 올리는 화면에 체크칸 ══ */
@@ -14228,9 +14320,13 @@ const mt=setInterval(()=>{
       위에 적은 연도·회차 하나로 모두 몰아넣고 번호를 1번부터 쭉 이어 매깁니다 — 덮어쓸 자리가 없어집니다.
       <br>회차가 제대로 적힌 <b>기출본에는 끄고</b> 쓰세요.</div>
     <label style="margin-top:8px"><input type="checkbox" id="impMerge" checked>
-      <b>«1. 2. 3.» 보기 항목을 문제로 쪼개지 않기</b></label>
+      <b>들여쓴 «1. 2. 3.» 은 보기로 보고 쪼개지 않기</b></label>
     <div class="h2">한 문제 안의 번호 붙은 보기까지 문제로 잘려 개수가 부풀 때 켜세요.
-      같은 쪽에서 <b>번호가 앞으로 안 가면</b> 새 문제가 아니라 보기로 보고 앞 문제에 도로 붙입니다.</div>`;
+      진짜 문제 번호는 <b>왼쪽 마진에 붙어</b> 있고 보기는 들여써 있습니다 — 그 자리를 재서 가려냅니다.</div>
+    <label style="margin-top:8px"><input type="checkbox" id="impArrow" checked>
+      <b>«▶» 를 답안 표시로 쓰기</b></label>
+    <div class="h2">«답안작성» 이라는 말 대신 <b>▶</b> 로 답이 시작하는 자료(다산 단답본)에 쓰세요.
+      그 줄 앞을 문제, 뒤를 답안으로 잘라 <b>답 가림판</b>이 동작합니다.</div>`;
   (yi.closest('.grid')||yi.closest('div')?.parentElement||yi.parentElement).after(box);
   const c=document.getElementById('impOne');
   c.addEventListener('change',()=>{
