@@ -2097,7 +2097,11 @@ function attachInk(wrap, stage, tools, qid, side){
     const pr = (e.pressure && e.pressure > 0) ? e.pressure : .5;
     return Math.max(base * .45, Math.min(base * 1.9, base * (.45 + pr * 1.3)));
   }
-  const eraserTip = e => e.pointerType === "pen" && (e.buttons & 32) === 32;
+  /* S펜 뒤쪽 지우개·옆 단추는 기기마다 다르게 온다.
+     크롬은 지우개를 buttons&32 로, 삼성인터넷·일부 펌웨어는 옆 단추를 buttons&2 로 준다.
+     button 값(2·5)으로만 오는 것도 있어 셋 다 받는다. */
+  const eraserTip = e => e.pointerType === "pen" &&
+    (((e.buttons & 32) === 32) || ((e.buttons & 2) === 2) || e.button === 5 || e.button === 2);
 
   cv.addEventListener("pointerdown", e => {
     if(!on) return;
@@ -7857,7 +7861,9 @@ const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelect
 
 /* ══ ① 해설 결 설정 ══════════════════════════════════════════ */
 const CKEY='prac:ezcfg:v1';
-const DEF={level:'보통',len:'보통',extra:''};
+/* 처음값 — 시험장에서 손이 가는 순서(실전) · 중간 식 안 건너뛰기(자세히) ·
+   같은 말 되풀이하지 않기. 한 번 바꿔 두면 그 뒤로는 고른 대로 간다. */
+const DEF={level:'실전',len:'자세히',extra:'같은 내용을 두 번 쓰지 마라. 앞에서 말한 것은 다시 설명하지 말고 넘어가라.'};
 let CFGZ=(()=>{ try{ return Object.assign({},DEF,JSON.parse(localStorage.getItem(CKEY)||'{}')) }catch(e){ return {...DEF} } })();
 const csave=()=>{ try{ localStorage.setItem(CKEY,JSON.stringify(CFGZ)) }catch(e){} };
 window.__pracEzCfg=()=>CFGZ;
@@ -10523,7 +10529,8 @@ setTimeout(()=>clearInterval(hook),20000);
 /* ══ ② 진행률 ══ */
 function counts(){
   const rows=rowsAll();
-  const cvAll=rows.filter(r=>r.q_url||r.a_url);
+  const skip=window.__pracNoCv||(()=>false);
+  const cvAll=rows.filter(r=>(r.q_url||r.a_url)&&!skip(r.id));
   const cvOk=cvAll.filter(r=>(!r.q_url||r.q_md)&&(!r.a_url||r.a_md));
   const ezAll=rows.filter(r=>r.q_url||r.q_md);
   const ezOk=ezAll.filter(r=>r.easy_md);
@@ -10908,6 +10915,406 @@ const mt=setInterval(()=>{
 setTimeout(()=>clearInterval(mt),30000);
 
 addEventListener('beforeunload',e=>{ if(JOB.running){ e.preventDefault(); e.returnValue=''; } });
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v125 · ① «글자로 변환 안 함» (문항마다)  ② 크기·자른 자리 확실히 남기기
+            ③ 줄인 그림 가운데로  ④ 한눈에 머리에 «이 문항 변환 · 해설»
+
+     ① 그림 그대로 두어야 하는 문항이 있다(표·회로도가 글자로 바뀌면 되레 망가진다).
+        문항마다 «변환 안 함» 을 걸어 두면 한꺼번에 돌릴 때도 그 문항은 건너뛴다.
+     ② 크기와 자른 자리는 글(마크다운)에 적어 Supabase 로 올린다. 그런데 인터넷이
+        끊기거나 권한이 막히면 조용히 사라졌다. 이제 이 기기에도 함께 적어 두고,
+        다시 열 때 글에 없으면 기기에 적어 둔 것으로 되살린다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* 문항 머리의 «변환 안 함» */
+.nocvb{flex:none;height:19px;padding:0 7px;border-radius:9px;cursor:pointer;
+  border:1px solid var(--line,#e2e8f0);background:var(--surface-2,#f3f5f9);
+  color:var(--muted,#64748b);font:800 9.5px/1 var(--font-m,monospace)}
+.nocvb.on{background:#fdf2f2;border-color:#f0b4b4;color:#b42033}
+.pcard.nocv .qmd::after{content:'';display:none}
+
+/* ③ 줄인 그림은 칸 가운데로 — 왼쪽에 붙어 허전하던 것 */
+.qmd img.mdimg,.easybox img.mdimg,.ez img.mdimg,#ovl img.mdimg{display:block;margin-left:auto;margin-right:auto}
+.qmd figure,.easybox figure,.ez figure,#ovl figure{margin-left:auto;margin-right:auto;text-align:center}
+.qmd figure img,#ovl figure img{display:block;margin-left:auto;margin-right:auto}
+
+/* ④ 한눈에 머리의 새 단추 */
+.ovacts button.mk{border-color:#bcd3f7;color:#1d4ed8;background:#f4f8ff}
+.ovacts button:disabled{opacity:.5;cursor:default}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const rowsAll=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
+const rowOf=id=>rowsAll().find(r=>String(r.id)===String(id));
+const log=t=>{ try{ window.__pracLog&&window.__pracLog(t) }catch(e){} };
+
+/* ══ ① 글자로 변환 안 함 ══ */
+const NKEY='prac:nocv:v1';
+let NO=(()=>{ try{ return new Set(JSON.parse(localStorage.getItem(NKEY)||'[]').map(String)) }
+              catch(e){ return new Set() } })();
+const nsave=()=>{ try{ localStorage.setItem(NKEY,JSON.stringify([...NO])) }catch(e){} };
+const isNo=id=>NO.has(String(id));
+window.__pracNoCv=isNo;
+function toggleNo(id){
+  const k=String(id);
+  NO.has(k)?NO.delete(k):NO.add(k);
+  nsave(); stamp();
+  log(`${NO.has(k)?'글자 변환에서 뺐습니다':'글자 변환에 다시 넣었습니다'} — ${nameOf(id)}`);
+}
+function nameOf(id){ const r=rowOf(id); return r?`${r.year}년 제${r.session}회 ${r.no}번`:'#'+id }
+
+/* 한꺼번에 돌릴 때 «정말로» 건너뛴다 — 변환 함수 앞에서 막는다 */
+const hook=setInterval(()=>{
+  if(typeof window.cvRow!=='function'||window.cvRow.__nocv) return;
+  const o=window.cvRow;
+  const g=async function(r){
+    if(r&&isNo(r.id)){ log(`변환 건너뜀 — ${nameOf(r.id)} (변환 안 함으로 걸어 두셨습니다)`); return false; }
+    return o.apply(this,arguments);
+  };
+  g.__nocv=1; g.__fail=o.__fail; window.cvRow=g; clearInterval(hook);
+},400);
+setTimeout(()=>clearInterval(hook),25000);
+
+/* 문항 머리에 단추를 박는다 */
+function stamp(){
+  $$('#list > .pcard').forEach(card=>{
+    const head=card.querySelector('.phead'); if(!head) return;
+    const id=card.dataset.id;
+    let b=head.querySelector('.nocvb');
+    if(!b){
+      b=document.createElement('button');
+      b.type='button'; b.className='nocvb';
+      b.title='한꺼번에 변환할 때 이 문항은 건너뜁니다 (그림 그대로 둡니다)';
+      b.addEventListener('click',e=>{ e.preventDefault(); e.stopPropagation(); toggleNo(id); });
+      const cv=head.querySelector('.cvbadge');
+      cv?head.insertBefore(b,cv):head.appendChild(b);
+    }
+    const on=isNo(id);
+    b.textContent=on?'⊘ 변환 안 함':'⊘ 변환';
+    b.classList.toggle('on',on);
+    card.classList.toggle('nocv',on);
+  });
+}
+const w1=setInterval(()=>{ const l=$('#list'); if(!l) return; clearInterval(w1);
+  new MutationObserver(()=>setTimeout(stamp,50)).observe(l,{childList:true}); stamp(); },300);
+setTimeout(()=>clearInterval(w1),20000);
+
+/* ══ ② 크기·자른 자리 — 이 기기에도 함께 남긴다 ══
+   글(마크다운)에 적는 것이 본디 방식이고, 여기 적는 것은 «못 올라갔을 때» 를 위한 보험이다. */
+const LKEY='prac:imgfix:v1';
+let LOC=(()=>{ try{ return JSON.parse(localStorage.getItem(LKEY)||'{}') }catch(e){ return {} } })();
+const lsave=()=>{ try{ localStorage.setItem(LKEY,JSON.stringify(LOC)) }catch(e){} };
+function keyOf(im){
+  const f=im.closest('figure[data-fig]');
+  return f ? 'fig:'+(f.dataset.fig||'') : 'img:'+(im.getAttribute('src')||'');
+}
+function remember(im){
+  const id=(im.closest('.pcard')?.dataset.id) || (typeof OVID!=='undefined'?OVID:null);
+  if(!id) return;
+  const k=keyOf(im); if(!k||k==='img:') return;
+  const w=(im.style.width||'').trim(), c=im.dataset.crop||'';
+  const bag=(LOC[String(id)] ||= {});
+  if(!w&&!c) delete bag[k]; else bag[k]={ w, c };
+  lsave();
+}
+function restore(root){
+  $$('img.mdimg, figure[data-fig] img', root||document).forEach(im=>{
+    const id=(im.closest('.pcard')?.dataset.id) || (typeof OVID!=='undefined'?OVID:null);
+    if(!id) return;
+    const v=(LOC[String(id)]||{})[keyOf(im)]; if(!v) return;
+    if(v.w && !im.style.width) im.style.width=v.w;
+    if(v.c && !im.dataset.crop){ im.dataset.crop=v.c; }
+  });
+}
+/* 크기·자르기를 만질 때마다 기억해 둔다 (막대가 닫힐 때 한 번) */
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.imsz,[data-crop-btn],.cropbar')) return;
+  setTimeout(()=>{ $$('img.mdimg, figure[data-fig] img').forEach(remember) },400);
+},true);
+setInterval(()=>{ try{ restore() }catch(e){} },2500);
+setTimeout(()=>{ try{ restore() }catch(e){} },1500);
+
+/* ══ ④ 한눈에 머리에 «이 문항 변환 · 해설» ══ */
+function addOvBtns(){
+  const box=$('#ovl .ovacts'); if(!box||$('[data-ova="cv"]',box)) return;
+  const mk=(k,ico,t,title)=>{
+    const b=document.createElement('button');
+    b.type='button'; b.className='mk'; b.dataset.ova=k; b.title=title;
+    b.innerHTML=`${ico}<span class="t"> ${t}</span>`;
+    return b;
+  };
+  const cv=mk('cv','⚡','글자 변환','이 문항의 그림을 글자로 바꿉니다');
+  const ez=mk('ez','✎','쉬운 해설','이 문항의 쉬운 풀이를 씁니다 (있으면 다시 씁니다)');
+  box.insertBefore(ez,box.firstChild);
+  box.insertBefore(cv,box.firstChild);
+
+  box.addEventListener('click',async e=>{
+    const b=e.target.closest('[data-ova="cv"],[data-ova="ez"]'); if(!b) return;
+    e.preventDefault(); e.stopPropagation();
+    let id=null; try{ id=OVID }catch(x){}
+    const r=rowOf(id); if(!r) return;
+    const k=b.dataset.ova;
+    b.disabled=true; const t0=b.innerHTML; b.innerHTML='…';
+    try{
+      if(k==='cv'){
+        if(isNo(id)&&!confirm('이 문항은 «변환 안 함» 으로 걸려 있습니다. 그래도 바꿀까요?')) throw 0;
+        const fn=window.cvRow;
+        /* 한 문항만은 «변환 안 함» 걸림을 잠깐 풀고 부른다 */
+        const was=NO.has(String(id)); if(was) NO.delete(String(id));
+        try{ await fn(r,true); } finally { if(was){ NO.add(String(id)); nsave(); } }
+        log(`변환 ✓ ${nameOf(id)} (한눈에에서)`);
+      }else{
+        r.easy_md=null;
+        await window.ezMake(id,true);
+        log(`해설 ✓ ${nameOf(id)} (한눈에에서)`);
+      }
+      try{ ovDraw(); }catch(x){}
+    }catch(x){ if(x) log(`실패 — ${nameOf(id)} · ${(x&&x.message)||x}`); }
+    b.disabled=false; b.innerHTML=t0;
+  });
+}
+const w2=setInterval(()=>{ if($('#ovl .ovacts')){ addOvBtns(); clearInterval(w2); } },500);
+setTimeout(()=>clearInterval(w2),25000);
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v126 · 겹치는 문항 묶기 — 같은 문제를 여러 번 풀지 않게
+
+     같은 문제가 회차를 바꿔 가며 되풀이 나온다. 그림이 조금씩 달라도
+     묻는 글이 같으면 사실상 한 문제다. 그런 것을 한 덩어리로 묶어
+     «대표» 한 문항만 목록에 두고, 나머지는 감춘다.
+     대표의 제목 옆에 «중복 4문항» 이라 적어 두어, 몇 개가 접혔는지 보이게 한다.
+
+     어떻게 같다고 보나 (엄격하게) ──
+       ① 그림 자리([[그림]] · ![]())와 빈칸·문장부호를 걷어낸 «묻는 글» 만 남긴다.
+          그림이 달라도 글이 같으면 같은 문제로 본다.
+       ② 숫자는 지우지 않는다. 값이 다르면 다른 문제다(수용률 0.6 과 0.8 은 다르다).
+       ③ 글자 다섯 짝(5-gram)을 견줘 85% 넘게 겹칠 때만 같다고 본다.
+       ④ 사슬을 타지 않는다. 반드시 «대표» 와 직접 견준다.
+          (예전에 출제확률이 98% 로 튀었던 것이 사슬 묶기 때문이었다)
+     대표는 «쉬운 풀이가 있는 것 → 답안이 있는 것 → 최근 회차» 순으로 고른다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+.dupb{flex:none;display:inline-flex;align-items:center;height:19px;padding:0 7px;border-radius:9px;
+  border:1px solid #cbb7e6;background:#f6f1fd;color:#6b2fb3;cursor:pointer;
+  font:800 9.5px/1 var(--font-m,monospace)}
+.dupb:hover{border-color:#a97fdd}
+.dupwrap{margin:6px 0 0;padding:7px 9px;border:1px dashed #cbb7e6;border-radius:9px;background:#faf7fe}
+.dupwrap .t{font:800 9px/1 var(--font-m,monospace);letter-spacing:.08em;color:#6b2fb3;margin-bottom:5px}
+.dupwrap .it{display:inline-block;margin:0 5px 4px 0;padding:2px 7px;border-radius:7px;
+  border:1px solid var(--line,#e2e8f0);background:#fff;cursor:pointer;
+  font:600 10px/1.4 var(--font-d,system-ui);color:var(--ink-2,#475569)}
+.dupwrap .it:hover{border-color:#a97fdd;color:#6b2fb3}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const rowsAll=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
+const rowOf=id=>rowsAll().find(r=>String(r.id)===String(id));
+const nameOf=r=>`${r.year}년 제${r.session}회 ${r.no}번`;
+
+/* ══ ① 묻는 글만 남긴다 ══ */
+function norm(r){
+  return String(r.q_md||r.q_text||'')
+    .replace(/\[\[[^\]]*\]\]/g,' ')            /* 오려 온 그림 자리 */
+    .replace(/!\[[^\]]*\]\([^)]*\)/g,' ')      /* 붙인 그림 */
+    .replace(/https?:\/\/\S+/g,' ')
+    .replace(/[·∙・…\s\u00a0]+/g,'')
+    .replace(/[.,;:!?()[\]{}"'`~\-—–_|]/g,'')
+    .trim();
+}
+const shingles=t=>{ const s=new Set(); for(let i=0;i<=t.length-5;i+=1) s.add(t.slice(i,i+5)); return s };
+function jac(a,b){
+  if(!a.size||!b.size) return 0;
+  const [x,y]=a.size<b.size?[a,b]:[b,a];
+  let hit=0; x.forEach(v=>{ if(y.has(v)) hit++ });
+  return hit/(a.size+b.size-hit);
+}
+/* 대표 고르기 — 쓸모가 많은 것을 남긴다 */
+function better(a,b){
+  const sc=r=>(r.easy_md?4:0)+(r.a_md||r.a_text?2:0)+(r.q_md?1:0);
+  const d=sc(b)-sc(a); if(d) return d>0?b:a;
+  const y=(+b.year||0)-(+a.year||0); if(y) return y>0?b:a;
+  return ((+b.session||0)-(+a.session||0))>0?b:a;
+}
+
+/* ══ ② 묶기 (틈날 때 잘게) ══ */
+let GROUPS=new Map();      /* 대표 id → [겹치는 row …] */
+let HIDE=new Set();        /* 감출 id */
+let SIG='', BUSY=false, READY=false;
+const idle=fn=>(window.requestIdleCallback?requestIdleCallback(()=>fn(),{timeout:250}):setTimeout(fn,0));
+
+function build(){
+  if(BUSY||window.__pracSwap) return;
+  const rows=rowsAll(); if(rows.length<2) return;
+  const sig=rows.length+'|'+(rows[0]&&rows[0].id);
+  if(sig===SIG) return;
+  BUSY=true; SIG=sig;
+
+  const buckets=new Map(); const norms=new Map();
+  let i=0;
+  function pass1(){
+    const t0=performance.now();
+    while(i<rows.length && performance.now()-t0<12){
+      const r=rows[i++]; const t=norm(r);
+      if(t.length<14) continue;                 /* 너무 짧은 글은 견줄 수 없다 */
+      norms.set(String(r.id),t);
+      /* 길이와 첫머리로 칸을 나눠 견줄 상대를 줄인다 — 전부와 견주지 않는다 */
+      const key=Math.round(t.length/10)+'|'+t.slice(0,8);
+      (buckets.get(key)||buckets.set(key,[]).get(key)).push(r);
+      const key2=Math.round(t.length/10)+'|'+t.slice(-8);
+      (buckets.get(key2)||buckets.set(key2,[]).get(key2)).push(r);
+    }
+    if(i<rows.length) return idle(pass1);
+    i=0; return idle(pass2);
+  }
+  const seen=new Set(), reps=[];
+  const keys=[]; 
+  function pass2(){
+    if(!keys.length) keys.push(...buckets.keys());
+    const t0=performance.now();
+    while(i<keys.length && performance.now()-t0<12){
+      const list=buckets.get(keys[i++]);
+      if(!list||list.length<2) continue;
+      const shin=new Map();
+      for(const r of list){
+        const id=String(r.id);
+        if(!shin.has(id)) shin.set(id,shingles(norms.get(id)||''));
+      }
+      for(const r of list){
+        const id=String(r.id);
+        if(seen.has(id)) continue;
+        /* «별 모양» 으로 묶는다 — 반드시 대표와 직접 견준다(사슬 금지) */
+        let rep=r, mates=[];
+        for(const o of list){
+          const oid=String(o.id);
+          if(oid===id||seen.has(oid)) continue;
+          if(jac(shin.get(id),shin.get(oid))>=0.85) mates.push(o);
+        }
+        if(!mates.length) continue;
+        seen.add(id); mates.forEach(m=>seen.add(String(m.id)));
+        const all=[r,...mates];
+        rep=all.reduce(better);
+        reps.push({ rep, all });
+      }
+    }
+    if(i<keys.length) return idle(pass2);
+    return idle(done);
+  }
+  function done(){
+    GROUPS=new Map(); HIDE=new Set();
+    reps.forEach(({rep,all})=>{
+      const uniq=[...new Map(all.map(x=>[String(x.id),x])).values()]
+        .sort((a,b)=>(b.year-a.year)||(b.session-a.session)||(a.no-b.no));
+      GROUPS.set(String(rep.id),uniq);
+      uniq.forEach(x=>{ if(String(x.id)!==String(rep.id)) HIDE.add(String(x.id)) });
+    });
+    BUSY=false; READY=true;
+    try{ stamp() }catch(e){}
+    if(ON()) { try{ drawList() }catch(e){} }
+    try{ window.__pracLog&&window.__pracLog(`겹치는 문항 ${HIDE.size}개를 ${GROUPS.size}덩어리로 묶었습니다`) }catch(e){}
+  }
+  idle(pass1);
+}
+window.__pracDup=()=>({groups:GROUPS,hide:HIDE,ready:READY});
+
+/* ══ ③ 목록에서 빼기 ══ */
+const KEY='prac:dupfold:v1';
+let FOLD=(()=>{ try{ return localStorage.getItem(KEY)!=='0' }catch(e){ return true } })();
+const ON=()=>FOLD&&READY&&HIDE.size>0;
+
+function hook(){
+  if(typeof drawList!=='function'||drawList.__dup) return false;
+  const orig=drawList;
+  const w=function(){
+    if(!ON()) return orig.apply(this,arguments);
+    const all=rowsAll();
+    let use;
+    try{ use=all.filter(r=>!HIDE.has(String(r.id))); if(!use.length) use=all; }
+    catch(e){ use=all }
+    try{ window.__pracSwap=true; ROWS=use; return orig.apply(this,arguments); }
+    catch(e){ ROWS=all; return orig.apply(this,arguments); }
+    finally{ ROWS=all; window.__pracSwap=false; }
+  };
+  w.__dup=1; w.__tag=orig.__tag; w.__probe=orig.__probe;
+  window.drawList=w;
+  return true;
+}
+
+/* ══ ④ 제목 옆에 «중복 N문항» ══ */
+function stamp(){
+  $$('#list > .pcard').forEach(card=>{
+    const head=card.querySelector('.phead'); if(!head) return;
+    const id=String(card.dataset.id||'');
+    const g=GROUPS.get(id);
+    let b=head.querySelector('.dupb');
+    if(!g||g.length<2){ b&&b.remove(); card.querySelector('.dupwrap')?.remove(); return; }
+    if(!b){
+      b=document.createElement('button');
+      b.type='button'; b.className='dupb';
+      b.addEventListener('click',e=>{ e.preventDefault(); e.stopPropagation(); openList(card,id); });
+      const cv=head.querySelector('.cvbadge');
+      cv?head.insertBefore(b,cv):head.appendChild(b);
+    }
+    b.textContent=`중복 ${g.length}문항`;
+    b.title=g.map(nameOf).join(' · ')+'\n눌러서 어느 회차인지 봅니다';
+  });
+}
+function openList(card,id){
+  const g=GROUPS.get(id)||[]; 
+  let box=card.querySelector('.dupwrap');
+  if(box){ box.remove(); return; }
+  box=document.createElement('div'); box.className='dupwrap';
+  box.innerHTML=`<div class="t">같은 내용으로 묶인 ${g.length}문항 — 눌러서 그 회차로 갑니다</div>`
+    + g.map(r=>`<span class="it" data-go="${r.id}">${nameOf(r)}${String(r.id)===id?' · 대표':''}</span>`).join('');
+  card.querySelector('.phead').after(box);
+  box.addEventListener('click',e=>{
+    const it=e.target.closest('[data-go]'); if(!it) return;
+    const r=rowOf(it.dataset.go); if(!r) return;
+    try{ ovOpen(r.id) }catch(x){}
+  });
+}
+
+/* ══ ⑤ 켜고 끄기 ══ */
+function mountChip(){
+  const row=document.getElementById('tagRow'); if(!row||row.querySelector('[data-dup]')) return;
+  const sep=document.createElement('span'); sep.className='sep';
+  const b=document.createElement('button');
+  b.type='button'; b.dataset.dup=''; 
+  b.title='묻는 글이 같은 문항을 한 덩어리로 접습니다 (그림이 조금 달라도)';
+  const paint=()=>{ b.textContent=`⧉ 중복 묶기${READY&&HIDE.size?' ('+HIDE.size+')':''}`;
+                    b.classList.toggle('on',FOLD); };
+  b.addEventListener('click',()=>{
+    FOLD=!FOLD; try{ localStorage.setItem(KEY,FOLD?'1':'0') }catch(e){}
+    paint(); try{ drawList() }catch(e){}
+  });
+  const clear=row.querySelector('[data-clear]');
+  clear?row.insertBefore(sep,clear):row.appendChild(sep);
+  clear?row.insertBefore(b,clear):row.appendChild(b);
+  paint();
+  setInterval(paint,2000);
+}
+
+/* 자료가 늦게 들어와도 잡되, 다 붙고 나면 시계를 끈다 */
+let hooked=false, chipped=false;
+const boot=setInterval(()=>{
+  if(!hooked) hooked=hook();
+  if(!chipped){ mountChip(); chipped=!!document.querySelector('[data-dup]'); }
+  if(rowsAll().length) build();
+  if(hooked&&chipped&&READY) clearInterval(boot);
+},1200);
+const w=setInterval(()=>{ const l=$('#list'); if(!l) return; clearInterval(w);
+  new MutationObserver(()=>setTimeout(stamp,60)).observe(l,{childList:true}); },400);
+setTimeout(()=>clearInterval(w),20000);
 })();
 </script>
 
