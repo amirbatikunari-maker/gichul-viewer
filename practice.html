@@ -811,6 +811,8 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
           <option value="20" selected>20문항</option>
           <option value="30">30문항</option>
           <option value="50">50문항</option>
+          <option value="100">100문항</option>
+          <option value="all">전체 (조건에 맞는 것 다)</option>
         </select>
         <button class="chip on" id="fOne" type="button" title="한 화면에 한 문항만 보여 줍니다">한 문항씩</button>
       </div>
@@ -826,6 +828,8 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
         <button class="chip" id="ezRedoSess" type="button" title="지금 고른 회차의 쉬운 풀이를 «지우고» 다시 씁니다">↻ 이 회차 다시 해석</button>
         <button class="chip" id="ezRedoAll" type="button" title="이 과목 전 회차의 쉬운 풀이를 «지우고» 다시 씁니다">↻ 전 회차 다시 해석</button>
         <button class="chip" id="ezSetup" type="button" title="쉬운 풀이를 어떤 결로 쓸지 정합니다">⚙ 해설 설정</button>
+        <button class="chip" id="cvAllSess" type="button" title="지금 고른 회차를 «이미 바꿔 둔 것까지» 처음부터 다시 글자로 바꿉니다">가↻ 이 회차 전체 변환</button>
+        <button class="chip" id="cvAll" type="button" title="이 과목 전부를 «이미 바꿔 둔 것까지» 처음부터 다시 글자로 바꿉니다">가↻ 전체 다시 변환</button>
         <button class="chip" id="cvStop" type="button" hidden>중지</button>
         <span class="cvsep"></span>
         <select id="fSize" title="글자 크기">
@@ -1609,8 +1613,13 @@ $("#fRand").onclick = () => {
   let pool = ROWS;
   if(y) pool = pool.filter(r => String(r.year) === y);
   if(s) pool = pool.filter(r => String(r.session) === s);
-  if(!pool.length) return;
-  RAND = [...pool].sort(() => Math.random() - .5).slice(0, +$("#fRandN").value).map(r => r.id);
+  /* ★ 예전에는 «등급·유형» 을 무시하고 전체에서 뽑았다. 그래서 20문항을 뽑아도
+     뒤에서 걸러지며 16문항만 남는 일이 생겼다. 이제 걸러진 뒤의 것에서 뽑는다. */
+  try{ if(window.__pracRowPass) pool = pool.filter(window.__pracRowPass); }catch(e){}
+  if(!pool.length) return alert("지금 조건에 맞는 문항이 없습니다. 등급·유형을 조금 풀어 보세요.");
+  const want = $("#fRandN").value;
+  const n = (want === "all") ? pool.length : +want;
+  RAND = [...pool].sort(() => Math.random() - .5).slice(0, n).map(r => r.id);
   HIDE_ALL = true;                                  /* 랜덤은 풀어 보는 용도라 답안을 가린 채로 시작한다 */
   $("#fAns").classList.add("on"); $("#fAns").textContent = "답안 모두 가리기";
   paintRand(); drawList();
@@ -2934,7 +2943,7 @@ async function cvRun(force){
   CVBUSY = true; CVSTOP = false;
   $("#cvStop").hidden = false;
   $("#cvProg").hidden = false;
-  $("#cvGap").disabled = $("#ezRun").disabled = true;
+  ["#cvGap","#ezRun","#cvAll","#cvAllSess"].forEach(k => { const b = $(k); if(b) b.disabled = true; });
 
   let ok = 0, bad = 0, n = 0;
   const fails = [];
@@ -2958,7 +2967,7 @@ async function cvRun(force){
 
   $("#cvStop").hidden = true;
   $("#cvProg").hidden = true;
-  $("#cvGap").disabled = $("#ezRun").disabled = false;
+  ["#cvGap","#ezRun","#cvAll","#cvAllSess"].forEach(k => { const b = $(k); if(b) b.disabled = false; });
   CVBUSY = false;
   cvSay((CVSTOP ? "중지했습니다. " : "") + `변환 ${ok}개 완료` + (bad ? ` · ${bad}개 실패` : "")
     + (bad ? "  (아래 기록을 보세요)" : ""));
@@ -2996,6 +3005,48 @@ $("#fSplit")?.addEventListener("click", () => {
   paintView(); drawList();
 });
 $("#cvGap")?.addEventListener("click", () => cvRun(false));
+$("#cvAll")?.addEventListener("click", () => cvRun(true));
+
+/* 지금 고른 회차만 처음부터 다시 글자로 — cvRun 은 과목 전체를 보므로 여기서 따로 돈다 */
+$("#cvAllSess")?.addEventListener("click", async () => {
+  if(CVBUSY || EZBUSY) return alert("지금 다른 작업이 돌고 있습니다.");
+  const yr = $("#fYear").value, ss = $("#fSess").value;
+  let pool = ROWS.filter(r => r.q_url || r.a_url);
+  let label = "이 과목 전체";
+  if(yr || ss){
+    pool = pool.filter(r => (!yr || String(r.year) === yr) && (!ss || String(r.session) === ss));
+    label = `${yr || "모든 연도"} ${ss ? "제" + ss + "회" : ""}`.trim();
+  }else{
+    const cur = SHOWN[ONEAT] || SHOWN[0];
+    if(!cur) return alert("먼저 연도·회차를 고르거나, 문항을 하나 열어 주세요.");
+    pool = pool.filter(r => String(r.year) === String(cur.year) && String(r.session) === String(cur.session));
+    label = `${cur.year}년 제${cur.session}회`;
+  }
+  if(!pool.length) return alert("그림이 있는 문항이 없습니다.");
+  if(!confirm(`${label} — ${pool.length}개를 처음부터 다시 글자로 바꿉니다.\n`
+    + `이미 바꿔 둔 글자는 새 것으로 덮어씁니다.\n`
+    + `한 개에 20~40초쯤 걸리므로 대략 ${Math.ceil(pool.length * 30 / 60)}분입니다. 계속할까요?`)) return;
+
+  CVBUSY = true; CVSTOP = false;
+  $("#cvStop").hidden = false; $("#cvProg").hidden = false;
+  ["#cvGap","#ezRun","#cvAll","#cvAllSess"].forEach(k => { const b = $(k); if(b) b.disabled = true; });
+  let ok = 0, bad = 0, n = 0;
+  for(const r of pool){
+    if(CVSTOP) break;
+    n++;
+    cvSay(`전체 변환 ${n}/${pool.length} — ${r.year}년 제${r.session}회 ${r.no}번 · 됨 ${ok}` + (bad ? ` · 실패 ${bad}` : ""));
+    $("#cvBar").style.width = (n / pool.length * 100) + "%";
+    try{ (await cvRow(r, true)) ? ok++ : 0; }
+    catch(e){ bad++; log(`변환 실패 ${r.year}-${r.session} ${r.no}번 — ${e.message || e}`); }
+    await new Promise(x => setTimeout(x, 400));
+  }
+  $("#cvStop").hidden = true; $("#cvProg").hidden = true;
+  ["#cvGap","#ezRun","#cvAll","#cvAllSess"].forEach(k => { const b = $(k); if(b) b.disabled = false; });
+  CVBUSY = false;
+  cvSay((CVSTOP ? "중지했습니다. " : "") + `전체 변환 ${ok}개 완료` + (bad ? ` · ${bad}개 실패` : ""));
+  TEXTMODE = true; paintText();
+  (window.__pracRedraw || drawList)(); cvCount();
+});
 $("#cvStop")?.addEventListener("click", () => { CVSTOP = true; cvSay("중지하는 중…"); });
 
 /* ── 그림에서 네모 부분만 잘라 낸다 (비율 좌표 → 실제 픽셀) ── */
@@ -3838,7 +3889,7 @@ async function ezRunAll(){
 
   EZBUSY = true; CVSTOP = false;
   $("#cvStop").hidden = false; $("#cvProg").hidden = false;
-  $("#cvGap").disabled = $("#ezRun").disabled = true;
+  ["#cvGap","#ezRun","#cvAll","#cvAllSess"].forEach(k => { const b = $(k); if(b) b.disabled = true; });
   let ok = 0, bad = 0, n = 0;
   for(const r of pool){
     if(CVSTOP) break;
@@ -3850,7 +3901,7 @@ async function ezRunAll(){
     await new Promise(x => setTimeout(x, 400));
   }
   $("#cvStop").hidden = true; $("#cvProg").hidden = true;
-  $("#cvGap").disabled = $("#ezRun").disabled = false;
+  ["#cvGap","#ezRun","#cvAll","#cvAllSess"].forEach(k => { const b = $(k); if(b) b.disabled = false; });
   EZBUSY = false;
   cvSay((CVSTOP ? "중지했습니다. " : "") + `쉬운 풀이 ${ok}개 완료` + (bad ? ` · ${bad}개 실패` : ""));
   drawList(); cvCount();
@@ -4687,7 +4738,8 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
     put(v1,$('#fAns')); put(v1,$('#fEz'));
     put(v2,$('#sessionStart')); put(v2,$('#reviewWrong')); put(v2,$('#reviewMarked'));
     put(v2,menu('🛠 도구','글자 변환 · 자동 해설 · 다시 해석',
-      ['한꺼번에 처리',$('#cvGap'),$('#ezRun'),$('#cvStop'),
+      ['한꺼번에 처리 (아직 안 된 것만)',$('#cvGap'),$('#ezRun'),$('#cvStop'),
+       '그림 → 글자 다시 변환 (이미 바꾼 것까지)',$('#cvAllSess'),$('#cvAll'),
        '쉬운 풀이 다시 해석 (기존 것을 지우고 새로)',$('#ezRedoSess'),$('#ezRedoAll'),$('#ezSetup')]));
     put(v2,$('.bgm'));
     put(v2,menu('⋯','그 밖에',['그 밖에',$('#qHelp'),$('#logoutBtn')]));
@@ -5388,19 +5440,30 @@ body.ann-open .aic-fab,body.ann-open .app-float,body.ann-open .app-network{opaci
       }
     }
   }
-  let BUSY=false, busyT=0;
+  /* ★★ 여기가 «한눈에를 누르면 멎던» 진짜 고리였다 ★★
+     ① 한눈에 판이 열리면 #ovLeft · #ovRight 의 childList 를 지켜보다가 repaintAll 을 부른다.
+     ② repaintAll 은 표시를 다시 칠하려고 그 칸의 innerHTML 을 통째로 갈아 끼운다.
+     ③ 그 갈아 끼움이 다시 ①의 관찰자를 깨운다 → ② → ① → … 끝이 없다.
+     예전에는 90ms 짜리 «잠깐 쉬기» 하나로 막아 두었는데, 관찰자가 60ms 뒤에 부르니
+     간발의 차이였다. 화면이 조금만 느려지면(문항이 크거나 수식이 많으면) 그대로 뚫린다.
+     이제는 시간이 아니라 «내가 만든 변화인가» 로 막는다 — 내가 칠하는 동안 온 알림은 버린다. */
+  let BUSY=false, busyT=0, MUTE=0;
+  const selfMade = () => MUTE>0;
   function repaintAll(){
     if(BUSY) return;
-    BUSY=true;
+    BUSY=true; MUTE++;
     try{
       tag();
       $$('[data-ann]').forEach(el=>{ try{ repaintBox(el) }catch(x){} });
+    }catch(x){
+      try{ console.warn('표시를 다시 칠하지 못했습니다',x) }catch(y){}
     }finally{
       clearTimeout(busyT);
-      busyT=setTimeout(()=>{ BUSY=false; },90);   /* 내가 만든 변화로 다시 불려 오지 않게 */
+      busyT=setTimeout(()=>{ BUSY=false; MUTE=Math.max(0,MUTE-1); },260);
     }
-    sizeCols();
+    try{ sizeCols() }catch(x){}
   }
+  window.__annMute = selfMade;
   window.__pracAnnRepaint=repaintAll;
 
   /* ── 띠 · 쪽지 ── */
@@ -5558,12 +5621,15 @@ body.ann-open .aic-fab,body.ann-open .app-float,body.ann-open .app-network{opaci
   const boot=setInterval(()=>{
     if(!$('#list')) return; clearInterval(boot);
     repaintAll();
-    new MutationObserver(()=>setTimeout(repaintAll,40)).observe($('#list'),{childList:true});
+    new MutationObserver(()=>{ if(selfMade()) return;
+      setTimeout(()=>{ if(!selfMade()) repaintAll() },90); }).observe($('#list'),{childList:true});
     const ovl=$('#ovl');
     if(ovl){
-      new MutationObserver(()=>setTimeout(repaintAll,60)).observe(ovl,{attributes:true,attributeFilter:['class']});
+      new MutationObserver(()=>{ if(selfMade()) return; setTimeout(()=>{ if(!selfMade()) repaintAll() },80); })
+        .observe(ovl,{attributes:true,attributeFilter:['class']});
       ['#ovLeft','#ovRight'].forEach(s=>{ const el=$(s);
-        if(el) new MutationObserver(()=>setTimeout(repaintAll,60)).observe(el,{childList:true}); });
+        if(el) new MutationObserver(()=>{ if(selfMade()) return;
+          setTimeout(()=>{ if(!selfMade()) repaintAll() },150); }).observe(el,{childList:true}); });
     }
     ['fOne','fText','fSplit','fSize','fAns','fEz'].forEach(id=>
       document.getElementById(id)?.addEventListener('click',()=>setTimeout(repaintAll,120)));
@@ -7979,8 +8045,9 @@ function watch(){
       try{ history.pushState({ovl:1},''); }catch(e){}
     }else if(!on&&MARK){
       MARK=false;
-      /* 단추로 닫았을 때 남은 발자국을 조용히 걷어낸다 */
-      try{ if(history.state&&history.state.ovl) history.back(); }catch(e){}
+      /* ★ 예전에는 여기서 history.back() 을 불러 «남은 발자국» 을 걷어냈다.
+         그런데 판이 닫히는 길이 여럿(단추 · 뒤로 · Esc)이라 타이밍이 어긋나면
+         그 back() 이 앞 화면(필기뷰어)으로 되돌아가 버렸다. 발자국 하나는 그냥 둔다. */
     }
   }).observe(ovl,{attributes:true,attributeFilter:['class']});
 }
@@ -8601,6 +8668,8 @@ function toggle(list,v){
 const fsave=()=>{ try{ localStorage.setItem(FKEY,JSON.stringify(F)) }catch(e){} };
 
 function anyOn(){ return F.tiers.length||F.types.length||F.ncs||F.sort }
+/* 랜덤 뽑기처럼 «지금 걸린 조건» 이 필요한 곳에서 쓴다 */
+window.__pracRowPass = r => { try{ return rowPass(r) }catch(e){ return true } };
 function rowPass(r){
   if(!F.tiers.length&&!F.types.length&&!F.ncs) return true;
   let t=null; try{ t=info(r.id) }catch(e){ return true }
@@ -8707,7 +8776,11 @@ function mount(){
     else if(b.dataset.type!=null) toggle(F.types,b.dataset.type);
     else if(b.dataset.sort!=null) F.sort = F.sort===b.dataset.sort?'':b.dataset.sort;
     fsave(); paintChips();
+    /* 랜덤을 뽑아 둔 채로 조건을 바꾸면, 그 조건 안에서 다시 뽑아 준다 —
+       예전에는 조용히 풀려서 «갑자기 전체가 나오는» 것처럼 보였다. */
+    let had=false; try{ had=!!RAND }catch(x){}
     try{ RAND=null }catch(x){}
+    if(had){ try{ return document.getElementById('fRand')?.click() }catch(x){} }
     try{ drawList() }catch(x){}
   });
   paintChips();
@@ -9203,14 +9276,25 @@ window.__pracTrouble=trouble;
   -webkit-user-select:none;user-select:none}
 .odock .od-main{width:44px;height:44px;border-radius:50%;border:1px solid var(--line,#e2e8f0);
   background:var(--surface,#fff);color:var(--ink,#0f172a);cursor:pointer;
-  box-shadow:0 8px 24px rgba(15,23,42,.20);font-size:17px;line-height:1;
-  display:grid;place-items:center;transition:transform .15s}
+  box-shadow:0 8px 24px rgba(15,23,42,.20);font-size:17px;
+  display:flex;align-items:center;justify-content:center;transition:transform .15s}
 .odock.open .od-main{transform:rotate(45deg);background:var(--ink,#111827);color:#fff;border-color:var(--ink,#111827)}
 .odock .od-items{display:none;flex-direction:column-reverse;gap:6px}
 .odock.open .od-items{display:flex}
+/* ★ 아이콘이 동그라미 한가운데로 안 오던 것 —
+   단추 기본 여백(padding)과 글자 기준선(baseline) 때문이다.
+   여백을 0 으로 못 박고, 아이콘을 칸(span)에 넣어 그 칸을 가운데 세운다.
+   그림글자(이모지)와 기호글자는 기준선이 서로 달라, 글자 기준선을 아예 안 쓰게 만든다. */
+.odock button{padding:0!important;margin:0;box-sizing:border-box;
+  display:flex!important;align-items:center;justify-content:center;
+  -webkit-font-smoothing:antialiased;overflow:hidden}
 .odock .od-items button{width:40px;height:40px;border-radius:50%;cursor:pointer;
   border:1px solid var(--line,#e2e8f0);background:var(--surface,#fff);color:var(--ink,#0f172a);
-  box-shadow:0 6px 18px rgba(15,23,42,.16);font-size:15px;line-height:1;display:grid;place-items:center}
+  box-shadow:0 6px 18px rgba(15,23,42,.16);font-size:15px}
+.odock .ic{display:flex;align-items:center;justify-content:center;
+  width:100%;height:100%;line-height:1;text-align:center;
+  font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",system-ui,sans-serif;
+  transform:translateY(.5px)}                    /* 그림글자가 아주 조금 위로 뜨는 것 보정 */
 .odock .od-items button.on{background:var(--accent,#2563eb);border-color:var(--accent,#2563eb);color:#fff}
 .odock .od-items button:active{transform:scale(.94)}
 
@@ -9280,9 +9364,9 @@ const ITEMS=[
 ];
 const dock=document.createElement('div');
 dock.className='odock';
-dock.innerHTML=`<button type="button" class="od-main" title="도구 펴기/접기" aria-label="도구">✛</button>
+dock.innerHTML=`<button type="button" class="od-main" title="도구 펴기/접기" aria-label="도구"><span class="ic">✛</span></button>
   <div class="od-items">${ITEMS.map(i=>
-    `<button type="button" data-od="${i.k}" title="${i.t}" aria-label="${i.t}">${i.ico}</button>`).join('')}</div>`;
+    `<button type="button" data-od="${i.k}" title="${i.t}" aria-label="${i.t}"><span class="ic">${i.ico}</span></button>`).join('')}</div>`;
 document.body.appendChild(dock);
 
 const wide=()=>matchMedia('(min-width:1000px)').matches;
@@ -9629,6 +9713,131 @@ paintAll();
 setInterval(()=>paintAll(),3000);
 window.__rawFix=()=>FIX;
 window.__rawFixPaint=paintAll;
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v112 · «한눈에» 안전장치 — 막히면 스스로 풀고, 왜 막혔는지 말한다
+
+     ① 판을 여는 길(ovOpen · ovDraw)을 감싸 둔다. 안에서 무엇이 터지든
+        화면이 통째로 멎지 않고, 위쪽 알림줄에 까닭이 한 줄 뜬다.
+     ② 여는 데 2.5초가 넘게 걸리면 «무언가 걸렸다» 로 보고,
+        판 위에 «안전 모드로 다시 열기» 를 띄운다. 그걸 누르면
+        나중에 얹은 것들(주석 다시 칠하기 · 여백 자르기 · 그림 오리기)을
+        끄고 글자만으로 다시 연다.
+     ③ 주소 뒤에 ?safe=1 을 붙이면 처음부터 그 모드로 뜬다.
+        (버그를 잡을 때 «내가 얹은 것 때문인지» 를 한 번에 가른다)
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+.ovsafe{position:fixed;z-index:100060;left:50%;top:14px;transform:translateX(-50%);
+  display:none;align-items:center;gap:8px;padding:9px 12px;border-radius:12px;
+  background:#111827;color:#fff;box-shadow:0 14px 40px rgba(15,23,42,.34);
+  font:700 11.5px/1.4 var(--font-d,system-ui);max-width:calc(100vw - 24px)}
+.ovsafe.on{display:flex}
+.ovsafe button{height:28px;padding:0 10px;border:0;border-radius:8px;cursor:pointer;
+  background:#fff;color:#111827;font:800 11px/1 var(--font-d,system-ui)}
+body.ovsafemode .ovl .imgbox,body.ovsafemode .ovl .tw{filter:none}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s);
+const SAFE0=/[?&]safe=1/.test(location.search);
+let SAFE=SAFE0;
+
+const tip=document.createElement('div');
+tip.className='ovsafe';
+tip.innerHTML=`<span data-msg>한눈에 보기가 늦어집니다…</span>
+  <button type="button" data-go>안전 모드로 다시 열기</button>
+  <button type="button" data-x>닫기</button>`;
+document.body.appendChild(tip);
+tip.querySelector('[data-x]').onclick=()=>tip.classList.remove('on');
+tip.querySelector('[data-go]').onclick=()=>{
+  SAFE=true; document.body.classList.add('ovsafemode');
+  tip.classList.remove('on');
+  try{ ovDraw() }catch(e){}
+  say('안전 모드로 열었습니다 — 주석 다시 칠하기 · 여백 자르기 · 그림 오리기를 껐습니다.');
+};
+function show(msg){
+  tip.querySelector('[data-msg]').textContent=msg;
+  tip.classList.add('on');
+}
+function say(t){ try{ const el=$('#cvStat'); if(el) el.textContent=t }catch(e){} }
+
+/* ① 여는 길을 감싼다 */
+const wrap=setInterval(()=>{
+  if(typeof window.ovOpen!=='function'||window.ovOpen.__safe) return;
+  clearInterval(wrap);
+
+  const o0=window.ovOpen, d0=window.ovDraw;
+  const guardedOpen=function(id){
+    const t0=performance.now();
+    let late=setTimeout(()=>show('한눈에 보기가 2.5초 넘게 걸립니다 — 무언가 걸린 것 같습니다.'),2500);
+    try{
+      return o0.apply(this,arguments);
+    }catch(e){
+      try{ $('#ovl')?.classList.remove('on'); document.body.classList.remove('ovlopen') }catch(x){}
+      say('한눈에 보기를 열지 못했습니다 — '+((e&&e.message)||e));
+      show('한눈에 보기를 열지 못했습니다: '+String((e&&e.message)||e).slice(0,60));
+      try{ console.error('[ovOpen]',e) }catch(x){}
+    }finally{
+      clearTimeout(late);
+      const ms=Math.round(performance.now()-t0);
+      if(ms>1200) say(`한눈에 보기를 여는 데 ${ms}ms 걸렸습니다.`);
+    }
+  };
+  guardedOpen.__safe=1; window.ovOpen=guardedOpen;
+
+  if(typeof d0==='function'){
+    const guardedDraw=function(){
+      try{ return d0.apply(this,arguments); }
+      catch(e){
+        say('한눈에 내용을 그리지 못했습니다 — '+((e&&e.message)||e));
+        try{ console.error('[ovDraw]',e) }catch(x){}
+      }
+    };
+    guardedDraw.__safe=1; window.ovDraw=guardedDraw;
+  }
+},250);
+setTimeout(()=>clearInterval(wrap),20000);
+
+/* ② 안전 모드 — 판 위에서 도는 무거운 것들을 끈다 */
+function offHeavy(){
+  if(!SAFE) return false;
+  return true;
+}
+const patch=setInterval(()=>{
+  if(typeof window.applySqueeze!=='function'||window.applySqueeze.__safe) return;
+  clearInterval(patch);
+  const s0=window.applySqueeze, t0=window.applyTrim, f0=window.figFill, r0=window.__pracAnnRepaint;
+  const skip=async()=>{};
+  const mk=(fn)=>{ const g=function(root){
+      if(SAFE&&root&&root.id==='ovl') return skip();
+      if(SAFE&&root&&root.closest&&root.closest('#ovl')) return skip();
+      return fn.apply(this,arguments); };
+    g.__safe=1; return g };
+  if(typeof s0==='function') window.applySqueeze=mk(s0);
+  if(typeof t0==='function') window.applyTrim=mk(t0);
+  if(typeof f0==='function'){
+    const g=function(root,url){
+      if(SAFE&&root&&root.closest&&root.closest('#ovl')) return Promise.resolve();
+      return f0.apply(this,arguments); };
+    g.__safe=1; window.figFill=g;
+  }
+  if(typeof r0==='function'){
+    const g=function(){
+      if(SAFE&&$('#ovl')?.classList.contains('on')) return;
+      return r0.apply(this,arguments); };
+    g.__safe=1; window.__pracAnnRepaint=g;
+  }
+},250);
+setTimeout(()=>clearInterval(patch),20000);
+
+if(SAFE0){ document.body.classList.add('ovsafemode');
+  setTimeout(()=>say('안전 모드(?safe=1)로 열렸습니다 — 한눈에 판의 무거운 손질을 껐습니다.'),1500); }
+
+window.__ovSafe=v=>{ SAFE=!!v; document.body.classList.toggle('ovsafemode',SAFE); };
 })();
 </script>
 
