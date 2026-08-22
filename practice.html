@@ -13893,5 +13893,213 @@ window.__pracWhere=()=>({
 })();
 </script>
 
+
+<!-- ══════════════════════════════════════════════════════════════
+     v147 · 자료 이름표 — 숫자 연도 자리에 «단답» 같은 이름을 붙인다
+
+     연도·회차 칸은 숫자만 받는다(표의 칸이 숫자다). 문제집·단답 정리본처럼
+     연도가 없는 자료는 9001 · 9002 같은 «없는 연도» 를 골라 넣어 서로 안 겹치게
+     하는 것이 맞는데, 그러면 화면에 «9001년 제3회» 라고 뜬다. 읽을 수가 없다.
+
+     그래서 «숫자 → 이름» 짝을 이 기기에 적어 두고, 보이는 자리에서만 바꿔 끼운다.
+       · 연도 거르개       9001 → 단답 콜렉터
+       · 문항 카드 머리    9001년 제3회 → 단답 콜렉터 · 3장
+       · 문항 레일 · 위치줄
+     표에 든 값은 9001 그대로다 — 겹치지 않게 하는 것은 숫자가 하고,
+     읽는 것은 이름이 한다. 이름은 언제든 바꾸거나 떼면 된다.
+
+     ★ 올릴 때 : «회차가 PDF 에 안 적혀 있을 때 · 연도» 에 9001 을 넣고,
+       올린 뒤 여기서 그 숫자에 이름을 붙이면 된다.
+       올리는 화면에도 이름표 칸을 붙여 두었다 — 거기서 바로 골라도 된다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+.ylw{position:fixed;inset:0;z-index:100060;display:none;background:rgba(15,23,42,.45)}
+.ylw.on{display:flex;align-items:center;justify-content:center}
+.ylbox{background:var(--surface,#fff);color:var(--ink,#0f172a);width:min(620px,95vw);
+  max-height:86vh;border-radius:14px;display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 22px 60px rgba(15,23,42,.32)}
+.ylbox .h{display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid var(--line,#e6eaf0)}
+.ylbox .h b{font:800 13px/1 var(--font-d,system-ui)}
+.ylbox .h .sp{flex:1}
+.ylbox button{height:28px;padding:0 11px;border:1px solid var(--line,#e2e8f0);border-radius:8px;
+  background:var(--surface,#fff);color:var(--ink,#0f172a);cursor:pointer;font:700 11px/1 var(--font-d,system-ui)}
+.ylbox .note{padding:8px 14px;font:600 11px/1.6 var(--font-d,system-ui);color:var(--muted,#64748b);
+  border-bottom:1px solid var(--line,#e6eaf0);background:var(--surface-2,#f7f9fc)}
+.yllist{flex:1;min-height:0;overflow:auto;padding:10px 14px}
+.ylr{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--line,#eef2f7)}
+.ylr .y{flex:none;width:74px;font:800 12px/1 var(--font-m,monospace)}
+.ylr .n{flex:none;width:66px;font:600 10.5px/1 var(--font-d,system-ui);color:var(--muted,#64748b)}
+.ylr input{flex:1;min-width:0;height:30px;padding:0 9px;border:1px solid var(--line,#e2e8f0);
+  border-radius:8px;background:var(--card,#fff);color:var(--ink,#0f172a);
+  font:600 12px/1 var(--font-d,system-ui)}
+.ylr input:focus{outline:2px solid var(--accent,#2563eb);outline-offset:-1px}
+.ylf{padding:9px 14px;border-top:1px solid var(--line,#e6eaf0);
+  font:600 11px/1.5 var(--font-d,system-ui);color:var(--muted,#64748b)}
+.impyl{margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.impyl b{font:700 11px/1 var(--font-d,system-ui);color:var(--ink-2,#475569)}
+.impyl button{height:26px;padding:0 9px;border:1px solid var(--line,#e2e8f0);border-radius:7px;
+  background:var(--surface-2,#f7f9fc);color:var(--ink,#0f172a);cursor:pointer;
+  font:700 10.5px/1 var(--font-d,system-ui)}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const rowsAll=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
+
+const KEY='prac:ylabel:v1';
+let L=(()=>{ try{ return JSON.parse(localStorage.getItem(KEY)||'{}') }catch(e){ return {} } })();
+const save=()=>{ try{ localStorage.setItem(KEY,JSON.stringify(L)) }catch(e){} };
+const nameOf=y=>L[String(y)]||'';
+window.__pracYLabel=()=>L;
+
+/* ══ ① 보이는 곳에서 바꿔 끼운다 ══
+   표에 든 값(9001)은 그대로 두고 글자만 갈아 끼운다. */
+function relabel(){
+  if(!Object.keys(L).length) return;
+
+  /* 연도 거르개 */
+  $$('#fYear option').forEach(o=>{
+    const y=o.value; if(!y) return;
+    const n=nameOf(y);
+    const want = n ? `${n} (${y})` : y;
+    if(o.textContent!==want) o.textContent=want;
+  });
+
+  /* 문항 카드 머리 · 위치줄 · 레일 */
+  const swap=el=>{
+    const t=el.textContent;
+    if(!/\d{4}년\s*제\d+회/.test(t)) return;
+    const out=t.replace(/(\d{4})년\s*제(\d+)회/g,(m,y,s)=>{
+      const n=nameOf(y); return n ? `${n} · ${s}장` : m;
+    });
+    if(out!==t) el.textContent=out;
+  };
+  $$('#list .pmeta').forEach(swap);
+  $$('#ovl .pmeta, .ovhead .pmeta').forEach(swap);
+  const at=$('#pnavAt'); if(at) swap(at);
+
+  /* 레일 단추 — «25-3 8» 처럼 두 자리로 줄여 놓았다 */
+  $$('#prail .pb').forEach(b=>{
+    const t=b.textContent.trim();
+    const m=t.match(/^(\d{1,2})-(\d+)\s+(\d+)$/); if(!m) return;
+    const full=Object.keys(L).find(y=>String(+y%100).padStart(2,'0')===m[1].padStart(2,'0'));
+    if(!full) return;
+    const n=nameOf(full); if(!n) return;
+    const short=n.length>4?n.slice(0,4):n;
+    b.textContent=`${short} ${m[2]}-${m[3]}`;
+  });
+}
+/* 목록을 다시 그릴 때마다 한 번 더 훑는다 */
+(function hook(){
+  const orig=window.drawList;
+  if(typeof orig!=='function' || orig.__yl) return;
+  const w=function(){
+    const out=orig.apply(this,arguments);
+    setTimeout(relabel,0);
+    return out;
+  };
+  w.__yl=1; ['__tag','__dup','__todo','__src','__fb','__probe'].forEach(k=>{ w[k]=orig[k] });
+  window.drawList=w;
+})();
+setInterval(relabel,1200);           /* 레일·거르개는 다른 곳에서도 다시 그린다 */
+
+/* ══ ② 이름표 창 ══ */
+let W=null;
+function open_(){
+  if(!W){
+    W=document.createElement('div'); W.className='ylw';
+    W.innerHTML=`<div class="ylbox">
+      <div class="h"><b>자료 이름표</b><span class="sp"></span>
+        <button type="button" data-x="close">닫기</button></div>
+      <div class="note">연도 칸은 숫자만 받습니다. 문제집·정리본은 <b>9001 · 9002</b> 같은 없는 연도를 넣어
+        서로 안 겹치게 해 두고, 여기서 그 숫자에 이름을 붙이면 화면에는 이름으로 보입니다.
+        표에 든 값은 그대로라 언제든 이름만 바꾸거나 지울 수 있습니다.</div>
+      <div class="yllist" id="ylList"></div>
+      <div class="ylf">빈칸으로 두면 이름표가 떨어지고 다시 숫자로 보입니다.</div></div>`;
+    document.body.appendChild(W);
+    W.addEventListener('click',e=>{
+      if(e.target===W || e.target.closest('button[data-x="close"]')) W.classList.remove('on');
+    });
+    addEventListener('keydown',e=>{ if(e.key==='Escape'&&W.classList.contains('on')) W.classList.remove('on') });
+  }
+  paint(); W.classList.add('on');
+}
+function paint(){
+  const box=$('#ylList',W); if(!box) return;
+  const cnt=new Map();
+  rowsAll().forEach(r=>cnt.set(String(r.year),(cnt.get(String(r.year))||0)+1));
+  const ys=[...new Set([...cnt.keys(), ...Object.keys(L)])].sort((a,b)=>+b-+a);
+  if(!ys.length){ box.innerHTML='<div class="note">아직 올린 문항이 없습니다.</div>'; return; }
+  box.innerHTML=ys.map(y=>`<div class="ylr" data-y="${y}">
+      <span class="y">${y}</span>
+      <span class="n">${cnt.get(y)||0}문항</span>
+      <input type="text" maxlength="14" value="${(L[y]||'').replace(/"/g,'&quot;')}"
+        placeholder="${+y>2100?'예: 단답 콜렉터':'(진짜 연도 — 비워 두세요)'}">
+    </div>`).join('');
+  $$('.ylr input',box).forEach(inp=>{
+    const y=inp.closest('.ylr').dataset.y;
+    inp.addEventListener('change',()=>{
+      const v=inp.value.trim();
+      if(v) L[y]=v; else delete L[y];
+      save(); relabel();
+      try{ drawList() }catch(e){}
+    });
+  });
+}
+
+/* ══ ③ 올리는 화면에도 — 이름표를 고르면 연도 칸이 저절로 채워진다 ══ */
+function mountImp(){
+  const yi=document.getElementById('impYear');
+  if(!yi || document.getElementById('impYl')) return;
+  const wrap=document.createElement('div');
+  wrap.className='impyl'; wrap.id='impYl';
+  wrap.innerHTML='<b>이름표</b>';
+  const mk=(txt,fn)=>{ const b=document.createElement('button'); b.type='button';
+    b.textContent=txt; b.onclick=fn; return b };
+  /* 이미 붙여 둔 이름표는 그대로 고를 수 있게 */
+  const rebuild=()=>{
+    $$('button',wrap).forEach(b=>b.remove());
+    Object.keys(L).sort((a,b)=>+a-+b).forEach(y=>{
+      wrap.appendChild(mk(`${L[y]} (${y})`,()=>{ yi.value=y; yi.dispatchEvent(new Event('input',{bubbles:true})); }));
+    });
+    wrap.appendChild(mk('＋ 새 이름표',()=>{
+      const n=prompt('이 자료를 뭐라고 부를까요? (예: 단답 콜렉터)');
+      if(n===null||!n.trim()) return;
+      /* 9001 부터 안 쓰는 번호를 하나 준다 */
+      let y=9001; const used=new Set([...Object.keys(L), ...rowsAll().map(r=>String(r.year))]);
+      while(used.has(String(y))) y++;
+      L[String(y)]=n.trim(); save();
+      yi.value=String(y); yi.dispatchEvent(new Event('input',{bubbles:true}));
+      rebuild(); relabel();
+    }));
+    wrap.appendChild(mk('이름표 관리',open_));
+  };
+  rebuild();
+  yi.closest('div')?.appendChild(wrap);
+}
+
+/* ══ ④ 도구 차림표에 단추 ══ */
+function mount(){
+  const host=document.getElementById('ezRedoAll')?.parentElement;
+  if(host && !document.getElementById('ylOpen')){
+    const b=document.createElement('button');
+    b.className='chip'; b.type='button'; b.id='ylOpen'; b.textContent='🏷 자료 이름표';
+    b.title='9001 같은 숫자 연도에 «단답» 같은 이름을 붙입니다';
+    b.onclick=open_;
+    host.append(b);
+  }
+  mountImp();
+  return !!document.getElementById('ylOpen');
+}
+const mt=setInterval(mount,700);
+setTimeout(()=>clearInterval(mt),60000);
+mount();
+setTimeout(relabel,600);
+
+window.__pracYl=open_;
+})();
+</script>
+
 </body>
 </html>
