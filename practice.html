@@ -14160,8 +14160,10 @@ const wait=setInterval(()=>{
   clearInterval(wait);
   const orig=window.scanDoc;
   const w=async function(doc,name,MODE){
-    const out=await orig.apply(this,arguments);
-    if(!on() || !Array.isArray(out) || !out.length) return out;
+    let out=await orig.apply(this,arguments);
+    if(!Array.isArray(out) || !out.length) return out;
+    if(document.getElementById('impMerge')?.checked) out=mergeSub(out);
+    if(!on()) return out;
     const M=man();
     if(!M){
       try{ log('   ⚠ «한 덩어리로» 를 켰지만 연도·회차 칸이 비어 있어 그대로 둡니다.') }catch(e){}
@@ -14181,6 +14183,39 @@ const wait=setInterval(()=>{
 },300);
 setTimeout(()=>clearInterval(wait),30000);
 
+/* ══ ①-2 «1. 2. 3.» 을 문제로 쪼개지 않기 ══
+   단답본의 한 문제 안에는 «1. 현장조건에 부합 여부 / 2. 시공의 (①) 여부» 처럼
+   번호 붙은 보기 항목이 들어 있다. 머리글 모양이 «1. · 01.» 이라 이것들까지
+   문제 머리글로 잡혀, 한 문제가 서너 개로 쪼개진다(552 → 902).
+
+   가르는 잣대는 «번호가 앞으로 안 갔다» 이다.
+     45번 다음에 1번 · 2번 · 3번이 «같은 쪽에서» 나오면 그건 새 문제가 아니라
+     45번의 보기다. 새 문제라면 번호가 늘어난다.
+   장이 바뀌며 번호가 1로 돌아가는 자리는 대개 새 쪽에서 시작하므로 살아남는다.
+   혹시 몰라 연달아 12개까지만 붙인다. */
+const byDoc=(a,b)=>((a.start?.page||0)-(b.start?.page||0))||((a.start?.top||0)-(b.start?.top||0));
+function mergeSub(list){
+  const ord=list.slice().sort(byDoc);
+  const keep=[]; let run=0, merged=0;
+  for(const it of ord){
+    const prev=keep[keep.length-1];
+    const samePage = prev && (it.start?.page===prev.lastPage || it.start?.page===prev.start?.page);
+    const back = prev && (+it.no<=+prev.no);
+    if(prev && samePage && back && run<12){
+      prev.end = it.end || prev.end;
+      prev.lastPage = it.lastPage || prev.lastPage;
+      prev.text = (prev.text||'') + '\n' + (it.text||'');
+      if(!prev.ansAt && it.ansAt) prev.ansAt = it.ansAt;
+      run++; merged++; continue;
+    }
+    keep.push(it); run=0;
+  }
+  if(merged){
+    try{ log(`   보기 항목 ${merged}개를 앞 문제에 도로 붙였습니다 (${ord.length} → ${keep.length}문항)`) }catch(e){}
+  }
+  return keep;
+}
+
 /* ══ ② 올리는 화면에 체크칸 ══ */
 const mt=setInterval(()=>{
   const yi=document.getElementById('impYear');
@@ -14191,7 +14226,11 @@ const mt=setInterval(()=>{
       PDF 안의 회차를 무시하고 <b>한 덩어리로</b> 넣기</label>
     <div class="h2">주제별로 엮인 정리본(단답·핵심빈출)처럼 <b>같은 회차가 책 곳곳에 흩어져 있는 자료</b>에 쓰세요.
       위에 적은 연도·회차 하나로 모두 몰아넣고 번호를 1번부터 쭉 이어 매깁니다 — 덮어쓸 자리가 없어집니다.
-      <br>회차가 제대로 적힌 <b>기출본에는 끄고</b> 쓰세요.</div>`;
+      <br>회차가 제대로 적힌 <b>기출본에는 끄고</b> 쓰세요.</div>
+    <label style="margin-top:8px"><input type="checkbox" id="impMerge" checked>
+      <b>«1. 2. 3.» 보기 항목을 문제로 쪼개지 않기</b></label>
+    <div class="h2">한 문제 안의 번호 붙은 보기까지 문제로 잘려 개수가 부풀 때 켜세요.
+      같은 쪽에서 <b>번호가 앞으로 안 가면</b> 새 문제가 아니라 보기로 보고 앞 문제에 도로 붙입니다.</div>`;
   (yi.closest('.grid')||yi.closest('div')?.parentElement||yi.parentElement).after(box);
   const c=document.getElementById('impOne');
   c.addEventListener('change',()=>{
