@@ -8264,7 +8264,8 @@ function inject(){
     start(im);
   });
 }
-setInterval(inject,700); inject();
+const injT=setInterval(inject,900); inject();
+setTimeout(()=>clearInterval(injT),30000);
 
 addEventListener('scroll',()=>{ if(CUR) place() },true);
 addEventListener('resize',()=>{ if(CUR) place() });
@@ -8280,7 +8281,7 @@ paintAllCrops();
   },250);
   setTimeout(()=>clearInterval(wait),20000);
 });
-setInterval(()=>paintAllCrops(),1500);
+setInterval(()=>paintAllCrops(),3000);
 })();
 </script>
 
@@ -8312,6 +8313,7 @@ setInterval(()=>paintAllCrops(),1500);
 .fqb.g{background:#fff7e0;border-color:#e9c46a;color:#8a6100}
 .fqb.s{background:#f2f5f9;border-color:#c3ccd8;color:#4a5768}
 .fqb.b{background:#fdf0e6;border-color:#dcb08a;color:#8a552a}
+.fqb.r{background:#f4f1ec;border-color:#cbc3b6;color:#6b5f4e}
 .fqb.ty{background:#eef4ff;border-color:#bcd3f7;color:#1d4ed8}
 .fqb.ncs{background:#edf7f0;border-color:#a9d8bb;color:#166534}
 .fqb.ncs.ai{background:#e6f4ff;border-color:#8ec5f0;color:#0b4d8c}
@@ -8333,6 +8335,8 @@ setInterval(()=>paintAllCrops(),1500);
 .tagrow button.g.on{background:#b8860b;border-color:#b8860b}
 .tagrow button.s.on{background:#64748b;border-color:#64748b}
 .tagrow button.b.on{background:#a4653a;border-color:#a4653a}
+.tagrow button.r.on{background:#6b5f4e;border-color:#6b5f4e}
+.tagrow .tl2{font:500 9px/1 var(--font-d,system-ui);color:var(--muted,#94a3b8);margin-right:3px}
 .tagrow .sep{width:1px;height:16px;background:var(--line,#e2e8f0);margin:0 3px}
 .tagnote{font:500 10px/1.5 var(--font-d,system-ui);color:var(--muted,#64748b);margin-top:3px}
 </style>
@@ -8403,8 +8407,25 @@ function ncsOf(r){
 }
 
 /* ══ ③ 주제 묶기 · 확률 · 등급 ══ */
-let TAG=null, SIG='';
-function build(){
+let TAG=null, SIG='', BUILDING=false;
+/* ★ 등급·주제 묶기도 «부를 때 그 자리에서» 세면 화면이 잠깐 멎는다.
+   그래서 셈은 틈날 때 한 번만 돌리고, 그전에는 그냥 «아직 없음» 으로 답한다. */
+function ensure(){
+  if(window.__pracSwap||BUILDING) return TAG;
+  const rows=rowsAll();
+  if(!rows.length) return TAG;
+  if(TAG&&SIG===rows.length) return TAG;
+  BUILDING=true;
+  const run=()=>{
+    try{ buildNow() }catch(e){ try{ console.warn('등급을 세지 못했습니다',e) }catch(x){} }
+    BUILDING=false;
+    try{ stamp(); paintChips(); }catch(e){}
+    if(anyOn()){ try{ drawList() }catch(e){} }
+  };
+  (window.requestIdleCallback ? requestIdleCallback(()=>run(),{timeout:500}) : setTimeout(run,80));
+  return TAG;
+}
+function buildNow(){
   /* ★ 목록을 «거르는 중» 에는 절대 다시 세지 않는다.
      예전에는 걸러진 목록으로 등급을 새로 매기다가, 걸러진 목록이
      또 새 열쇠가 되어 셈이 끝없이 되풀이됐다 — 화면이 뻗던 두 번째 까닭이다. */
@@ -8455,16 +8476,24 @@ function build(){
     const R=new Set(idxs.map(i=>`${rows[i].year}-${rows[i].session}`)).size;
     const C=idxs.length;
     const fresh=Math.min(...idxs.map(i=>rank[`${rows[i].year}-${rows[i].session}`]??NE));
-    const p=Math.round(clamp(R/NE,0.02,0.98)*100);
-    const exposure=0.55*(R/NE)+0.30*Math.pow(0.8,fresh)+0.15*(C/(C+2));
+    /* 옛 방식은 «덩어리가 걸친 회차 / 전체 회차» 였다 — 덩어리가 커지면 저절로 100% 에 붙는다.
+       이제는 문항마다 따로 센 재출제 확률을 쓰고, 이것이 아직 안 나왔을 때만 옛 셈으로 버틴다. */
+    const pFallback=Math.round(clamp((R+0.5)/(NE+2),0.03,0.85)*100);
+    const blob = C > Math.max(12, N*0.08);      /* 사슬로 부푼 덩어리 — 주제어를 못 믿는다 */
     const freq=new Map();
     idxs.forEach(i=>keys[i].forEach(t=>freq.set(t,(freq.get(t)||0)+1)));
     const key=[...freq.entries()].sort((a,b)=>b[1]-a[1]||(df.get(a[0])-df.get(b[0])))[0]?.[0]||'';
     idxs.forEach(i=>{
       const r=rows[i];
-      const o={ p, R, C, key, type:typeOf(r), exp:exposure,
+      const pr = window.__pracProb ? window.__pracProb(r.id) : null;
+      const P  = pr ? pr.p : pFallback;
+      const RR = pr ? pr.R : R, CC = pr ? pr.C : C, NEE = pr ? pr.NE : NE;
+      /* 등급 점수도 새 확률 위에 세운다 — 확률 · 최근성 · 닮은 문항 수 */
+      const expo = 0.60*(P/100) + 0.25*Math.pow(0.85,fresh) + 0.15*(CC/(CC+3));
+      const o={ p:P, R:RR, C:CC, NE:NEE, key:(blob?'':key), type:typeOf(r), exp:expo,
+                src:(pr?'near':'group'),
                 ncs:(window.__ncsClassify ? window.__ncsClassify(r) : ncsOf(r)) };
-      out.set(String(r.id),o); score.push([exposure,String(r.id)]);
+      out.set(String(r.id),o); score.push([expo,String(r.id)]);
     });
   });
   /* 점수 총합의 몫으로 금·은·동을 끊는다 */
@@ -8480,7 +8509,7 @@ function build(){
   return (TAG=out);
 }
 function clamp(v,a,b){ return Math.max(a,Math.min(b,v)) }
-const info=id=>{ const m=build(); return m?m.get(String(id))||null:null };
+const info=id=>{ const m=ensure(); return m?m.get(String(id))||null:null };
 window.__pracTag=info;
 window.__pracTagKeyword=ncsOf;                 /* 낱말표만 쓰는 예전 방식 — 되돌림용 */
 window.__pracTagReset=()=>{ TAG=null; SIG=''; };
@@ -8500,10 +8529,13 @@ function stamp_(root){
     const cv=head.querySelector('.cvbadge');
     const mk=(cls,txt,title)=>{ const s=document.createElement('span');
       s.className='fqb '+cls; s.textContent=txt; s.title=title; return s };
-    const TL={g:'금',s:'은',b:'동',r:'—'};
+    const TL={g:'금',s:'은',b:'동',r:'똥'};
     const frag=[
-      mk(t.p>=60?'hot':'', '출제 '+t.p+'%',
-         `같은 주제가 ${t.R}개 회차에 나왔습니다 (묶인 문항 ${t.C}개${t.key?' · '+t.key:''})`),
+      mk(t.p>=45?'hot':'', '재출제 '+t.p+'%',
+         `닮은 문항 ${t.C}개가 회차 ${t.NE||'?'}개 중 ${t.R}개 회차에 나왔습니다`
+         + `\n최근 회차에 더 무게를 주고, 표본이 적으면 낮춰 잡습니다 (위로 85%%·아래로 3%% 에서 멈춤)`
+         + (t.key?`\n주제어: ${t.key}`:'')
+         + (t.src==='group'?'\n(아직 세는 중 — 임시 값입니다)':'')),
       mk('ty', TYPES.find(x=>x[0]===t.type)?.[1]||t.type, '문제 유형'),
       ...(t.ncs ? [mk('ncs'+(t.ncs.src==='ai'?' ai':''), (t.ncs.src==='ai'?'✓ ':'')+t.ncs.short,
           `출제기준 ${t.ncs.name}${t.ncs.sub?' › '+t.ncs.sub:''}`
@@ -8518,16 +8550,33 @@ function stamp_(root){
 
 /* ══ ⑤ 고르기 띠 ══ */
 const FKEY='prac:tagfilter:v1';
-let F=(()=>{ try{ return Object.assign({tier:'',type:'',ncs:'',sort:''},JSON.parse(localStorage.getItem(FKEY)||'{}')) }
-            catch(e){ return {tier:'',type:'',ncs:'',sort:''} } })();
+/* 등급·유형은 «겹쳐 고르기» 다 — 금+동 처럼 여러 개를 함께 켤 수 있다.
+   예전에 한 개만 담던 값(tier:'g')도 그대로 읽어 옮긴다. */
+const DEF={tiers:[],types:[],ncs:'',sort:''};
+let F=(()=>{
+  let v={};
+  try{ v=JSON.parse(localStorage.getItem(FKEY)||'{}') }catch(e){}
+  const out=Object.assign({},DEF,v);
+  if(!Array.isArray(out.tiers)) out.tiers = v.tier ? [v.tier] : [];
+  if(!Array.isArray(out.types)) out.types = v.type ? [v.type] : [];
+  delete out.tier; delete out.type;
+  return out;
+})();
+const picked=(a,v)=>Array.isArray(a)&&a.includes(v);
+function toggle(list,v){
+  const i=list.indexOf(v);
+  if(i<0) list.push(v); else list.splice(i,1);
+  return list;
+}
 const fsave=()=>{ try{ localStorage.setItem(FKEY,JSON.stringify(F)) }catch(e){} };
 
+function anyOn(){ return F.tiers.length||F.types.length||F.ncs||F.sort }
 function rowPass(r){
-  if(!F.tier&&!F.type&&!F.ncs) return true;
+  if(!F.tiers.length&&!F.types.length&&!F.ncs) return true;
   let t=null; try{ t=info(r.id) }catch(e){ return true }
   if(!t) return true;
-  if(F.tier&&t.tier!==F.tier) return false;
-  if(F.type&&t.type!==F.type) return false;
+  if(F.tiers.length&&!F.tiers.includes(t.tier)) return false;
+  if(F.types.length&&!F.types.includes(t.type)) return false;
   if(F.ncs&&(t.ncs?.name||'')!==F.ncs) return false;
   return true;
 }
@@ -8538,7 +8587,7 @@ function hook(){
   if(typeof drawList!=='function'||drawList.__tag) return false;
   const orig=drawList;
   const wrapped=function(){
-    if(!F.tier&&!F.type&&!F.ncs&&!F.sort) return orig.apply(this,arguments);
+    if(!anyOn()) return orig.apply(this,arguments);
     const all=rowsAll();
     let use;
     try{
@@ -8567,30 +8616,31 @@ function hook(){
 
 function paintChips(){
   const row=$('#tagRow'); if(!row) return;
-  $$('button[data-tier]',row).forEach(b=>b.classList.toggle('on',b.dataset.tier===F.tier&&!!F.tier));
-  $$('button[data-type]',row).forEach(b=>b.classList.toggle('on',b.dataset.type===F.type&&!!F.type));
+  $$('button[data-tier]',row).forEach(b=>b.classList.toggle('on',picked(F.tiers,b.dataset.tier)));
+  $$('button[data-type]',row).forEach(b=>b.classList.toggle('on',picked(F.types,b.dataset.type)));
   $$('button[data-sort]',row).forEach(b=>b.classList.toggle('on',b.dataset.sort===F.sort&&!!F.sort));
   const note=$('#tagNote');
   if(note){
-    const m=build();
-    if(!m){ note.textContent=''; return }
+    const m=ensure();
+    if(!m){ note.textContent = BUILDING ? '문항을 세는 중입니다…' : ''; return }
     const n=rowsAll().filter(rowPass).length;
     const cnt={g:0,s:0,b:0,r:0};
     m.forEach(v=>cnt[v.tier]=(cnt[v.tier]||0)+1);
     let un=0; m.forEach(v=>{ if(!v.ncs) un++ });
     note.textContent=`금 ${cnt.g} · 은 ${cnt.s} · 동 ${cnt.b} · 나머지 ${cnt.r}`
       + (window.NCS_GIJUN?`   · 출제기준 미분류 ${un}문항`:'')
-      + ((F.tier||F.type||F.ncs)?`   → 지금 조건 ${n}문항`:'');
+      + ((F.tiers.length||F.types.length||F.ncs)?`   → 지금 조건 ${n}문항`:'');
   }
 }
 function mount(){
   const find=$('.deck .dcol-find'); if(!find||$('#tagRow')) return false;
   const box=document.createElement('div');
   box.innerHTML=`<div class="tagrow" id="tagRow">
-      <span class="tl">등급</span>
+      <span class="tl">등급</span><span class="tl2">겹쳐 고를 수 있습니다</span>
       <button type="button" class="g" data-tier="g" title="또 나올 확률이 가장 높은 무리">금</button>
       <button type="button" class="s" data-tier="s">은</button>
       <button type="button" class="b" data-tier="b">동</button>
+      <button type="button" class="r" data-tier="r" title="어느 무리에도 안 든 나머지 문항">똥</button>
       <span class="sep"></span><span class="tl">유형</span>
       <button type="button" data-type="계산">계산</button>
       <button type="button" data-type="회로">회로·도면</button>
@@ -8622,9 +8672,9 @@ function mount(){
 
   box.addEventListener('click',e=>{
     const b=e.target.closest('button'); if(!b) return;
-    if(b.hasAttribute('data-clear')){ F={tier:'',type:'',ncs:'',sort:''}; if(sel) sel.value=''; }
-    else if(b.dataset.tier!=null) F.tier = F.tier===b.dataset.tier?'':b.dataset.tier;
-    else if(b.dataset.type!=null) F.type = F.type===b.dataset.type?'':b.dataset.type;
+    if(b.hasAttribute('data-clear')){ F={tiers:[],types:[],ncs:'',sort:''}; if(sel) sel.value=''; }
+    else if(b.dataset.tier!=null) toggle(F.tiers,b.dataset.tier);
+    else if(b.dataset.type!=null) toggle(F.types,b.dataset.type);
     else if(b.dataset.sort!=null) F.sort = F.sort===b.dataset.sort?'':b.dataset.sort;
     fsave(); paintChips();
     try{ RAND=null }catch(x){}
@@ -8639,7 +8689,7 @@ let done=false;
 const boot=setInterval(()=>{
   hook();
   if(mount()) done=true;
-  if(done&&rowsAll().length){ build(); paintChips(); stamp(); }
+  if(done&&rowsAll().length){ ensure(); paintChips(); stamp(); }
 },400);
 setTimeout(()=>clearInterval(boot),30000);
 
@@ -8764,6 +8814,8 @@ window.__ncsAI=()=>AI;
        · 다 세고 나면 그때 뱃지를 붙인다.
      자료가 들어오는 중(문항 수가 계속 바뀔 때)에는 아예 세지 않는다. */
 let NC=new Map(), NSIG='', NBUSY=false, NREADY=false;
+const PROB=new Map();                     /* 문항 → {p, R, C, NE} 재출제 확률 */
+window.__pracProb = id => { try{ return PROB.get(String(id))||null }catch(e){ return null } };
 const idle = fn => (window.requestIdleCallback
   ? requestIdleCallback(()=>fn(), { timeout:220 })
   : setTimeout(fn, 0));
@@ -8774,7 +8826,7 @@ function startClassify(){
   const R=rowsAll(); if(!R.length) return;
   const D=docs(); if(!D) return;
   if(window.__pracSwap) return;                 /* 목록을 거르는 중에는 손대지 않는다 */
-  NBUSY=true; NSIG=sigNow();
+  NBUSY=true; NSIG=sigNow(); PROB.clear();
 
   const dv=D.map(d=>({d,v:vec(d.b)}));
   const out=new Map(), firm=[], vecs=new Map();
@@ -8851,11 +8903,69 @@ function startClassify(){
                      conf:+(top[1]/tot).toFixed(2), near:near.length });
       }
       if(i<todo.length) return idle(pass2);
+      i=0; return idle(pass3prep);
+    }catch(e){ return fail(e) }
+  }
+
+  /* ── 3단계: 재출제 확률 ──
+     ★ 예전 방식이 틀렸던 곳.
+       «드문 낱말을 함께 쓰면 같은 주제» 로 묶어 나갔는데, 이 묶기는 사슬로 번진다.
+       ㄱ~ㄴ 이 낱말 하나로 붙고, ㄴ~ㄷ 이 다른 낱말로 붙으면 ㄱ~ㄷ 도 한 덩어리가 된다.
+       덩어리가 커질수록 «걸친 회차» 는 저절로 늘어나고, 결국 확률이 아니라
+       «덩어리가 얼마나 크냐» 를 재는 꼴이 됐다. 98% 가 그렇게 나온 숫자다.
+
+     이제는 사슬을 타지 않는다. 그 문항과 «직접» 닮은 문항만 본다(코사인 0.30 이상).
+     그리고 세 가지를 더 지킨다.
+       · 최근 회차에 더 무게를 준다(오래된 것은 0.88배씩 깎는다).
+       · 표본이 적을 때 100% 로 튀지 않게 평활(Laplace)을 넣는다.
+       · 위로는 85%, 아래로는 3% 에서 멈춘다 — 어떤 주제도 «반드시 나온다» 는 없다. */
+  let AINV=null, EXW=null, TOTW=0, EXAGE=null;
+  function pass3prep(){
+    try{
+      AINV=new Map();
+      vecs.forEach((v,id)=>{
+        [...v.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12)
+          .forEach(([k])=>{ (AINV.get(k)||AINV.set(k,[]).get(k)).push(id) });
+      });
+      const keyOf=r=>`${r.year}-${r.session}`;
+      const ex=[...new Set(R.map(keyOf))].sort((a,b)=>{
+        const [ay,as]=a.split('-').map(Number), [by,bs]=b.split('-').map(Number);
+        return (by-ay)||(bs-as);
+      });
+      EXAGE=new Map(); EXW=new Map(); TOTW=0;
+      ex.forEach((k,n)=>{ const w=Math.pow(0.88,n); EXAGE.set(k,n); EXW.set(k,w); TOTW+=w; });
+      ROWEX=new Map(); R.forEach(r=>ROWEX.set(String(r.id),keyOf(r)));
+      return idle(pass3);
+    }catch(e){ return fail(e) }
+  }
+  let ROWEX=null;
+  function pass3(){
+    try{
+      const ids=[...vecs.keys()];
+      const t0=performance.now();
+      while(i<ids.length && performance.now()-t0<12){
+        const id=ids[i++], v=vecs.get(id);
+        const cand=new Map();
+        [...v.entries()].sort((a,b)=>b[1]-a[1]).slice(0,12).forEach(([k])=>{
+          const list=AINV.get(k); if(!list||list.length>260) return;   /* 너무 퍼진 말은 건너뛴다 */
+          list.forEach(x=>{ if(x!==id) cand.set(x,1) });
+        });
+        const hit=new Set([ROWEX.get(id)]);
+        let C=1;
+        cand.forEach((_,x)=>{
+          if(cos(v,vecs.get(x))>=0.30){ C++; hit.add(ROWEX.get(x)); }
+        });
+        let hw=0; hit.forEach(k=>{ hw += EXW.get(k)||0 });
+        /* 평활 — 몇 안 되는 표본이 곧장 100% 가 되지 않게 */
+        const p=Math.max(3,Math.min(85,Math.round((hw+0.30)/(TOTW+2.30)*100)));
+        PROB.set(id,{ p, R:hit.size, C, NE:EXW.size });
+      }
+      if(i<ids.length) return idle(pass3);
       return idle(done);
     }catch(e){ return fail(e) }
   }
 
-  /* ── 3단계: AI 가 붙인 것이 있으면 그것이 이긴다 ── */
+  /* ── 4단계: AI 가 붙인 것이 있으면 그것이 이긴다 ── */
   function done(){
     try{
       Object.entries(AI).forEach(([id,a])=>{
@@ -8983,7 +9093,10 @@ function mountBtns(){
   b.onclick=()=>aiRun('all');
   c.onclick=()=>{ if(!confirm('AI 가 붙인 분류를 모두 지웁니다.')) return; AI={}; asave(); refresh(); };
 }
-setInterval(mountBtns,800); mountBtns();
+/* 도구 단추는 한 번만 붙이면 된다 — 붙고 나면 시계를 끈다 */
+const mbT=setInterval(()=>{ mountBtns(); if(document.getElementById('ncsAiRun')) clearInterval(mbT); },900);
+mountBtns();
+setTimeout(()=>clearInterval(mbT),30000);
 
 /* 출제기준 쪽 벡터는 자료가 바뀌어도 그대로다 — 다시 만들지 않는다 */
 })();
@@ -9013,7 +9126,7 @@ function trouble(where, err){
   if(n>=3&&!offed){
     offed=true;
     try{
-      localStorage.setItem('prac:tagfilter:v1','{"tier":"","type":"","ncs":"","sort":""}');
+      localStorage.setItem('prac:tagfilter:v1','{"tiers":[],"types":[],"ncs":"","sort":""}');
       window.__ncsClassify=()=>null;
       window.__pracTagReset&&window.__pracTagReset();
       drawList();
@@ -9024,6 +9137,194 @@ function trouble(where, err){
 addEventListener('error', e=>{ if(e&&e.message) trouble('화면', e.error||e.message) });
 addEventListener('unhandledrejection', e=>trouble('뒷일', e&&e.reason));
 window.__pracTrouble=trouble;
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v107 · ① 음악 단추 하나로  ② 오른쪽 아래 동그라미들 한 곳에
+
+     ① 음악이 두 벌이었다.
+        위쪽 «♪ 음악» 은 옛것(재즈·판타지·끄기 셋뿐),
+        아래쪽 동그라미는 새것(소음·집중·음악 10가지 · 소리크기 · 끄기예약).
+        같은 이름으로 다른 것이 열리면 그때부터는 무엇을 눌렀는지 알 수 없다.
+        위쪽·한눈에 도크의 ♪ 를 모두 «아래쪽 그것» 으로 보낸다. 이제 한 벌이다.
+
+     ② 오른쪽 아래에 동그라미가 다섯이었다 — 필기 · AI · 음악 · 별표 · 맨위로(+메뉴).
+        본문을 가리고, 폰에서는 좌우로 넘길 때 손가락에 걸린다.
+        하나로 접는다. 평소엔 동그라미 한 개, 누르면 세로로 펴진다.
+        · PC(넓은 화면) — 처음부터 펴 둔다. 자리가 남으니까.
+        · 태블릿·폰 — 접힌 채로 둔다. 밖을 누르거나 5초가 지나면 다시 접힌다.
+        · 폰에서는 아래 이동줄 위로 올려 두고, 넘기는 손짓과 겹치지 않게
+          오른쪽 끝에서 조금 띄운다.
+        원래 있던 동그라미들은 감추기만 한다 — 하는 일은 그대로 그것들이 한다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* 원래 동그라미들은 감춘다 (없애지 않는다 — 우리 도크가 대신 눌러 준다) */
+.mus-fab{display:none!important}
+.aic-fab{display:none!important}
+.app-float{display:none!important}
+.pbar.mini{display:none!important}
+
+.odock{position:fixed;z-index:1650;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));
+  display:flex;flex-direction:column-reverse;align-items:center;gap:7px;
+  -webkit-user-select:none;user-select:none}
+.odock .od-main{width:44px;height:44px;border-radius:50%;border:1px solid var(--line,#e2e8f0);
+  background:var(--surface,#fff);color:var(--ink,#0f172a);cursor:pointer;
+  box-shadow:0 8px 24px rgba(15,23,42,.20);font-size:17px;line-height:1;
+  display:grid;place-items:center;transition:transform .15s}
+.odock.open .od-main{transform:rotate(45deg);background:var(--ink,#111827);color:#fff;border-color:var(--ink,#111827)}
+.odock .od-items{display:none;flex-direction:column-reverse;gap:6px}
+.odock.open .od-items{display:flex}
+.odock .od-items button{width:40px;height:40px;border-radius:50%;cursor:pointer;
+  border:1px solid var(--line,#e2e8f0);background:var(--surface,#fff);color:var(--ink,#0f172a);
+  box-shadow:0 6px 18px rgba(15,23,42,.16);font-size:15px;line-height:1;display:grid;place-items:center}
+.odock .od-items button.on{background:var(--accent,#2563eb);border-color:var(--accent,#2563eb);color:#fff}
+.odock .od-items button:active{transform:scale(.94)}
+
+/* 넓은 화면 — 처음부터 펴 두고 조금 작게 */
+@media(min-width:1000px){
+  .odock{right:16px;bottom:16px;gap:6px}
+  .odock .od-main{width:38px;height:38px;font-size:15px}
+  .odock .od-items button{width:36px;height:36px;font-size:14px}
+}
+/* 폰 — 아래 이동줄 위로 올리고, 넘기는 손짓과 겹치지 않게 살짝 안쪽으로 */
+@media(max-width:820px){
+  .odock{right:10px;bottom:calc(12px + env(safe-area-inset-bottom) + var(--mobnav,72px))}
+  .odock .od-main{width:42px;height:42px}
+}
+/* 글을 고르는 중 · 배경음 창 · AI 판이 열려 있을 때는 비켜 준다 */
+body.ann-open .odock,
+body.aix-open .odock,
+body:has(.mus-ov.on) .odock,
+body:has(.aic-wrap.on) .odock{opacity:0;pointer-events:none;transition:opacity .12s}
+/* «한눈에» 판 위에서도 손이 닿아야 한다 — 대신 접어 두고 조금 흐리게 */
+body.ovlopen .odock{z-index:100020;opacity:.75}
+body.ovlopen .odock:hover,body.ovlopen .odock.open{opacity:1}
+/* 필기 도구줄이 펴져 있으면 그 위로 올라간다 */
+body.inkon .odock{bottom:calc(72px + env(safe-area-inset-bottom))}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s);
+
+/* ══ ① 음악은 한 벌로 ══
+   위쪽 «♪ 음악» · 한눈에 도크의 ♪ 를 누르면 아래쪽 배경음 창이 열린다.
+   잡는 단계에서 가로채므로 옛 차림표는 뜨지 않는다. */
+function openMusic(){
+  if(window.Music&&window.Music.open){ window.Music.open(); return true }
+  const fab=$('.mus-fab'); if(fab){ fab.click(); return true }
+  return false;
+}
+document.addEventListener('click',e=>{
+  const t=e.target;
+  const hit=t.closest?.('#bgmBtn, .ovdock [data-d="music"], [data-od="music"]');
+  if(!hit) return;
+  if(!openMusic()) return;                      /* 배경음 창이 아직 없으면 옛것을 그대로 둔다 */
+  e.preventDefault(); e.stopPropagation();
+  document.querySelector('.bgm')?.classList.remove('open');
+  document.querySelector('#ovPop')?.classList.remove('on');
+},true);
+
+/* 위쪽 단추 글씨는 아래의 «한 개짜리 시계» 가 같이 맞춘다 */
+function syncMusicLabel(){
+  const txt=$('#bgmTxt'), btn=$('#bgmBtn'); if(!txt||!window.Music) return;
+  const cur=window.Music.current;
+  const name=cur&&cur!=='off'
+    ? (window.Music.tracks||[]).find(t=>t.id===cur)?.name || '켜짐' : '';
+  txt.textContent=name||'음악';
+  btn?.classList.toggle('on',!!name);
+}
+
+/* ══ ② 동그라미 한 곳에 ══ */
+const ITEMS=[
+  { k:'pen',   ico:'✍', t:'필기 (S펜)' },
+  { k:'ai',    ico:'🤖', t:'AI 대화' },
+  { k:'music', ico:'♪',  t:'배경음' },
+  { k:'fav',   ico:'☆',  t:'즐겨찾기' },
+  { k:'top',   ico:'↑',  t:'맨 위로' },
+  { k:'menu',  ico:'⌘',  t:'전체 메뉴' }
+];
+const dock=document.createElement('div');
+dock.className='odock';
+dock.innerHTML=`<button type="button" class="od-main" title="도구 펴기/접기" aria-label="도구">✛</button>
+  <div class="od-items">${ITEMS.map(i=>
+    `<button type="button" data-od="${i.k}" title="${i.t}" aria-label="${i.t}">${i.ico}</button>`).join('')}</div>`;
+document.body.appendChild(dock);
+
+const wide=()=>matchMedia('(min-width:1000px)').matches;
+if(wide()) dock.classList.add('open');
+
+/* «한눈에» 를 열면 접는다 — 그 판은 판대로 왼쪽에 제 도크가 있다 */
+const ovl=()=>document.getElementById('ovl');
+const w0=setInterval(()=>{
+  const o=ovl(); if(!o) return; clearInterval(w0);
+  new MutationObserver(()=>{
+    if(o.classList.contains('on')) dock.classList.remove('open');
+    else if(wide()) dock.classList.add('open');
+  }).observe(o,{attributes:true,attributeFilter:['class']});
+},300);
+setTimeout(()=>clearInterval(w0),20000);
+
+let shut=0;
+function autoshut(){
+  clearTimeout(shut);
+  if(wide()) return;
+  shut=setTimeout(()=>dock.classList.remove('open'),5000);
+}
+dock.querySelector('.od-main').addEventListener('click',e=>{
+  e.stopPropagation();
+  dock.classList.toggle('open');
+  autoshut();
+});
+document.addEventListener('pointerdown',e=>{
+  if(wide()||e.target.closest('.odock')) return;
+  dock.classList.remove('open');
+},true);
+
+/* 하는 일은 원래 있던 단추들이 그대로 한다 — 우리는 대신 눌러 줄 뿐이다 */
+dock.addEventListener('click',e=>{
+  const b=e.target.closest('[data-od]'); if(!b) return;
+  e.stopPropagation();
+  autoshut();
+  const k=b.dataset.od;
+  try{
+    if(k==='pen'){
+      const bar=document.querySelector('.pbar');
+      if(bar&&!bar.classList.contains('mini')) bar.querySelector('[data-off]')?.click();
+      else bar?.querySelector('.fab')?.click();
+      return;
+    }
+    if(k==='ai'){ document.querySelector('.aic-fab')?.click(); return; }
+    if(k==='music'){ openMusic(); return; }        /* 위의 가로채기가 먼저 잡아 준다 */
+    if(k==='fav'){ document.querySelector('.app-float [data-favorite]')?.click(); return; }
+    if(k==='top'){ scrollTo({top:0,behavior:'smooth'}); return; }
+    if(k==='menu'){ (window.openCmd||function(){})(); return; }
+  }catch(x){ try{ window.__pracTrouble&&window.__pracTrouble('도구 도크',x) }catch(y){} }
+});
+
+/* 시계는 하나만 돌린다 — 켜져 있는 것 표시 + 위쪽 음악 글씨를 같이 맞춘다 */
+setInterval(()=>{
+  try{
+    const on=(k,v)=>dock.querySelector(`[data-od="${k}"]`)?.classList.toggle('on',!!v);
+    on('pen', document.body.classList.contains('inkon'));
+    on('music', window.Music ? (window.Music.current&&window.Music.current!=='off')
+                             : (window.BGM&&window.BGM.mode!=='off'));
+    on('fav', document.querySelector('.app-float [data-favorite]')?.textContent==='★');
+    syncMusicLabel();
+  }catch(e){}
+},1200);
+
+/* 없는 단추는 아예 안 보여 준다 (화면마다 있는 것이 다르다) */
+setTimeout(()=>{
+  const gone=k=>dock.querySelector(`[data-od="${k}"]`)?.remove();
+  if(!document.querySelector('.pbar')) gone('pen');
+  if(!document.querySelector('.aic-fab')) gone('ai');
+  if(!window.Music&&!document.querySelector('.mus-fab')) gone('music');
+  if(!document.querySelector('.app-float [data-favorite]')) gone('fav');
+  if(!window.openCmd) gone('menu');
+},2500);
 })();
 </script>
 

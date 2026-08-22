@@ -115,7 +115,9 @@ function inject(){
     }));
   });
 }
-setInterval(inject,700); inject();
+/* 띠는 첫 화면에서 한 번 만들어진다 — 30초만 살피고 그만둔다(늘 도는 시계를 줄인다) */
+const injT=setInterval(inject,900); inject();
+setTimeout(()=>clearInterval(injT),30000);
 
 /* ── 물어보기 ── */
 function ctxOf(el){
