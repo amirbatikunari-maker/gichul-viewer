@@ -14057,11 +14057,14 @@ function mountImp(){
   wrap.innerHTML='<b>이름표</b>';
   const mk=(txt,fn)=>{ const b=document.createElement('button'); b.type='button';
     b.textContent=txt; b.onclick=fn; return b };
+  /* 이름표를 고르면 회차 칸도 같이 채워 둔다 — 비어 있으면 «한 덩어리로» 가 안 걸린다 */
+  const fillSess=()=>{ const se=document.getElementById('impSess');
+    if(se && !se.value.trim()) se.value='1'; };
   /* 이미 붙여 둔 이름표는 그대로 고를 수 있게 */
   const rebuild=()=>{
     $$('button',wrap).forEach(b=>b.remove());
     Object.keys(L).sort((a,b)=>+a-+b).forEach(y=>{
-      wrap.appendChild(mk(`${L[y]} (${y})`,()=>{ yi.value=y; yi.dispatchEvent(new Event('input',{bubbles:true})); }));
+      wrap.appendChild(mk(`${L[y]} (${y})`,()=>{ yi.value=y; fillSess(); yi.dispatchEvent(new Event('input',{bubbles:true})); }));
     });
     wrap.appendChild(mk('＋ 새 이름표',()=>{
       const n=prompt('이 자료를 뭐라고 부를까요? (예: 단답 콜렉터)');
@@ -14070,7 +14073,7 @@ function mountImp(){
       let y=9001; const used=new Set([...Object.keys(L), ...rowsAll().map(r=>String(r.year))]);
       while(used.has(String(y))) y++;
       L[String(y)]=n.trim(); save();
-      yi.value=String(y); yi.dispatchEvent(new Event('input',{bubbles:true}));
+      yi.value=String(y); fillSess(); yi.dispatchEvent(new Event('input',{bubbles:true}));
       rebuild(); relabel();
     }));
     wrap.appendChild(mk('이름표 관리',open_));
@@ -14138,9 +14141,15 @@ window.__pracYl=open_;
 'use strict';
 const $=(s,r=document)=>r.querySelector(s);
 const on=()=>!!document.getElementById('impOne')?.checked;
+/* ★ 회차 칸이 비어 있어서 «한 덩어리로» 가 조용히 안 걸리던 자리.
+   한 덩어리로 넣을 때는 회차가 무슨 값이든 상관이 없다 — 비었으면 1회로 본다.
+   (원래의 manualRound 는 둘 다 있어야만 값을 내준다) */
 const man=()=>{
-  const y=parseInt($('#impYear')?.value,10), s=parseInt($('#impSess')?.value,10);
-  return (y&&s)?{year:y,session:s}:null;
+  const y=parseInt($('#impYear')?.value,10);
+  let s=parseInt($('#impSess')?.value,10);
+  if(!y) return null;
+  if(!s){ s=1; const el=$('#impSess'); if(el && !el.value) el.value='1'; }
+  return {year:y,session:s};
 };
 
 /* ══ ① 훑고 난 결과를 한 덩어리로 다시 매긴다 ══
@@ -14187,7 +14196,13 @@ const mt=setInterval(()=>{
   const c=document.getElementById('impOne');
   c.addEventListener('change',()=>{
     box.classList.toggle('on',c.checked);
-    if(c.checked && !man()) alert('연도·회차 칸을 먼저 채워 주세요.\n\n예) 연도 9001 · 회차 1\n(이름표를 붙이면 화면에는 «단답» 처럼 보입니다)');
+    if(!c.checked) return;
+    const se=document.getElementById('impSess');
+    if(se && !se.value.trim()) se.value='1';          /* 비어 있으면 1회로 채워 둔다 */
+    if(!yi.value.trim()){
+      alert('연도 칸을 먼저 채워 주세요.\n\n예) 연도 9001 · 회차 1\n«＋ 새 이름표» 를 누르면 번호가 저절로 들어갑니다.');
+      yi.focus();
+    }
   });
   clearInterval(mt);
 },600);
