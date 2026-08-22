@@ -984,6 +984,39 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>
+/* ══════════════════════════════════════════════════════════════
+   «한눈에» 를 층으로 나눈다 (v117)
+   ──────────────────────────────────────────────────────────────
+   한눈에 판에는 여러 겹이 얹혀 있고, 어느 겹이 멎게 하는지 밖에서는 안 보였다.
+   그래서 겹마다 스위치를 단다. 기본은 «가벼운 것만 켜짐» 이다.
+   도구 › 한눈에 기능 에서 하나씩 켜며 검증할 수 있다.
+   ══════════════════════════════════════════════════════════════ */
+(function(){
+  const KEY='prac:ovlayers:v1';
+  /* 처음 값 — 무거운 겹(그림 손질·주석 다시 칠하기)은 꺼 두고 시작한다 */
+  const DEF={ rail:true, dock:true, swipe:false, back:false,
+              ann:false, squeeze:false, fig:false, ai:false };
+  let V=Object.assign({},DEF);
+  try{ V=Object.assign({},DEF,JSON.parse(localStorage.getItem(KEY)||'{}')) }catch(e){}
+  window.OVL={
+    get:k=>!!V[k],
+    all:()=>Object.assign({},V),
+    set(k,on){ V[k]=!!on; try{ localStorage.setItem(KEY,JSON.stringify(V)) }catch(e){}
+      document.body&&paint(); },
+    reset(){ V=Object.assign({},DEF); try{ localStorage.setItem(KEY,JSON.stringify(V)) }catch(e){} paint(); },
+    KEY, DEF
+  };
+  function paint(){
+    const b=document.body; if(!b) return;
+    Object.keys(V).forEach(k=>b.classList.toggle('ovl-'+k, !!V[k]));
+  }
+  window.OVLPAINT=paint;
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',paint);
+  else paint();
+})();
+const OVFLAG = k => { try{ return window.OVL ? window.OVL.get(k) : true }catch(e){ return true } };
+</script>
 <script src="./config.js"></script>
 <script>
 const $ = s => document.querySelector(s);
@@ -3738,10 +3771,11 @@ function ovDraw(){
   });
   $$("#ovl .otabs button").forEach(b => b.classList.toggle("on", b.dataset.oseg === OVSEG));
   /* 먼저 «속의 빈 띠까지» 좁혀 보고, 그게 안 되는 그림만 예전처럼 창으로 자른다 */
-  applySqueeze($("#ovl")).then(() => applyTrim($("#ovl")));
+  /* 그림 여백 자르기·속 좁히기 — 픽셀을 훑는 무거운 일이다. 켜 두었을 때만 돈다. */
+  if(OVFLAG('squeeze')) applySqueeze($("#ovl")).then(() => applyTrim($("#ovl")));
 
   /* 글자로 옮긴 칸은 수식을 그리고, [[그림]] 자리를 원본에서 오려 채운다 */
-  $$("#ovl .qmd").forEach(el => { tex(el); figFill(el, el.dataset.src); });
+  $$("#ovl .qmd").forEach(el => { tex(el); if(OVFLAG('fig')) figFill(el, el.dataset.src); });
   tex($("#ovl .ez"));
 }
 function ovStep(d){
@@ -5424,9 +5458,9 @@ body.ann-open .aic-fab,body.ann-open .app-float,body.ann-open .app-network{opaci
       pick('.pcol-ans .qmd, .pcol-ans .otx','a');
       pick('.pcol-ez .easybox','e');
     });
-    /* 한눈에 보기 */
+    /* 한눈에 보기 — 켜 두었을 때만 (이 겹이 예전에 되풀이 고리를 만들었다) */
     const ovl=$('#ovl');
-    if(ovl&&ovl.classList.contains('on')){
+    if(OVFLAG('ann')&&ovl&&ovl.classList.contains('on')){
       const r=ovRow();
       if(r){
         const id=String(r.id);
@@ -7948,7 +7982,7 @@ addEventListener('keydown',e=>{ if(e.key==='Escape') closePop(); });
 
 /* 한눈에 판이 열릴 때만 도크를 보인다 */
 function syncDock(){
-  const on=!!$('#ovl')?.classList.contains('on');
+  const on=!!$('#ovl')?.classList.contains('on') && OVFLAG('dock');
   dock.classList.toggle('on',on);
   if(!on) closePop(); else paintBG();
 }
@@ -7998,7 +8032,7 @@ function attach(){
   ovl.__sw=1;
 
   ovl.addEventListener('pointerdown',e=>{
-    if(!ovlOn()) return;
+    if(!ovlOn()||!OVFLAG('swipe')) return;
     /* 글자를 고르는 중 · 필기 중 · 단추 위에서는 넘기지 않는다 */
     if(document.body.classList.contains('inkon')) return;
     if(e.target.closest('button,a,input,select,textarea,canvas,.annbar,.annpop,.aix-panel,.ovdock,.ovpop')) return;
@@ -8040,6 +8074,7 @@ function watch(){
   const ovl=$('#ovl'); if(!ovl) return;
   new MutationObserver(()=>{
     const on=ovl.classList.contains('on');
+    if(!OVFLAG('back')) return;
     if(on&&!MARK){
       MARK=true;
       try{ history.pushState({ovl:1},''); }catch(e){}
@@ -8052,7 +8087,7 @@ function watch(){
   }).observe(ovl,{attributes:true,attributeFilter:['class']});
 }
 addEventListener('popstate',()=>{
-  if(!ovlOn()) return;
+  if(!ovlOn()||!OVFLAG('back')) return;
   MARK=false;
   $('#ovClose')?.click();
 });
@@ -9838,6 +9873,236 @@ if(SAFE0){ document.body.classList.add('ovsafemode');
   setTimeout(()=>say('안전 모드(?safe=1)로 열렸습니다 — 한눈에 판의 무거운 손질을 껐습니다.'),1500); }
 
 window.__ovSafe=v=>{ SAFE=!!v; document.body.classList.toggle('ovsafemode',SAFE); };
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v117 · «한눈에» 를 한 겹씩 켜며 검증한다
+
+     지난번에 판을 통째로 엎은 까닭은, 어느 겹이 멎게 하는지 못 짚어서였다.
+     이번엔 엎지 않는다. 겹마다 스위치를 달고, 한 겹씩 켜면서 그때마다
+     «정말 괜찮은가» 를 기계가 재게 한다.
+
+     재는 것 세 가지 ──
+       ① 판이 열리는 데 걸린 시간 (800ms 넘으면 이상)
+       ② 연 뒤 1.5초 동안 화면을 다시 그린 횟수 (8번 넘으면 되풀이 고리)
+       ③ 그 사이에 난 오류 (한 건이라도 있으면 이상)
+     하나라도 걸리면 그 겹을 도로 끄고, 어느 겹에서 났는지 이름을 적는다.
+
+     겹 차례 (가벼운 것부터) ──
+       레일 → 왼쪽 도크 → 옆으로 넘기기 → 뒤로가기로 닫기
+       → 형광펜·주석 → 그림 여백 자르기 → 그림 오려 채우기 → AI 풀이 띠
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* 꺼진 겹은 화면에서도 안 보이게 */
+body:not(.ovl-rail) .ovrail{display:none!important}
+body.ovlopen:not(.ovl-ai) .annbar .aix-btn{display:none!important}
+body.ovlopen:not(.ovl-ann) .annbar,
+body.ovlopen:not(.ovl-ann) .annpop{display:none!important}
+
+.ovlab{position:fixed;z-index:100070;left:50%;top:50%;transform:translate(-50%,-50%);
+  display:none;width:min(430px,calc(100vw - 24px));max-height:82vh;overflow:auto;
+  padding:14px;border-radius:15px;background:var(--surface,#fff);
+  border:1px solid var(--line,#d7dee8);box-shadow:0 22px 60px rgba(15,23,42,.32)}
+.ovlab.on{display:block}
+.ovlab h4{margin:0 0 3px;font:800 13px/1.3 var(--font-d,system-ui);color:var(--ink,#0f172a)}
+.ovlab .sub{font:500 10.5px/1.55 var(--font-d,system-ui);color:var(--muted,#64748b);margin:0 0 11px}
+.ovlab .row{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px dashed var(--line,#e2e8f0)}
+.ovlab .row:first-of-type{border-top:0}
+.ovlab .row .nm{flex:1;min-width:0}
+.ovlab .row .nm b{display:block;font:700 11.5px/1.35 var(--font-d,system-ui);color:var(--ink,#0f172a)}
+.ovlab .row .nm span{display:block;font:500 10px/1.45 var(--font-d,system-ui);color:var(--muted,#64748b)}
+.ovlab .sw{flex:none;width:46px;height:26px;border-radius:999px;border:1px solid var(--line,#e2e8f0);
+  background:var(--surface-2,#f1f5f9);position:relative;cursor:pointer}
+.ovlab .sw i{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.28);transition:left .14s}
+.ovlab .sw.on{background:#16a34a;border-color:#16a34a}
+.ovlab .sw.on i{left:22px}
+.ovlab .st{flex:none;min-width:52px;text-align:right;font:800 9.5px/1.3 var(--font-m,monospace)}
+.ovlab .st.ok{color:#16a34a}.ovlab .st.bad{color:#dc2626}.ovlab .st.run{color:#2563eb}
+.ovlab .acts{display:flex;gap:6px;margin-top:12px}
+.ovlab .acts button{flex:1;height:34px;border:1px solid var(--line,#e2e8f0);border-radius:9px;
+  background:var(--surface,#fff);color:var(--ink,#0f172a);cursor:pointer;font:700 11px/1 var(--font-d,system-ui)}
+.ovlab .acts button.go{background:#111827;border-color:#111827;color:#fff}
+.ovlab .log{margin-top:10px;padding-top:9px;border-top:1px solid var(--line,#e2e8f0);
+  font:500 10.5px/1.6 var(--font-d,system-ui);color:var(--ink-2,#475569);white-space:pre-wrap;
+  max-height:150px;overflow:auto}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s);
+
+const LAYERS=[
+  { k:'rail',    n:'문항 레일',        d:'판 위쪽에 문항 번호 줄' },
+  { k:'dock',    n:'왼쪽 도크',        d:'음악 · 바탕(모눈·줄눈) · 쉬운 풀이 다시 해석' },
+  { k:'swipe',   n:'옆으로 넘기기',     d:'손가락으로 밀어 이전·다음 문항' },
+  { k:'back',    n:'뒤로가기로 닫기',   d:'브라우저 뒤로가기가 판을 닫는다' },
+  { k:'ann',     n:'형광펜 · 주석',     d:'판 안에서도 칠하고 주석 달기 (가장 무거운 겹)' },
+  { k:'squeeze', n:'그림 여백 자르기',  d:'그림 둘레와 속의 빈 띠를 좁힌다 (픽셀을 훑는다)' },
+  { k:'fig',     n:'그림 오려 채우기',  d:'[[그림]] 자리를 원본에서 오려 넣는다' },
+  { k:'ai',      n:'AI 풀이 띠',        d:'고른 자리를 AI 가 풀어 준다' }
+];
+
+/* ── 재는 자 ─────────────────────────────────────────────
+   ① 여는 데 걸린 시간 ② 1.5초 동안 다시 그린 횟수 ③ 그 사이 오류 */
+let errs=0;
+addEventListener('error',()=>{errs++});
+addEventListener('unhandledrejection',()=>{errs++});
+
+function sampleId(){
+  try{
+    const cur=(typeof OVID!=='undefined'&&OVID)?OVID:null;
+    if(cur) return cur;
+    const rows=Array.isArray(window.SHOWN)&&window.SHOWN.length?window.SHOWN:(Array.isArray(ROWS)?ROWS:[]);
+    /* 무거운 문항으로 재는 편이 낫다 — 글이 길고 그림이 있는 것 */
+    const pick=rows.slice(0,80).sort((a,b)=>
+      ((b.q_md||'').length+(b.a_md||'').length)-((a.q_md||'').length+(a.a_md||'').length))[0];
+    return pick?pick.id:null;
+  }catch(e){ return null }
+}
+
+function check(){
+  return new Promise(res=>{
+    const id=sampleId();
+    if(!id) return res({ok:false,why:'잴 문항이 없습니다'});
+    const e0=errs;
+    let paints=0;
+    const mo=new MutationObserver(m=>{ paints+=m.length });
+    const list=$('#list'), ovl=$('#ovl');
+    try{ if(list) mo.observe(list,{childList:true});
+         if(ovl) mo.observe(ovl,{childList:true,subtree:true}); }catch(x){}
+    const t0=performance.now();
+    let openMs=0;
+    try{ (window.ovOpen||function(){})(id); openMs=Math.round(performance.now()-t0); }
+    catch(x){ mo.disconnect(); return res({ok:false,why:'여는 중 오류: '+((x&&x.message)||x)}); }
+    setTimeout(()=>{
+      mo.disconnect();
+      try{ (window.ovClose||function(){})(); }catch(x){}
+      const de=errs-e0;
+      const ok = openMs<=800 && paints<=8 && de===0;
+      res({ ok, openMs, paints, errs:de,
+            why: ok?'' : (openMs>800?`여는 데 ${openMs}ms`:'')
+                      + (paints>8?` · 다시 그리기 ${paints}번`:'')
+                      + (de?` · 오류 ${de}건`:'') });
+    },1600);
+  });
+}
+
+/* ── 판 ── */
+let box=null;
+function build(){
+  if(box) return box;
+  box=document.createElement('div'); box.className='ovlab';
+  box.innerHTML=`<h4>한눈에 기능 — 한 겹씩 켜기</h4>
+    <div class="sub">겹을 켤 때마다 판을 한 번 열어 «여는 시간 · 다시 그린 횟수 · 오류» 를 잽니다.
+      하나라도 걸리면 그 겹을 도로 끕니다.</div>
+    ${LAYERS.map(L=>`<div class="row" data-k="${L.k}">
+      <div class="nm"><b>${L.n}</b><span>${L.d}</span></div>
+      <div class="st"></div>
+      <button type="button" class="sw" aria-label="${L.n} 켜기"><i></i></button>
+    </div>`).join('')}
+    <div class="acts">
+      <button type="button" class="go" data-seq>▶ 차례로 켜며 검증</button>
+      <button type="button" data-reset>처음값</button>
+      <button type="button" data-x>닫기</button>
+    </div>
+    <div class="log" data-log>아직 검증하지 않았습니다.</div>`;
+  document.body.appendChild(box);
+
+  box.addEventListener('click',async e=>{
+    if(e.target.closest('[data-x]')) return box.classList.remove('on');
+    if(e.target.closest('[data-reset]')){ window.OVL.reset(); paint(); log('처음값으로 되돌렸습니다.'); return; }
+    if(e.target.closest('[data-seq]')) return seq();
+    const sw=e.target.closest('.sw'); if(!sw) return;
+    const k=sw.closest('.row').dataset.k;
+    const next=!window.OVL.get(k);
+    window.OVL.set(k,next); paint();
+    if(!next){ mark(k,'',''); log(`«${nameOf(k)}» 를 껐습니다.`); return; }
+    mark(k,'재는 중','run');
+    const r=await check();
+    if(r.ok){ mark(k,'정상','ok'); log(`«${nameOf(k)}» 켬 — 정상 (여는 데 ${r.openMs}ms · 다시 그리기 ${r.paints}번)`); }
+    else{ window.OVL.set(k,false); paint(); mark(k,'이상','bad');
+          log(`«${nameOf(k)}» 를 켜니 이상 — ${r.why}\n→ 도로 껐습니다.`); }
+  });
+  return box;
+}
+const nameOf=k=>LAYERS.find(L=>L.k===k)?.n||k;
+function mark(k,txt,cls){
+  const el=box?.querySelector(`.row[data-k="${k}"] .st`); if(!el) return;
+  el.textContent=txt; el.className='st'+(cls?' '+cls:'');
+}
+function log(t){
+  const el=box?.querySelector('[data-log]'); if(!el) return;
+  el.textContent=t+'\n'+(el.textContent||'').split('\n').slice(0,8).join('\n');
+}
+function paint(){
+  try{ window.OVLPAINT&&window.OVLPAINT() }catch(e){}
+  if(!box) return;
+  LAYERS.forEach(L=>{
+    box.querySelector(`.row[data-k="${L.k}"] .sw`)?.classList.toggle('on',window.OVL.get(L.k));
+  });
+}
+
+/* ── 차례로 켜며 검증 ── */
+let running=false;
+async function seq(){
+  if(running) return;
+  running=true;
+  const btn=box.querySelector('[data-seq]'); btn.disabled=true; btn.textContent='재는 중…';
+  /* 바닥부터 — 모두 끄고, 기본 판만 남긴 채 하나씩 올린다 */
+  LAYERS.forEach(L=>window.OVL.set(L.k,false)); paint();
+  log('모두 끈 상태에서 시작합니다.');
+  const base=await check();
+  if(!base.ok){
+    log(`⚠ 아무 겹도 안 켠 «기본 판» 부터 이상합니다 — ${base.why}\n   겹 문제가 아닙니다. 이 줄을 그대로 알려 주세요.`);
+    btn.disabled=false; btn.textContent='▶ 차례로 켜며 검증'; running=false; return;
+  }
+  log(`기본 판 정상 (여는 데 ${base.openMs}ms · 다시 그리기 ${base.paints}번)`);
+  let stopped=null;
+  for(const L of LAYERS){
+    mark(L.k,'재는 중','run');
+    window.OVL.set(L.k,true); paint();
+    await new Promise(r=>setTimeout(r,250));
+    const r=await check();
+    if(r.ok){ mark(L.k,'정상','ok'); log(`✓ ${L.n} — 정상 (${r.openMs}ms · ${r.paints}번)`); }
+    else{
+      window.OVL.set(L.k,false); paint();
+      mark(L.k,'이상','bad');
+      log(`✗ ${L.n} — ${r.why}\n→ 이 겹을 끄고 멈춥니다.`);
+      stopped=L; break;
+    }
+  }
+  log(stopped ? `여기까지입니다. «${stopped.n}» 가 걸립니다 — 나머지 겹은 안 켰습니다.`
+              : '모든 겹이 정상입니다. 그대로 쓰셔도 됩니다.');
+  btn.disabled=false; btn.textContent='▶ 차례로 켜며 검증'; running=false;
+}
+
+/* ── 여는 길 ── */
+function open(){ build().classList.add('on'); paint(); }
+window.__ovLab=open;
+
+/* 도구 탭에 단추를 끼운다 */
+const mt=setInterval(()=>{
+  const host=document.getElementById('ezRedoAll')?.parentElement;
+  if(!host) return;
+  if(!document.getElementById('ovLabBtn')){
+    const b=document.createElement('button');
+    b.className='chip'; b.type='button'; b.id='ovLabBtn';
+    b.textContent='⛶ 한눈에 기능';
+    b.title='한눈에 판의 겹을 하나씩 켜며 검증합니다';
+    b.onclick=open;
+    host.appendChild(b);
+  }
+  clearInterval(mt);
+},900);
+setTimeout(()=>clearInterval(mt),30000);
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&box?.classList.contains('on')) box.classList.remove('on');
+});
+paint();
 })();
 </script>
 
