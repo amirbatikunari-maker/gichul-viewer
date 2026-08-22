@@ -1443,7 +1443,10 @@ function drawList(){
     /* 그림이 아예 없는 줄(글자로만 들어온 줄)은 «그림으로 보기» 여부와 상관없이 글자로 보여 준다.
        예전에는 여기서 그림만 찾다가 «문제 그림이 없습니다» 만 띄웠다 — 글자를 이미 들고 있는데도. */
     const textOnly = (md, t) => `<div class="qmd" data-qmd="${t}">${mdRich(md)}</div>`;
-    const useText = t => TEXTMODE && (t === "a" ? !!r.a_md : !!r.q_md);
+    /* ★ 손으로 고친 글은 «그림으로 보기» 에서도 보여 준다.
+       원본 그림은 아래 «원본 그림 보기» 에 그대로 접혀 남는다. */
+    const hand = t => { try{ return !!(window.__handMd && window.__handMd(r.id, t)) }catch(e){ return false } };
+    const useText = t => (t === "a" ? !!r.a_md : !!r.q_md) && (TEXTMODE || hand(t));
     const block = (u, md, t, alt) =>
       !u ? textOnly(md, t) : (useText(t) ? asText(u, md, t, alt) : img(u, alt, t));
 
@@ -3803,7 +3806,14 @@ function ovDraw(){
           + (url ? `<div class="imgbox">${twImg(url, what, rot)}</div>` : "");
     }
     /* «그림으로» 를 켜 두었어도 그림이 없으면 글자라도 보여 준다 —
-       빈 칸에 «그림이 없습니다» 만 띄우면 이미 들고 있는 글자를 못 읽는다. */
+       빈 칸에 «그림이 없습니다» 만 띄우면 이미 들고 있는 글자를 못 읽는다.
+       ★ 손으로 고쳐 넣은 글도 마찬가지다. 그림 뒤에 숨겨 두면 고친 줄을 모른다. */
+    const hand = (() => { try{
+      return !!(md && window.__handMd && window.__handMd(r.id, what === "답안" ? "a" : "q"));
+    }catch(e){ return false } })();
+    if(md && hand) return `<div class="qmd" data-qmd data-src="${esc(url || "")}">${mdRich(md)}</div>`
+      + (url ? `<details class="qsrc"><summary>원본 그림 보기</summary>
+          <div class="imgbox">${twImg(url, what, rot)}</div></details>` : "");
     if(url) return `<div class="imgbox">${twImg(url, what, rot)}</div>`;
     if(md)  return `<div class="qmd" data-qmd>${mdRich(md)}</div>`;
     const t0 = (txt || "").trim();
@@ -6755,8 +6765,13 @@ body.onlyimport #boxFiles,body.onlyimport #boxImport{display:block!important}
         if(up.error) throw up.error;
         r[CUR.f.key] = val || null;
 
-        /* 문제·답안 글자를 고쳤는데 화면이 «그림으로 보기» 면 고친 것이 안 보인다.
-           그럴 때는 글자 보기로 돌려 준다 — 안 그러면 저장이 안 된 줄 안다. */
+        /* ★ 손으로 고친 칸은 표시해 둔다.
+           «그림으로 보기» 에서는 글자를 안 보여 주는 규칙이라, 표시가 없으면
+           고쳐 넣어 놓고도 화면이 그대로여서 «안 들어갔다» 고 여기게 된다.
+           옛 회차처럼 아직 글자로 변환 안 한 문항에서 특히 그렇다. */
+        if(CUR.f.key === 'q_md' || CUR.f.key === 'a_md'){
+          try{ window.__handMdSet && window.__handMdSet(r.id, CUR.f.key === 'a_md' ? 'a' : 'q', !!val); }catch(e){}
+        }
         if((CUR.f.key === 'q_md' || CUR.f.key === 'a_md') && val
            && typeof TEXTMODE !== 'undefined' && !TEXTMODE){
           TEXTMODE = true;
@@ -6911,6 +6926,17 @@ body:not(.onlyimport) .wrap{max-width:none!important}
       const n = nameOf(lab); if(!n) return;
       const box = boxOf(lab); if(!box) return;
       box.classList.toggle('pfold', !!FOLD[n]);
+      /* ★ 접힌 칸은 «빈 칸» 처럼 보인다 — 내용이 없는 건지 접힌 건지 알 수 없다.
+         눌러서 펴라는 말을 이름표에 남긴다. (답안이 사라진 줄 알았던 그 일) */
+      let hint = lab.querySelector('.foldhint');
+      if(FOLD[n]){
+        if(!hint){
+          hint = document.createElement('span');
+          hint.className = 'foldhint';
+          hint.textContent = '눌러서 펴기';
+          lab.insertBefore(hint, lab.querySelector('.edb') || null);
+        }
+      }else if(hint) hint.remove();
       if(!lab.__fold){
         lab.__fold = 1;
         lab.addEventListener('click', e => {
@@ -6923,6 +6949,11 @@ body:not(.onlyimport) .wrap{max-width:none!important}
     });
   }
   window.__pracFold = applyFold;
+  /* 밖에서 접힘 상태를 바꿀 수 있게 열어 둔다 (v135 의 «답안 가리개» 가 쓴다) */
+  window.__pracFoldSet = function(name, v){
+    if(!NAMES.includes(name)) return;
+    FOLD[name] = !!v; save(); applyFold();
+  };
 
   /* ══ 처음 켤 때 — 다 보이게, 한 문항씩 ══
      단추를 없앴으니 손으로 못 켠다. 이미 있는 손잡이를 한 번 눌러 상태만 맞춘다
@@ -11951,6 +11982,81 @@ setInterval(()=>{ const o=document.getElementById('ovl');
 
 <!-- 끌어서 고른 자리를 AI 가 풀어 준다 (일반 · 한눈에 공통) -->
 <script src="./ai-explain.js" defer></script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v135 · ① 손으로 고친 글이 안 보이던 것  ② 답안 가리개  ③ 한눈에 머리 겹침
+
+     ① «옛날 회차만 그렇다» 의 까닭 ──
+        고쳐 넣은 글(q_md · a_md)은 «글자로 보기» 일 때만 그린다는 규칙이 있다.
+          const useText = t => TEXTMODE && !!md;
+        최신 회차는 이미 글자로 변환해 두어 글자 보기로 보므로 고친 것이 바로 뜬다.
+        옛 회차는 아직 «그림» 이라 그림 보기로 보게 되고, 그러면 고쳐 넣은 글은
+        규칙에 걸려 한 글자도 안 그려진다 — 저장은 됐는데 화면만 그대로다.
+        그래서 «손으로 고친 칸» 을 표시해 두고, 그 칸만은 그림 보기에서도 글을
+        보여 준다. 원본 그림은 «원본 그림 보기» 로 접어 그대로 남긴다.
+        목록과 한눈에 판, 두 곳 모두 같은 규칙으로 맞췄다.
+
+     ② 랜덤을 누르면 답안에 가리개(.hide)가 씌워지는데, 그 가리개를 여는 단추는
+        접이식으로 바꾸며 없앴다. 여는 손잡이 없는 가리개만 남아 답안이 통째로
+        사라져 보였다. 가리개를 «접기» 로 옮긴다 — 이름표를 누르면 열린다.
+
+     ③ 한눈에 판 머리줄이 sticky + z-index 로 떠 있어 문항줄 위로 겹쳐 앉았다.
+        머리·문항줄·탭·본문을 위아래로 또박또박 쌓고, 머리는 접히는 대신
+        옆으로 굴러가게 한다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* 접힌 칸 — 비어 있는 게 아니라 접힌 것임을 알려 준다 */
+.foldhint{margin-left:8px;padding:1px 7px;border-radius:999px;flex:0 0 auto;
+  border:1px solid var(--line,#e2e8f0);background:var(--surface,#fff);
+  font:700 9px/1.6 var(--font-d,system-ui);color:var(--muted,#64748b);letter-spacing:0}
+
+/* ── ③ 한눈에 판 위쪽을 또박또박 쌓는다 ── */
+.ovl.on{display:flex!important;flex-direction:column!important}
+.ovl .oh{position:relative!important;top:auto!important;z-index:auto!important;
+  flex:0 0 auto!important;flex-wrap:nowrap!important;
+  overflow-x:auto;overflow-y:visible;scrollbar-width:none}
+.ovl .oh::-webkit-scrollbar{display:none}
+.ovl .oh > *{flex:0 0 auto}
+.ovl .oh .ot{flex:1 1 auto;min-width:52px;overflow:hidden}
+.ovl .oh .ot span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ovl .oh .ovacts{flex:0 0 auto}
+.ovrail{flex:0 0 auto!important;position:relative!important;z-index:auto!important}
+.ovl .otabs{flex:0 0 auto}
+.ovl .ob{flex:1 1 auto!important;min-height:0}
+</style>
+<script>
+(function(){
+'use strict';
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+
+/* ══ ① 손으로 고친 칸 표시 ══
+   이 기기에 남긴다. 표에 칸을 새로 파지 않아도 되고, 잘못 적혀도 화면만 달라진다. */
+const KEY='prac:handmd:v1';
+let SET=(()=>{ try{ return new Set(JSON.parse(localStorage.getItem(KEY)||'[]')) }catch(e){ return new Set() } })();
+const put=()=>{ try{ localStorage.setItem(KEY,JSON.stringify([...SET])) }catch(e){} };
+window.__handMd    = (id,t)=> SET.has(String(id)+':'+t);
+window.__handMdSet = (id,t,on)=>{
+  const k=String(id)+':'+t;
+  if(on) SET.add(k); else SET.delete(k);
+  put();
+};
+
+/* ══ ② 답안 가리개는 아예 없앤다 — 늘 펼친 채로 둔다 ══
+   랜덤(무작위로 풀기)이 HIDE_ALL 을 켜서 답안을 가리려 들지만, 여는 단추는
+   접이식으로 바꾸며 없어졌다. 가리개를 접기로 옮겨 봤더니 그것도 «접힌 채»
+   시작해 답안이 안 보이는 건 마찬가지였다. 그래서 가리는 일 자체를 그만둔다.
+   접고 싶으면 이름표를 손으로 누르면 된다 — 그 손잡이는 그대로 있다. */
+setInterval(()=>{
+  const veiled=$$('.ans.hide');
+  if(veiled.length) veiled.forEach(e=>e.classList.remove('hide'));
+  if(typeof HIDE_ALL!=='undefined' && HIDE_ALL){
+    try{ HIDE_ALL=false; }catch(e){ return; }
+    try{ drawList(); }catch(e){}
+  }
+},400);
+})();
+</script>
 
 </body>
 </html>
