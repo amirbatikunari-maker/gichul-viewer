@@ -8240,6 +8240,89 @@ setTimeout(()=>clearInterval(boot),20000);
 
 
 <!-- ══════════════════════════════════════════════════════════════
+     v134 · 자르기가 «여백 자르기» 와 싸우던 것을 끝낸다
+
+     증상 — 자르면 크기는 그대로인데 그림이 왼쪽으로 밀려 통째로 잘려 보였다.
+
+     까닭 — 두 기능이 «같은 자리» 를 서로 다르게 쓰고 있었다.
+       · 여백 자르기(.tw.on img · .pz.trim .pz-stage)는 그림에
+           width: calc(100% / --tw)  ·  margin-left: calc(--tl * -100% / --tw)
+         를 걸어, 종이 여백을 창 밖으로 밀어내는 방식이다.
+       · 자르기는 같은 그림에 낱줄(inline)로
+           style.width = 'NN%'  ·  style.margin = '-…px -…px -…px -…px'
+         를 덮어썼다. 낱줄이 CSS 보다 세므로 여백 자르기의 셈이 통째로 날아간다.
+         게다가 .rawfixed{overflow:visible!important} 가 창까지 열어 버려,
+         밀려난 그림이 그대로 드러나며 «다 잘린» 꼴이 됐다.
+
+     고침 — 자를 때는 자리(layout)를 아예 건드리지 않는다.
+       object-view-box 로 «그림 속» 만 도려낸다. 여백·너비를 안 만지니
+       여백 자르기와 부딪힐 일이 없고, 가운데 정렬(margin:auto)도 안 깨진다.
+       손으로 자른 그림은 여백 자르기 창을 끈다 — 한 그림을 둘이 자르면
+       무엇을 보는지 알 수 없게 된다. 손으로 고른 쪽을 따른다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* 손으로 자른 그림은 여백 자르기 창을 끈다 */
+.tw.cropwin,.pz.cropwin{aspect-ratio:auto!important}
+.tw.cropwin img,.pz.cropwin .pz-stage{position:static!important;width:100%!important;
+  margin:0!important;max-width:100%}
+.tw.cropwin{overflow:visible!important}
+img.cropfit{display:block;max-width:100%;height:auto;margin-left:auto;margin-right:auto}
+</style>
+<script>
+(function(){
+'use strict';
+/* 이 브라우저가 «그림 속 도려내기» 를 아는가 (크롬 104+) */
+const OVB = (() => { try{ return CSS.supports('object-view-box','inset(0% 0% 0% 0%)'); }catch(e){ return false; } })();
+window.__cropOVB = OVB;
+
+const hostOf = im => im.closest('.tw, .pz, .imgbox');
+const pc = v => (v * 100).toFixed(3);
+
+/* 여백 자르기 창을 끄고 켠다 */
+window.__cropUntrim = function(im){ const h = hostOf(im); if(h) h.classList.add('cropwin'); };
+window.__cropRetrim = function(im){ const h = hostOf(im); if(h) h.classList.remove('cropwin'); };
+
+/* ★ 자른 자리를 그린다 — 이것 하나만 쓴다 (v102 · v111 이 같이 부른다) */
+window.__cropPaint = function(im, b){
+  if(!im) return;
+  const clear = () => {
+    im.style.removeProperty('object-view-box');
+    im.style.removeProperty('object-fit');
+    im.style.removeProperty('aspect-ratio');
+    im.style.removeProperty('clip-path');
+    im.style.removeProperty('margin');
+    im.classList.remove('cropfit');
+  };
+  if(!b || !(b.w > 0) || !(b.h > 0)){ clear(); window.__cropRetrim(im); return; }
+
+  window.__cropUntrim(im);                      /* 둘이 같은 그림을 다투지 않게 */
+
+  if(OVB){
+    /* 자리는 하나도 안 건드린다 — 그림 «속» 만 도려낸다 */
+    im.style.removeProperty('clip-path');
+    im.style.removeProperty('margin');
+    im.style.objectViewBox = `inset(${pc(b.t)}% ${pc(1-b.l-b.w)}% ${pc(1-b.t-b.h)}% ${pc(b.l)}%)`;
+    im.style.objectFit = 'contain';
+    const nw = im.naturalWidth || 0, nh = im.naturalHeight || 0;
+    if(nw && nh) im.style.aspectRatio = `${(nw*b.w).toFixed(3)} / ${(nh*b.h).toFixed(3)}`;
+    else im.addEventListener('load', () => window.__cropPaint(im, b), { once:true });
+    im.classList.add('cropfit');
+    return;
+  }
+
+  /* 옛 브라우저 — 예전 방식으로 가리되, 창을 끈 뒤라 밀려 나가지는 않는다 */
+  const W = im.offsetWidth, H = im.offsetHeight;
+  if(!W || !H){ im.addEventListener('load', () => window.__cropPaint(im, b), { once:true }); return; }
+  im.style.clipPath = `inset(${pc(b.t)}% ${pc(1-b.l-b.w)}% ${pc(1-b.t-b.h)}% ${pc(b.l)}%)`;
+  im.style.margin = `${(-(b.t*H)).toFixed(1)}px ${(-((1-b.l-b.w)*W)).toFixed(1)}px `
+                  + `${(-((1-b.t-b.h)*H)).toFixed(1)}px ${(-(b.l*W)).toFixed(1)}px`;
+  im.classList.add('cropfit');
+};
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
      v102 · 그림 자르기
 
      크기만 줄이면 «작아진 그림 전체» 가 남는다. 정작 보고 싶은 건
@@ -8326,14 +8409,13 @@ function boxOf(im){
 }
 function paintOne(im){
   const b=boxOf(im);
-  if(!b){ im.style.clipPath=''; im.style.margin=''; im.classList.remove('cropped'); return }
-  im.classList.add('cropped');
-  const W=im.offsetWidth, H=im.offsetHeight;
-  if(!W||!H) return;
-  im.style.clipPath=`inset(${(b.t*100).toFixed(3)}% ${((1-b.l-b.w)*100).toFixed(3)}% `
-                  + `${((1-b.t-b.h)*100).toFixed(3)}% ${(b.l*100).toFixed(3)}%)`;
-  im.style.margin=`${-(b.t*H).toFixed(1)}px ${-((1-b.l-b.w)*W).toFixed(1)}px `
-                + `${-((1-b.t-b.h)*H).toFixed(1)}px ${-(b.l*W).toFixed(1)}px`;
+  /* ★ 그리는 일은 v134 의 한 곳으로 모았다.
+     예전에는 여기서 낱줄 margin·width 를 덮어써서 «여백 자르기» 의 셈을
+     통째로 날려 버렸다 — 그림이 옆으로 밀려 다 잘려 보이던 까닭이다. */
+  if(!b){ im.classList.remove('cropped'); }
+  else   { im.classList.add('cropped'); }
+  if(window.__cropPaint) return window.__cropPaint(im, b);
+  /* v134 가 아직 안 실려 있으면 아무것도 안 한다 — 어설피 그리면 더 어긋난다 */
 }
 function paintAllCrops(root){
   $$('img[data-crop]',root||document).forEach(im=>{
@@ -8450,9 +8532,16 @@ function start(im){
      오려 온 그림은 «이미 잘린 것» 이 화면에 있으므로 늘 전체에서 시작한다. */
   const b=boxOf(im);
   BOX = (CUR.kind==='img'&&b) ? {...b} : {l:.05,t:.05,w:.9,h:.9};
-  if(CUR.kind==='img'&&b){ im.style.clipPath=''; im.style.margin=''; }
+  /* ★ 네모를 그리기 전에 «온전한 그림» 을 드러낸다.
+     여백 자르기 창이 씌워져 있으면 눈에 보이는 것과 그림의 실제 자리가 어긋나서,
+     고른 데와 잘리는 데가 서로 다른 곳이 된다. */
+  window.__cropUntrim && window.__cropUntrim(im);
+  window.__cropPaint  && window.__cropPaint(im, null);
+  window.__cropUntrim && window.__cropUntrim(im);
   OV.classList.add('on'); BAR.classList.add('on');
   place();
+  requestAnimationFrame(()=>{ if(CUR) place() });     /* 창을 끄면 크기가 바뀐다 */
+  setTimeout(()=>{ if(CUR) place() }, 120);
 }
 function stop(){
   if(CUR&&CUR.kind==='img') paintOne(CUR.im);
@@ -8469,10 +8558,16 @@ window.__rawCropStart=function(im,key){
   let cur=null;
   try{ cur=(window.__rawFix&&window.__rawFix()[key]||{}).c }catch(e){}
   BOX = Array.isArray(cur) ? {l:cur[0],t:cur[1],w:cur[2],h:cur[3]} : {l:.05,t:.05,w:.9,h:.9};
-  /* 잘라 둔 것을 잠시 풀어야 «원본 위에» 네모를 그릴 수 있다 */
+  /* 잘라 둔 것을 잠시 풀어야 «원본 위에» 네모를 그릴 수 있다.
+     여백 자르기 창도 같이 끈다 — 안 그러면 보이는 자리와 고르는 자리가 어긋난다. */
+  window.__cropUntrim && window.__cropUntrim(im);
+  window.__cropPaint  && window.__cropPaint(im, null);
+  window.__cropUntrim && window.__cropUntrim(im);
   im.style.removeProperty('clip-path'); im.style.removeProperty('margin');
   OV.classList.add('on'); BAR.classList.add('on');
   place();
+  requestAnimationFrame(()=>{ if(CUR) place() });
+  setTimeout(()=>{ if(CUR) place() }, 120);
 };
 
 async function apply(box){
@@ -9775,6 +9870,7 @@ function paint(im){
   const k=keyOf(im); const f=k?FIX[k]:null;
   const host=im.closest('.pz-stage,.tw,.imgbox');
   if(!f){
+    if(window.__cropPaint) window.__cropPaint(im, null);
     im.style.removeProperty('clip-path'); im.style.removeProperty('margin');
     if(!im.dataset.rawW) im.style.removeProperty('width');
     im.classList.remove('rawfixed'); host?.classList.remove('rawfixed');
@@ -9784,13 +9880,9 @@ function paint(im){
   else im.style.removeProperty('width');
   if(Array.isArray(f.c)){
     const [l,t,w,h]=f.c;
-    const W=im.offsetWidth, H=im.offsetHeight;
-    if(W&&H){
-      im.style.clipPath=`inset(${(t*100).toFixed(2)}% ${((1-l-w)*100).toFixed(2)}% `
-                      + `${((1-t-h)*100).toFixed(2)}% ${(l*100).toFixed(2)}%)`;
-      im.style.margin=`${-(t*H).toFixed(1)}px ${-((1-l-w)*W).toFixed(1)}px `
-                    + `${-((1-t-h)*H).toFixed(1)}px ${-(l*W).toFixed(1)}px`;
-    }
+    /* ★ v134 한 곳에서 그린다 — 자리(너비·여백)를 안 건드려야
+       «여백 자르기» 창과 안 싸운다 */
+    if(window.__cropPaint) window.__cropPaint(im, {l,t,w,h});
     im.classList.add('rawfixed'); host?.classList.add('rawfixed');
   }else{
     im.style.removeProperty('clip-path'); im.style.removeProperty('margin');
