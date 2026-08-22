@@ -14345,5 +14345,243 @@ setTimeout(()=>clearInterval(mt),60000);
 })();
 </script>
 
+
+<!-- ══════════════════════════════════════════════════════════════
+     v152 · 이미 들어가 있는 것들을 이름표 칸으로 옮긴다
+
+     문제집·정리본을 처음에 «자동» 으로 올렸다면, 그 문항들은 진짜 기출 연도
+     (2020년 제2회 …) 자리에 흩어져 앉아 있다. 기출과 섞여 진도·중복묶기·거르기가
+     전부 엉킨다. 그렇다고 하나씩 고칠 양이 아니다.
+
+     정리함의 파일 묶음마다 «🏷 이름표로 옮기기» 를 하나 붙인다. 누르면
+       ① 이름표를 고르거나 새로 만들고 (9001 · 9002 … 자동 배정)
+       ② 그 파일에서 온 문항 전부를 그 연도 · 제1회 로 옮기고
+       ③ 번호를 원래 쪽 순서대로 1번부터 다시 매긴다
+     세 가지를 한 번에 한다. 열쇠가 (과목·연도·회차·번호) 이므로 번호를 다시
+     매겨야 서로 안 밟는다. 번호는 음수 자리로 한 번 피했다가 제자리를 준다.
+
+     ★ 옮겨도 글자 변환·쉬운 풀이·필기는 그대로 따라간다(같은 줄이 옮겨갈 뿐이다).
+     ★ «어느 시험에 나왔던 문제인가» 는 문제 그림 안에 그대로 남아 있다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+.srcg .a button.mv{border-color:#93c5fd;color:#1d4ed8;background:#f2f7ff}
+.srcg .hintbook{margin-top:6px;font:700 10.5px/1.6 var(--font-d,system-ui);color:#b45309}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const rowsAll=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
+const SB=()=>{ try{ return sb }catch(e){ return null } };
+const YKEY='prac:ylabel:v1';
+const labels=()=>{ try{ return JSON.parse(localStorage.getItem(YKEY)||'{}') }catch(e){ return {} } };
+const putLabel=(y,n)=>{ const L=labels(); L[String(y)]=n; try{ localStorage.setItem(YKEY,JSON.stringify(L)) }catch(e){} };
+const chunk=(a,n)=>{ const o=[]; for(let i=0;i<a.length;i+=n) o.push(a.slice(i,i+n)); return o };
+
+function say(t,bad){
+  const m=document.getElementById('srcMsg');
+  if(m){ m.textContent=t||''; m.classList.toggle('bad',!!bad); }
+}
+
+async function updEach(list){
+  let n=0;
+  for(const c of chunk(list,6)){
+    await Promise.all(c.map(async x=>{
+      const r=await SB().from('practicals').update(x.patch).eq('id',x.id);
+      if(r.error) throw new Error(r.error.message);
+    }));
+    n+=c.length; say(`옮기는 중… ${n}/${list.length}`);
+  }
+}
+
+/* 안 쓰는 이름표 번호를 하나 준다 */
+function freeYear(){
+  const used=new Set([...Object.keys(labels()), ...rowsAll().map(r=>String(r.year))]);
+  let y=9001; while(used.has(String(y))) y++;
+  return y;
+}
+
+async function moveToLabel(k){
+  const rs=rowsAll().filter(r=>String(r.source||'(출처 없음)')===k);
+  if(!rs.length) return;
+
+  const L=labels();
+  const list=Object.keys(L).sort((a,b)=>+a-+b);
+  const pick=prompt(
+    `«${k}»\n${rs.length}문항을 어느 이름표로 옮길까요?\n\n`
+    +(list.length? list.map(y=>`${y} : ${L[y]}`).join('\n')+'\n\n' : '(아직 만든 이름표가 없습니다)\n\n')
+    +`· 위 번호 중 하나를 적으면 그리로 옮깁니다\n`
+    +`· 새로 만들려면 «이름» 을 그대로 적으세요 (번호는 ${freeYear()} 로 자동)`,
+    list[0]||'');
+  if(pick===null) return;
+  const t=pick.trim();
+  if(!t) return;
+
+  let Y;
+  if(/^\d{3,5}$/.test(t)){
+    Y=+t;
+    if(!L[String(Y)] && !confirm(`${Y} 번에는 이름표가 없습니다. 그래도 옮길까요?`)) return;
+  }else{
+    Y=freeYear(); putLabel(Y,t);
+  }
+  const nm=labels()[String(Y)]||String(Y);
+
+  const spread=[...new Set(rs.map(r=>`${r.year}-${r.session}`))].length;
+  if(!confirm(`«${k}» ${rs.length}문항을\n\n   ${nm} (${Y}) · 제1회 1~${rs.length}번\n\n`
+    +`으로 옮깁니다. 지금은 ${spread}개 회차에 흩어져 있습니다.\n`
+    +`번호는 원래 쪽 순서대로 다시 매깁니다. 계속할까요?`)) return;
+
+  /* 옮길 자리에 다른 문항이 있으면 그 뒤로 이어 붙인다 */
+  const mine=new Set(rs.map(r=>String(r.id)));
+  const there=rowsAll().filter(r=>+r.year===Y && +r.session===1 && !mine.has(String(r.id)));
+  const base=there.length?Math.max(...there.map(r=>+r.no||0)):0;
+
+  const ord=rs.slice().sort((a,b)=>
+    ((a.year||0)-(b.year||0))||((a.session||0)-(b.session||0))
+    ||((a.page_from||0)-(b.page_from||0))||((a.no||0)-(b.no||0)));
+
+  $$('.srcg .a button').forEach(b=>b.disabled=true);
+  try{
+    say('번호를 비우는 중…');
+    await updEach(ord.map((r,i)=>({ id:r.id, patch:{ year:Y, session:1, no:-(i+1) } })));
+    say('번호를 매기는 중…');
+    await updEach(ord.map((r,i)=>({ id:r.id, patch:{ no:base+i+1 } })));
+    ord.forEach((r,i)=>{ r.year=Y; r.session=1; r.no=base+i+1; });
+    say(`${rs.length}문항을 «${nm}» 으로 옮겼습니다.`);
+  }catch(e){
+    say('멈췄습니다 — '+((e&&e.message)||e)+' (한 것까지는 남아 있습니다)',true);
+  }finally{
+    $$('.srcg .a button').forEach(b=>b.disabled=false);
+    try{ await loadList() }catch(e){ try{ drawList() }catch(e2){} }
+    try{ window.__pracSrc && document.querySelector('.srcw.on') && paintAgain() }catch(e){}
+  }
+}
+function paintAgain(){
+  /* 정리함이 스스로 다시 그리게 — 닫았다 열면 된다 */
+  const w=document.querySelector('.srcw');
+  if(w && w.classList.contains('on')){ w.classList.remove('on'); setTimeout(()=>window.__pracSrc&&window.__pracSrc(),60); }
+}
+
+/* ── 정리함이 그려질 때마다 단추를 끼운다 ── */
+function inject(){
+  const host=document.getElementById('srcList'); if(!host) return;
+  $$('.srcg',host).forEach(g=>{
+    const bar=g.querySelector('.a'); if(!bar || bar.querySelector('button.mv')) return;
+    const k=decodeURIComponent(g.dataset.k||'');
+    const b=document.createElement('button');
+    b.type='button'; b.className='mv'; b.textContent='🏷 이름표로 옮기기';
+    b.title='이 파일에서 온 문항 전부를 이름표 연도로 옮기고 번호를 1번부터 다시 매깁니다';
+    b.onclick=()=>moveToLabel(k);
+    bar.insertBefore(b, bar.firstChild);
+
+    /* 문제집으로 보이는 묶음에는 눈에 띄게 알려 준다 */
+    const rs=rowsAll().filter(r=>String(r.source||'(출처 없음)')===k);
+    const rounds=new Set(rs.map(r=>`${r.year}-${r.session}`)).size;
+    const real=rs.filter(r=>+r.year>=1990 && +r.year<=2100).length;
+    if(rounds>=5 && real===rs.length && !g.querySelector('.hintbook')){
+      const h=document.createElement('div');
+      h.className='hintbook';
+      h.textContent=`⚠ ${rounds}개 회차에 흩어져 있습니다 — 주제별로 엮인 자료라면 이름표로 옮기세요.`;
+      bar.before(h);
+    }
+  });
+}
+const mo=new MutationObserver(()=>inject());
+const t=setInterval(()=>{
+  const host=document.getElementById('srcList');
+  if(!host) return;
+  clearInterval(t);
+  mo.observe(host,{childList:true});
+  inject();
+},600);
+setTimeout(()=>clearInterval(t),120000);
+
+window.__pracMoveLabel=moveToLabel;
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v153 · 줄 앞 빈칸(들여쓰기)을 그대로 살린다
+
+     스페이스바가 안 먹는 게 아니라, 글을 화면에 그릴 때 사라진다.
+     HTML 은 잇따른 빈칸을 하나로 줄이고, 마크다운을 그리는 쪽은 줄마다
+     앞뒤를 잘라 낸다(trim). 그래서 왼쪽 글에는 분명히 있는 빈칸이
+     오른쪽 화면에서는 없어진다.
+
+     고침 — 자를 «전에» 빈칸을 다른 글자로 바꿔 두었다가, 다 그린 뒤에
+     «안 줄어드는 빈칸(&nbsp;)» 으로 되돌린다. 저장되는 글은 그냥 빈칸 그대로다.
+       · 줄 앞 빈칸    — 한 칸씩 그대로
+       · 전각 빈칸 «　» — 두 칸으로
+       · 탭            — 네 칸으로
+       · 줄 가운데 빈칸이 두 칸 이상 이어질 때도 살린다 (수식이 없는 줄만)
+
+     ★ 표(|)·제목(#)·목록(-)·수식($$) 줄은 손대지 않는다. 그쪽은 빈칸이
+       문법이라 건드리면 표가 깨진다.
+     ★ 글 칸에서 Tab 을 누르면 두 칸이 들어간다(원래는 칸 밖으로 튀었다).
+     ══════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+'use strict';
+const MARK='\uE000';                       /* 개인용 영역 글자 — 어디에도 안 쓰인다 */
+const SKIP=/^(?:\||#{1,6}\s|[-*]\s|\d+[.)]\s|\$\$|>|```)/;
+
+function keepIndent(src){
+  return String(src==null?'':src).split('\n').map(line=>{
+    const m=line.match(/^([ \t\u3000]+)/);
+    const body=m?line.slice(m[1].length):line;
+    if(SKIP.test(body)) return line;                 /* 표·제목·목록·수식은 그대로 */
+    let out=line;
+    if(m){
+      let n=0;
+      for(const ch of m[1]) n += ch==='\t' ? 4 : ch==='\u3000' ? 2 : 1;
+      out=MARK.repeat(n)+body;
+    }
+    /* 줄 가운데 — 수식이 없는 줄만 (수식 안에 넣으면 KaTeX 가 깨진다) */
+    if(out.indexOf('$')<0){
+      out=out.replace(/(\S)( {2,})/g,(x,a,b)=>a+MARK.repeat(b.length));
+    }
+    return out;
+  }).join('\n');
+}
+
+['mdRich','mdLite'].forEach(k=>{
+  const f=window[k];
+  if(typeof f!=='function' || f.__indent) return;
+  const w=function(src){
+    const out=f.call(this, keepIndent(src));
+    return String(out).split(MARK).join('&nbsp;');
+  };
+  w.__indent=1; ['__mlmath','__cellbr'].forEach(t=>{ w[t]=f[t] });
+  try{ window[k]=w }catch(e){}
+});
+
+/* ── 글 칸에서 Tab 은 두 칸 ── */
+const t=setInterval(()=>{
+  const ta=document.querySelector('.edw #edTa');
+  if(!ta || ta.__tab) return;
+  ta.__tab=1; clearInterval(t);
+  ta.addEventListener('keydown',e=>{
+    if(e.key!=='Tab' || e.ctrlKey || e.metaKey || e.altKey) return;
+    e.preventDefault(); e.stopPropagation();
+    const s=ta.selectionStart, en=ta.selectionEnd;
+    if(!e.shiftKey){
+      ta.value=ta.value.slice(0,s)+'  '+ta.value.slice(en);
+      ta.selectionStart=ta.selectionEnd=s+2;
+    }else{
+      /* Shift+Tab — 줄 앞 두 칸을 뺀다 */
+      const l0=ta.value.lastIndexOf('\n',s-1)+1;
+      if(ta.value.slice(l0,l0+2)==='  '){
+        ta.value=ta.value.slice(0,l0)+ta.value.slice(l0+2);
+        ta.selectionStart=ta.selectionEnd=Math.max(l0,s-2);
+      }
+    }
+    ta.dispatchEvent(new Event('input',{bubbles:true}));
+  },true);
+},400);
+setTimeout(()=>clearInterval(t),120000);
+})();
+</script>
+
 </body>
 </html>
