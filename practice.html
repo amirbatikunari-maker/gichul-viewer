@@ -408,7 +408,9 @@ body.oneup #list > .pcard.show{display:block}
 
 /* ── 필기 ── */
 .inkc{position:absolute;inset:0;width:100%;height:100%;z-index:2;
-  touch-action:none;pointer-events:none}
+  /* ★ 예전에는 touch-action:none 이라 두 손가락 확대까지 캔버스가 먹었다.
+     pinch-zoom 만 브라우저에 넘겨 준다 — 한 손가락(또는 펜)은 그대로 우리가 받는다. */
+  touch-action:pinch-zoom;pointer-events:none}
 .pz[data-ink="1"] .inkc{pointer-events:auto;cursor:crosshair}
 .pz[data-ink="1"]{outline:2px solid var(--accent);outline-offset:-2px}
 .inkswatch{width:16px;height:16px;border-radius:50%;border:1.4px solid var(--rule);
@@ -3188,23 +3190,46 @@ ${qs.slice(0, 2400) || "(없음)"}
 [답안 글${textOnly ? "" : "(있으면 참고. 없으면 그림만 보고 판단)"}]
 ${as.slice(0, 1800) || "(없음)"}
 
-[할 일 — 이 차례 그대로, 소제목을 굵게 달아서]
+[먼저 판단할 것]
+문제에 물음이 (1) (2) … 또는 ① ② … 처럼 «여러 개» 인지 «하나» 인지 먼저 보아라.
+답안 글에 (1) (2) … 가 있으면 그 번호가 곧 물음 번호다. 그 번호에 맞춰 써라.
+
+════════ 물음이 여러 개일 때 — 이 짜임새로만 써라 ════════
+
+**공통으로 알아야 할 것**
+모든 물음에 두루 쓰이는 개념·공식만 두세 개. 물음 하나에만 쓰이는 것은 여기 적지 마라.
+
+그다음 «물음 번호마다 한 덩어리». 덩어리 제목은 원문 번호를 그대로 쓴다.
+
+**(1) 〈그 물음을 한마디로〉**
+- 목적: 무엇을 구하라는 것인지 한 줄
+- 쓰는 값: 이 물음에 «실제로 쓰이는» 값만 기호 = 값 [단위] 로. 안 쓰는 값은 적지 마라
+- 쓰는 식: 식 하나와, 왜 그 식인지 한 줄
+- 넣고 계산: 숫자를 넣은 줄 → 결과 (단위까지)
+- 답: 〈답안지의 그 번호 답과 글자까지 같게〉
+
+**(2) …** 이렇게 마지막 물음까지 하나도 빠뜨리지 말고 이어서 써라.
+앞 덩어리에서 구한 값을 뒤에서 쓰면 «(1)에서 구한 39.67[MVA]» 처럼 어디서 온 값인지 밝혀라.
+답안에 있는 번호는 전부 나와야 한다. 물음이 13개면 덩어리도 13개다.
+
+**자주 틀리는 곳**
+두세 가지. 각각 앞에 «(3)» 처럼 어느 물음 이야기인지 번호를 붙여라.
+
+════════ 물음이 하나일 때 — 이 짜임새로만 써라 ════════
+
 **무엇을 묻는 문제인가**
-한두 줄. 주어진 것과 구하는 것을 분명히 갈라서 적어라.
+한두 줄. 주어진 것과 구하는 것을 분명히 갈라서.
 
 **주어진 값**
-- 기호 = 값 [단위] 꼴로 하나씩. 그림에만 있고 글에는 없는 값도 빠짐없이 적어라.
+- 기호 = 값 [단위] 꼴로 하나씩. 그림에만 있고 글에는 없는 값도 빠짐없이.
 - 그림에서 읽히지 않는 값은 "그림에 안 나와 있음" 이라고 적어라.
 
 **알아야 할 것**
-이 문제를 풀려면 먼저 알아야 하는 개념·공식을 두세 개. 각각 왜 그렇게 되는지 한 줄씩 붙여라.
+먼저 알아야 하는 개념·공식 두세 개. 각각 왜 그런지 한 줄씩.
 
 **푸는 순서**
-번호를 매겨 단계별로. 각 단계마다
-- 무엇을 구하는 단계인지 한 줄
-- 쓰는 식
-- 숫자를 넣은 계산 한 줄 (단위 포함)
-- 그 단계의 답
+번호를 매겨 단계별로. 각 단계마다 — 무엇을 구하는 단계인지 · 쓰는 식 ·
+숫자를 넣은 계산 한 줄(단위 포함) · 그 단계의 답.
 계산을 건너뛰지 마라. 중간값을 반올림했으면 어디서 반올림했는지 밝혀라.
 
 **답**
@@ -3213,8 +3238,10 @@ ${as.slice(0, 1800) || "(없음)"}
 **자주 틀리는 곳**
 두세 가지. 왜 틀리는지와 어떻게 피하는지 같이.
 
-**이 문제가 물고 늘어질 수 있는 것**
-같은 개념에서 변형되어 나올 만한 물음 두 개. 각각 한 줄 답까지.
+════════ 둘 다에 해당하는 것 ════════
+- 단위 기호는 수식 안에 넣어라. 수식 밖에 \\Omega · \\Delta 같은 명령을 그대로 쓰지 마라
+  (수식 밖에서는 Ω · Δ · ℃ 처럼 글자로).
+- 맨 끝에 **이 문제가 물고 늘어질 수 있는 것** — 변형되어 나올 만한 물음 두 개, 한 줄 답까지.
 ${EASY_RULE}`;
 }
 
@@ -7241,9 +7268,11 @@ body.inkfinger .pz[data-ink="1"] canvas.inkc{touch-action:none!important}
 /* ── 칸 위에 씌우는 필기판 ── */
 .inkhost{position:relative}
 .inkl{position:absolute;left:0;right:0;bottom:0;z-index:6;display:block;
-  pointer-events:none;touch-action:pan-x pan-y}
+  pointer-events:none;touch-action:pan-x pan-y pinch-zoom}
 body.inkon .inkl{pointer-events:auto;cursor:crosshair}
-body.inkon.inkpenhover .inkl,body.inkon.inkfinger .inkl{touch-action:none}
+/* ★ 필기 중에도 «두 손가락 확대» 만은 브라우저에 넘긴다.
+   예전에는 touch-action:none 이라 글씨가 작아 보여도 키울 길이 없었다. */
+body.inkon.inkpenhover .inkl,body.inkon.inkfinger .inkl{touch-action:pinch-zoom}
 body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb) 45%,transparent);
   outline-offset:2px;border-radius:8px}
 
@@ -7507,8 +7536,31 @@ body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb)
     cv.addEventListener('pointerenter', e => { if(e.pointerType === 'pen') penSeen(); });
     cv.addEventListener('pointerover',  e => { if(e.pointerType === 'pen') penSeen(); });
 
+    /* 지금 화면에 닿아 있는 손가락·펜을 센다. 둘 이상이면 «확대하려는 것» 이다. */
+    const DOWN = new Set();
+    function undoStroke(id){
+      if(!cur) return;
+      const bag = load(id, host.__zone);
+      const k = bag.lastIndexOf(cur);
+      if(k >= 0) bag.splice(k, 1);
+      cur = null;
+      try{ draw(host) }catch(x){}
+    }
+    ['pointerup','pointercancel','pointerleave'].forEach(t =>
+      cv.addEventListener(t, e => DOWN.delete(e.pointerId), { passive:true }));
+
     cv.addEventListener('pointerdown', e => {
-      if(!ON || !allow(e)) return;
+      if(!ON) return;
+      DOWN.add(e.pointerId);
+      if(DOWN.size > 1){
+        /* ★ 두 손가락 — 확대하려는 것이다. 방금 긋기 시작한 획을 지우고 손을 뗀다.
+           그러지 않으면 확대할 때마다 짧은 금이 남는다. */
+        try{ if(PID != null) cv.releasePointerCapture(PID) }catch(x){}
+        const id0 = idOf(host); if(id0) undoStroke(id0);
+        PID = null;
+        return;
+      }
+      if(!allow(e)) return;
       const id = idOf(host); if(!id) return;
       e.preventDefault(); e.stopPropagation();
       try{ cv.setPointerCapture(e.pointerId); }catch(x){}
@@ -7526,6 +7578,7 @@ body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb)
 
     cv.addEventListener('pointermove', e => {
       if(!ON || PID !== e.pointerId) return;
+      if(DOWN.size > 1) return;                     /* 확대하는 중에는 긋지 않는다 */
       if(!allow(e)) return;
       e.preventDefault(); e.stopPropagation();
       const evs = coalesced(e);
@@ -7876,6 +7929,15 @@ function tail(){
              '보통':'',
              '자세히':'중간 식을 하나도 건너뛰지 말고, 왜 그 식을 쓰는지까지 붙여 써라.' }[CFGZ.len]||'';
   const ex=(CFGZ.extra||'').trim();
+
+  /* ★ 여기가 이번에 바뀐 곳 — «짝 맞추기»
+     지금까지는 해설이 «무엇을 묻는 문제인가 / 알아야 할 것 / 푸는 순서» 로만 흘러서,
+     물음이 (1)~(13) 처럼 여러 개인 문항에서는 어느 설명이 어느 물음의 것인지
+     찾아 헤매야 했다. 물음이 여럿이면 «물음 번호마다 한 덩어리» 로 쓰게 못 박는다.
+     각 덩어리 안은 늘 같은 차례다 — 무엇을 묻나 / 쓰는 값 / 쓰는 식 / 넣고 계산 / 답.
+     그래야 왼쪽 답안의 (3) 과 오른쪽 해설의 (3) 이 눈으로 바로 이어진다. */
+  /* 짜임새 지시는 이제 easyPrompt 본문에 들어 있다 — 여기서는 결만 얹는다.
+     예전에는 양쪽에서 서로 다른 짜임새를 시켜, 본문 쪽이 이겨서 늘 옛 모양으로 나왔다. */
   const bits=[lv,ln,ex?('추가 요청: '+ex):''].filter(Boolean);
   return bits.length ? '\n\n[이번에 지킬 것]\n'+bits.map(b=>'- '+b).join('\n') : '';
 }
@@ -8233,10 +8295,23 @@ const cropped = h => String(h==null?'':h).replace(CROPRE,(m,a,u,p,l,t,w,hh)=>
   + (p?`style="width:${clamp(+p,5,100)}%" `:'')
   + `data-crop="${l},${t},${w},${hh}" loading="lazy">`);
 
+/* ★ 답안에 «0.36 [\\Omega]» 이 빨갛게 뜨던 것 —
+   수식 밖에 라텍스 명령이 그대로 남으면 그리는 쪽이 «못 읽겠다» 며 빨갛게 뱉는다.
+   글을 고치는 것이 아니라 그리기 직전에 글자로 바꿔 준다. */
+const TEXCMD={ '\\Omega':'Ω','\\omega':'ω','\\Delta':'Δ','\\delta':'δ','\\times':'×',
+  '\\div':'÷','\\pi':'π','\\theta':'θ','\\phi':'φ','\\alpha':'α','\\beta':'β',
+  '\\mu':'μ','\\eta':'η','\\lambda':'λ','\\sim':'~','\\approx':'≈','\\le':'≤','\\ge':'≥',
+  '\\cdot':'·','\\pm':'±','\\sqrt':'√','\\%':'%' };
+function fixTex(md){
+  return String(md==null?'':md).replace(/(\$[^$]*\$)|(\\[A-Za-z]+)/g,(m,math,cmd)=>{
+    if(math) return math;                     /* 수식 «안» 은 건드리지 않는다 */
+    return TEXCMD[cmd]!=null ? TEXCMD[cmd] : cmd;
+  });
+}
 ['mdLite','mdRich'].forEach(n=>{
   const fn=window[n];
   if(typeof fn!=='function'||fn.__crop) return;
-  const w=function(md){ return cropped(fn(md)) };
+  const w=function(md){ return cropped(fn(fixTex(md))) };
   w.__crop=1; w.__sz=fn.__sz; w.__img=fn.__img; w.__tex=fn.__tex; w.__sci=fn.__sci;
   window[n]=w;
 });
@@ -11680,11 +11755,16 @@ let RE_TERM=null;
 const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const escRe=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 
-const UNIT='(?:\\[[^\\]]{1,10}\\]|kVA|MVA|kVar|kWh|kV|kA|kW|VA|mm2|mm|cm|km|℃|Ω|%|A|V|W|m|s)';
-const RE_NUM  = new RegExp('(\\d[\\d,]*(?:\\.\\d+)?)\\s*('+UNIT+')','g');
+/* ★ 색이 들쭉날쭉하던 까닭 —
+   ① 낱말 «조각» 에만 칠해졌다. «부하역률» 의 «역률» 만 초록이 되니
+      같은 말인데 어떤 곳은 통째로, 어떤 곳은 반만 칠해져 보였다.
+   ② 단위 목록이 좁아 «배 · 회 · lx · Var» 같은 것이 빠졌다.
+   그래서 앞뒤가 한글이면 칠하지 않는다(낱말 경계) — 통째로 아니면 안 칠한다. */
+const UNIT='(?:\\[[^\\]]{1,10}\\]|kVA|MVA|kVar|kWh|kV|kA|kW|VA|Var|mm2|mm|cm|km|㎡|℃|Ω|kΩ|MΩ|lx|lm|%|배|회|A|V|W|m|s)';
+const RE_NUM  = new RegExp('(\\d[\\d,]*(?:\\.\\d+)?)\\s*('+UNIT+')(?![가-힣A-Za-z0-9])','g');
 const RE_ASK  = /(구하시오|구하라|쓰시오|쓰라|설명하시오|기술하시오|작성하시오|산정하시오|선정하시오|계산하시오|나열하시오|답하시오|완성하시오|비교하시오)/g;
-const RE_COND = /(단,|다만,|제외한|제외하고|반드시|주의|유의|단서|조건은)/g;
-const RE_WARN = /(자주\s?틀리는|틀리기\s?쉬운|주의할\s?점|하지\s?않는다|아니다|안\s?된다)/g;
+const RE_COND = /(?<![가-힣])(단,|다만,|제외한|제외하고|반드시|유의|단서)(?![가-힣])/g;
+const RE_WARN = /(자주\s?틀리는|틀리기\s?쉬운|주의할\s?점|하지\s?않는다|안\s?된다)(?![가-힣])/g;
 const RE_STEP = /(^|\s)(\(\d{1,2}\)|[①-⑩]|\d{1,2}단계|[가-하]\))/g;
 
 const SKIP='.katex,.katex-display,.ann-badge,.annlist,.aiann-list,.dupwrap,.relwrap,'
@@ -11712,7 +11792,12 @@ function paint(root){
   if(!ON) return;
   if(!RE_TERM){
     const t=terms().filter(x=>x.length>=3).slice(0,300).map(escRe);
-    if(t.length) RE_TERM=new RegExp('('+t.join('|')+')','g');
+    /* 낱말 경계 — 한국어는 뒤에 조사가 붙으므로 «뒤가 한글이면 무조건 제외» 하면
+       «역률을» 같은 흔한 꼴이 죄다 빠진다. 그래서 이렇게 가른다.
+         앞 : 한글이면 안 칠한다        → «부하역률» 의 «역률» 조각을 막는다
+         뒤 : 한글이 아니거나 조사면 칠한다 → «역률을»(칠함) / «변압기용량»(안 칠함) */
+    const JOSA='은|는|이|가|을|를|의|에|와|과|도|만|로|으|부|까|라|나|든|보|처';
+    if(t.length) RE_TERM=new RegExp('(?<![가-힣])('+t.join('|')+')(?=$|[^가-힣]|'+JOSA+')','g');
   }
   const hosts=(root||document).querySelectorAll('.qmd,.ez,.easybox,#ovl .pane');
   hosts.forEach(host=>{
