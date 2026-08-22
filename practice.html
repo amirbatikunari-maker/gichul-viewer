@@ -6611,7 +6611,9 @@ body.onlyimport #boxFiles,body.onlyimport #boxImport{display:block!important}
       b.onclick = ev => {
         ev.preventDefault(); ev.stopPropagation();
         const id = card ? card.dataset.id : (typeof OVID !== 'undefined' ? OVID : null);
-        if(id) open(id, name, f);
+        /* 밖에서 감쌀 수 있게 반드시 window 를 거쳐 부른다 —
+           안에서 직접 부르면 v137 의 «원본 그림» 줄이 열린 것을 못 알아챈다. */
+        if(id) (window.__edOpen || open)(id, name, f);
       };
       lab.appendChild(b);
     });
@@ -12055,6 +12057,375 @@ setInterval(()=>{
     try{ drawList(); }catch(e){}
   }
 },400);
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v137 · «고치기» 안에서 원본 그림도 갈아 끼운다
+
+     원본을 잘못 오려 온 문항이 있다. 엉뚱한 줄이 문제로 잡혀 있는데,
+     지금까지는 글자만 고칠 수 있고 그림은 손댈 데가 없었다.
+     («답안 그림 넣기» 는 답안이 «아예 없을 때만» 뜨는 단추라, 잘못 들어간
+      경우에는 그 단추 자체가 안 나온다.)
+
+     그래서 고치기 창 위에 원본 그림 줄을 놓는다 ──
+       미리보기 · 바꾸기(파일) · 붙여넣기(Ctrl+V) · 돌리기 · 지우기
+     바꾸면 q_url · a_url 을 갈아 끼우고 Supabase 에 바로 남긴다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+.edorig{display:flex;align-items:center;gap:8px;padding:8px 14px;flex-wrap:wrap;
+  border-bottom:1px solid var(--line,#e6eaf0);flex:0 0 auto}
+.edorig .t{font:800 10px/1 var(--font-d,system-ui);color:var(--muted,#64748b);letter-spacing:.1em}
+.edorig .thumb{width:96px;height:56px;border:1px solid var(--line,#e2e8f0);border-radius:8px;
+  background:#fff center/contain no-repeat;flex:0 0 auto;cursor:pointer;position:relative}
+.edorig .thumb.none{display:flex;align-items:center;justify-content:center;
+  font:600 9.5px/1.3 var(--font-d,system-ui);color:var(--muted,#94a3b8);text-align:center}
+.edorig .thumb.armed{outline:2px solid var(--accent,#2563eb);outline-offset:2px}
+.edorig button{height:28px;padding:0 10px;border:1px solid var(--line,#e2e8f0);border-radius:8px;
+  background:var(--surface,#fff);color:var(--ink,#0f172a);cursor:pointer;
+  font:700 11px/1 var(--font-d,system-ui)}
+.edorig button:hover{border-color:var(--accent,#2563eb);color:var(--accent,#2563eb)}
+.edorig button.on{background:var(--accent,#2563eb);border-color:var(--accent,#2563eb);color:#fff}
+.edorig button.warn:hover{border-color:#dc2626;color:#dc2626}
+.edorig .msg{flex-basis:100%;font:600 10px/1.4 var(--font-d,system-ui);color:var(--muted,#94a3b8)}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s);
+const rowOf = id => (typeof ROWS!=='undefined'?ROWS:[]).find(x=>String(x.id)===String(id));
+let CUR=null, ARMED=false, PICK=null;
+
+function strip(){
+  const W=$('.edw'); if(!W) return null;
+  let el=W.querySelector('.edorig');
+  if(el) return el;
+  el=document.createElement('div');
+  el.className='edorig';
+  el.innerHTML=`<span class="t">원본 그림</span>
+    <div class="thumb none" title="눌러서 Ctrl+V 로 붙이기">없음</div>
+    <button type="button" data-pick>🖼 바꾸기</button>
+    <button type="button" data-paste title="누른 뒤 Ctrl+V — 클립보드 그림으로 갈아 끼웁니다">📋 붙여넣기</button>
+    <button type="button" data-rot>↻ 돌리기</button>
+    <button type="button" data-del class="warn">✕ 지우기</button>
+    <span class="msg"></span>`;
+  const tools=W.querySelector('.tools');
+  tools ? tools.after(el) : W.querySelector('.box')?.prepend(el);
+  wire(el);
+  return el;
+}
+
+const urlKey = () => CUR && CUR.key==='a_md' ? 'a_url' : 'q_url';
+const say = (el,t) => { const m=el.querySelector('.msg'); if(m) m.textContent=t||''; };
+
+function sync(){
+  const el=strip(); if(!el) return;
+  /* 쉬운 풀이에는 원본 그림이라는 것이 없다 */
+  if(!CUR || CUR.key==='easy_md'){ el.style.display='none'; return; }
+  el.style.display='';
+  const r=rowOf(CUR.id); if(!r) return;
+  const u=r[urlKey()];
+  const th=el.querySelector('.thumb');
+  if(u){ th.classList.remove('none'); th.textContent=''; th.style.backgroundImage=`url("${u}")`; }
+  else { th.classList.add('none'); th.textContent='없음'; th.style.backgroundImage=''; }
+  el.querySelector('[data-rot]').textContent='↻ 돌리기'+(r.rotate?` ${r.rotate}°`:'');
+  el.querySelector('[data-del]').disabled=!u;
+  arm(el,false);
+  say(el, u ? '잘못 오려 온 그림이면 여기서 갈아 끼우세요.'
+            : '원본 그림이 없습니다 — 캡처해 두고 «붙여넣기» 를 누른 뒤 Ctrl+V.');
+}
+function arm(el,v){
+  ARMED=!!v;
+  el.querySelector('.thumb').classList.toggle('armed',ARMED);
+  el.querySelector('[data-paste]').classList.toggle('on',ARMED);
+  if(ARMED) say(el,'이제 Ctrl+V 를 누르세요 — 클립보드의 그림이 원본 자리에 들어갑니다.');
+}
+
+/* ── 갈아 끼우기 ── */
+async function replace(file){
+  const el=strip(); if(!el||!CUR) return;
+  const r=rowOf(CUR.id); if(!r) return;
+  if(!/^image\//.test(file.type)) return say(el,'그림 파일만 됩니다.');
+  say(el,'올리는 중…');
+  try{
+    const bmp=await createImageBitmap(file);
+    const k=Math.min(1,1600/bmp.width);
+    const cv=document.createElement('canvas');
+    cv.width=Math.max(1,Math.round(bmp.width*k)); cv.height=Math.max(1,Math.round(bmp.height*k));
+    const g=cv.getContext('2d');
+    g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height);
+    g.drawImage(bmp,0,0,cv.width,cv.height);
+    bmp.close&&bmp.close();
+    const blob=await new Promise(res=>cv.toBlob(res,'image/jpeg',0.9));
+    const side=urlKey()==='a_url'?'a':'q';
+    const path=`prac/${r.subject_id}/${r.year}_${r.session}_${String(r.no).padStart(2,'0')}_${side}_fix_${Date.now()}.jpg`;
+    const url=await put(path,blob);
+    await save({ [urlKey()]: url });
+    r[urlKey()]=url;
+    sync(); say(el,'원본을 갈아 끼웠습니다.');
+    redraw();
+  }catch(e){ say(el,'올리지 못했습니다 — '+(e&&e.message?e.message:e)); }
+}
+async function save(patch){
+  const r=rowOf(CUR.id); if(!r) return;
+  const up=await sb.from('practicals').update(patch).eq('id', r.id);
+  if(up.error) throw up.error;
+}
+function redraw(){
+  try{ drawList(); }catch(e){}
+  try{ if($('#ovl') && $('#ovl').classList.contains('on')) ovDraw(); }catch(e){}
+}
+
+function wire(el){
+  el.querySelector('.thumb').onclick=()=>arm(el,!ARMED);
+  el.querySelector('[data-paste]').onclick=()=>arm(el,!ARMED);
+  el.querySelector('[data-pick]').onclick=()=>{
+    if(!PICK){
+      PICK=document.createElement('input');
+      PICK.type='file'; PICK.accept='image/*'; PICK.style.display='none';
+      document.body.appendChild(PICK);
+    }
+    PICK.value='';
+    PICK.onchange=e=>{ const f=e.target.files[0]; if(f) replace(f); };
+    PICK.click();
+  };
+  el.querySelector('[data-rot]').onclick=async ()=>{
+    const r=rowOf(CUR&&CUR.id); if(!r) return;
+    const next=((r.rotate||0)+90)%360;
+    try{ await save({ rotate: next }); r.rotate=next; sync(); redraw(); }
+    catch(e){ say(el,'돌리지 못했습니다 — '+(e.message||e)); }
+  };
+  el.querySelector('[data-del]').onclick=async ()=>{
+    const r=rowOf(CUR&&CUR.id); if(!r) return;
+    if(!confirm('이 문항의 원본 그림을 떼어 냅니다. (올린 파일은 남습니다)')) return;
+    try{ await save({ [urlKey()]: null }); r[urlKey()]=null; sync(); redraw(); say(el,'원본을 떼어 냈습니다.'); }
+    catch(e){ say(el,'떼어 내지 못했습니다 — '+(e.message||e)); }
+  };
+  /* 붙여넣기 대기 중일 때만 원본 자리로 간다 —
+     안 그러면 글 사이에 그림을 끼우려던 Ctrl+V 까지 가로채 버린다.
+     ★ window 의 «잡는 단계» 에 건다. 글 사이에 끼우는 손잡이가 창(.edw)에
+       먼저 걸려 있어서, 같은 곳에 걸면 그쪽이 먼저 집어 가 버린다.
+       window 는 어떤 요소보다 앞이라 여기서 먼저 받는다. */
+  addEventListener('paste', e=>{
+    if(!ARMED) return;
+    if(!e.target || !e.target.closest || !e.target.closest('.edw')) return;
+    const it=[...(e.clipboardData&&e.clipboardData.items||[])].find(x=>x.type&&x.type.startsWith('image/'));
+    if(!it) return;
+    e.preventDefault(); e.stopPropagation();
+    const f=it.getAsFile(); if(f) replace(f);
+  }, true);
+  el.addEventListener('dragover', e=>{ e.preventDefault(); e.stopPropagation(); });
+  el.addEventListener('drop', e=>{
+    e.preventDefault(); e.stopPropagation();
+    const f=[...(e.dataTransfer&&e.dataTransfer.files||[])][0]; if(f) replace(f);
+  });
+}
+
+/* 고치기 창이 열릴 때마다 그 칸의 원본을 물어 온다 */
+const t=setInterval(()=>{
+  if(typeof window.__edOpen!=='function' || window.__edOpen.__orig) return;
+  clearInterval(t);
+  const prev=window.__edOpen;
+  const w=function(id,name,f){
+    const out=prev.apply(this,arguments);
+    CUR={ id, key:(f&&f.key)||'' };
+    setTimeout(sync,0);
+    return out;
+  };
+  w.__orig=1;
+  window.__edOpen=w;
+},300);
+setTimeout(()=>clearInterval(t),30000);
+})();
+</script>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     v138 · 오른쪽(미리 보기)에서 바로 고치기
+
+     지금까지 오른쪽은 «보기만» 하는 자리였다. 표 한 칸을 고치려고 왼쪽에서
+     |---|---| 를 세어 가며 파이프를 맞추는 것은 사람이 할 일이 아니다.
+
+     그래서 오른쪽을 고칠 수 있게 하고, 고친 것을 다시 마크다운으로 되돌려
+     왼쪽에 적는다. 저장은 늘 왼쪽 글을 보내므로 결과는 하나로 모인다.
+
+     되돌릴 때 조심한 것 ──
+       · 수식 — KaTeX 가 그린 덩어리 안에는 원래 TeX 가 <annotation> 으로
+         같이 들어 있다. 그걸 꺼내 $…$ 로 되돌린다. 수식 덩어리는 통째로만
+         지워지게 막아 둔다(안쪽을 건드리면 형체가 깨진다).
+       · 그림 — ![](주소 =60% @자른자리) 표기를 그대로 복원한다.
+       · [[그림 …]] 자리 — data-fig 에서 되살린다.
+       · 표 — 파이프 표로 되돌린다. 칸에 든 | 는 \| 로 피한다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+.edw .prev[contenteditable="true"]{outline:none;
+  box-shadow:inset 3px 0 0 var(--accent,#2563eb);background:var(--card,#fff)}
+.edw .prev[contenteditable="true"]:empty::before{content:'여기에 바로 쓰세요';color:var(--muted,#94a3b8)}
+.edw .prev .katex{user-select:all}
+.edw .prev table{border-collapse:collapse}
+.edw .prev td,.edw .prev th{border:1px solid var(--line,#e2e8f0);padding:4px 8px}
+.edw .prev td:focus,.edw .prev th:focus{outline:2px solid var(--accent,#2563eb);outline-offset:-2px}
+.edw .wysi{margin-left:auto;font:600 10.5px/1.5 var(--font-d,system-ui);color:var(--muted,#64748b)}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+
+/* ══ 화면(HTML) → 마크다운 ══ */
+const esc0 = t => String(t==null?'':t);
+
+/* 수식 덩어리에서 원래 TeX 를 꺼낸다 */
+function texOf(el){
+  const a=el.querySelector('annotation[encoding="application/x-tex"]');
+  if(a) return a.textContent.trim();
+  return (el.textContent||'').trim();          /* 못 찾으면 보이는 글자라도 */
+}
+function inline(node){
+  let out='';
+  node.childNodes.forEach(n=>{
+    if(n.nodeType===3){ out+=n.nodeValue.replace(/\u00a0/g,' '); return; }
+    if(n.nodeType!==1) return;
+    const t=n.tagName;
+    if(n.classList && n.classList.contains('katex-display')){
+      out+='$$'+texOf(n)+'$$'; return;
+    }
+    if(n.classList && n.classList.contains('katex')){ out+='$'+texOf(n)+'$'; return; }
+    if(t==='IMG'){
+      const u=n.getAttribute('src')||'';
+      const m=(n.style.width||'').match(/^(\d{1,3})%$/);
+      const c=n.dataset.crop?' @'+n.dataset.crop:'';
+      out+=`![${n.getAttribute('alt')||''}](${u}${m?' ='+m[1]+'%':''}${c})`;
+      return;
+    }
+    if(t==='BR'){ out+='\n'; return; }
+    if(t==='STRONG'||t==='B'){ out+='**'+inline(n)+'**'; return; }
+    if(t==='CODE'){ out+='`'+inline(n)+'`'; return; }
+    if(t==='EM'||t==='I'){ out+='*'+inline(n)+'*'; return; }
+    out+=inline(n);
+  });
+  return out;
+}
+const cell = n => inline(n).replace(/\|/g,'\\|').replace(/\s*\n\s*/g,' ').trim();
+
+function toMd(root){
+  const out=[];
+  const push = t => out.push(t);
+  [...root.childNodes].forEach(n=>{
+    if(n.nodeType===3){ const t=n.nodeValue.trim(); if(t){ push(t); push(''); } return; }
+    if(n.nodeType!==1) return;
+    const tag=n.tagName;
+
+    if(tag==='FIGURE'){
+      const box=n.dataset.fig||'';
+      const w=n.dataset.w?` =${n.dataset.w}%`:'';
+      const cap=n.querySelector('figcaption');
+      push(`[[그림 ${box}${w}]]${cap?' '+cell(cap):''}`); push(''); return;
+    }
+    if(tag==='H1'||tag==='H2'||tag==='H3'||tag==='H4'||tag==='H5'||tag==='H6'){
+      push('#### '+inline(n).trim()); push(''); return;
+    }
+    if(tag==='UL'){ $$(':scope > li',n).forEach(li=>push('- '+inline(li).trim())); push(''); return; }
+    if(tag==='OL'){ $$(':scope > li',n).forEach((li,k)=>push(`${k+1}. `+inline(li).trim())); push(''); return; }
+    if(tag==='TABLE'||(tag==='DIV'&&n.classList.contains('tblwrap'))){
+      const tb=tag==='TABLE'?n:n.querySelector('table'); if(!tb) return;
+      const rows=$$('tr',tb);
+      if(!rows.length) return;
+      const head=$$('th,td',rows[0]).map(cell);
+      push('| '+head.join(' | ')+' |');
+      push('|'+head.map(()=>'---').join('|')+'|');
+      rows.slice(1).forEach(tr=>{
+        const c=$$('td,th',tr).map(cell);
+        if(c.length) push('| '+c.join(' | ')+' |');
+      });
+      push(''); return;
+    }
+    if(tag==='DIV'&&n.classList.contains('katex-display')){ push('$$'+texOf(n)+'$$'); push(''); return; }
+    if(tag==='HR'){ push('---'); push(''); return; }
+    /* 그 밖(<p> 따위)은 한 문단 */
+    const t=inline(n).replace(/\s+$/,'');
+    if(t.trim()){ t.split('\n').forEach(x=>push(x)); push(''); }
+  });
+  /* 빈 줄이 셋 이상 겹치지 않게 */
+  return out.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+}
+window.__htmlToMd = toMd;
+
+/* ══ 고치기 창에 붙이기 ══ */
+function setup(){
+  const W=$('.edw'); if(!W || W.__wysi) return;
+  const prev=$('#edPrev',W), ta=$('#edTa',W);
+  if(!prev||!ta) return;
+  W.__wysi=1;
+
+  const tools=W.querySelector('.tools');
+  if(tools && !tools.querySelector('.wysi')){
+    const s=document.createElement('span');
+    s.className='wysi';
+    s.textContent='오른쪽 칸에 바로 써도 됩니다 — 왼쪽 글이 따라 바뀝니다';
+    tools.appendChild(s);
+  }
+
+  /* 수식은 통째로만 지워지게 — 안쪽을 건드리면 형체가 깨진다 */
+  function lock(){
+    /* 속성으로 직접 단다 — 프로퍼티(contentEditable)는 붙지 않는 곳이 있다 */
+    $$('.katex',prev).forEach(k=>{ k.setAttribute('contenteditable','false'); });
+    $$('img',prev).forEach(i=>{ i.setAttribute('contenteditable','false'); });
+  }
+
+  let mine=false, t0=0;
+  function pull(){                      /* 오른쪽 → 왼쪽 */
+    if(prev.getAttribute('contenteditable')!=='true') return;
+    const md=toMd(prev);
+    if(md===ta.value) return;
+    mine=true;
+    ta.value=md;
+    setTimeout(()=>{ mine=false; },0);
+  }
+  prev.addEventListener('input',()=>{ clearTimeout(t0); t0=setTimeout(pull,220); });
+  prev.addEventListener('blur',pull);
+
+  /* 왼쪽에서 고치면 오른쪽을 다시 그린다 — 그 뒤에 다시 잠근다.
+     (오른쪽에서 쓰는 동안에는 다시 안 그린다. 그리면 커서가 튄다.) */
+  const mo=new MutationObserver(()=>{ if(prev.getAttribute('contenteditable')!=='true') return; lock(); });
+  mo.observe(prev,{childList:true,subtree:true});
+
+  /* 창이 열릴 때마다 켠다 */
+  const on=()=>{
+    prev.setAttribute('contenteditable','true');
+    prev.setAttribute('spellcheck','false');
+    setTimeout(lock,60);
+  };
+  on();
+  W.__wysiOn=on;
+
+  /* 저장 직전에 오른쪽에서 고친 것을 반드시 왼쪽으로 옮긴다 —
+     220ms 를 기다리는 사이에 저장을 누르면 마지막 한 글자가 빠진다 */
+  const btn=$('#edSave',W);
+  if(btn) btn.addEventListener('pointerdown',pull,true);
+  W.addEventListener('keydown',e=>{
+    if((e.ctrlKey||e.metaKey)&&e.key==='Enter') pull();
+  },true);
+}
+
+const t=setInterval(()=>{ if($('.edw')){ setup(); } },400);
+setTimeout(()=>clearInterval(t),60000);
+
+/* 창을 열 때마다 다시 켠다 */
+const h=setInterval(()=>{
+  if(typeof window.__edOpen!=='function' || window.__edOpen.__wysi) return;
+  clearInterval(h);
+  const prev=window.__edOpen;
+  const w=function(){
+    const out=prev.apply(this,arguments);
+    setTimeout(()=>{ setup(); const W=$('.edw'); W&&W.__wysiOn&&W.__wysiOn(); },30);
+    return out;
+  };
+  w.__wysi=1; w.__orig=prev.__orig;
+  window.__edOpen=w;
+},300);
+setTimeout(()=>clearInterval(h),30000);
 })();
 </script>
 
