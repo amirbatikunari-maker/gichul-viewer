@@ -130,6 +130,8 @@ body.ovlopen{overflow:hidden}
 /* 이 줄의 단추들은 아무 class 도 없어 맨 위 button{padding:11px 16px} 를 그대로 물려받았다.
    그래서 알약 넷이 두 줄로 접혀 머리줄이 통째로 세 줄이 됐다. 여기서 못 박아 둔다. */
 .ovl .oh button{padding:7px 11px;font:600 12px/1 var(--font-d);border-radius:8px}
+.ovfs{display:inline-flex;gap:3px}
+.ovl .oh .ovfs button{font:700 11px/1 var(--font-m,monospace)!important}
 .ovl .ob{flex:1;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);
   gap:1px;background:var(--rule);overflow:hidden}
 .ovl .pane{background:var(--paper);overflow:auto;-webkit-overflow-scrolling:touch;
@@ -292,7 +294,7 @@ body.oneup #list > .pcard.show{display:block}
 .qmd table{border-collapse:collapse;width:auto;max-width:100%;margin:7px 0;
   font-size:calc(var(--qfs,14px) - 1.5px);line-height:1.3}
 .qmd th,.qmd td{line-height:1.35;border:1px solid var(--rule);padding:3px 8px;text-align:center;
-  vertical-align:middle;white-space:nowrap}
+  vertical-align:middle;white-space:normal}
 .qmd th{background:color-mix(in srgb,var(--accent) 7%,transparent);font-weight:700}
 .qmd .tblwrap{overflow-x:auto;margin:7px 0}
 .qmd .tblwrap table{margin:0}
@@ -741,6 +743,10 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
   <div class="oh">
     <div class="ot"><span id="ovTitle">—</span><small id="ovSub"></small></div>
     <button class="zb" type="button" id="ovText" title="오려낸 그림 대신, 뽑아 둔 글자로 봅니다 (T)">가 글자로</button>
+    <span class="ovfs" id="ovFs" title="글자 크기">
+      <button type="button" data-fs="-1" aria-label="글자 작게">가-</button>
+      <button type="button" data-fs="1" aria-label="글자 크게">가+</button>
+    </span>
     <button class="zb" type="button" id="ovPrev">‹ 이전</button>
     <button class="zb" type="button" id="ovNext">다음 ›</button>
     <button class="zb pick" type="button" id="ovClose">닫기 (Esc)</button>
@@ -1257,7 +1263,16 @@ function drawRail(){
     }).join("")
     + (b < SHOWN.length ? `<button class="pb" type="button" data-go="${SHOWN.length - 1}">끝 ↦</button>` : "");
   $$("#prail .pb").forEach(b => b.onclick = () => showAt(+b.dataset.go));
-  $("#prail .pb.now")?.scrollIntoView({ behavior:"smooth", block:"nearest", inline:"center" });
+  /* ★ 방금 안(innerHTML)을 통째로 새로 짰다 — 스크롤 자리는 이미 0으로 리셋된 뒤다.
+     여기서 «부드럽게» 옮기면 0으로 훅 꺼졌다가 다시 스르륵 돌아오는 것처럼 보인다
+     (반동처럼 느껴지는 원인). 새로 그린 직후 한 번은 즉시 자리를 잡는다. */
+  const railEl = $("#prail"), nowBtn = $("#prail .pb.now");
+  if(railEl && nowBtn){
+    const prevSB = railEl.style.scrollBehavior;
+    railEl.style.scrollBehavior = "auto";
+    nowBtn.scrollIntoView({ block:"nearest", inline:"center" });
+    railEl.style.scrollBehavior = prevSB || "";
+  }
 }
 
 function showAt(i){
@@ -1478,7 +1493,7 @@ function drawList(){
         <span class="ovhint">⛶ 한눈에</span>
       </div>
       <div class="pbody">
-        <div class="pgrid${SPLIT ? " split split3" : ""}">
+        <div class="pgrid${SPLIT === 2 ? " split split3" : SPLIT === 1 ? " split" : ""}">
           <section class="pcol pcol-q">
             <div class="plabel">문제</div>
             ${(r.q_url || r.q_md) ? block(r.q_url, r.q_md, "q", `문제 ${r.no}`) : `<div class="empty">문제 그림이 없습니다.</div>`}
@@ -3068,26 +3083,60 @@ function paintText(){
 }
 $("#fText")?.addEventListener("click", () => { TEXTMODE = !TEXTMODE; paintText(); drawList(); });
 
-/* ── 보기 설정 — 글자 크기 · 두 칸 ── (여백 자르기는 늘 켜져 있다)
-   한 번 정해 두면 이 기기에 남는다. */
-let SPLIT = (()=>{ try{ return localStorage.getItem("prac:split") !== "0"; }catch(e){ return true; } })();
+/* ── 보기 설정 — 글자 크기 · 칸 수 ── (여백 자르기는 늘 켜져 있다)
+   한 번 정해 두면 이 기기에 남는다.
+   ★ 예전엔 참/거짓 하나였다 — 켜면 무조건 세 칸(문제·답안·쉬운 풀이)이 떴다.
+     그런데 단추 글씨는 «두 칸» 이라 실제로 뭐가 뜨는지와 글씨가 어긋나 있었다.
+     이제 한 칸 → 두 칸(문제·답안) → 세 칸(+쉬운 풀이) 을 눌러서 돌려 가며 고른다. */
+let SPLIT = (()=>{
+  try{
+    const v = localStorage.getItem("prac:split");
+    if(v === null) return 2;               /* 처음 쓰는 사람은 예전과 같이 세 칸부터 */
+    if(v === "1") return 2;                 /* 예전의 «켜짐» = 지금의 세 칸 */
+    if(v === "0") return 0;
+    const n = +v; return (n===1||n===2) ? n : 0;
+  }catch(e){ return 2; }
+})();
 function paintView(){
   const fs = (()=>{ try{ return localStorage.getItem("prac:fs") || "14"; }catch(e){ return "14"; } })();
   document.documentElement.style.setProperty("--qfs", fs + "px");
   const sel = $("#fSize"); if(sel) sel.value = fs;
-  $("#fSplit")?.classList.toggle("on", SPLIT);
+  const b = $("#fSplit");
+  if(b){
+    b.classList.toggle("on", SPLIT > 0);
+    b.textContent = SPLIT === 2 ? "▥ 세 칸" : SPLIT === 1 ? "▥ 두 칸" : "▥ 한 칸";
+    b.title = SPLIT === 2 ? "문제·답안·쉬운 풀이를 나란히 (다음엔 한 칸으로)"
+      : SPLIT === 1 ? "문제·답안만 나란히 (다음엔 세 칸으로)" : "한 줄로 이어서 (다음엔 두 칸으로)";
+  }
 }
 $("#fSize")?.addEventListener("change", e => {
   try{ localStorage.setItem("prac:fs", e.target.value); }catch(x){}
   paintView();
 });
 $("#fSplit")?.addEventListener("click", () => {
-  SPLIT = !SPLIT;
-  try{ localStorage.setItem("prac:split", SPLIT ? "1" : "0"); }catch(e){}
+  SPLIT = (SPLIT + 1) % 3;
+  try{ localStorage.setItem("prac:split", String(SPLIT)); }catch(e){}
   paintView(); drawList();
 });
 $("#cvGap")?.addEventListener("click", () => cvRun(false));
 $("#cvAll")?.addEventListener("click", () => cvRun(true));
+
+/* ── 한눈에 보기 안에서도 글자 크기를 바꾼다 ──
+   그동안 «가- 13 가+» 는 목록 쪽 «보기·모드» 칸에만 있어서, 한눈에를 열어 둔 채로는
+   글자를 못 키웠다 — 닫고 나가서 바꾼 뒤 다시 열어야 했다. 같은 --qfs 변수와
+   prac:fs 저장 칸을 그대로 쓰므로, 여기서 바꾸면 목록 쪽 드롭다운도 같이 따라온다. */
+(() => {
+  const STEPS = [11.5, 12.5, 14, 16, 19];
+  const cur = () => { try{ return +(localStorage.getItem("prac:fs") || "14"); }catch(e){ return 14; } };
+  const nearest = v => STEPS.reduce((a, b) => Math.abs(b - v) < Math.abs(a - v) ? b : a);
+  $$('.ovfs [data-fs]').forEach(b => b.onclick = () => {
+    const i = STEPS.indexOf(nearest(cur()));
+    const next = STEPS[Math.max(0, Math.min(STEPS.length - 1, i + (+b.dataset.fs)))];
+    try{ localStorage.setItem("prac:fs", String(next)); }catch(e){}
+    document.documentElement.style.setProperty("--qfs", next + "px");
+    const sel = $("#fSize"); if(sel) sel.value = String(next);
+  });
+})();
 
 /* 지금 고른 회차만 처음부터 다시 글자로 — cvRun 은 과목 전체를 보므로 여기서 따로 돈다 */
 $("#cvAllSess")?.addEventListener("click", async () => {
@@ -4469,7 +4518,8 @@ sb?.auth?.onAuthStateChange?.(() => setTimeout(() => gate().then(on => on && boo
     $('#studyReset')?.addEventListener('click',()=>{if(!confirm('이 과목의 학습 진행률과 북마크를 초기화할까요?'))return;localStorage.removeItem(keyBase());state={};refreshCards();refreshHUD();toast('학습 기록 초기화')});
     $('#list')?.addEventListener('click',e=>{const b=e.target.closest('[data-study-fav]');if(b){e.preventDefault();e.stopPropagation();fav(b.dataset.studyFav)}});
     document.addEventListener('click',e=>{const c=e.target.closest('#list>.pcard');if(c&&!e.target.closest('button,a,input,select,textarea,details,summary')){markVisited(c.dataset.id);refreshHUD();}});
-    document.addEventListener('keydown',e=>{if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if(e.key==='f'||e.key==='F'){$('#fQ')?.focus();e.preventDefault()}else if(e.key==='r'||e.key==='R'){$('#qRandom')?.click();e.preventDefault()}else if(e.key==='b'||e.key==='B'){const r=currentRow();if(r)fav(r.id);e.preventDefault()}else if(e.code==='Space'){const c=$('#list>.pcard.show')||$('#list>.pcard:not([hidden])');const b=c?.querySelector('[data-toggle]');if(b){b.click();e.preventDefault()}}});
+    const shortOn=id=>{ try{ return !window.__shortcutOn || window.__shortcutOn(id) }catch(e){ return true } };
+    document.addEventListener('keydown',e=>{if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if((e.key==='f'||e.key==='F')&&shortOn('find')){$('#fQ')?.focus();e.preventDefault()}else if((e.key==='r'||e.key==='R')&&shortOn('rand')){$('#qRandom')?.click();e.preventDefault()}else if((e.key==='b'||e.key==='B')&&shortOn('fav')){const r=currentRow();if(r)fav(r.id);e.preventDefault()}else if(e.code==='Space'&&shortOn('toggle')){const c=$('#list>.pcard.show')||$('#list>.pcard:not([hidden])');const b=c?.querySelector('[data-toggle]');if(b){b.click();e.preventDefault()}}});
     const list=$('#list'); if(list){new MutationObserver(()=>{refreshCards();refreshHUD()}).observe(list,{childList:true,subtree:true});}
     ['fSub','fYear','fSess','fQ'].forEach(id=>$('#'+id)?.addEventListener('change',()=>setTimeout(()=>{state=store.get();refreshCards();refreshHUD()},50)));
     $('#fQ')?.addEventListener('input',()=>refreshHUD());
@@ -4595,8 +4645,9 @@ body.exam-mode .pcard{box-shadow:0 0 0 2px rgba(29,78,216,.08),var(--shadow)}
   document.addEventListener('keydown',e=>{
     if(e.key==='Escape' && escClose()){e.preventDefault();return}
     if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;
-    if(e.key==='1' && current()){mark(current().id,'ok');rebuild();toast('정답 기록')}
-    if(e.key==='2' && current()){mark(current().id,'no');rebuild();toast('오답 기록')}
+    const shortOn=id=>{ try{ return !window.__shortcutOn || window.__shortcutOn(id) }catch(x){ return true } };
+    if(e.key==='1' && current() && shortOn('ok')){mark(current().id,'ok');rebuild();toast('정답 기록')}
+    if(e.key==='2' && current() && shortOn('no')){mark(current().id,'no');rebuild();toast('오답 기록')}
   });
   // Existing favorite state is stored by the prior UX layer. Expose it safely.
   window.__isFav=(id)=>{try{return !!JSON.parse(localStorage.getItem('prac:ux:'+location.pathname)||'{}').fav?.[id]}catch{return false}};
@@ -5004,7 +5055,13 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
       if(document.body.classList.contains('oneup') && typeof window.showAt==='function') window.showAt(i);
       if(typeof window.ovOpen==='function') window.ovOpen(r.id);
     });
-    s.querySelector('.pb.now')?.scrollIntoView({block:'nearest',inline:'center'});
+    const nowBtn=s.querySelector('.pb.now');
+    if(nowBtn){
+      const prevSB=s.style.scrollBehavior;
+      s.style.scrollBehavior='auto';
+      nowBtn.scrollIntoView({block:'nearest',inline:'center'});
+      s.style.scrollBehavior=prevSB||'';
+    }
   }
 
   /* ── 카드의 체크 단추를 «맞음/틀림» 으로 다듬고 푼 횟수를 붙인다 ── */
@@ -5069,6 +5126,7 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
   document.addEventListener('keydown',e=>{
     if(/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName||''))return;
     if(e.key!=='1'&&e.key!=='2')return;
+    try{ if(window.__shortcutOn && !window.__shortcutOn(e.key==='1'?'ok':'no')) return; }catch(x){}
     const rs=rows(); let r=null;
     try{ r=rs[window.ONEAT|0]||null }catch(x){}
     if(!r) r=(()=>{const c=$('#list>.pcard.show'); return c?rs.find(x=>String(x.id)===String(c.dataset.id)):null})();
@@ -5165,6 +5223,8 @@ body.oneup .pcol{padding:0!important}
 .plabel+.plabel{margin-top:8px!important}
 
 /* 문제 · 쉬운 풀이 · 답안 — 나란히 세 칸 */
+/* «두 칸» 은 쉬운 풀이 없이 문제·답안만 나란히 — split 은 있는데 split3 이 없을 때다 */
+.pgrid.split:not(.split3) .pcol-ez{display:none}
 @media(min-width:1240px){
   .pgrid.split3{grid-template-columns:minmax(0,1.06fr) minmax(0,1fr) minmax(0,1.04fr)!important}
 }
@@ -5264,7 +5324,8 @@ body.oneup .pgrid.split3 .pcol .plabel{position:static!important;background:none
     const boot=setInterval(()=>{
       const sel=document.getElementById('fSize'); if(!sel) return; clearInterval(boot);
       sel.innerHTML='<option value="11.5">작게</option><option value="12.5">보통</option>'
-        +'<option value="14">크게</option><option value="16">아주 크게</option>';
+        +'<option value="14">크게</option><option value="16">아주 크게</option>'
+        +'<option value="19">최대로 크게</option>';
       sel.value=v;
     },150);
     setTimeout(()=>clearInterval(boot),15000);
@@ -8739,16 +8800,18 @@ setInterval(()=>paintAllCrops(),3000);
 <style>
 /* ── 문항 머리의 확률·유형·등급 ── */
 .fqb{flex:none;display:inline-flex;align-items:center;gap:3px;height:19px;padding:0 7px;
-  border-radius:9px;font:800 10px/1 var(--font-m,monospace);letter-spacing:.02em;
+  border-radius:9px;font:700 10px/1 var(--font-m,monospace);letter-spacing:.02em;
   background:var(--surface-2,#eef2f7);color:var(--ink-2,#475569);border:1px solid var(--line,#e2e8f0)}
 .fqb.g{background:#fff7e0;border-color:#e9c46a;color:#8a6100}
 .fqb.s{background:#f2f5f9;border-color:#c3ccd8;color:#4a5768}
 .fqb.b{background:#fdf0e6;border-color:#dcb08a;color:#8a552a}
 .fqb.r{background:#f4f1ec;border-color:#cbc3b6;color:#6b5f4e}
-.fqb.ty{background:#eef4ff;border-color:#bcd3f7;color:#1d4ed8}
-.fqb.ncs{background:#edf7f0;border-color:#a9d8bb;color:#166534}
-.fqb.ncs.ai{background:#e6f4ff;border-color:#8ec5f0;color:#0b4d8c}
-.fqb.hot{background:#ffeef0;border-color:#f5b5bd;color:#b42033}
+/* ★ 유형·NCS 분류는 색이 뜻을 담고 있지 않다 — 등급(금·은·동)과 재출제만 색을 남기고
+   나머지는 회색으로 낮춰서, 진짜 신경 쓸 색(등급·재출제 높음)이 묻히지 않게 한다 */
+.fqb.ty{background:var(--surface-2,#eef2f7);border-color:var(--line,#e2e8f0);color:var(--ink-2,#64748b)}
+.fqb.ncs{background:var(--surface-2,#eef2f7);border-color:var(--line,#e2e8f0);color:var(--ink-2,#64748b)}
+.fqb.ncs.ai{background:var(--surface-2,#eef2f7);border-color:var(--line,#e2e8f0);color:var(--ink-2,#64748b)}
+.fqb.hot{background:#fdf1f2;border-color:#eec3c8;color:#a3394a}
 @media(max-width:620px){ .fqb{height:17px;padding:0 5px;font-size:9px;gap:2px} }
 
 /* ── 문제 찾기 칸을 촘촘하게 ── */
@@ -9694,6 +9757,7 @@ const ITEMS=[
   { k:'music', ico:'♪',  t:'배경음' },
   { k:'fav',   ico:'☆',  t:'즐겨찾기' },
   { k:'top',   ico:'↑',  t:'맨 위로' },
+  { k:'keys',  ico:'⌨',  t:'단축키' },
   { k:'menu',  ico:'⌘',  t:'전체 메뉴' }
 ];
 const dock=document.createElement('div');
@@ -9751,6 +9815,7 @@ dock.addEventListener('click',e=>{
     if(k==='fav'){ document.querySelector('.app-float [data-favorite]')?.click(); return; }
     if(k==='top'){ scrollTo({top:0,behavior:'smooth'}); return; }
     if(k==='menu'){ (window.openCmd||function(){})(); return; }
+    if(k==='keys'){ (window.__pracShortcutsOpen||function(){})(); return; }
   }catch(x){ try{ window.__pracTrouble&&window.__pracTrouble('도구 도크',x) }catch(y){} }
 });
 
@@ -9774,6 +9839,7 @@ setTimeout(()=>{
   if(!window.Music&&!document.querySelector('.mus-fab')) gone('music');
   if(!document.querySelector('.app-float [data-favorite]')) gone('fav');
   if(!window.openCmd) gone('menu');
+  if(!window.__pracShortcutsOpen) gone('keys');
 },2500);
 })();
 </script>
@@ -12030,12 +12096,16 @@ setInterval(()=>{ const o=document.getElementById('ovl');
   border:1px solid var(--line,#e2e8f0);background:var(--surface,#fff);
   font:700 9px/1.6 var(--font-d,system-ui);color:var(--muted,#64748b);letter-spacing:0}
 
-/* ── ③ 한눈에 판 위쪽을 또박또박 쌓는다 ── */
+/* ── ③ 한눈에 판 위쪽을 또박또박 쌓는다 ──
+   ★ 예전에는 한 줄로 몰아넣고 스크롤바까지 숨겨서(overflow-x:auto + scrollbar-width:none),
+     단추가 하나둘 늘어난 지금은(그림으로·여백 잘라 저장·저장·이전·다음·쉬운 해설·AI·
+     북마크·맞음·틀림·기능·닫기) 화면 폭을 넘는 단추가 아무 표시 없이 밀려나 화면 밖으로
+     사라졌다 — 좁은 화면(특히 폰)에서는 이게 "칸이 겹친 것처럼" 뒤엉켜 보였다.
+     줄바꿈을 되살려 단추가 넘치면 아래 줄로 자연스럽게 내려가게 한다. */
 .ovl.on{display:flex!important;flex-direction:column!important}
 .ovl .oh{position:relative!important;top:auto!important;z-index:auto!important;
-  flex:0 0 auto!important;flex-wrap:nowrap!important;
-  overflow-x:auto;overflow-y:visible;scrollbar-width:none}
-.ovl .oh::-webkit-scrollbar{display:none}
+  flex:0 0 auto!important;flex-wrap:wrap!important;
+  overflow:visible;row-gap:6px}
 .ovl .oh > *{flex:0 0 auto}
 .ovl .oh .ot{flex:1 1 auto;min-width:52px;overflow:hidden}
 .ovl .oh .ot span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -14693,6 +14763,11 @@ setTimeout(()=>clearInterval(t),120000);
 /* ── 열 너비 — 좌우로 끌어서 조절 (노션처럼) ──
    손잡이는 표 전체 높이를 덮게 JS 로 자리를 잡는다 (.host 기준 좌표). */
 .edw .tbx table{table-layout:fixed;width:100%}
+@keyframes needsavepulse{
+  0%,100%{ box-shadow:0 0 0 0 rgba(37,99,235,.55) }
+  50%{ box-shadow:0 0 0 7px rgba(37,99,235,0) }
+}
+.edw #edSave.needsave{ animation:needsavepulse 1s ease-out 3 }
 .edw .tbx .host{position:relative}
 .edw .tbx .colrs{position:absolute;top:0;width:13px;margin-left:-7px;cursor:col-resize;
   z-index:6;touch-action:none}
@@ -14743,7 +14818,10 @@ function pullCols(md){
   let ti = 0;
   for(let i=0;i<lines.length;i++){
     const m = lines[i].match(COLRE);
-    if(m){ map[ti] = m[1].split(',').map(v=>parseFloat(v)).filter(v=>!isNaN(v)&&v>0); continue; }
+    /* ★ 예전에는 값이 없는(0) 칸을 배열에서 통째로 빼 버렸다 — 그러면 뒤엣 칸들의
+       너비가 한 칸씩 앞으로 밀려서 «단면적» 자리에 «허용전류» 의 너비가 입혀지는
+       식으로 엉켰다. 자리를 지켜야 하므로, 값이 없으면 0으로 «자리만» 남긴다. */
+    if(m){ map[ti] = m[1].split(',').map(v=>{ const n=parseFloat(v); return (!isNaN(n)&&n>0)?n:0; }); continue; }
     out.push(lines[i]);
     if(ROWRE.test(lines[i].trim()) && SEPRE.test((lines[i+1]||'').trim())) ti++;
   }
@@ -14758,7 +14836,9 @@ function fixHtml(html, map){
     d.querySelectorAll('table').forEach((t,i)=>{
       const w = map[i]; if(!w || !w.length) return;
       const cg = document.createElement('colgroup');
-      w.forEach(v=>{ const c=document.createElement('col'); c.style.width=v+'%'; cg.appendChild(c); });
+      /* 칸마다 하나씩 <col> 을 세운다 — 값이 0인 칸도 자리만은 반드시 채운다.
+         하나라도 빠지면 그 뒤 모든 칸이 한 자리씩 밀려 버린다. */
+      w.forEach(v=>{ const c=document.createElement('col'); if(v>0) c.style.width=v+'%'; cg.appendChild(c); });
       t.insertBefore(cg, t.firstChild);
       t.classList.add('fixw');
     });
@@ -15093,6 +15173,17 @@ function tableEditor(){
      화면에 뜬 입력칸(.wnum) 값만 살아 있는 동안 계속 고쳐 쓴다(다시 그리지 않는다).
      손을 떼야 ST.widths 가 굳고, 그제서야 손잡이 자리도 새로 잰다. */
   function colEls(){ return $$('table > colgroup > col', host); }
+  /* 값을 안 넣은 칸은 «자동» 이 아니라 남은 폭을 고르게 나눠 가진다.
+     한두 칸만 정해 놨을 때 나머지 한 칸이 폭을 다 먹어 버리는(=옆 칸이 안 보이게
+     밀려나는) 일을 막는다. paint() 의 미리 보기와 build() 의 저장 값이 같은 값을
+     쓰도록 여기 한 곳에 모아 둔다. */
+  function effectiveWidths(raw){
+    const setSum = raw.reduce((a,b)=>a+(b>0?b:0),0);
+    const unsetN = raw.filter(x=>!(x>0)).length;
+    if(!unsetN) return raw.map(x=>x>0?Math.round(x*10)/10:0);
+    const share = Math.max(4, Math.round(Math.max(0,100-setSum)/unsetN*10)/10);
+    return raw.map(x=>x>0?Math.round(x*10)/10:share);
+  }
   function tableWidthPx(){ const t=$('table',host); return t ? t.getBoundingClientRect().width : 0; }
   function positionHandles(){
     const table = $('table',host); if(!table) return;
@@ -15133,7 +15224,18 @@ function tableEditor(){
         try{ h.releasePointerCapture(ev.pointerId); }catch(e){}
         removeEventListener('pointermove', onMove);
         removeEventListener('pointerup', onUp);
-        if(!ST.widths.some(x=>x>0)) ST.widths=null;
+        if(!ST.widths.some(x=>x>0)){
+          ST.widths=null;
+        }else{
+          /* 아직 안 정한 칸들 <col> 을 다시 잰다 — 하나만 끌었다고 다른 칸이
+             예전 몫(=너무 넓거나 좁게 남은 자리)에 그대로 머물지 않게 한다. */
+          const eff = effectiveWidths(ST.widths.slice(0,cols));
+          colEls().forEach((col,idx)=>{
+            const ci = idx-1; if(ci<0||ci>=cols) return;      /* 앞뒤 고정 칸은 건너뛴다 */
+            if(!(ST.widths[ci]>0)) col.style.width = eff[ci]+'%';
+          });
+          positionHandles();
+        }
         say(ST.widths ? '열 너비를 정했습니다. 비운 칸은 남은 폭을 나눠 씁니다.' : '열 너비를 자동으로 되돌렸습니다.');
       };
       h.addEventListener('pointerdown', ev=>{
@@ -15161,12 +15263,16 @@ function tableEditor(){
     if(ST.widths){ while(ST.widths.length<cols) ST.widths.push(0); ST.widths.length=cols; }
 
     const t = document.createElement('table');
-    /* 열 너비대로 <col> 을 세운다 — 끌기·입력 칸 둘 다 이 colgroup 을 고쳐 쓴다 */
+    /* 열 너비대로 <col> 을 세운다 — 끌기·입력 칸 둘 다 이 colgroup 을 고쳐 쓴다.
+       하나라도 정한 칸이 있으면, 안 정한 칸들도 남은 폭을 고르게 나눠 받는다
+       (한 칸만 먹어 버려 다른 칸이 화면 밖으로 밀려나는 것을 막는다). */
+    const hasWidths = ST.widths && ST.widths.some(x=>x>0);
+    const eff = hasWidths ? effectiveWidths(ST.widths.slice(0,cols)) : null;
     const cg = document.createElement('colgroup');
     const rhCol = document.createElement('col'); rhCol.style.width = '56px'; cg.appendChild(rhCol);
     for(let c=0;c<cols;c++){
       const col = document.createElement('col');
-      const w = ST.widths && ST.widths[c] ? ST.widths[c] : 0;
+      const w = eff ? eff[c] : 0;
       if(w) col.style.width = w + '%';
       cg.appendChild(col);
     }
@@ -15246,9 +15352,16 @@ function tableEditor(){
       const c=+inp.dataset.w, v=parseFloat(inp.value);
       if(!ST.widths) ST.widths = ST.rows[0].map(()=>0);
       ST.widths[c] = (!isNaN(v)&&v>0) ? Math.min(100,v) : 0;
-      if(!ST.widths.some(x=>x>0)) ST.widths=null;
-      const col = colEls()[c+1];
-      if(col) col.style.width = (ST.widths && ST.widths[c]) ? ST.widths[c]+'%' : '';
+      if(!ST.widths.some(x=>x>0)){
+        ST.widths=null;
+        colEls().forEach((col,idx)=>{ if(idx>0&&idx<=cols) col.style.width=''; });
+      }else{
+        const eff = effectiveWidths(ST.widths.slice(0,cols));
+        colEls().forEach((col,idx)=>{
+          const ci = idx-1; if(ci<0||ci>=cols) return;
+          col.style.width = eff[ci]+'%';
+        });
+      }
       positionHandles();
       say(ST.widths ? '열 너비를 정했습니다. 비운 칸은 남은 폭을 나눠 씁니다.' : '열 너비를 자동으로 되돌렸습니다.');
     });
@@ -15269,7 +15382,7 @@ function tableEditor(){
     const cols = ST.rows[0].length;
     const out=[];
     if(ST.widths && ST.widths.some(x=>x>0)){
-      const w=ST.widths.slice(0,cols).map(x=>x>0?x:0);
+      const w = effectiveWidths(ST.widths.slice(0,cols));
       out.push(`<!--cols:${w.join(',')}-->`);
     }
     out.push(joinRow(ST.rows[0]));
@@ -15297,6 +15410,13 @@ function tableEditor(){
     P.classList.remove('on');
     ta.focus();
     try{ W.__paint && W.__paint() }catch(e){}
+    /* ★ «표 적용» 은 이 칸의 초안(textarea)에 표를 끼워 넣을 뿐, 서버에는
+       아직 안 올라갔다 — 창 맨 아래 «저장» 을 눌러야 진짜로 남는다.
+       여기서 놓치기 쉬우므로 저장 단추를 잠깐 빛나게 해서 눈에 띄게 한다. */
+    const edMsg = document.getElementById('edMsg');
+    if(edMsg){ edMsg.textContent = '표를 넣었습니다 — 이 창의 «저장» 을 눌러야 실제로 반영됩니다.'; edMsg.classList.remove('bad'); }
+    const saveBtn = document.getElementById('edSave');
+    if(saveBtn){ saveBtn.classList.add('needsave'); setTimeout(()=>saveBtn.classList.remove('needsave'), 3000); }
   };
 
   P.__open = () => {
@@ -15398,16 +15518,6 @@ try{ window.__v153 = { tight, tightSave, tightDown, findTables, isSolo }; }catch
      한 번에 누르면 간다. 번호를 직접 쳐서 Enter 로도 간다. 단축키 G.
      ══════════════════════════════════════════════════════════════ -->
 <style>
-.railtop{display:flex;align-items:center;gap:8px;padding:0 2px 6px}
-.railtop .rt-pos{font:800 11.5px/1 var(--font-m,monospace);color:var(--muted,#64748b)}
-.railtop .rt-go{margin-left:auto;height:28px;padding:0 11px;border:1px solid var(--line,#dbe1ea);
-  border-radius:8px;background:var(--surface,#fff);color:var(--ink,#172033);
-  font:800 11px/1 var(--font-d,system-ui);cursor:pointer;display:flex;align-items:center;gap:5px}
-.railtop .rt-go:hover{border-color:var(--brand,#365cff);color:var(--brand,#365cff)}
-.railtop .rt-go kbd{font:700 9px/1 var(--font-m,monospace);padding:1px 4px;border-radius:4px;
-  background:var(--surface-3,#eef2f7);color:var(--muted,#64748b)}
-@media(max-width:820px){ .railtop .rt-go kbd{display:none} }
-
 .pjumpov{position:fixed;inset:0;z-index:100050;background:rgba(15,23,42,.5);
   display:none;align-items:center;justify-content:center;padding:14px}
 .pjumpov.on{display:flex}
@@ -15511,38 +15621,156 @@ document.addEventListener('keydown', e=>{
   if(/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName||'')) return;
   if(document.querySelector('.edw.on, .tbx.on')) return;
   if((e.key==='g'||e.key==='G') && !e.ctrlKey && !e.metaKey && !e.altKey
-     && document.body.classList.contains('oneup')){
+     && document.body.classList.contains('oneup')
+     && (!window.__shortcutOn || window.__shortcutOn('jump'))){
     e.preventDefault(); openOv();
   }
 }, true);
 
-/* ── 레일 위에 «지금 몇 번째 / 전체» 와 «문항 고르기» 단추를 얹는다 ── */
-function ensureTop(){
-  const wrap=$('.railwrap'); if(!wrap || $('.railtop',wrap)) return;
-  const bar=document.createElement('div'); bar.className='railtop';
-  bar.innerHTML=`<span class="rt-pos" id="rtPos"></span>
-    <button type="button" class="rt-go" id="rtGoBtn" title="문항 번호로 바로 가기">🔢 문항 고르기 <kbd>G</kbd></button>`;
-  wrap.insertBefore(bar, wrap.firstChild);
-  $('#rtGoBtn',bar).onclick=openOv;
-}
-function syncPos(){
-  const el=$('#rtPos'); if(!el) return;
-  const rs=rows(); if(!rs.length){ el.textContent=''; return; }
-  el.textContent=`${Math.min(at()+1, rs.length)} / ${rs.length}`;
+/* ── «문항 고르기» 단추를 새 줄 만들지 않고, 이미 있는 아래쪽 이동줄(#pnav)에
+      끼워 넣는다 — ↤ · «10 · ‹이전 · (지금/전체) · 다음› · 10» · ↦ 와 한 줄로.
+      예전에는 레일 위에 따로 줄을 얹었는데, 그 자리엔 이미 같은 정보(지금/전체)가
+      있어서 두 번 보였고 줄만 하나 더 늘었다. ── */
+function ensureBtn(){
+  const nav=$('#pnav'); if(!nav || $('#pnavJump',nav)) return;
+  const b=document.createElement('button');
+  b.type='button'; b.className='zb'; b.id='pnavJump';
+  b.title='문항 번호로 바로 가기 (G)';
+  b.textContent='🔢 고르기';
+  nav.appendChild(b);
+  b.onclick=openOv;
 }
 
 const boot=setInterval(()=>{
-  const wrap=$('.railwrap'); if(!wrap) return;
-  ensureTop(); syncPos();
+  const nav=$('#pnav'); if(!nav) return;
+  ensureBtn();
   clearInterval(boot);
 }, 200);
 setTimeout(()=>clearInterval(boot), 20000);
+})();
+</script>
 
-/* 문항을 넘기거나(oneup 뱃지·클릭·키보드) 목록이 다시 그려질 때마다 위치 표시를 고친다 */
-new MutationObserver(()=>syncPos()).observe(document.body, { attributes:true, attributeFilter:['class'] });
-document.addEventListener('click', ()=>setTimeout(syncPos,60));
-document.addEventListener('keydown', ()=>setTimeout(syncPos,60));
-setInterval(syncPos, 1500);
+
+<!-- ══════════════════════════════════════════════════════════════
+     v157 · 단축키 한눈에 보기 · 켜고 끄기
+
+     지금까지 단축키(F·R·B·Space·1·2·G)는 코드 곳곳에 흩어져 있어서
+     한 군데서 볼 방법도, 하나씩 꺼 둘 방법도 없었다.
+
+     여기서는 그 목록을 한 곳에 모아 표로 보여 주고, 칸마다 켜고 끌 수
+     있게 한다. 저장은 이 기기에 남는다(prac:shortcuts). 실제로 각
+     단축키를 처리하는 코드에는 window.__shortcutOn('id') 한 줄씩만
+     끼워 넣었다 — 여기서 끄면 그 코드가 조용히 넘어간다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+.skOv{position:fixed;inset:0;z-index:100060;background:rgba(15,23,42,.5);
+  display:none;align-items:center;justify-content:center;padding:14px}
+.skOv.on{display:flex}
+.skBox{background:var(--surface,#fff);border-radius:16px;width:100%;max-width:560px;max-height:86vh;
+  display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-lg,0 18px 55px rgba(27,42,71,.13))}
+.skTop{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line,#dbe1ea);flex:0 0 auto}
+.skTop b{font:800 14px/1 var(--font-d,system-ui)}
+.skTop .sp{flex:1}
+.skTop button{height:30px;padding:0 11px;border:1px solid var(--line,#dbe1ea);border-radius:8px;
+  background:var(--surface,#fff);color:var(--ink,#172033);font:700 11.5px/1 var(--font-d,system-ui);cursor:pointer}
+.skTop button:hover{border-color:var(--brand,#365cff);color:var(--brand,#365cff)}
+.skBulk{display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line,#dbe1ea);flex:0 0 auto}
+.skBulk button{height:30px;padding:0 12px;border:1px solid var(--line,#dbe1ea);border-radius:8px;
+  background:var(--surface-2,#f8fafc);color:var(--ink,#172033);font:700 11.5px/1 var(--font-d,system-ui);cursor:pointer}
+.skList{flex:1;min-height:0;overflow-y:auto;padding:6px 12px 14px}
+.skRow{display:flex;align-items:center;gap:12px;padding:10px 6px;border-bottom:1px solid var(--line,#f0f2f6)}
+.skRow:last-child{border-bottom:0}
+.skKey{min-width:38px;height:26px;padding:0 8px;border-radius:7px;background:var(--surface-3,#eef2f7);
+  color:var(--ink,#172033);font:800 12px/26px var(--font-m,monospace);text-align:center;flex:0 0 auto}
+.skLab{flex:1;font-size:12.5px;color:var(--ink,#172033)}
+.skLab small{display:block;font-size:10.5px;color:var(--muted,#687386);margin-top:1px;font-weight:500}
+.skSw{width:40px;height:23px;border-radius:999px;border:1px solid var(--line,#dbe1ea);
+  background:var(--surface-3,#eef2f7);cursor:pointer;position:relative;flex:0 0 auto;padding:0}
+.skSw i{position:absolute;top:1px;left:1px;width:19px;height:19px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.25);transition:left .15s}
+.skSw.on{background:var(--brand,#365cff);border-color:var(--brand,#365cff)}
+.skSw.on i{left:18px}
+@media(max-width:480px){ .skBox{max-width:100%} }
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+
+const DEFS=[
+  {id:'find',  key:'F',      label:'찾기 칸으로 이동',      note:'문항 목록 위 «본문에서 찾기» 칸에 커서를 둔다'},
+  {id:'rand',  key:'R',      label:'무작위로 뽑기',         note:'«랜덤» 단추와 같다'},
+  {id:'fav',   key:'B',      label:'북마크 켜고 끄기',       note:'지금 보고 있는 문항을 북마크한다'},
+  {id:'toggle',key:'Space',  label:'답안 가리기 / 보기',     note:'지금 카드의 가림판을 연다'},
+  {id:'ok',    key:'1',      label:'맞음으로 기록',         note:'지금 문항을 맞음 처리하고 진도를 올린다'},
+  {id:'no',    key:'2',      label:'틀림으로 기록',         note:'지금 문항을 틀림 처리하고 진도를 올린다'},
+  {id:'jump',  key:'G',      label:'문항 고르기',           note:'전체 문항을 펼쳐 번호로 바로 이동 (한 문항씩 볼 때만)'},
+];
+
+const SK='prac:shortcuts';
+function loadState(){ try{ return JSON.parse(localStorage.getItem(SK)||'{}') }catch(e){ return {} } }
+function saveState(s){ try{ localStorage.setItem(SK, JSON.stringify(s)) }catch(e){} }
+window.__shortcutOn = id => loadState()[id] !== false;   /* 따로 꺼 두지 않았으면 켜진 것 */
+
+let OV=null;
+function closeOv(){ if(OV){ OV.remove(); OV=null; } }
+function openOv(){
+  closeOv();
+  const s=loadState();
+  OV=document.createElement('div');
+  OV.className='skOv on';
+  OV.innerHTML=`<div class="skBox">
+    <div class="skTop"><b>⌨ 단축키</b><span class="sp"></span>
+      <button type="button" data-close>닫기 (Esc)</button></div>
+    <div class="skBulk">
+      <button type="button" data-all-on>전체 켜기</button>
+      <button type="button" data-all-off>전체 끄기</button>
+    </div>
+    <div class="skList">${DEFS.map(d=>{
+      const on = s[d.id] !== false;
+      return `<div class="skRow" data-row="${d.id}">
+        <span class="skKey">${d.key}</span>
+        <span class="skLab">${d.label}<small>${d.note}</small></span>
+        <button type="button" class="skSw ${on?'on':''}" data-sw="${d.id}" aria-label="${d.label} 켜고 끄기"><i></i></button>
+      </div>`;
+    }).join('')}</div>
+  </div>`;
+  document.body.appendChild(OV);
+
+  $('[data-close]',OV).onclick=closeOv;
+  OV.addEventListener('click', e=>{ if(e.target===OV) closeOv(); });
+  $$('.skSw',OV).forEach(b=>b.onclick=()=>{
+    const id=b.dataset.sw, s2=loadState();
+    s2[id] = !(s2[id] !== false);
+    saveState(s2);
+    b.classList.toggle('on', s2[id] !== false);
+  });
+  $('[data-all-on]',OV).onclick=()=>{
+    const s2={}; DEFS.forEach(d=>s2[d.id]=true); saveState(s2);
+    $$('.skSw',OV).forEach(b=>b.classList.add('on'));
+  };
+  $('[data-all-off]',OV).onclick=()=>{
+    const s2={}; DEFS.forEach(d=>s2[d.id]=false); saveState(s2);
+    $$('.skSw',OV).forEach(b=>b.classList.remove('on'));
+  };
+}
+window.__pracShortcutsOpen = openOv;   /* 오른쪽 아래 +(도구) 버튼에서도 열 수 있게 */
+document.addEventListener('keydown', e=>{
+  if(OV && e.key==='Escape'){ e.preventDefault(); closeOv(); }
+});
+
+/* 아래 이동줄(#pnav)의 «🔢 고르기» 옆에 «⌨» 를 나란히 붙인다 — 새 줄 없이 한 줄로 */
+function ensureBtn(){
+  const nav=$('#pnav'); if(!nav || $('#pnavShortcuts',nav)) return;
+  const b=document.createElement('button');
+  b.type='button'; b.className='zb'; b.id='pnavShortcuts';
+  b.title='단축키 보기 · 켜고 끄기';
+  b.textContent='⌨';
+  b.onclick=openOv;
+  nav.appendChild(b);
+}
+const boot=setInterval(()=>{ if($('#pnav')){ ensureBtn(); clearInterval(boot); } }, 250);
+setTimeout(()=>clearInterval(boot), 20000);
 })();
 </script>
 
