@@ -5345,7 +5345,14 @@ body.oneup .pgrid.split3 .pcol .plabel{position:static!important;background:none
 }
 
 /* 수식이 너무 크게 그려져 한 줄을 다 잡아먹던 것 */
-.katex{font-size:calc(1.02em * var(--texScale,1))!important}
+/* ★ font-size 로 시도했었는데(v163) 실제로는 안 먹었다 — KaTeX 자체 CSS 안쪽에서
+   font-size 를 셈세하게(글꼴 shorthand 등으로) 다시 정하는 자리가 있어서, 우리 값이
+   못 이기는 자리가 있는 듯하다. font-size 대신 transform:scale 로 바꾼다 — 이건
+   KaTeX 내부 CSS가 뭘 하든 상관없이 화면에 그려진 결과물을 통째로 확대·축소하는
+   것이라, 반드시 눈에 보이게 바뀐다. */
+.katex{transform:scale(var(--texScale,1))!important;transform-origin:left center!important;
+  display:inline-block!important}
+.katex-display .katex{transform-origin:center!important}
 .katex-display{margin:5px 0!important}
 </style>
 <script>
