@@ -460,14 +460,69 @@
     fav.onclick=()=>{toggleFavorite();fav.textContent=getFavs().some(x=>x.href===location.href)?'★':'☆'};
     f.insertBefore(fav,f.firstChild);
   }
+  /* ══════════════════════════════════════════════════════════════
+     단축키 — 한 군데에 모은다
+
+     지금까지 F·G·R 세 키가 이 파일 안에서만도 둘씩 겹쳐 있었다:
+       F = «찾기 칸으로»(실기뷰어) 랑 «즐겨찾기»(이 파일)가 같이 눌렸고
+       G = «문항 고르기»(실기뷰어) 랑 «전체 검색»(이 파일)이 같이 열렸고
+       R = «랜덤 뽑기»(실기뷰어) 랑 «포트폴리오로 이동»(이 파일)이 같이 일어났다
+     — 한 키를 누르면 두 가지가 동시에 반응한 것이다.
+
+     그래서 겹치는 세 개는 새 키로 옮기고(즐겨찾기→W, 전체 검색→V, 포트폴리오→T),
+     켜고 끄기·키 바꾸기를 한 곳(창)에서 다루도록 이 표를 만든다.
+     페이지마다 필요한 단축키를 register() 로 더 보탤 수 있다(실기뷰어가 이렇게 한다). */
+  (function(){
+    const SK='app:shortcuts:v1';
+    function load(){ try{ return JSON.parse(localStorage.getItem(SK)||'{}') }catch(e){ return {} } }
+    function save(s){ try{ localStorage.setItem(SK, JSON.stringify(s)) }catch(e){} }
+    const DEFS=[
+      { id:'g-search',  key:'V', label:'전체 검색 열기',        group:'전체', def:true },
+      { id:'g-fav',     key:'W', label:'이 페이지 즐겨찾기',     group:'전체', def:true },
+      { id:'g-theme',   key:'D', label:'밝게 / 어둡게',         group:'전체', def:true },
+      { id:'g-cmd',     key:'K', label:'전체 메뉴 (Ctrl+K)',    group:'전체', def:true, mod:'ctrl' },
+      { id:'g-home',    key:'H', label:'필기뷰어로 이동',       group:'전체', def:true },
+      { id:'g-prac',    key:'P', label:'실기뷰어로 이동',       group:'전체', def:true },
+      { id:'g-ingest',  key:'I', label:'자동 변환으로 이동',    group:'전체', def:true },
+      { id:'g-interview', key:'M', label:'면접으로 이동',       group:'전체', def:true },
+      { id:'g-portfolio', key:'T', label:'포트폴리오로 이동',   group:'전체', def:true },
+      { id:'g-calc',    key:'C', label:'계산기 열기',           group:'전체', def:true },
+      { id:'g-timer',   key:'Z', label:'타이머 열기',           group:'전체', def:true },
+      { id:'g-study',   key:'Y', label:'학습센터 열기',         group:'전체', def:true },
+      { id:'g-settings',key:'S', label:'설정 열기',             group:'전체', def:true },
+      { id:'g-selftest',key:'J', label:'자가테스트 열기',       group:'전체', def:true },
+      { id:'g-install', key:'A', label:'앱 설치',               group:'전체', def:true }
+    ];
+    function all(){ return DEFS; }
+    function register(more){
+      (more||[]).forEach(d=>{ if(!DEFS.find(x=>x.id===d.id)) DEFS.push(d); });
+    }
+    function row(id){ const s=load(); const d=DEFS.find(x=>x.id===id); return Object.assign({ on:true, key:d?.key||'' }, d, s[id]||{}); }
+    function isOn(id){ return row(id).on!==false; }
+    function keyOf(id){ return (row(id).key||'').toUpperCase(); }
+    function setOn(id,on){ const s=load(); s[id]=Object.assign({},s[id],{on:!!on}); save(s); }
+    function setKey(id,key){ const s=load(); s[id]=Object.assign({},s[id],{key:(key||'').toUpperCase()}); save(s); }
+    function reset(id){ const s=load(); delete s[id]; save(s); }
+    function matches(id,e){
+      if(!isOn(id)) return false;
+      const want=keyOf(id); if(!want) return false;
+      const d=DEFS.find(x=>x.id===id);
+      if(d?.mod==='ctrl' && !(e.ctrlKey||e.metaKey)) return false;
+      if(want==='SPACE') return e.code==='Space';
+      return (e.key||'').toUpperCase()===want && !e.altKey && (d?.mod==='ctrl' ? true : !e.ctrlKey && !e.metaKey);
+    }
+    window.__gkey={ DEFS, all, register, row, isOn, keyOf, setOn, setKey, reset, matches };
+  })();
+
   function installShortcuts(){
     document.addEventListener('keydown',e=>{
       const inField=/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName||'');
       if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key.toLowerCase()==='f'){e.preventDefault();window.openGlobalSearch?.();return}
       if(inField)return;
-      if(e.key.toLowerCase()==='f'){e.preventDefault();buildTools();document.querySelector('[data-favorite]')?.click();return}
-      if(e.key.toLowerCase()==='g'){e.preventDefault();window.openGlobalSearch?.();return}
-      if(e.key.toLowerCase()==='d'){e.preventDefault();toggleTheme();return}
+      const G=window.__gkey;
+      if(G.matches('g-fav',e)){e.preventDefault();buildTools();document.querySelector('[data-favorite]')?.click();return}
+      if(G.matches('g-search',e)){e.preventDefault();window.openGlobalSearch?.();return}
+      if(G.matches('g-theme',e)){e.preventDefault();toggleTheme();return}
     });
   }
 
@@ -673,18 +728,19 @@
     restorePreferences(); buildInterviewIsolation(); buildScroll(); buildCmd(); buildFloat(); maybeMarkResume(); buildOffline(); installGlobalSearch(); buildMobileNav(); setTimeout(buildTools,0); installShortcuts(); installCalcPopup();
     document.addEventListener('keydown',e=>{
       const inField=/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName||'');
-      if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();window.openCmd();return}
+      if(window.__gkey?.matches('g-cmd',e)){e.preventDefault();window.openCmd();return}
       if(inField) return;
-      if(e.key.toLowerCase()==='c'){openCalcPopup();return}
-      const map={h:'./index.html',p:'./practice.html',i:'./ingest.html',m:'./interview.html',r:'./portfolio.html'};
-      const href=map[e.key.toLowerCase()]; if(href){location.href=href;return}
+      const G=window.__gkey;
+      if(G && G.matches('g-calc',e)){openCalcPopup();return}
+      const map={ 'g-home':'./index.html','g-prac':'./practice.html','g-ingest':'./ingest.html','g-interview':'./interview.html','g-portfolio':'./portfolio.html' };
+      if(G){ for(const id in map){ if(G.matches(id,e)){ location.href=map[id]; return; } } }
       if(e.key==='?'){window.openCmd();return}
       if(e.key==='Escape'){window.closeCmd?.();document.querySelector('.app-global-search')?.classList.remove('open');closeSettings();return;}
-      if(e.key.toLowerCase()==='z'){openTimer();return}
-      if(e.key.toLowerCase()==='y'){openStudyCenter();return}
-      if(e.key.toLowerCase()==='s'){openSettings();return}
-      if(e.key.toLowerCase()==='j'){openSelfTest();return}
-      if(e.key.toLowerCase()==='a'){installApp();return}
+      if(G && G.matches('g-timer',e)){openTimer();return}
+      if(G && G.matches('g-study',e)){openStudyCenter();return}
+      if(G && G.matches('g-settings',e)){openSettings();return}
+      if(G && G.matches('g-selftest',e)){openSelfTest();return}
+      if(G && G.matches('g-install',e)){installApp();return}
     });
     // Keep page transitions from feeling abrupt.
     document.documentElement.classList.add('app-ready');

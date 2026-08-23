@@ -1001,10 +1001,12 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
    도구 › 한눈에 기능 에서 하나씩 켜며 검증할 수 있다.
    ══════════════════════════════════════════════════════════════ */
 (function(){
-  const KEY='prac:ovlayers:v1';
-  /* 처음 값 — 무거운 겹(그림 손질·주석 다시 칠하기)은 꺼 두고 시작한다 */
+  const KEY='prac:ovlayers:v2';   /* v1→v2: «형광펜·주석» 기본값이 꺼짐→켜짐으로 바뀌어서,
+                                      예전에 저장된 값에 옛 기본값이 남아 있는 사람도 새 기본값을 받게 한다 */
+  /* 처음 값 — 무거운 겹 중에서도 «형광펜·주석» 은 이미 여러 번 고쳐 써서 이제는 기본으로 켠다.
+     나머지 무거운 겹(그림 손질 다시 칠하기 등)은 아직 예전처럼 꺼 두고 시작한다. */
   const DEF={ rail:true, dock:true, swipe:false, back:false,
-              ann:false, squeeze:false, fig:false, ai:false };
+              ann:true, squeeze:false, fig:false, ai:false };
   let V=Object.assign({},DEF);
   try{ V=Object.assign({},DEF,JSON.parse(localStorage.getItem(KEY)||'{}')) }catch(e){}
   window.OVL={
@@ -2689,8 +2691,15 @@ function mdRich(src){
   const cells = t => t.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
 
   while(i < lines.length){
-    const t = lines[i].trim();
+    let t = lines[i].trim();
     if(!t){ close(); i++; continue; }
+
+    /* 줄 맞춤 — 줄 맨 앞의 ::c:: ::r:: ::l:: 을 읽고 떼어 낸다.
+       왼쪽(기본)은 표시가 없어도 되니, 실제로 넣는 건 가운데·오른쪽뿐이다. */
+    let align = '';
+    const am = t.match(/^::([clr])::\s*/);
+    if(am){ align = am[1]==='c' ? 'center' : am[1]==='r' ? 'right' : ''; t = t.slice(am[0].length); if(!t){ close(); i++; continue; } }
+    const alignAttr = align ? ` style="text-align:${align}"` : '';
 
     /* 표 — 둘째 줄이 |---|---| 모양이면 표로 본다 */
     if(isRow(t) && isRow((lines[i+1] || "").trim()) && /^\|[\s:\-|]+\|?$/.test((lines[i+1] || "").trim())){
@@ -2714,20 +2723,20 @@ function mdRich(src){
            + (fig[3] ? `<figcaption>${inlR(fig[3])}</figcaption>` : "") + `</figure>`;
       i++; continue;
     }
-    if(/^#{1,6}\s/.test(t)){ close(); out += `<h4>${inlR(t.replace(/^#+\s/, ""))}</h4>`; i++; continue; }
+    if(/^#{1,6}\s/.test(t)){ close(); out += `<h4${alignAttr}>${inlR(t.replace(/^#+\s/, ""))}</h4>`; i++; continue; }
     if(/^[-*]\s/.test(t)){ if(ol){ out += "</ol>"; ol = false; } if(!ul){ out += "<ul>"; ul = true; }
       out += `<li>${inlR(t.replace(/^[-*]\s/, ""))}</li>`; i++; continue; }
     if(/^\d+[.)]\s/.test(t)){ if(ul){ out += "</ul>"; ul = false; } if(!ol){ out += "<ol>"; ol = true; }
       out += `<li>${inlR(t.replace(/^\d+[.)]\s/, ""))}</li>`; i++; continue; }
     /* 【규모】 [조건] 처럼 꺾쇠로만 된 줄은 작은 소제목으로 띄운다 */
     if(/^(【[^】]{1,14}】|\[[^\]]{1,14}\])$/.test(t.replace(/&lt;|&gt;/g,""))){
-      close(); out += `<p class="blk">${inlR(t)}</p>`; i++; continue;
+      close(); out += `<p class="blk"${alignAttr}>${inlR(t)}</p>`; i++; continue;
     }
     /* ① · (1) · 가. 로 시작하는 줄 — 번호를 왼쪽에 걸고 본문만 들여쓴다 */
     if(/^([①-⑳㉑-㉟]|\(\d{1,2}\)|\d{1,2}\)|[가-핳]\.)\s/.test(t)){
-      close(); out += `<p class="num">${inlR(t)}</p>`; i++; continue;
+      close(); out += `<p class="num"${alignAttr}>${inlR(t)}</p>`; i++; continue;
     }
-    close(); out += `<p>${inlR(t)}</p>`; i++;
+    close(); out += `<p${alignAttr}>${inlR(t)}</p>`; i++;
   }
   close(); return out;
 }
@@ -4518,8 +4527,8 @@ sb?.auth?.onAuthStateChange?.(() => setTimeout(() => gate().then(on => on && boo
     $('#studyReset')?.addEventListener('click',()=>{if(!confirm('이 과목의 학습 진행률과 북마크를 초기화할까요?'))return;localStorage.removeItem(keyBase());state={};refreshCards();refreshHUD();toast('학습 기록 초기화')});
     $('#list')?.addEventListener('click',e=>{const b=e.target.closest('[data-study-fav]');if(b){e.preventDefault();e.stopPropagation();fav(b.dataset.studyFav)}});
     document.addEventListener('click',e=>{const c=e.target.closest('#list>.pcard');if(c&&!e.target.closest('button,a,input,select,textarea,details,summary')){markVisited(c.dataset.id);refreshHUD();}});
-    const shortOn=id=>{ try{ return !window.__shortcutOn || window.__shortcutOn(id) }catch(e){ return true } };
-    document.addEventListener('keydown',e=>{if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if((e.key==='f'||e.key==='F')&&shortOn('find')){$('#fQ')?.focus();e.preventDefault()}else if((e.key==='r'||e.key==='R')&&shortOn('rand')){$('#qRandom')?.click();e.preventDefault()}else if((e.key==='b'||e.key==='B')&&shortOn('fav')){const r=currentRow();if(r)fav(r.id);e.preventDefault()}else if(e.code==='Space'&&shortOn('toggle')){const c=$('#list>.pcard.show')||$('#list>.pcard:not([hidden])');const b=c?.querySelector('[data-toggle]');if(b){b.click();e.preventDefault()}}});
+    const gk=()=>window.__gkey;
+    document.addEventListener('keydown',e=>{if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;if(gk()?.matches('p-find',e)){$('#fQ')?.focus();e.preventDefault()}else if(gk()?.matches('p-rand',e)){$('#qRandom')?.click();e.preventDefault()}else if(gk()?.matches('p-fav',e)){const r=currentRow();if(r)fav(r.id);e.preventDefault()}else if(gk()?.matches('p-toggle',e)){const c=$('#list>.pcard.show')||$('#list>.pcard:not([hidden])');const b=c?.querySelector('[data-toggle]');if(b){b.click();e.preventDefault()}}});
     const list=$('#list'); if(list){new MutationObserver(()=>{refreshCards();refreshHUD()}).observe(list,{childList:true,subtree:true});}
     ['fSub','fYear','fSess','fQ'].forEach(id=>$('#'+id)?.addEventListener('change',()=>setTimeout(()=>{state=store.get();refreshCards();refreshHUD()},50)));
     $('#fQ')?.addEventListener('input',()=>refreshHUD());
@@ -4645,9 +4654,8 @@ body.exam-mode .pcard{box-shadow:0 0 0 2px rgba(29,78,216,.08),var(--shadow)}
   document.addEventListener('keydown',e=>{
     if(e.key==='Escape' && escClose()){e.preventDefault();return}
     if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;
-    const shortOn=id=>{ try{ return !window.__shortcutOn || window.__shortcutOn(id) }catch(x){ return true } };
-    if(e.key==='1' && current() && shortOn('ok')){mark(current().id,'ok');rebuild();toast('정답 기록')}
-    if(e.key==='2' && current() && shortOn('no')){mark(current().id,'no');rebuild();toast('오답 기록')}
+    if(e.key==='1' && current() && window.__gkey?.matches('p-ok',e)){mark(current().id,'ok');rebuild();toast('정답 기록')}
+    if(e.key==='2' && current() && window.__gkey?.matches('p-no',e)){mark(current().id,'no');rebuild();toast('오답 기록')}
   });
   // Existing favorite state is stored by the prior UX layer. Expose it safely.
   window.__isFav=(id)=>{try{return !!JSON.parse(localStorage.getItem('prac:ux:'+location.pathname)||'{}').fav?.[id]}catch{return false}};
@@ -5126,7 +5134,7 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
   document.addEventListener('keydown',e=>{
     if(/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName||''))return;
     if(e.key!=='1'&&e.key!=='2')return;
-    try{ if(window.__shortcutOn && !window.__shortcutOn(e.key==='1'?'ok':'no')) return; }catch(x){}
+    if(!window.__gkey?.matches(e.key==='1'?'p-ok':'p-no',e)) return;
     const rs=rows(); let r=null;
     try{ r=rs[window.ONEAT|0]||null }catch(x){}
     if(!r) r=(()=>{const c=$('#list>.pcard.show'); return c?rs.find(x=>String(x.id)===String(c.dataset.id)):null})();
@@ -9757,6 +9765,7 @@ const ITEMS=[
   { k:'music', ico:'♪',  t:'배경음' },
   { k:'fav',   ico:'☆',  t:'즐겨찾기' },
   { k:'top',   ico:'↑',  t:'맨 위로' },
+  { k:'jump',  ico:'🔢', t:'문항 고르기' },
   { k:'keys',  ico:'⌨',  t:'단축키' },
   { k:'menu',  ico:'⌘',  t:'전체 메뉴' }
 ];
@@ -9816,6 +9825,7 @@ dock.addEventListener('click',e=>{
     if(k==='top'){ scrollTo({top:0,behavior:'smooth'}); return; }
     if(k==='menu'){ (window.openCmd||function(){})(); return; }
     if(k==='keys'){ (window.__pracShortcutsOpen||function(){})(); return; }
+    if(k==='jump'){ (window.__pracJumpOpen||function(){})(); return; }
   }catch(x){ try{ window.__pracTrouble&&window.__pracTrouble('도구 도크',x) }catch(y){} }
 });
 
@@ -9840,6 +9850,7 @@ setTimeout(()=>{
   if(!document.querySelector('.app-float [data-favorite]')) gone('fav');
   if(!window.openCmd) gone('menu');
   if(!window.__pracShortcutsOpen) gone('keys');
+  if(!window.__pracJumpOpen) gone('jump');
 },2500);
 })();
 </script>
@@ -11226,7 +11237,7 @@ addEventListener('beforeunload',e=>{ if(JOB.running){ e.preventDefault(); e.retu
 .qmd figure img,#ovl figure img{display:block;margin-left:auto;margin-right:auto}
 
 /* ④ 한눈에 머리의 새 단추 */
-.ovacts button.mk{border-color:#bcd3f7;color:#1d4ed8;background:#f4f8ff}
+.ovacts button.oamk{border-color:#bcd3f7;color:#1d4ed8;background:#f4f8ff}
 .ovacts button:disabled{opacity:.5;cursor:default}
 </style>
 <script>
@@ -11328,7 +11339,7 @@ function addOvBtns(){
   const box=$('#ovl .ovacts'); if(!box||$('[data-ova="cv"]',box)) return;
   const mk=(k,ico,t,title)=>{
     const b=document.createElement('button');
-    b.type='button'; b.className='mk'; b.dataset.ova=k; b.title=title;
+    b.type='button'; b.className='oamk'; b.dataset.ova=k; b.title=title;
     b.innerHTML=`${ico}<span class="t"> ${t}</span>`;
     return b;
   };
@@ -12395,6 +12406,12 @@ function inline(node){
   return out;
 }
 const cell = n => inline(n).replace(/\|/g,'\\|').replace(/\s*\n\s*/g,' ').trim();
+/* 오른쪽 화면에서 준 줄 맞춤(가운데·오른쪽 정렬)을 ::c:: ::r:: 표시로 되돌린다.
+   왼쪽(기본)은 표시가 필요 없다. */
+const alignPre = n => {
+  const a = (n.style && n.style.textAlign) || n.getAttribute?.('align') || '';
+  return a==='center' ? '::c:: ' : a==='right' ? '::r:: ' : '';
+};
 
 function toMd(root){
   const out=[];
@@ -12411,7 +12428,7 @@ function toMd(root){
       push(`[[그림 ${box}${w}]]${cap?' '+cell(cap):''}`); push(''); return;
     }
     if(tag==='H1'||tag==='H2'||tag==='H3'||tag==='H4'||tag==='H5'||tag==='H6'){
-      push('#### '+inline(n).trim()); push(''); return;
+      push(alignPre(n)+'#### '+inline(n).trim()); push(''); return;
     }
     if(tag==='UL'){ $$(':scope > li',n).forEach(li=>push('- '+inline(li).trim())); push(''); return; }
     if(tag==='OL'){ $$(':scope > li',n).forEach((li,k)=>push(`${k+1}. `+inline(li).trim())); push(''); return; }
@@ -12430,9 +12447,10 @@ function toMd(root){
     }
     if(tag==='DIV'&&n.classList.contains('katex-display')){ push('$$'+texOf(n)+'$$'); push(''); return; }
     if(tag==='HR'){ push('---'); push(''); return; }
-    /* 그 밖(<p> 따위)은 한 문단 */
+    /* 그 밖(<p> 따위)은 한 문단 — 오른쪽 화면에서 ⇔·⇥ 로 가운데·오른쪽 맞춤 했으면
+       (실행취소·다시 도구가 style="text-align:…" 를 심어 둔다) 앞에 ::c:: ::r:: 을 되살린다 */
     const t=inline(n).replace(/\s+$/,'');
-    if(t.trim()){ t.split('\n').forEach(x=>push(x)); push(''); }
+    if(t.trim()){ const pre=alignPre(n); t.split('\n').forEach((x,k)=>push(k===0?pre+x:x)); push(''); }
   });
   /* 빈 줄이 셋 이상 겹치지 않게 */
   return out.join('\n').replace(/\n{3,}/g,'\n\n').trim();
@@ -12681,6 +12699,10 @@ const BTN=[
   ['ul','목록','• 목록'],
   ['ol','번호','1. 번호'],
   ['|'],
+  ['alignL','왼쪽 정렬','⇤'],
+  ['alignC','가운데 정렬','⇔'],
+  ['alignR','오른쪽 정렬','⇥'],
+  ['|'],
   ['table','표 넣기','▦ 표'],
   ['math','수식','$ 수식'],
   ['|'],
@@ -12718,6 +12740,17 @@ function build(W){
       const body=sel||ph;
       ta.value=ta.value.slice(0,s)+a+body+z+ta.value.slice(e);
       ta.selectionStart=s+a.length; ta.selectionEnd=s+a.length+body.length;
+    }else if(k==='alignL'||k==='alignC'||k==='alignR'){
+      /* 커서가 있는 줄 맨 앞의 ::c:: ::r:: 표시를 떼어 내고, 왼쪽이 아니면 새로 붙인다.
+         (왼쪽은 기본값이라 표시가 따로 필요 없다 — mdRich 가 표시 없는 줄은 왼쪽으로 그린다) */
+      const a=ta.value.lastIndexOf('\n',s-1)+1;
+      let b=ta.value.indexOf('\n',s); if(b<0) b=ta.value.length;
+      const line=ta.value.slice(a,b);
+      const stripped=line.replace(/^::[clr]::\s*/,'');
+      const pre=k==='alignC'?'::c:: ':k==='alignR'?'::r:: ':'';
+      const next=pre+stripped;
+      ta.value=ta.value.slice(0,a)+next+ta.value.slice(b);
+      ta.selectionStart=ta.selectionEnd=a+next.length;
     }else{
       const line0=ta.value.lastIndexOf('\n',s-1)+1;
       const pre=k==='h'?'#### ':k==='ul'?'- ':k==='ol'?'1. ':'';
@@ -12736,7 +12769,7 @@ function build(W){
 
   /* 오른쪽(화면) — 그 자리에서 바로 먹인다 */
   const CMD={ b:'bold', i:'italic', ul:'insertUnorderedList', ol:'insertOrderedList',
-              undo:'undo', redo:'redo' };
+              undo:'undo', redo:'redo', alignL:'justifyLeft', alignC:'justifyCenter', alignR:'justifyRight' };
   function live(k){
     prev.focus();
     try{
@@ -14747,6 +14780,15 @@ setTimeout(()=>clearInterval(t),120000);
 .edw .tbx .cell{width:100%;min-width:104px;box-sizing:border-box;border:1px solid var(--line,#e2e8f0);
   border-radius:7px;padding:7px 8px;background:var(--surface,#fff);color:var(--ink,#0f172a);
   font:400 12.5px/1.6 var(--font-d,system-ui);resize:none;outline:0;overflow:hidden;display:block}
+.edw .tbx .cwrap{position:relative}
+.edw .tbx .mtool{position:absolute;top:-9px;right:-7px;z-index:5;width:18px;height:18px;
+  border-radius:50%;border:1px solid var(--line,#dbe1ea);background:var(--surface,#fff);
+  color:var(--muted,#64748b);font-size:9.5px;line-height:1;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .12s}
+.edw .tbx .cwrap:hover .mtool{opacity:1}
+.edw .tbx .mtool.msplit{opacity:1;background:var(--brand,#365cff);border-color:var(--brand,#365cff);color:#fff}
+.edw .tbx .mtool:hover{border-color:var(--brand,#365cff);color:var(--brand,#365cff)}
+.edw .tbx .mtool.msplit:hover{color:#fff}
 .edw .tbx tr:first-child .cell{font-weight:800;background:var(--card,#f4f7fb)}
 .edw .tbx .cell:focus{border-color:var(--accent,#2563eb);box-shadow:0 0 0 3px rgba(37,99,235,.14)}
 .edw .tbx .cwrap{padding:2px}
@@ -14808,13 +14850,18 @@ const SB = ()=>{ try{ return sb }catch(e){ return null } };
    그 둘을 감싸서, 다 그린 뒤에 되돌려 놓는다.
    열 너비는 표 바로 앞에 숨은 줄 <!--cols:30,20,50--> 로 적어 둔다. */
 const COLRE = /^[ \t]*<!--\s*cols:([\d.,\s]*)-->[ \t]*$/i;
+/* 병합은 «몇째 줄(0=머리글) · 몇째 칸부터 · 몇 칸을 합칠까» 를 r:c:n 으로 적고,
+   한 표에 여러 곳이면 ; 로 이어 적는다. 가로로 잇는 것만 다룬다(세로 합침은 안 함) —
+   시험 표에서 실제로 쓰는 건 거의 다 «머리글 한 칸이 아래 몇 칸을 덮는» 가로 합침이다. */
+const MERGERE = /^[ \t]*<!--\s*merge:([\d:;]*)-->[ \t]*$/i;
 const ROWRE = /^\|.*\|/;
 const SEPRE = /^\|[\s:\-|]+\|?$/;
 
 function pullCols(md){
   const src = String(md==null?'':md);
-  if(src.indexOf('<!--cols:')<0 && src.indexOf('<!-- cols:')<0) return { md:src, map:null };
-  const lines = src.split('\n'), out = [], map = {};
+  if(src.indexOf('<!--cols:')<0 && src.indexOf('<!-- cols:')<0 && src.indexOf('<!--merge:')<0)
+    return { md:src, map:null, mmap:null };
+  const lines = src.split('\n'), out = [], map = {}, mmap = {};
   let ti = 0;
   for(let i=0;i<lines.length;i++){
     const m = lines[i].match(COLRE);
@@ -14822,25 +14869,50 @@ function pullCols(md){
        너비가 한 칸씩 앞으로 밀려서 «단면적» 자리에 «허용전류» 의 너비가 입혀지는
        식으로 엉켰다. 자리를 지켜야 하므로, 값이 없으면 0으로 «자리만» 남긴다. */
     if(m){ map[ti] = m[1].split(',').map(v=>{ const n=parseFloat(v); return (!isNaN(n)&&n>0)?n:0; }); continue; }
+    const mm = lines[i].match(MERGERE);
+    if(mm){
+      mmap[ti] = (mm[1]||'').split(';').filter(Boolean).map(seg=>{
+        const [r,c,n] = seg.split(':').map(x=>+x);
+        return (Number.isFinite(r)&&Number.isFinite(c)&&Number.isFinite(n)&&n>1) ? {r,c,n} : null;
+      }).filter(Boolean);
+      continue;
+    }
     out.push(lines[i]);
     if(ROWRE.test(lines[i].trim()) && SEPRE.test((lines[i+1]||'').trim())) ti++;
   }
-  return { md:out.join('\n'), map };
+  return { md:out.join('\n'), map, mmap };
 }
-function fixHtml(html, map){
+function fixHtml(html, map, mmap){
   let h = String(html==null?'':html);
   if(h.indexOf('&lt;br')>=0) h = h.replace(/&lt;br\s*\/?&gt;/gi,'<br>');
-  if(!map || !Object.keys(map).length) return h;
+  const hasMap = map && Object.keys(map).length;
+  const hasMerge = mmap && Object.keys(mmap).length;
+  if(!hasMap && !hasMerge) return h;
   try{
     const d = document.createElement('div'); d.innerHTML = h;
     d.querySelectorAll('table').forEach((t,i)=>{
-      const w = map[i]; if(!w || !w.length) return;
-      const cg = document.createElement('colgroup');
-      /* 칸마다 하나씩 <col> 을 세운다 — 값이 0인 칸도 자리만은 반드시 채운다.
-         하나라도 빠지면 그 뒤 모든 칸이 한 자리씩 밀려 버린다. */
-      w.forEach(v=>{ const c=document.createElement('col'); if(v>0) c.style.width=v+'%'; cg.appendChild(c); });
-      t.insertBefore(cg, t.firstChild);
-      t.classList.add('fixw');
+      const w = map && map[i];
+      if(w && w.length){
+        const cg = document.createElement('colgroup');
+        /* 칸마다 하나씩 <col> 을 세운다 — 값이 0인 칸도 자리만은 반드시 채운다.
+           하나라도 빠지면 그 뒤 모든 칸이 한 자리씩 밀려 버린다. */
+        w.forEach(v=>{ const c=document.createElement('col'); if(v>0) c.style.width=v+'%'; cg.appendChild(c); });
+        t.insertBefore(cg, t.firstChild);
+        t.classList.add('fixw');
+      }
+      const merges = mmap && mmap[i];
+      if(merges && merges.length){
+        /* 같은 줄에 합침이 여럿이면 오른쪽 것부터 처리한다 — 왼쪽 합침이 아직
+           칸을 지우기 전이라야, 다음 합침이 가리키는 «몇째 칸» 자리가 안 어긋난다. */
+        merges.slice().sort((a,b)=> a.r-b.r || b.c-a.c).forEach(m=>{
+          const tr = t.querySelectorAll('tr')[m.r]; if(!tr) return;
+          const cells = [...tr.children];
+          const anchor = cells[m.c]; if(!anchor) return;
+          anchor.setAttribute('colspan', String(m.n));
+          for(let k=1;k<m.n;k++) cells[m.c+k]?.remove();
+        });
+        t.classList.add('mergedtb');
+      }
     });
     return d.innerHTML;
   }catch(e){ return h; }
@@ -14848,7 +14920,7 @@ function fixHtml(html, map){
 ['mdRich','mdLite'].forEach(name=>{
   const fn = window[name];
   if(typeof fn!=='function' || fn.__tbl) return;
-  const w = function(md){ const p = pullCols(md); return fixHtml(fn.call(this,p.md), p.map); };
+  const w = function(md){ const p = pullCols(md); return fixHtml(fn.call(this,p.md), p.map, p.mmap); };
   w.__tbl=1; w.__img=fn.__img; w.__tex=fn.__tex; w.__sci=fn.__sci;
   window[name]=w;
 });
@@ -15131,11 +15203,20 @@ function findTables(text){
     });
     const rows=[head]; let j=i+2;
     while(j<L.length && ROWRE.test(L[j].trim())){ rows.push(splitRow(L[j])); j++; }
-    /* 바로 앞 줄의 숨은 너비 표시까지 이 표의 것으로 삼는다 */
-    let from=i, widths=null;
-    const pm=(L[i-1]||'').match(COLRE);
-    if(pm){ from=i-1; widths=pm[1].split(',').map(v=>parseFloat(v)).filter(v=>!isNaN(v)&&v>0); }
-    out.push({ from, to:j, rows, al, widths });
+    /* 바로 앞 줄들의 숨은 표시(너비·병합)까지 이 표의 것으로 삼는다.
+       쓸 때 순서는 늘 «cols 줄 → merge 줄 → 표» 이므로, 거꾸로 이 순서로 걷는다. */
+    let from=i, widths=null, merges=null, back=i-1;
+    const mm=(L[back]||'').match(MERGERE);
+    if(mm){
+      merges=(mm[1]||'').split(';').filter(Boolean).map(seg=>{
+        const [r,c,n]=seg.split(':').map(x=>+x);
+        return (Number.isFinite(r)&&Number.isFinite(c)&&Number.isFinite(n)&&n>1)?{r,c,n}:null;
+      }).filter(Boolean);
+      from=back; back--;
+    }
+    const pm=(L[back]||'').match(COLRE);
+    if(pm){ from=back; widths=pm[1].split(',').map(v=>parseFloat(v)).filter(v=>!isNaN(v)&&v>0); }
+    out.push({ from, to:j, rows, al, widths, merges });
     i=j-1;
   }
   return out;
@@ -15152,7 +15233,7 @@ function tableEditor(){
   P.className = 'tbx';
   P.innerHTML = `
     <div class="th"><b>표 고치기</b>
-      <small>칸 안에서 <b>Enter</b> 로 줄을 바꿉니다 · 열 <b>경계선을 끌면</b> 너비가 바뀝니다 (숫자로 직접 넣어도 됩니다)</small>
+      <small>칸 안에서 <b>Enter</b> 로 줄을 바꿉니다 · 열 <b>경계선을 끌면</b> 너비가 바뀝니다 · 칸에 <b>마우스를 올리면</b> 오른쪽 칸과 합치는 단추가 뜹니다</small>
       <span class="sp"></span>
       <button type="button" data-t="addr">＋ 행</button>
       <button type="button" data-t="addc">＋ 열</button>
@@ -15299,6 +15380,14 @@ function tableEditor(){
     hr.appendChild(last);
     t.appendChild(hr);
 
+    /* 병합 — (행,열) 자리가 «시작 칸(anchor)» 인지, 다른 병합에 «덮인» 칸인지 알려준다.
+       가로로만 잇는다(세로 병합은 없음) — 시험 표에서 실제로 쓰는 건 거의 다 이거다. */
+    function mergeAt(ri, ci){
+      for(const m of (ST.merges||[])){
+        if(m.r===ri && ci>=m.c && ci<m.c+m.n) return { anchor: ci===m.c, span: m.n, m };
+      }
+      return null;
+    }
     ST.rows.forEach((row,ri)=>{
       const tr=document.createElement('tr');
       const rh=document.createElement('td');
@@ -15307,13 +15396,27 @@ function tableEditor(){
         <button type="button" class="mini del" data-rd="${ri}" title="이 행 지우기">✕</button>`;
       tr.appendChild(rh);
       row.forEach((cell,ci)=>{
+        const info = mergeAt(ri, ci);
+        if(info && !info.anchor) return;   /* 덮인 칸은 만들지 않는다 — colspan 이 대신 채운다 */
         const td=document.createElement('td'); td.className='cwrap';
+        if(info && info.span>1) td.colSpan = info.span;
         const ta=document.createElement('textarea');
         ta.className='cell'; ta.value=cell; ta.rows=1;
         ta.dataset.r=ri; ta.dataset.c=ci;
         ta.placeholder = ri===0 ? '머리글' : '';
         ta.addEventListener('input', ()=>{ ST.rows[ri][ci]=ta.value; fit(ta); });
-        td.appendChild(ta); tr.appendChild(td);
+        td.appendChild(ta);
+        /* 합치기·나누기 — 합쳐진 칸엔 «나누기» 만, 안 합쳐진 칸엔(맨 오른쪽 열 빼고) «합치기» 만 보인다 */
+        if(info && info.span>1){
+          const sp=document.createElement('button'); sp.type='button'; sp.className='mtool msplit';
+          sp.title='합친 칸을 나눕니다'; sp.textContent='✂'; sp.dataset.msplit=`${ri}:${ci}`;
+          td.appendChild(sp);
+        }else if(!info && ci<cols-1 && !mergeAt(ri,ci+1)){
+          const mg=document.createElement('button'); mg.type='button'; mg.className='mtool mmerge';
+          mg.title='오른쪽 칸과 합칩니다'; mg.textContent='⇥合'; mg.dataset.mmerge=`${ri}:${ci}`;
+          td.appendChild(mg);
+        }
+        tr.appendChild(td);
       });
       tr.appendChild(document.createElement('td'));
       t.appendChild(tr);
@@ -15334,6 +15437,11 @@ function tableEditor(){
       ST.rows.forEach(r=>r.splice(c,0,''));
       ST.al.splice(c,0,'');
       if(ST.widths) ST.widths.splice(c,0,0);
+      /* 넣은 자리가 병합 «안쪽» 이면 그 병합이 한 칸 넓어지고, 병합보다 뒤면 자리만 밀린다 */
+      (ST.merges||[]).forEach(m=>{
+        if(c>m.c && c<m.c+m.n) m.n+=1;
+        else if(c<=m.c) m.c+=1;
+      });
       paint();
     });
     $$('[data-cd]',host).forEach(b=>b.onclick=()=>{
@@ -15341,6 +15449,14 @@ function tableEditor(){
       if(ST.rows[0].length<=1) return say('열이 하나뿐입니다.');
       ST.rows.forEach(r=>r.splice(c,1)); ST.al.splice(c,1);
       if(ST.widths) ST.widths.splice(c,1);
+      /* 지운 자리가 병합 안쪽이면 한 칸 좁아지고(1칸으로 줄면 병합을 없앤다), 병합보다 앞이면 자리를 당긴다 */
+      if(ST.merges){
+        ST.merges = ST.merges.map(m=>{
+          if(c>=m.c && c<m.c+m.n){ m.n-=1; return m.n>1?m:null; }
+          if(c<m.c){ m.c-=1; return m; }
+          return m;
+        }).filter(Boolean);
+      }
       paint();
     });
     $$('[data-al]',host).forEach(b=>b.onclick=()=>{
@@ -15368,12 +15484,38 @@ function tableEditor(){
     $$('[data-ri]',host).forEach(b=>b.onclick=()=>{
       const i=+b.dataset.ri;
       ST.rows.splice(i,0,ST.rows[0].map(()=>''));
+      (ST.merges||[]).forEach(m=>{ if(m.r>=i) m.r+=1; });
       paint();
     });
     $$('[data-rd]',host).forEach(b=>b.onclick=()=>{
       const i=+b.dataset.rd;
       if(ST.rows.length<=2) return say('머리글과 줄 하나는 남아 있어야 합니다.');
-      ST.rows.splice(i,1); paint();
+      ST.rows.splice(i,1);
+      if(ST.merges){
+        ST.merges = ST.merges.filter(m=>m.r!==i).map(m=>{ if(m.r>i) m.r-=1; return m; });
+      }
+      paint();
+    });
+    $$('[data-mmerge]',host).forEach(b=>b.onclick=()=>{
+      const [r,c] = b.dataset.mmerge.split(':').map(Number);
+      if(!ST.merges) ST.merges=[];
+      /* 이미 병합 시작 칸이면 한 칸 더 늘리고, 아니면 새로 하나 만든다.
+         바로 오른쪽이 다른 병합의 시작이면 그 폭까지 통째로 흡수한다. */
+      let m = ST.merges.find(x=>x.r===r && x.c===c);
+      if(m){ m.n = Math.min(cols-c, m.n+1); }
+      else{
+        const j = ST.merges.findIndex(x=>x.r===r && x.c===c+1);
+        if(j>=0){ const absorbed=ST.merges.splice(j,1)[0]; ST.merges.push({r,c,n:2+(absorbed.n-1)}); }
+        else ST.merges.push({r,c,n:2});
+      }
+      say('칸을 합쳤습니다. 도로 나누려면 합친 칸의 ✂ 를 누르세요.');
+      paint();
+    });
+    $$('[data-msplit]',host).forEach(b=>b.onclick=()=>{
+      const [r,c] = b.dataset.msplit.split(':').map(Number);
+      if(ST.merges) ST.merges = ST.merges.filter(x=>!(x.r===r && x.c===c));
+      say('칸을 나눴습니다.');
+      paint();
     });
   }
   const say = t => { msg.textContent = t||''; };
@@ -15384,6 +15526,9 @@ function tableEditor(){
     if(ST.widths && ST.widths.some(x=>x>0)){
       const w = effectiveWidths(ST.widths.slice(0,cols));
       out.push(`<!--cols:${w.join(',')}-->`);
+    }
+    if(ST.merges && ST.merges.length){
+      out.push(`<!--merge:${ST.merges.map(m=>`${m.r}:${m.c}:${m.n}`).join(';')}-->`);
     }
     out.push(joinRow(ST.rows[0]));
     out.push(sepOf(ST.al.slice(0,cols)));
@@ -15433,10 +15578,11 @@ function tableEditor(){
     if(!t){
       /* 표가 없으면 커서 자리에 2×3 짜리 새 표를 만든다 */
       const at = lineAt(ta.value, ta.selectionStart) + (ta.value.trim()?1:0);
-      ST = { rows:[['','',''],['','','']], al:['','',''], widths:null, from:at, to:at };
+      ST = { rows:[['','',''],['','','']], al:['','',''], widths:null, merges:[], from:at, to:at };
     }else{
       ST = { rows:t.rows.map(r=>r.slice()), al:t.al.slice(),
-             widths:t.widths?t.widths.slice():null, from:t.from, to:t.to };
+             widths:t.widths?t.widths.slice():null, merges:(t.merges||[]).map(m=>({...m})),
+             from:t.from, to:t.to };
     }
     say(all.length ? '' : '표가 없어 새 표를 하나 만들었습니다.');
     paint();
@@ -15615,14 +15761,13 @@ function openOv(){
 
   $('.pjb.now',OV)?.scrollIntoView({ block:'center' });
 }
+window.__pracJumpOpen = openOv;   /* 오른쪽 아래 +(도구) 버튼 · 한눈에 안에서도 열 수 있게 */
 
 document.addEventListener('keydown', e=>{
   if(OV){ if(e.key==='Escape'){ e.preventDefault(); closeOv(); } return; }
   if(/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName||'')) return;
   if(document.querySelector('.edw.on, .tbx.on')) return;
-  if((e.key==='g'||e.key==='G') && !e.ctrlKey && !e.metaKey && !e.altKey
-     && document.body.classList.contains('oneup')
-     && (!window.__shortcutOn || window.__shortcutOn('jump'))){
+  if(window.__gkey?.matches('p-jump', e)){
     e.preventDefault(); openOv();
   }
 }, true);
@@ -15652,21 +15797,22 @@ setTimeout(()=>clearInterval(boot), 20000);
 
 
 <!-- ══════════════════════════════════════════════════════════════
-     v157 · 단축키 한눈에 보기 · 켜고 끄기
+     v157 · 단축키 — 한 곳에서 보기 · 켜고 끄기 · 키 바꾸기
 
-     지금까지 단축키(F·R·B·Space·1·2·G)는 코드 곳곳에 흩어져 있어서
-     한 군데서 볼 방법도, 하나씩 꺼 둘 방법도 없었다.
+     예전엔 여기 목록이 실기뷰어 것(F·R·B·Space·1·2·G)만 있었고, 사이트 전체
+     단축키(H·P·C 등, app-enhance.js)는 따로 놀았다 — 이제 window.__gkey
+     (app-enhance.js) 하나만 본다. 실기뷰어 몫은 여기서 등록만 하고, 실제
+     키 처리는 각자 코드에서 window.__gkey.matches('id', e) 로 확인한다.
 
-     여기서는 그 목록을 한 곳에 모아 표로 보여 주고, 칸마다 켜고 끌 수
-     있게 한다. 저장은 이 기기에 남는다(prac:shortcuts). 실제로 각
-     단축키를 처리하는 코드에는 window.__shortcutOn('id') 한 줄씩만
-     끼워 넣었다 — 여기서 끄면 그 코드가 조용히 넘어간다.
+     키 배지를 누르면 «키를 누르세요» 로 바뀌고, 다음에 누른 키로 바뀐다.
+     이미 다른 단축키가 그 키를 쓰고 있으면 경고만 하고 그래도 바꿔 준다 —
+     겹치면 눌렀을 때 어느 쪽인지 헷갈리는 건 본인 몫으로 남긴다(경고는 확실히 준다).
      ══════════════════════════════════════════════════════════════ -->
 <style>
 .skOv{position:fixed;inset:0;z-index:100060;background:rgba(15,23,42,.5);
   display:none;align-items:center;justify-content:center;padding:14px}
 .skOv.on{display:flex}
-.skBox{background:var(--surface,#fff);border-radius:16px;width:100%;max-width:560px;max-height:86vh;
+.skBox{background:var(--surface,#fff);border-radius:16px;width:100%;max-width:600px;max-height:86vh;
   display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-lg,0 18px 55px rgba(27,42,71,.13))}
 .skTop{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line,#dbe1ea);flex:0 0 auto}
 .skTop b{font:800 14px/1 var(--font-d,system-ui)}
@@ -15674,14 +15820,21 @@ setTimeout(()=>clearInterval(boot), 20000);
 .skTop button{height:30px;padding:0 11px;border:1px solid var(--line,#dbe1ea);border-radius:8px;
   background:var(--surface,#fff);color:var(--ink,#172033);font:700 11.5px/1 var(--font-d,system-ui);cursor:pointer}
 .skTop button:hover{border-color:var(--brand,#365cff);color:var(--brand,#365cff)}
-.skBulk{display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line,#dbe1ea);flex:0 0 auto}
+.skBulk{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line,#dbe1ea);flex:0 0 auto}
 .skBulk button{height:30px;padding:0 12px;border:1px solid var(--line,#dbe1ea);border-radius:8px;
   background:var(--surface-2,#f8fafc);color:var(--ink,#172033);font:700 11.5px/1 var(--font-d,system-ui);cursor:pointer}
+.skMsg{font-size:11px;color:var(--muted,#687386);margin-left:auto}
 .skList{flex:1;min-height:0;overflow-y:auto;padding:6px 12px 14px}
-.skRow{display:flex;align-items:center;gap:12px;padding:10px 6px;border-bottom:1px solid var(--line,#f0f2f6)}
+.skGrp{font:700 10.5px/1 var(--font-m,monospace);letter-spacing:.06em;color:var(--muted,#687386);
+  margin:12px 6px 4px}
+.skGrp:first-child{margin-top:6px}
+.skRow{display:flex;align-items:center;gap:12px;padding:9px 6px;border-bottom:1px solid var(--line,#f0f2f6)}
 .skRow:last-child{border-bottom:0}
-.skKey{min-width:38px;height:26px;padding:0 8px;border-radius:7px;background:var(--surface-3,#eef2f7);
-  color:var(--ink,#172033);font:800 12px/26px var(--font-m,monospace);text-align:center;flex:0 0 auto}
+.skKey{min-width:42px;height:26px;padding:0 8px;border-radius:7px;background:var(--surface-3,#eef2f7);
+  color:var(--ink,#172033);font:800 11.5px/26px var(--font-m,monospace);text-align:center;flex:0 0 auto;
+  border:1px solid var(--line,#dbe1ea);cursor:pointer}
+.skKey:hover{border-color:var(--brand,#365cff);color:var(--brand,#365cff)}
+.skKey.rec{background:var(--brand,#365cff);border-color:var(--brand,#365cff);color:#fff;font-size:9.5px}
 .skLab{flex:1;font-size:12.5px;color:var(--ink,#172033)}
 .skLab small{display:block;font-size:10.5px;color:var(--muted,#687386);margin-top:1px;font-weight:500}
 .skSw{width:40px;height:23px;border-radius:999px;border:1px solid var(--line,#dbe1ea);
@@ -15697,26 +15850,66 @@ setTimeout(()=>clearInterval(boot), 20000);
 'use strict';
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
 
-const DEFS=[
-  {id:'find',  key:'F',      label:'찾기 칸으로 이동',      note:'문항 목록 위 «본문에서 찾기» 칸에 커서를 둔다'},
-  {id:'rand',  key:'R',      label:'무작위로 뽑기',         note:'«랜덤» 단추와 같다'},
-  {id:'fav',   key:'B',      label:'북마크 켜고 끄기',       note:'지금 보고 있는 문항을 북마크한다'},
-  {id:'toggle',key:'Space',  label:'답안 가리기 / 보기',     note:'지금 카드의 가림판을 연다'},
-  {id:'ok',    key:'1',      label:'맞음으로 기록',         note:'지금 문항을 맞음 처리하고 진도를 올린다'},
-  {id:'no',    key:'2',      label:'틀림으로 기록',         note:'지금 문항을 틀림 처리하고 진도를 올린다'},
-  {id:'jump',  key:'G',      label:'문항 고르기',           note:'전체 문항을 펼쳐 번호로 바로 이동 (한 문항씩 볼 때만)'},
-];
+/* 실기뷰어 몫만 여기서 등록한다 — 사이트 전체 몫(app-enhance.js)은 이미 등록돼 있다.
+   register() 는 이미 있는 id 는 다시 안 넣으니, 두 번 실행돼도 안전하다. */
+function registerMine(){
+  if(!window.__gkey) return false;
+  window.__gkey.register([
+    { id:'p-find',   key:'F',     label:'찾기 칸으로 이동',      note:'문항 목록 위 «본문에서 찾기» 칸에 커서를 둔다', group:'실기뷰어' },
+    { id:'p-rand',   key:'R',     label:'무작위로 뽑기',         note:'«랜덤» 단추와 같다', group:'실기뷰어' },
+    { id:'p-fav',    key:'B',     label:'북마크 켜고 끄기',      note:'지금 보고 있는 문항을 북마크한다', group:'실기뷰어' },
+    { id:'p-toggle', key:'Space', label:'답안 가리기 / 보기',    note:'지금 카드의 가림판을 연다', group:'실기뷰어' },
+    { id:'p-ok',     key:'1',     label:'맞음으로 기록',         note:'지금 문항을 맞음 처리하고 진도를 올린다', group:'실기뷰어' },
+    { id:'p-no',     key:'2',     label:'틀림으로 기록',         note:'지금 문항을 틀림 처리하고 진도를 올린다', group:'실기뷰어' },
+    { id:'p-jump',   key:'G',     label:'문항 고르기',           note:'전체 문항을 펼쳐 번호로 바로 이동', group:'실기뷰어' }
+  ]);
+  return true;
+}
+{ const b=setInterval(()=>{ if(registerMine()) clearInterval(b); }, 100); setTimeout(()=>clearInterval(b), 10000); }
 
-const SK='prac:shortcuts';
-function loadState(){ try{ return JSON.parse(localStorage.getItem(SK)||'{}') }catch(e){ return {} } }
-function saveState(s){ try{ localStorage.setItem(SK, JSON.stringify(s)) }catch(e){} }
-window.__shortcutOn = id => loadState()[id] !== false;   /* 따로 꺼 두지 않았으면 켜진 것 */
+let OV=null, rec=null;   /* rec: 지금 «키를 누르세요» 상태로 기다리고 있는 단추의 id */
+function closeOv(){ if(OV){ OV.remove(); OV=null; rec=null; } }
 
-let OV=null;
-function closeOv(){ if(OV){ OV.remove(); OV=null; } }
+function render(){
+  if(!OV) return;
+  const G=window.__gkey; if(!G) return;
+  const groups={};
+  G.all().forEach(d=>{ (groups[d.group||'기타'] ||= []).push(d); });
+  const order=['실기뷰어','전체'];
+  const keys=Object.keys(groups).sort((a,b)=>{
+    const ia=order.indexOf(a), ib=order.indexOf(b);
+    return (ia<0?99:ia)-(ib<0?99:ib);
+  });
+  const list=$('.skList',OV);
+  list.innerHTML=keys.map(g=>{
+    return `<div class="skGrp">${g==='전체'?'사이트 전체':g}</div>`
+      + groups[g].map(d=>{
+        const row=G.row(d.id);
+        const on=row.on!==false;
+        const showKey = rec===d.id ? '키를…' : (row.mod==='ctrl' ? 'Ctrl+'+(row.key||'') : (row.key||'—'));
+        return `<div class="skRow" data-row="${d.id}">
+          <span class="skKey${rec===d.id?' rec':''}" data-keybtn="${d.id}" title="눌러서 이 단축키의 키를 바꿉니다">${showKey}</span>
+          <span class="skLab">${d.label}<small>${d.note||''}</small></span>
+          <button type="button" class="skSw ${on?'on':''}" data-sw="${d.id}" aria-label="${d.label} 켜고 끄기"><i></i></button>
+        </div>`;
+      }).join('');
+  }).join('');
+
+  $$('.skSw',list).forEach(b=>b.onclick=()=>{
+    const id=b.dataset.sw;
+    G.setOn(id, G.row(id).on===false);
+    b.classList.toggle('on', G.row(id).on!==false);
+  });
+  $$('[data-keybtn]',list).forEach(b=>b.onclick=()=>{
+    rec = (rec===b.dataset.keybtn) ? null : b.dataset.keybtn;
+    render();
+  });
+}
+
 function openOv(){
   closeOv();
-  const s=loadState();
+  registerMine();
+  const G=window.__gkey;
   OV=document.createElement('div');
   OV.className='skOv on';
   OV.innerHTML=`<div class="skBox">
@@ -15725,39 +15918,37 @@ function openOv(){
     <div class="skBulk">
       <button type="button" data-all-on>전체 켜기</button>
       <button type="button" data-all-off>전체 끄기</button>
+      <span class="skMsg">키 배지를 누르고 원하는 키를 누르면 바뀝니다</span>
     </div>
-    <div class="skList">${DEFS.map(d=>{
-      const on = s[d.id] !== false;
-      return `<div class="skRow" data-row="${d.id}">
-        <span class="skKey">${d.key}</span>
-        <span class="skLab">${d.label}<small>${d.note}</small></span>
-        <button type="button" class="skSw ${on?'on':''}" data-sw="${d.id}" aria-label="${d.label} 켜고 끄기"><i></i></button>
-      </div>`;
-    }).join('')}</div>
+    <div class="skList"></div>
   </div>`;
   document.body.appendChild(OV);
+  render();
 
   $('[data-close]',OV).onclick=closeOv;
   OV.addEventListener('click', e=>{ if(e.target===OV) closeOv(); });
-  $$('.skSw',OV).forEach(b=>b.onclick=()=>{
-    const id=b.dataset.sw, s2=loadState();
-    s2[id] = !(s2[id] !== false);
-    saveState(s2);
-    b.classList.toggle('on', s2[id] !== false);
-  });
-  $('[data-all-on]',OV).onclick=()=>{
-    const s2={}; DEFS.forEach(d=>s2[d.id]=true); saveState(s2);
-    $$('.skSw',OV).forEach(b=>b.classList.add('on'));
-  };
-  $('[data-all-off]',OV).onclick=()=>{
-    const s2={}; DEFS.forEach(d=>s2[d.id]=false); saveState(s2);
-    $$('.skSw',OV).forEach(b=>b.classList.remove('on'));
-  };
+  $('[data-all-on]',OV).onclick=()=>{ if(G) G.all().forEach(d=>G.setOn(d.id,true)); render(); };
+  $('[data-all-off]',OV).onclick=()=>{ if(G) G.all().forEach(d=>G.setOn(d.id,false)); render(); };
 }
 window.__pracShortcutsOpen = openOv;   /* 오른쪽 아래 +(도구) 버튼에서도 열 수 있게 */
+
 document.addEventListener('keydown', e=>{
-  if(OV && e.key==='Escape'){ e.preventDefault(); closeOv(); }
-});
+  if(!OV) return;
+  if(e.key==='Escape'){ e.preventDefault(); if(rec){ rec=null; render(); } else closeOv(); return; }
+  if(!rec) return;
+  /* 키를 기다리는 중 — Tab·Shift 같은 보조 키는 무시하고, 실제 키 하나를 받는다 */
+  if(['Shift','Control','Alt','Meta','Tab'].includes(e.key)) return;
+  e.preventDefault();
+  const G=window.__gkey; if(!G) return;
+  const id=rec, newKey = e.code==='Space' ? 'Space' : e.key.toUpperCase();
+  /* 겹치는 다른(켜진) 단축키가 있으면 알려만 주고, 그래도 바꿔 준다 */
+  const clash = G.all().find(d=>d.id!==id && G.row(d.id).on!==false
+    && (G.row(d.id).key||'').toUpperCase()===newKey.toUpperCase());
+  G.setKey(id, newKey);
+  rec=null; render();
+  const msg=$('.skMsg',OV);
+  if(msg) msg.textContent = clash ? `«${clash.label}» 도 같은 키를 씁니다 — 겹칩니다.` : '키를 바꿨습니다.';
+}, true);
 
 /* 아래 이동줄(#pnav)의 «🔢 고르기» 옆에 «⌨» 를 나란히 붙인다 — 새 줄 없이 한 줄로 */
 function ensureBtn(){
