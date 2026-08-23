@@ -2662,11 +2662,12 @@ async function askAI(prompt, blob, maxTokens = 2200){
 /* 아주 단순한 마크다운 — 굵게·목록·제목만 */
 function mdLite(t){
   const lines = esc(String(t || "")).split("\n");
-  let out = "", ul = false;
+  let out = "", ul = false, blanks = 0;
   const close = () => { if(ul){ out += "</ul>"; ul = false; } };
   for(const raw of lines){
     const x = raw.trim();
-    if(!x){ close(); continue; }
+    if(!x){ close(); blanks++; if(blanks===2) out += '<p class="gap">&nbsp;</p>'; continue; }
+    blanks = 0;
     if(/^#{1,6}\s/.test(x)){ close(); out += `<h4>${inl(x.replace(/^#+\s/,""))}</h4>`; continue; }
     if(/^[-*]\s/.test(x)){ if(!ul){ out += "<ul>"; ul = true; } out += `<li>${inl(x.replace(/^[-*]\s/,""))}</li>`; continue; }
     close(); out += `<p>${inl(x)}</p>`;
@@ -2703,7 +2704,16 @@ function mdRich(src){
 
   while(i < lines.length){
     let t = lines[i].trim();
-    if(!t){ close(); i++; continue; }
+    if(!t){
+      close();
+      /* 빈 줄이 둘 이상 이어지면 — 엔터를 한 번 더 쳐서 일부러 더 띄운 것이니,
+         그 티가 나게 빈 줄 하나를 더 그린다. 하나뿐이면(보통의 문단 나눔) 아무것도
+         안 한다 — 문단 사이엔 이미 기본 여백이 있다. */
+      let blanks=1;
+      while(i+blanks<lines.length && !lines[i+blanks].trim()) blanks++;
+      if(blanks>=2) out += '<p class="gap">&nbsp;</p>';
+      i+=blanks; continue;
+    }
 
     /* 줄 맞춤 — 줄 맨 앞의 ::c:: ::r:: ::l:: 을 읽고 떼어 낸다.
        왼쪽(기본)은 표시가 없어도 되니, 실제로 넣는 건 가운데·오른쪽뿐이다. */
@@ -5354,6 +5364,8 @@ body.oneup .pgrid.split3 .pcol .plabel{position:static!important;background:none
   display:inline-block!important}
 .katex-display .katex{transform-origin:center!important}
 .katex-display{margin:5px 0!important}
+/* 일부러 엔터를 한 번 더 쳐서 띄운 자리 — 눈에 보이는 여백을 하나 더 준다 */
+.qmd p.gap,.ez p.gap{margin:0!important;height:.85em;line-height:.85em}
 </style>
 <script>
 (function(){
@@ -12531,9 +12543,14 @@ function toMd(root){
        (실행취소·다시 도구가 style="text-align:…" 를 심어 둔다) 앞에 ::c:: ::r:: 을 되살린다 */
     const t=inline(n).replace(/\s+$/,'');
     if(t.trim()){ const pre=alignPre(n); t.split('\n').forEach((x,k)=>push(k===0?pre+x:x)); push(''); }
+    else if(tag==='P'){
+      /* 빈 문단 — 엔터를 한 번 더 쳐서 일부러 더 띄운 것으로 본다.
+         (예전엔 이걸 그냥 통째로 버렸다 — 그래서 오른쪽에서 더 띄워도 저장하면 없어졌다) */
+      push('');
+    }
   });
-  /* 빈 줄이 셋 이상 겹치지 않게 */
-  return out.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+  /* 빈 줄이 넷 이상 겹치는 것만 막는다 — 둘까지는(일부러 더 띄운 것일 수 있으니) 남겨 둔다 */
+  return out.join('\n').replace(/\n{4,}/g,'\n\n\n').trim();
 }
 window.__htmlToMd = toMd;
 
