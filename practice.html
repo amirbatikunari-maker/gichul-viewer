@@ -747,6 +747,10 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
       <button type="button" data-fs="-1" aria-label="글자 작게">가-</button>
       <button type="button" data-fs="1" aria-label="글자 크게">가+</button>
     </span>
+    <span class="ovfs" id="ovTs" title="수식(라텍스) 크기">
+      <button type="button" data-ts="-1" aria-label="수식 작게">√-</button>
+      <button type="button" data-ts="1" aria-label="수식 크게">√+</button>
+    </span>
     <button class="zb" type="button" id="ovPrev">‹ 이전</button>
     <button class="zb" type="button" id="ovNext">다음 ›</button>
     <button class="zb pick" type="button" id="ovClose">닫기 (Esc)</button>
@@ -845,6 +849,13 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
           <option value="14" selected>보통</option>
           <option value="15.5">크게</option>
           <option value="17">아주 크게</option>
+        </select>
+        <select id="fTexScale" title="수식(라텍스) 크기">
+          <option value="0.85">수식 작게</option>
+          <option value="1" selected>수식 보통</option>
+          <option value="1.15">수식 크게</option>
+          <option value="1.3">수식 아주 크게</option>
+          <option value="1.5">수식 최대로</option>
         </select>
         <button class="chip" id="fSplit" type="button" title="넓은 화면에서 문제와 답안을 좌우로 나눕니다">▥ 두 칸</button>
         <span class="cvstat" id="cvStat"></span>
@@ -3133,7 +3144,11 @@ $("#cvAll")?.addEventListener("click", () => cvRun(true));
 /* ── 한눈에 보기 안에서도 글자 크기를 바꾼다 ──
    그동안 «가- 13 가+» 는 목록 쪽 «보기·모드» 칸에만 있어서, 한눈에를 열어 둔 채로는
    글자를 못 키웠다 — 닫고 나가서 바꾼 뒤 다시 열어야 했다. 같은 --qfs 변수와
-   prac:fs 저장 칸을 그대로 쓰므로, 여기서 바꾸면 목록 쪽 드롭다운도 같이 따라온다. */
+   prac:fs 저장 칸을 그대로 쓰므로, 여기서 바꾸면 목록 쪽 드롭다운도 같이 따라온다.
+
+   ★ 수식(라텍스) 크기는 따로 뗀다 — 글자만 조절하는 --qfs 와 다르게, 수식은
+   em 단위라 글자 크기를 따라 어느 정도 같이 커지긴 하지만, "수식만 더 크게/작게"
+   보고 싶을 때가 있어서 --texScale 이라는 곱셈 값을 따로 둔다. */
 (() => {
   const STEPS = [11.5, 12.5, 14, 16, 19];
   const cur = () => { try{ return +(localStorage.getItem("prac:fs") || "14"); }catch(e){ return 14; } };
@@ -3144,6 +3159,17 @@ $("#cvAll")?.addEventListener("click", () => cvRun(true));
     try{ localStorage.setItem("prac:fs", String(next)); }catch(e){}
     document.documentElement.style.setProperty("--qfs", next + "px");
     const sel = $("#fSize"); if(sel) sel.value = String(next);
+  });
+
+  const TSTEPS = [0.85, 1, 1.15, 1.3, 1.5];
+  const curTs = () => { try{ return +(localStorage.getItem("prac:texscale") || "1"); }catch(e){ return 1; } };
+  const nearestTs = v => TSTEPS.reduce((a, b) => Math.abs(b - v) < Math.abs(a - v) ? b : a);
+  const applyTs = v => { try{ localStorage.setItem("prac:texscale", String(v)); }catch(e){} document.documentElement.style.setProperty("--texScale", String(v)); };
+  applyTs(curTs());   /* 페이지를 열 때 저장해 둔 값을 바로 입힌다 */
+  $$('.ovfs [data-ts]').forEach(b => b.onclick = () => {
+    const i = TSTEPS.indexOf(nearestTs(curTs()));
+    const next = TSTEPS[Math.max(0, Math.min(TSTEPS.length - 1, i + (+b.dataset.ts)))];
+    applyTs(next);
   });
 })();
 
@@ -5285,9 +5311,12 @@ body.oneup .pgrid.split3 .pcol .plabel{position:static!important;background:none
   border-left:0!important;border-right:0!important;border-bottom:0!important;box-shadow:none!important}
 .ovl .pane,.ovl .pane.right>.seg{padding:7px 10px!important;gap:2px!important}
 .ovl .plab{font-size:9px!important;letter-spacing:.1em!important;padding:2px 0 3px!important;margin:0!important}
-.ovl .otx{font-size:12px!important;line-height:1.42!important}
-.ovl .qmd{font-size:12px!important;line-height:1.42!important}
-.ovl .ez{font-size:12px!important;line-height:1.42!important}
+/* ★ 셋 다 12px 로 못박혀 있어서, «가- 가+» 를 눌러 --qfs 를 바꿔도 한눈에 안에서는
+   전혀 반영되지 않았다(더 구체적인 이 규칙이 항상 이겼다). 변수를 쓰도록 고친다 —
+   기본값은 그대로 12px 라 아무도 안 건드리면 지금과 똑같이 보인다. */
+.ovl .otx{font-size:var(--qfs,12px)!important;line-height:1.42!important}
+.ovl .qmd{font-size:var(--qfs,12px)!important;line-height:1.42!important}
+.ovl .ez{font-size:var(--qfs,12px)!important;line-height:1.42!important}
 .ovl .ez h4{font-size:11.5px!important;margin:7px 0 2px!important}
 .ovl .ez h4:first-child{margin-top:0!important}
 .ovl .ez p{margin:2px 0!important}
@@ -5316,7 +5345,7 @@ body.oneup .pgrid.split3 .pcol .plabel{position:static!important;background:none
 }
 
 /* 수식이 너무 크게 그려져 한 줄을 다 잡아먹던 것 */
-.katex{font-size:1.02em!important}
+.katex{font-size:calc(1.02em * var(--texScale,1))!important}
 .katex-display{margin:5px 0!important}
 </style>
 <script>
@@ -5337,6 +5366,20 @@ body.oneup .pgrid.split3 .pcol .plabel{position:static!important;background:none
       sel.value=v;
     },150);
     setTimeout(()=>clearInterval(boot),15000);
+  }catch(e){}
+  /* 수식(라텍스) 크기 — 글자 크기와는 따로 저장한다 */
+  try{
+    const tv=localStorage.getItem('prac:texscale')||'1';
+    document.documentElement.style.setProperty('--texScale',tv);
+    const tboot=setInterval(()=>{
+      const tsel=document.getElementById('fTexScale'); if(!tsel) return; clearInterval(tboot);
+      tsel.value=tv;
+      tsel.addEventListener('change', e=>{
+        try{ localStorage.setItem('prac:texscale', e.target.value); }catch(x){}
+        document.documentElement.style.setProperty('--texScale', e.target.value);
+      });
+    },150);
+    setTimeout(()=>clearInterval(tboot),15000);
   }catch(e){}
 })();
 </script>
@@ -5486,11 +5529,20 @@ body.ann-open .aic-fab,body.ann-open .app-float,body.ann-open .app-network{opaci
   window.__pracAnn=()=>ANN;
 
   /* ── 글자만 세는 걸음 (수식·뱃지는 뺀다) ── */
-  /* 수식(KaTeX)은 «글자 한 칸» 으로 셈한다.
-     속을 들여다보면 MathML 과 화면용 HTML 이 같은 글자를 두 번 들고 있어
-     자리 수가 어긋난다. 통째로 한 칸으로 세면 자리도 맞고, 형광펜도 통째로 칠해진다. */
-  const SKIP='.ann-badge,.annlist,script,style,summary,.plabel,.ansbtn,.plab';
-  const ATOM='.katex-display,.katex';
+  /* 수식(KaTeX) 은 화면에 보이는 부분(.katex-html) 과, 화면엔 안 보이지만
+     스크린 리더용으로 같은 내용을 다시 담은 부분(.katex-mathml) 을 같이 갖고 있다.
+     예전엔 이걸 피하려고 수식 전체를 «글자 한 칸» 으로 뭉뚱그려 셌다 — 그래서
+     형광펜을 그으면 늘 수식 전체가 통째로 칠해졌다.
+
+     이제 .katex-mathml(안 보이는 사본) 만 걸러내고, 보이는 쪽(.katex-html)은
+     그 안의 낱개 조각(숫자 하나·연산자 하나 — KaTeX 가 자체적으로 mord·mbin 같은
+     이름을 붙여 둔 것)까지 들여다본다. 자리 수가 겹칠 일이 없으니 드래그한
+     부분만 정확히 칠할 수 있다. 분수·근호처럼 화면 배치가 복잡한 수식은
+     조각들의 화면 순서와 글 순서가 완전히 같지 않을 수 있어 살짝 어긋나 보일
+     수도 있다 — 그래도 «전체가 통째로 칠해지는» 것보단 낫다. */
+  const SKIP='.ann-badge,.annlist,script,style,summary,.plabel,.ansbtn,.plab,.katex-mathml';
+  const ATOM='.katex .mord,.katex .mbin,.katex .mrel,.katex .mopen,.katex .mclose,'
+    +'.katex .mpunct,.katex .minner,.katex .mspace';
   function units(root){
     const out=[];
     (function walk(node){
@@ -10726,7 +10778,13 @@ setInterval(()=>{
 /* ── 화면 아래 붙박이 실시간 기록 ── */
 .joblog{position:fixed;left:12px;bottom:12px;z-index:1400;width:min(430px,calc(100vw - 24px));
   border-radius:12px;overflow:hidden;background:#0f172a;color:#e2e8f0;
-  border:1px solid rgba(148,163,184,.35);box-shadow:0 16px 44px rgba(2,6,23,.42)}
+  border:1px solid rgba(148,163,184,.35);box-shadow:0 16px 44px rgba(2,6,23,.42);
+  display:none;opacity:0;transform:translateY(6px);
+  transition:opacity .18s,transform .18s}
+/* ★ 예전엔 여기 display:none 이 없어서, 뭔가 한 번이라도 지나가면(별 뜻 없는
+   상태줄 갱신까지도) 이 판이 화면 왼쪽 아래에 «영원히» 눌러앉았다. 이제 뭔가
+   진행 중일 때만 잠깐 뜨고, 몇 초 조용하면(그리고 펴 두지 않았으면) 스스로 숨는다. */
+.joblog.show{display:block;opacity:1;transform:translateY(0)}
 .joblog .h{display:flex;align-items:center;gap:7px;padding:7px 9px;cursor:pointer;
   background:rgba(255,255,255,.05)}
 .joblog .h b{font:800 11px/1 var(--font-d,system-ui)}
@@ -10942,6 +11000,15 @@ function toggleLog(force){
   b.querySelector('[data-min]').textContent = on?'▴':'▾';
   const t=panel&&panel.querySelector('[data-logtoggle]');
   if(t) t.textContent=(on?'▴':'▾')+' 실시간 기록';
+  if(on){
+    /* 손으로 펼쳤으면 — 활동이 없어도 숨기지 않는다 */
+    clearTimeout(logBox._hideT);
+    b.classList.add('show');
+  }else{
+    /* 손으로 접었으면 — 볼 일이 끝난 것이니 곧 통째로 숨긴다 */
+    clearTimeout(logBox._hideT);
+    logBox._hideT=setTimeout(()=>b.classList.remove('show'), 1200);
+  }
 }
 function addLog(t,kind){
   t=String(t||'').trim(); if(!t||t===LASTLINE) return;
@@ -10959,6 +11026,12 @@ function addLog(t,kind){
   b.querySelector('[data-n]').textContent=el.children.length;
   b.classList.add('live'); clearTimeout(addLog._t);
   addLog._t=setTimeout(()=>b.classList.remove('live'),1200);
+  /* 새 줄이 생겼으니 보여 준다 — 펼쳐 두지 않았다면, 조용해지고 몇 초 뒤 다시 숨는다 */
+  b.classList.add('show');
+  clearTimeout(logBox._hideT);
+  if(!b.classList.contains('open')){
+    logBox._hideT=setTimeout(()=>b.classList.remove('show'), 8000);
+  }
 }
 window.__pracLog=addLog;
 
