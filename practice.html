@@ -11932,6 +11932,21 @@ body.rd-night{
 body.rd-night img{filter:brightness(.92) contrast(1.04)}
 body.rd-night .katex{color:#E8EDF4}
 
+/* «코드로 보기» 처럼 어둡고 알록달록하게 — 코드 편집기 느낌을 글 전체에 입힌다 */
+body.rd-code{
+  --paper:#0D1117; --card:#161B22; --ink:#C9D1D9; --ink-2:#8B949E; --rule:#30363D;
+  --accent:#58A6FF; --ok:#7EE787; --stamp:#F0883E;
+}
+body.rd-code .qmd,body.rd-code .ez,body.rd-code .easybox{
+  font-family:var(--font-m,ui-monospace,"SF Mono",Consolas,monospace);
+}
+body.rd-code .qmd .katex,body.rd-code .ez .katex,body.rd-code .easybox .katex{color:#D2A8FF}
+body.rd-code .qmd strong,body.rd-code .ez strong,body.rd-code .easybox strong{color:#FF7B72}
+body.rd-code .qmd table,body.rd-code .ez table{background:#161B22;border-color:#30363D}
+body.rd-code img{filter:brightness(.9) contrast(1.05);border-radius:6px}
+body.rd-code .qbox{background:rgba(88,166,255,.1);border-color:#58A6FF}
+body.rd-code .qmd code,body.rd-code .ez code{background:rgba(88,166,255,.14);color:#79C0FF}
+
 /* ── ② 글자 결 ─────────────────────────────────────── */
 body.rd-on{
   --fs:14.5px; --fs-ez:14.5px; --lh:1.72; --lh-ez:1.78;
@@ -12006,7 +12021,7 @@ body.rd-on .qmd th,body.rd-on .ez th{font-weight:800}
 (function(){
 'use strict';
 const KEY='prac:read:v1';
-const THEMES=[['paper','종이'],['plain','기본'],['night','밤']];
+const THEMES=[['paper','종이'],['plain','기본'],['night','밤'],['code','코드']];
 let V=(()=>{ try{ return Object.assign({on:true,th:'paper'},JSON.parse(localStorage.getItem(KEY)||'{}')) }
              catch(e){ return {on:true,th:'paper'} } })();
 function apply(){
