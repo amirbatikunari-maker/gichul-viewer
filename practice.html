@@ -7621,16 +7621,18 @@ body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb)
 
   function mount(){
     ZONES.forEach(({sel,z}) => $$(sel).forEach(host => {
-      if(host.__ink) { fit(host); return; }
-      host.__ink = 1; host.__zone = z;
-      host.classList.add('inkhost');
-      const cv = document.createElement('canvas');
-      cv.className = 'inkl';
-      host.appendChild(cv);
-      host.__cv = cv;
-      bind(host, cv);
-      new ResizeObserver(() => fit(host)).observe(host);
-      fit(host);
+      try{
+        if(host.__ink) { fit(host); return; }
+        host.__ink = 1; host.__zone = z;
+        host.classList.add('inkhost');
+        const cv = document.createElement('canvas');
+        cv.className = 'inkl';
+        host.appendChild(cv);
+        host.__cv = cv;
+        bind(host, cv);
+        new ResizeObserver(() => fit(host)).observe(host);
+        fit(host);
+      }catch(e){}
     }));
   }
 
@@ -7678,13 +7680,28 @@ body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb)
   }
   function draw(host){
     const cv = host.__cv, id = idOf(host); if(!cv || !id) return;
-    const ctx = cv.getContext('2d');
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.clearRect(0,0,cv.width,cv.height);
-    const W = cv.width;
-    load(id, host.__zone).forEach(S => one(ctx, S, W));
+    if(!cv.width || !cv.height) return;   /* 안 보이는(0크기) 칸은 그릴 것도 없다 — 건너뛴다 */
+    try{
+      const ctx = cv.getContext('2d');
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.clearRect(0,0,cv.width,cv.height);
+      const W = cv.width;
+      load(id, host.__zone).forEach(S => {
+        if(!S || !Array.isArray(S.pts) || !S.pts.length) return;   /* 잘못 저장된 줄은 조용히 건너뛴다 */
+        try{ one(ctx, S, W); }catch(e){}
+      });
+    }catch(e){}
   }
-  function redrawAll(){ $$('.inkhost').forEach(draw); }
+  /* ★ 예전엔 «화면에 있는 모든 필기판»을 숨은 것까지 다 다시 그렸다 — 목록 뒤에
+     깔린, 지금 안 보이는 카드까지 포함해서. 그 중 하나라도 필기 기록이 이상하게
+     저장돼 있으면(«필기 도구» 켤 때마다) 오류가 카드 수만큼 줄줄이 떴다.
+     지금 실제로 화면에 «보이는» 칸만 다시 그리면 그럴 일이 없다. */
+  function redrawAll(){
+    $$('.inkhost').forEach(host => {
+      if(host.offsetParent === null) return;   /* display:none 등으로 안 보이면 건너뛴다 */
+      draw(host);
+    });
+  }
 
   /* ══ ④ 펜 받기 ══ */
   let HOVERT = 0;
