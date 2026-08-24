@@ -1012,16 +1012,15 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
    도구 › 한눈에 기능 에서 하나씩 켜며 검증할 수 있다.
    ══════════════════════════════════════════════════════════════ */
 (function(){
-  const KEY='prac:ovlayers:v3';   /* v2→v3: 형광펜·주석을 다시 꺼짐으로 되돌리면서,
-                                      그 사이 다른 겹을 만져 본 사람의 저장값에 옛 켜짐이
-                                      같이 남아 있을 수 있어 한 번 더 새로 시작한다 */
-  /* 처음 값 — «형광펜·주석» 을 기본으로 켜 봤는데(v159), 그 뒤 수식 부분 강조를
-     더 세밀하게 만드는 김에(v164) 이 판을 다시 그리는 쪽 코드까지 같이 건드렸더니
-     «필기» 를 켤 때 오류가 줄줄이 뜨는 문제가 생겼다. 정확히 어디가 부딪히는지
-     아직 못 짚어서, 일단 안전하게 예전 기본값(꺼짐)으로 되돌린다 —
-     켜고 싶으면 «도구 › 한눈에 기능» 에서 손으로 켤 수 있다. */
+  const KEY='prac:ovlayers:v4';   /* v3→v4: fig(그림 채우기)를 기본으로 켠다 — 이건
+                                      무거운 실험 기능이 아니라 그냥 «그림을 보여준다» 라서
+                                      끄여 있을 이유가 없었다(그래서 한눈에서만 그림이
+                                      «오려 오는 중…» 에 계속 멈춰 있었다). ann(형광펜)도
+                                      다시 켠다 — 그때 크래시 원인은 ann이 아니라
+                                      ResizeObserver 쪽이었고 그건 이미 고쳤다(v174). */
+  /* 처음 값 */
   const DEF={ rail:true, dock:true, swipe:false, back:false,
-              ann:false, squeeze:false, fig:false, ai:false };
+              ann:true, squeeze:false, fig:true, ai:false };
   let V=Object.assign({},DEF);
   try{ V=Object.assign({},DEF,JSON.parse(localStorage.getItem(KEY)||'{}')) }catch(e){}
   window.OVL={
