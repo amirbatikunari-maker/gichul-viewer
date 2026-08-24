@@ -2666,15 +2666,30 @@ async function askAI(prompt, blob, maxTokens = 2200){
 /* 아주 단순한 마크다운 — 굵게·목록·제목만 */
 function mdLite(t){
   const lines = esc(String(t || "")).split("\n");
-  let out = "", ul = false, blanks = 0;
+  let out = "", ul = false;
   const close = () => { if(ul){ out += "</ul>"; ul = false; } };
-  for(const raw of lines){
-    const x = raw.trim();
-    if(!x){ close(); blanks++; if(blanks===2) out += '<p class="gap">&nbsp;</p>'; continue; }
-    blanks = 0;
-    if(/^#{1,6}\s/.test(x)){ close(); out += `<h4>${inl(x.replace(/^#+\s/,""))}</h4>`; continue; }
-    if(/^[-*]\s/.test(x)){ if(!ul){ out += "<ul>"; ul = true; } out += `<li>${inl(x.replace(/^[-*]\s/,""))}</li>`; continue; }
-    close(); out += `<p>${inl(x)}</p>`;
+  let i = 0;
+  while(i < lines.length){
+    const x = lines[i].trim();
+    if(!x){
+      close();
+      let blanks=1;
+      while(i+blanks<lines.length && !lines[i+blanks].trim()) blanks++;
+      if(blanks>=2) out += '<p class="gap">&nbsp;</p>';
+      i+=blanks; continue;
+    }
+    if(x === '[[box]]'){
+      close();
+      const body=[]; i++;
+      while(i < lines.length && lines[i].trim() !== '[[/box]]'){ body.push(lines[i]); i++; }
+      if(i < lines.length) i++;
+      const inner = body.map(l=>l.trim()).filter(Boolean).map(l=>`<p>${inl(l)}</p>`).join('');
+      out += `<div class="qbox">${inner}</div>`;
+      continue;
+    }
+    if(/^#{1,6}\s/.test(x)){ close(); out += `<h4>${inl(x.replace(/^#+\s/,""))}</h4>`; i++; continue; }
+    if(/^[-*]\s/.test(x)){ if(!ul){ out += "<ul>"; ul = true; } out += `<li>${inl(x.replace(/^[-*]\s/,""))}</li>`; i++; continue; }
+    close(); out += `<p>${inl(x)}</p>`; i++;
   }
   close(); return out;
 }
@@ -2725,6 +2740,17 @@ function mdRich(src){
     const am = t.match(/^::([clr])::\s*/);
     if(am){ align = am[1]==='c' ? 'center' : am[1]==='r' ? 'right' : ''; t = t.slice(am[0].length); if(!t){ close(); i++; continue; } }
     const alignAttr = align ? ` style="text-align:${align}"` : '';
+
+    /* 박스 — [[box]] 로 열고 [[/box]] 로 닫은 사이를 테두리 있는 박스로 그린다 */
+    if(t === '[[box]]'){
+      close();
+      const body=[]; i++;
+      while(i < lines.length && lines[i].trim() !== '[[/box]]'){ body.push(lines[i]); i++; }
+      if(i < lines.length) i++;   /* 닫는 줄까지 건너뛴다 */
+      const inner = body.map(l=>l.trim()).filter(Boolean).map(l=>`<p>${inlR(l)}</p>`).join('');
+      out += `<div class="qbox">${inner}</div>`;
+      continue;
+    }
 
     /* 표 — 둘째 줄이 |---|---| 모양이면 표로 본다 */
     if(isRow(t) && isRow((lines[i+1] || "").trim()) && /^\|[\s:\-|]+\|?$/.test((lines[i+1] || "").trim())){
@@ -5370,6 +5396,12 @@ body.oneup .pgrid.split3 .pcol .plabel{position:static!important;background:none
 .katex-display{margin:5px 0!important}
 /* 일부러 엔터를 한 번 더 쳐서 띄운 자리 — 눈에 보이는 여백을 하나 더 준다 */
 .qmd p.gap,.ez p.gap,.prev p.gap{margin:0!important;height:.85em;line-height:.85em}
+/* 박스로 감싼 글 — 테두리 있는 강조 상자 */
+.qmd .qbox,.ez .qbox,.prev .qbox{border:1.4px solid var(--accent,#365cff);border-radius:9px;
+  padding:8px 12px;margin:8px 0;background:color-mix(in srgb,var(--accent,#365cff) 6%,transparent)}
+.qmd .qbox p,.ez .qbox p,.prev .qbox p{margin:2px 0}
+.qmd .qbox p:first-child,.ez .qbox p:first-child,.prev .qbox p:first-child{margin-top:0}
+.qmd .qbox p:last-child,.ez .qbox p:last-child,.prev .qbox p:last-child{margin-bottom:0}
 </style>
 <script>
 (function(){
@@ -12542,6 +12574,11 @@ function toMd(root){
       push(''); return;
     }
     if(tag==='DIV'&&n.classList.contains('katex-display')){ push('$$'+texOf(n)+'$$'); push(''); return; }
+    if(tag==='DIV'&&n.classList.contains('qbox')){
+      push('[[box]]');
+      $$(':scope > p',n).forEach(p=>{ const x=inline(p).trim(); if(x) push(x); });
+      push('[[/box]]'); push(''); return;
+    }
     if(tag==='HR'){ push('---'); push(''); return; }
     /* 그 밖(<p> 따위)은 한 문단 — 오른쪽 화면에서 ⇔·⇥ 로 가운데·오른쪽 맞춤 했으면
        (실행취소·다시 도구가 style="text-align:…" 를 심어 둔다) 앞에 ::c:: ::r:: 을 되살린다 */
@@ -12803,6 +12840,7 @@ const BTN=[
   ['alignL','왼쪽 정렬','⇤'],
   ['alignC','가운데 정렬','⇔'],
   ['alignR','오른쪽 정렬','⇥'],
+  ['box','박스로 감싸기','▭ 박스'],
   ['|'],
   ['table','표 넣기','▦ 표'],
   ['math','수식','$ 수식'],
@@ -12852,6 +12890,13 @@ function build(W){
       const next=pre+stripped;
       ta.value=ta.value.slice(0,a)+next+ta.value.slice(b);
       ta.selectionStart=ta.selectionEnd=a+next.length;
+    }else if(k==='box'){
+      /* 고른 글을 [[box]] … [[/box]] 로 감싼다 — 테두리 있는 박스로 그려진다 */
+      const body=sel||'여기에 박스 안 내용을 적으세요';
+      const wrapped=`[[box]]\n${body}\n[[/box]]`;
+      ta.value=ta.value.slice(0,s)+wrapped+ta.value.slice(e);
+      const innerStart=s+8;
+      ta.selectionStart=innerStart; ta.selectionEnd=innerStart+body.length;
     }else{
       const line0=ta.value.lastIndexOf('\n',s-1)+1;
       const pre=k==='h'?'#### ':k==='ul'?'- ':k==='ol'?'1. ':'';
