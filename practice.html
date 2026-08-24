@@ -7630,7 +7630,7 @@ body.inkon .inkhost{outline:1.5px dashed color-mix(in srgb,var(--accent,#2563eb)
         host.appendChild(cv);
         host.__cv = cv;
         bind(host, cv);
-        new ResizeObserver(() => fit(host)).observe(host);
+        new ResizeObserver(() => requestAnimationFrame(() => fit(host))).observe(host);
         fit(host);
       }catch(e){}
     }));

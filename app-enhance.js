@@ -654,8 +654,20 @@
     b.querySelector('[data-grid]').innerHTML=rows.map(x=>`<div class="app-diag-item ${x.ok?'ok':'warn'}"><span>${x.ok?'✓':'!'}</span><div><b>${x.name}</b><small>${x.detail}</small></div></div>`).join('');
     const bad=rows.filter(x=>!x.ok).length; b.querySelector('[data-summary]').textContent=bad?`${bad}개 항목을 확인하세요.`:'모든 핵심 항목이 정상입니다.';
   }
-  addEventListener('error', e=>{try{localStorage.setItem('gichul:last-error',JSON.stringify({message:String(e.message||'알 수 없는 오류'),source:String(e.filename||''),line:e.lineno||0,at:Date.now()}))}catch{}; toast('앱에서 오류가 발생했습니다. 앱 상태 진단에서 확인할 수 있습니다.','err');});
-  addEventListener('unhandledrejection', e=>{try{localStorage.setItem('gichul:last-error',JSON.stringify({message:String(e.reason?.message||e.reason||'처리되지 않은 오류'),at:Date.now()}))}catch{}; toast('처리되지 않은 작업 오류가 발생했습니다.','err');});
+  /* «ResizeObserver loop completed…» 는 브라우저가 스스로 거는 안전장치 경고일 뿐,
+     진짜 고장이 아니다 — 화면 안에 여러 개의 크기 관찰자(ResizeObserver)가 있으면
+     (필기판마다 하나씩, 표 손잡이마다 하나씩…) 한 프레임 안에서 서로 크기를 다시
+     재는 일이 몰릴 때 브라우저가 그냥 «다음 프레임에 마저 처리할게» 라고 알리는
+     것뿐이다. 그런데 이게 window 의 «error» 사건으로도 넘어와서, 지금까지는
+     진짜 오류인 것처럼 창을 하나씩 띄우고 있었다 — «필기»·«고치기» 처럼 화면을
+     크게 바꾸는 동작을 할 때마다 이 경고가 우르르 몰려서 오류창이 줄줄이 뜬 것. */
+  const isBenignResize = m => /ResizeObserver loop/i.test(String(m||''));
+  addEventListener('error', e=>{
+    if(isBenignResize(e.message)) return;
+    try{localStorage.setItem('gichul:last-error',JSON.stringify({message:String(e.message||'알 수 없는 오류'),source:String(e.filename||''),line:e.lineno||0,at:Date.now()}))}catch{}; toast('앱에서 오류가 발생했습니다. 앱 상태 진단에서 확인할 수 있습니다.','err');});
+  addEventListener('unhandledrejection', e=>{
+    if(isBenignResize(e.reason?.message||e.reason)) return;
+    try{localStorage.setItem('gichul:last-error',JSON.stringify({message:String(e.reason?.message||e.reason||'처리되지 않은 오류'),at:Date.now()}))}catch{}; toast('처리되지 않은 작업 오류가 발생했습니다.','err');});
 
   function buildInterviewIsolation(){
     if(!isInterviewPage() || document.querySelector('.app-interview-isolation')) return;
