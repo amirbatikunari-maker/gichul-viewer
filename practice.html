@@ -286,8 +286,11 @@ body.oneup #list > .pcard.show{display:block}
 .qmd ul,.qmd ol{margin:0 0 4px;padding-left:15px}
 .qmd li{margin:0}
 .qmd li p{margin:0}
-/* ①②③ · (1)(2) 로 시작하는 줄 — 왼쪽에 파란 줄을 긋고, 번호 글자도 같은 파란색으로 */
+/* (1)(2)(3) 처럼 큰 물음 구분 — 왼쪽에 파란 줄, 번호 글자도 같은 파란색 */
 .qmd p.num{margin:0 0 6px;padding:1px 0 1px 10px;border-left:3px solid var(--accent,#365cff)}
+/* ①②③ · 가.나.다. 처럼 그 안의 잔물음 — 줄은 안 긋고 번호만 굵은 파란 글자로,
+   간격도 훨씬 좁게. (1) 안에 여러 개 있어도 파란 줄이 겹겹이 쌓이지 않는다 */
+.qmd p.subnum{margin:2px 0 2px 4px}
 .qmd .numbadge,.ez .numbadge{color:var(--accent,#365cff);font-weight:700;margin-right:.3em}
 /* 문제 지문(첫 물음 앞의 설명글) — 강조 상자로 감싸고, 글자도 굵게 */
 .qmd .introbox{border:1.4px solid var(--line-strong,#c9d1dc);border-radius:9px;
@@ -295,7 +298,7 @@ body.oneup #list > .pcard.show{display:block}
 .qmd .introbox p{margin:2px 0;font-weight:600}
 .qmd .introbox p:first-child{margin-top:0}
 .qmd .introbox p:last-child{margin-bottom:0}
-/* 답안 칸은 한 단계 더 — 번호 물음마다 옅은 배경까지 (왼쪽 파란 줄은 위 규칙과 같이 쓴다) */
+/* 답안 칸은 한 단계 더 — 큰 물음 구분마다 옅은 배경까지 (잔물음·subnum 은 안 준다) */
 .pcol-ans .qmd p.num,#ovl [data-seg="a"] .qmd p.num{
   background:var(--brand-soft,#edf1ff);border-radius:0 7px 7px 0;padding:5px 8px;margin:4px 0}
 .qmd strong{font-weight:700}
@@ -2869,13 +2872,21 @@ function mdRich(src){
     if(/^(【[^】]{1,14}】|\[[^\]]{1,14}\])$/.test(t.replace(/&lt;|&gt;/g,""))){
       close(); out += `<p class="blk"${alignAttr}>${inlR(t)}</p>`; i++; continue;
     }
-    /* ① · (1) · 가. 로 시작하는 줄 — 번호는 배지로 떼어 내고, 본문만 뒤에 잇는다.
-       (예전엔 «(1) 본문...» 이 한 덩어리 글자였다 — 번호가 안 도드라져 보였다) */
-    if(/^([①-⑳㉑-㉟]|\(\d{1,2}\)|\d{1,2}\)|[가-핳]\.)\s/.test(t)){
+    /* (1)(2)(3) 은 큰 물음 구분 — 파란 줄을 친다.
+       ①②③ · 가.나.다. 는 그 «안의» 잔물음이라, 굵은 글자로만 가볍게 — 안 그러면
+       (2) 안에 ①②가 또 있을 때 파란 줄이 겹겹이 쌓여 꾸역꾸역 들어찬 것처럼 보인다. */
+    if(/^\(\d{1,2}\)\s/.test(t)){
       close();
-      const pm = t.match(/^([①-⑳㉑-㉟]|\(\d{1,2}\)|\d{1,2}\)|[가-핳]\.)\s+([\s\S]*)$/);
+      const pm = t.match(/^(\(\d{1,2}\))\s+([\s\S]*)$/);
       if(pm) out += `<p class="num"${alignAttr}><span class="numbadge">${pm[1]}</span>${inlR(pm[2])}</p>`;
       else out += `<p class="num"${alignAttr}>${inlR(t)}</p>`;
+      i++; continue;
+    }
+    if(/^([①-⑳㉑-㉟]|\d{1,2}\)|[가-핳]\.)\s/.test(t)){
+      close();
+      const pm = t.match(/^([①-⑳㉑-㉟]|\d{1,2}\)|[가-핳]\.)\s+([\s\S]*)$/);
+      if(pm) out += `<p class="subnum"${alignAttr}><span class="numbadge">${pm[1]}</span>${inlR(pm[2])}</p>`;
+      else out += `<p class="subnum"${alignAttr}>${inlR(t)}</p>`;
       i++; continue;
     }
     close(); out += `<p${alignAttr}>${inlR(t)}</p>`; i++;
@@ -2889,7 +2900,12 @@ function mdRich(src){
 }
 /* 줄 안쪽 — 수식은 KaTeX 가 나중에 그리도록 $…$ 를 그대로 둔다 */
 const inlR = x => x.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-                   .replace(/`([^`]+)`/g, "<code>$1</code>");
+                   .replace(/`([^`]+)`/g, "<code>$1</code>")
+                   /* 줄 맨 앞이 아니라 문장 «중간» 에 낀 ①②③ 도 옅게라도 표시를 준다 —
+                      «(2) ① 부하전류…» 처럼 큰 물음과 잔물음이 한 줄에 붙어 나올 때,
+                      앞의 (2) 는 따로 배지로 떼어내지만 뒤에 남은 ① 은 그냥 맨 글자로
+                      묻혀 버렸었다. */
+                   .replace(/([①-⑳㉑-㉟])/g, '<span class="numbadge">$1</span>');
 
 function tex(el){
   if(!el || !window.renderMathInElement) return;
