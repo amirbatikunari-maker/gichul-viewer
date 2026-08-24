@@ -1012,12 +1012,16 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
    도구 › 한눈에 기능 에서 하나씩 켜며 검증할 수 있다.
    ══════════════════════════════════════════════════════════════ */
 (function(){
-  const KEY='prac:ovlayers:v2';   /* v1→v2: «형광펜·주석» 기본값이 꺼짐→켜짐으로 바뀌어서,
-                                      예전에 저장된 값에 옛 기본값이 남아 있는 사람도 새 기본값을 받게 한다 */
-  /* 처음 값 — 무거운 겹 중에서도 «형광펜·주석» 은 이미 여러 번 고쳐 써서 이제는 기본으로 켠다.
-     나머지 무거운 겹(그림 손질 다시 칠하기 등)은 아직 예전처럼 꺼 두고 시작한다. */
+  const KEY='prac:ovlayers:v3';   /* v2→v3: 형광펜·주석을 다시 꺼짐으로 되돌리면서,
+                                      그 사이 다른 겹을 만져 본 사람의 저장값에 옛 켜짐이
+                                      같이 남아 있을 수 있어 한 번 더 새로 시작한다 */
+  /* 처음 값 — «형광펜·주석» 을 기본으로 켜 봤는데(v159), 그 뒤 수식 부분 강조를
+     더 세밀하게 만드는 김에(v164) 이 판을 다시 그리는 쪽 코드까지 같이 건드렸더니
+     «필기» 를 켤 때 오류가 줄줄이 뜨는 문제가 생겼다. 정확히 어디가 부딪히는지
+     아직 못 짚어서, 일단 안전하게 예전 기본값(꺼짐)으로 되돌린다 —
+     켜고 싶으면 «도구 › 한눈에 기능» 에서 손으로 켤 수 있다. */
   const DEF={ rail:true, dock:true, swipe:false, back:false,
-              ann:true, squeeze:false, fig:false, ai:false };
+              ann:false, squeeze:false, fig:false, ai:false };
   let V=Object.assign({},DEF);
   try{ V=Object.assign({},DEF,JSON.parse(localStorage.getItem(KEY)||'{}')) }catch(e){}
   window.OVL={
