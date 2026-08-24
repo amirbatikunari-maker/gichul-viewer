@@ -2688,6 +2688,7 @@ function mdLite(t){
       out += `<div class="qbox">${inner}</div>`;
       continue;
     }
+    if(/^-{3,}$/.test(x)){ close(); out += '<hr>'; i++; continue; }
     const fence = x.match(/^```\s*([\w+-]*)\s*$/);
     if(fence){
       close();
@@ -2755,6 +2756,11 @@ function mdRich(src){
     const am = t.match(/^::([clr])::\s*/);
     if(am){ align = am[1]==='c' ? 'center' : am[1]==='r' ? 'right' : ''; t = t.slice(am[0].length); if(!t){ close(); i++; continue; } }
     const alignAttr = align ? ` style="text-align:${align}"` : '';
+
+    /* 구분선 — ---(하이픈 셋 이상)만 있는 줄은 가로줄로 그린다.
+       예전엔 저장할 때(오른쪽 화면→글) 만 되돌아 나왔지, 정작 이렇게 쳐서
+       그릴 때는 지원한 적이 없었다 — 그냥 «---» 라는 글자로만 보였다. */
+    if(/^-{3,}$/.test(t)){ close(); out += '<hr>'; i++; continue; }
 
     /* 코드 블록 — ```글자 ... ``` 사이를 어두운 상자로 그린다.
        숫자·주석(#·//) 만 살짝 색을 입힌다 — 실제 문제 내용은 프로그래밍 언어가
@@ -3401,10 +3407,21 @@ ${EASY_RULE}
 - (예: "논리곱($\\cdot$)은 AND 게이트(직렬)로, 논리합($+$)은 OR 게이트(병렬)로 연결합니다.")
 
 [여러 물음이 있을 때]
-문제에 (1) (2) … 또는 ① ② … 처럼 물음이 여러 개면, 물음마다 위 A·B 짜임새를 하나씩
+문제에 (1) (2) … 또는 ① ② … 처럼 물음이 여러 개면, 물음마다 위 A·B·C 짜임새를 하나씩
 통째로 반복해서 쓴다. 덩어리 제목은 원문 번호를 그대로 쓴다. 물음마다 유형이 다르면
 (계산형·서술형·시퀀스형이 섞여 있으면) 그 물음에 맞는 유형(A·B·C)을 골라 쓴다. 답안에 있는 번호는
-전부 나와야 한다 — 물음이 5개면 덩어리도 5개다.`;
+전부 나와야 한다 — 물음이 5개면 덩어리도 5개다.
+
+[박스로 감싸기 — 반드시 지킬 것]
+- 물음이 여러 개면, 물음 하나(그 안의 «주어진 값 → 핵심 공식 → 풀이 및 정답» 전체,
+  또는 유형 B·C 라면 그 물음의 전체 내용)를 [[box]] 줄로 열고 [[/box]] 줄로 닫아서,
+  물음 하나당 박스 하나가 되게 한다. 박스 첫 줄은 그 물음 제목을 **(1) 문제를 한마디로**
+  처럼 굵게 써서 넣는다.
+- 물음이 하나뿐이면 답 전체를 박스 하나로 감싼다.
+- [[box]] 와 [[/box]] 는 반드시 줄 맨 앞에 단독으로 써라 — 앞뒤에 다른 글자를 붙이지 마라.
+- 박스와 박스 사이에는 --- 줄을 하나 넣어 구분한다.
+- 어느 유형(A·B·C)을 쓰든 이 박스 규칙은 똑같이 적용한다 — 유형은 박스 «안의» 내용을
+  어떻게 짤지 정할 뿐, 박스로 감싸는지 여부와는 상관없다.`;
 }
 
 /* ══════════════════════════════════════════════════════
@@ -5432,6 +5449,7 @@ body.oneup .pgrid.split3 .pcol .plabel{position:static!important;background:none
 /* 일부러 엔터를 한 번 더 쳐서 띄운 자리 — 눈에 보이는 여백을 하나 더 준다 */
 .qmd p.gap,.ez p.gap,.prev p.gap{margin:0!important;height:.85em;line-height:.85em}
 /* 박스로 감싼 글 — 테두리 있는 강조 상자 */
+.qmd hr,.ez hr,.prev hr{border:none;border-top:1px solid var(--line,#dbe1ea);margin:10px 0}
 .qmd .qbox,.ez .qbox,.prev .qbox{border:1.4px solid var(--accent,#365cff);border-radius:9px;
   padding:8px 12px;margin:8px 0;background:color-mix(in srgb,var(--accent,#365cff) 6%,transparent)}
 .qmd .qbox p,.ez .qbox p,.prev .qbox p{margin:2px 0}
