@@ -2687,6 +2687,20 @@ function mdLite(t){
       out += `<div class="qbox">${inner}</div>`;
       continue;
     }
+    const fence = x.match(/^```\s*([\w+-]*)\s*$/);
+    if(fence){
+      close();
+      const lang = fence[1] || '';
+      const body=[]; i++;
+      while(i < lines.length && !/^```\s*$/.test(lines[i].trim())){ body.push(lines[i]); i++; }
+      if(i < lines.length) i++;
+      const hl = raw => raw
+        .replace(/(#.*|\/\/.*)$/gm, m => `<span class="cmt">${m}</span>`)
+        .replace(/\b(\d+\.?\d*)\b/g, m => `<span class="num">${m}</span>`);
+      out += `<div class="codeblk">${lang ? `<div class="codeblk-head">${lang}</div>` : ''}`
+        + `<pre><code>${hl(body.join('\n'))}</code></pre></div>`;
+      continue;
+    }
     if(/^#{1,6}\s/.test(x)){ close(); out += `<h4>${inl(x.replace(/^#+\s/,""))}</h4>`; i++; continue; }
     if(/^[-*]\s/.test(x)){ if(!ul){ out += "<ul>"; ul = true; } out += `<li>${inl(x.replace(/^[-*]\s/,""))}</li>`; i++; continue; }
     close(); out += `<p>${inl(x)}</p>`; i++;
@@ -2740,6 +2754,24 @@ function mdRich(src){
     const am = t.match(/^::([clr])::\s*/);
     if(am){ align = am[1]==='c' ? 'center' : am[1]==='r' ? 'right' : ''; t = t.slice(am[0].length); if(!t){ close(); i++; continue; } }
     const alignAttr = align ? ` style="text-align:${align}"` : '';
+
+    /* 코드 블록 — ```글자 ... ``` 사이를 어두운 상자로 그린다.
+       숫자·주석(#·//) 만 살짝 색을 입힌다 — 실제 문제 내용은 프로그래밍 언어가
+       아니니 진짜 문법 강조는 못 하지만, 이 정도만으로도 "코드처럼" 보인다. */
+    const fence = t.match(/^```\s*([\w+-]*)\s*$/);
+    if(fence){
+      close();
+      const lang = fence[1] || '';
+      const body=[]; i++;
+      while(i < lines.length && !/^```\s*$/.test(lines[i].trim())){ body.push(lines[i]); i++; }
+      if(i < lines.length) i++;
+      const hl = raw => raw
+        .replace(/(#.*|\/\/.*)$/gm, m => `<span class="cmt">${m}</span>`)
+        .replace(/\b(\d+\.?\d*)\b/g, m => `<span class="num">${m}</span>`);
+      out += `<div class="codeblk">${lang ? `<div class="codeblk-head">${lang}</div>` : ''}`
+        + `<pre><code>${hl(body.join('\n'))}</code></pre></div>`;
+      continue;
+    }
 
     /* 박스 — [[box]] 로 열고 [[/box]] 로 닫은 사이를 테두리 있는 박스로 그린다 */
     if(t === '[[box]]'){
@@ -5402,6 +5434,17 @@ body.oneup .pgrid.split3 .pcol .plabel{position:static!important;background:none
 .qmd .qbox p,.ez .qbox p,.prev .qbox p{margin:2px 0}
 .qmd .qbox p:first-child,.ez .qbox p:first-child,.prev .qbox p:first-child{margin-top:0}
 .qmd .qbox p:last-child,.ez .qbox p:last-child,.prev .qbox p:last-child{margin-bottom:0}
+/* 코드 블록 — ```글자``` 사이 */
+.qmd .codeblk,.ez .codeblk,.prev .codeblk{background:#1E1E1E;border-radius:11px;
+  margin:9px 0;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.qmd .codeblk-head,.ez .codeblk-head,.prev .codeblk-head{padding:8px 14px;font:700 11.5px/1 var(--font-d,system-ui);
+  color:#c9c9c9;border-bottom:1px solid #333}
+.qmd .codeblk pre,.ez .codeblk pre,.prev .codeblk pre{margin:0;padding:13px 15px;overflow-x:auto}
+.qmd .codeblk code,.ez .codeblk code,.prev .codeblk code{background:none!important;padding:0!important;
+  font:400 12.5px/1.6 var(--font-m,ui-monospace,"SF Mono",Consolas,monospace)!important;
+  color:#E4E4E4;white-space:pre-wrap;word-break:break-word}
+.qmd .codeblk .num,.ez .codeblk .num,.prev .codeblk .num{color:#79C0FF}
+.qmd .codeblk .cmt,.ez .codeblk .cmt,.prev .codeblk .cmt{color:#7A8B99;font-style:italic}
 </style>
 <script>
 (function(){
@@ -8888,8 +8931,11 @@ function inject(){
     start(im);
   });
 }
-const injT=setInterval(inject,900); inject();
-setTimeout(()=>clearInterval(injT),30000);
+/* ★ 예전엔 30초만 지켜보다 그만뒀다 — 그런데 크기 막대(.imsz) 자체가 «그림을
+   처음 누를 때» 에야 생긴다. 페이지를 열고 30초 안에 그림을 안 누르면(둘러보다
+   나중에 «고치기» 눌러 그림을 고르는 건 아주 흔하다) 그 뒤로는 영영 «자르기»
+   단추가 안 끼워졌다. 계속 지켜본다 — 검사 자체가 가벼워서 계속 돌아도 괜찮다. */
+setInterval(inject,900); inject();
 
 addEventListener('scroll',()=>{ if(CUR) place() },true);
 addEventListener('resize',()=>{ if(CUR) place() });
@@ -11932,21 +11978,6 @@ body.rd-night{
 body.rd-night img{filter:brightness(.92) contrast(1.04)}
 body.rd-night .katex{color:#E8EDF4}
 
-/* «코드로 보기» 처럼 어둡고 알록달록하게 — 코드 편집기 느낌을 글 전체에 입힌다 */
-body.rd-code{
-  --paper:#0D1117; --card:#161B22; --ink:#C9D1D9; --ink-2:#8B949E; --rule:#30363D;
-  --accent:#58A6FF; --ok:#7EE787; --stamp:#F0883E;
-}
-body.rd-code .qmd,body.rd-code .ez,body.rd-code .easybox{
-  font-family:var(--font-m,ui-monospace,"SF Mono",Consolas,monospace);
-}
-body.rd-code .qmd .katex,body.rd-code .ez .katex,body.rd-code .easybox .katex{color:#D2A8FF}
-body.rd-code .qmd strong,body.rd-code .ez strong,body.rd-code .easybox strong{color:#FF7B72}
-body.rd-code .qmd table,body.rd-code .ez table{background:#161B22;border-color:#30363D}
-body.rd-code img{filter:brightness(.9) contrast(1.05);border-radius:6px}
-body.rd-code .qbox{background:rgba(88,166,255,.1);border-color:#58A6FF}
-body.rd-code .qmd code,body.rd-code .ez code{background:rgba(88,166,255,.14);color:#79C0FF}
-
 /* ── ② 글자 결 ─────────────────────────────────────── */
 body.rd-on{
   --fs:14.5px; --fs-ez:14.5px; --lh:1.72; --lh-ez:1.78;
@@ -12021,7 +12052,7 @@ body.rd-on .qmd th,body.rd-on .ez th{font-weight:800}
 (function(){
 'use strict';
 const KEY='prac:read:v1';
-const THEMES=[['paper','종이'],['plain','기본'],['night','밤'],['code','코드']];
+const THEMES=[['paper','종이'],['plain','기본'],['night','밤']];
 let V=(()=>{ try{ return Object.assign({on:true,th:'paper'},JSON.parse(localStorage.getItem(KEY)||'{}')) }
              catch(e){ return {on:true,th:'paper'} } })();
 function apply(){
@@ -12611,6 +12642,15 @@ function toMd(root){
       $$(':scope > p',n).forEach(p=>{ const x=inline(p).trim(); if(x) push(x); });
       push('[[/box]]'); push(''); return;
     }
+    if(tag==='DIV'&&n.classList.contains('codeblk')){
+      const head=n.querySelector(':scope > .codeblk-head');
+      const lang=head ? (head.textContent||'').trim() : '';
+      const code=n.querySelector('code');
+      const raw=code ? (code.textContent||'') : '';
+      push('```'+lang);
+      raw.split('\n').forEach(x=>push(x));
+      push('```'); push(''); return;
+    }
     if(tag==='HR'){ push('---'); push(''); return; }
     /* 그 밖(<p> 따위)은 한 문단 — 오른쪽 화면에서 ⇔·⇥ 로 가운데·오른쪽 맞춤 했으면
        (실행취소·다시 도구가 style="text-align:…" 를 심어 둔다) 앞에 ::c:: ::r:: 을 되살린다 */
@@ -12873,6 +12913,7 @@ const BTN=[
   ['alignC','가운데 정렬','⇔'],
   ['alignR','오른쪽 정렬','⇥'],
   ['box','박스로 감싸기','▭ 박스'],
+  ['codeblk','코드 블록','▤ 코드블록'],
   ['|'],
   ['table','표 넣기','▦ 표'],
   ['math','수식','$ 수식'],
@@ -12928,6 +12969,13 @@ function build(W){
       const wrapped=`[[box]]\n${body}\n[[/box]]`;
       ta.value=ta.value.slice(0,s)+wrapped+ta.value.slice(e);
       const innerStart=s+8;
+      ta.selectionStart=innerStart; ta.selectionEnd=innerStart+body.length;
+    }else if(k==='codeblk'){
+      /* 고른 글을 ``` … ``` 로 감싼다 — 어두운 코드 상자로 그려진다 */
+      const body=sel||'여기에 코드 블록 내용을 적으세요';
+      const wrapped=`\`\`\`\n${body}\n\`\`\``;
+      ta.value=ta.value.slice(0,s)+wrapped+ta.value.slice(e);
+      const innerStart=s+4;
       ta.selectionStart=innerStart; ta.selectionEnd=innerStart+body.length;
     }else{
       const line0=ta.value.lastIndexOf('\n',s-1)+1;
