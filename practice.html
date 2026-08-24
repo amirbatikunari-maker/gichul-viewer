@@ -629,7 +629,7 @@ h1{font-size:30px;line-height:1.1;letter-spacing:-.045em;margin:2px 0 7px;font-w
 .qmd p.blk{margin:12px 0 4px;color:var(--brand)}
 .qmd h4{font-size:14px;margin:12px 0 5px;color:var(--ink);border-bottom:1px solid var(--line);padding-bottom:5px}
 .qmd table{font-size:13px}
-.qmd th{background:#f1f4fa}
+.qmd th{background:var(--surface-2,#f1f4fa)}
 
 /* answer + solution hierarchy */
 .ans{margin-top:9px}
@@ -751,6 +751,7 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
       <button type="button" data-ts="-1" aria-label="수식 작게">√-</button>
       <button type="button" data-ts="1" aria-label="수식 크게">√+</button>
     </span>
+    <button class="zb" type="button" id="ovImgFix" title="문항마다 따로 정해 둔 그림 크기를 무시하고 다 같은 기준으로 보여줍니다">📌 그림 고정</button>
     <button class="zb" type="button" id="ovPrev">‹ 이전</button>
     <button class="zb" type="button" id="ovNext">다음 ›</button>
     <button class="zb pick" type="button" id="ovClose">닫기 (Esc)</button>
@@ -858,6 +859,7 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
           <option value="1.5">수식 최대로</option>
         </select>
         <button class="chip" id="fSplit" type="button" title="넓은 화면에서 문제와 답안을 좌우로 나눕니다">▥ 두 칸</button>
+        <button class="chip" id="fImgFix" type="button" title="문항마다 따로 정해 둔 그림 크기를 무시하고, 그림을 다 같은 기준으로 보여줍니다 (저장된 크기값 자체는 안 바뀝니다)">📌 그림 크기 고정</button>
         <span class="cvstat" id="cvStat"></span>
         <div class="cvprog" id="cvProg" hidden><i id="cvBar"></i></div>
       </div>
@@ -3209,6 +3211,23 @@ $("#fSplit")?.addEventListener("click", () => {
   try{ localStorage.setItem("prac:split", String(SPLIT)); }catch(e){}
   paintView(); drawList();
 });
+/* 📌 그림 크기 고정 — 저장된 낱장 크기(%)를 무시하고 다 같은 기준으로 보여준다.
+   저장값 자체는 안 건드리므로, 끄면 바로 원래 크기로 돌아온다. */
+(() => {
+  const on = () => { try{ return localStorage.getItem("prac:imgfix") === "1"; }catch(e){ return false; } };
+  const paint = () => {
+    document.body.classList.toggle("img-fix", on());
+    $("#fImgFix")?.classList.toggle("on", on());
+    $("#ovImgFix")?.classList.toggle("on", on());
+  };
+  paint();
+  const flip = () => {
+    try{ localStorage.setItem("prac:imgfix", on() ? "0" : "1"); }catch(e){}
+    paint();
+  };
+  $("#fImgFix")?.addEventListener("click", flip);
+  $("#ovImgFix")?.addEventListener("click", flip);
+})();
 $("#cvGap")?.addEventListener("click", () => cvRun(false));
 $("#cvAll")?.addEventListener("click", () => cvRun(true));
 
@@ -3306,32 +3325,14 @@ async function cropRect(url, rect){
 }
 
 const EASY_RULE = `
-[말투]
-- 처음 보는 사람도 따라올 수 있게 쓴다. 용어가 나오면 그 자리에서 한 줄로 풀어 준다.
-- 공식을 던지지 말고, 왜 그 식이 나오는지부터 말해라.
-- ★ "비전공자도 알 수 있게", "쉽게 말하면", "초등학생도" 같은 말은 절대 쓰지 마라.
-  독자를 낮춰 보는 표현과 유치한 비유(사탕, 물통 …)도 쓰지 마라.
-  설명이 친절하면 되는 것이지, 친절하다고 선언할 필요는 없다.
-- 담백한 평서문으로. 감탄사·이모지·격려("어렵지 않죠?")를 넣지 마라.
-- 숫자가 나오면 단위를 반드시 붙이고, 계산은 한 줄에 한 단계씩 보여라.
-- ★ 수식·기호·단위는 하나도 빠짐없이 LaTeX 로 쓴다.
-  문장 안에서는 $…$, 따로 세울 때는 $$…$$ 로 감싼다. $$…$$ 는 반드시 한 줄로 붙여 써라.
-  · 기호 하나만 나와도 감싼다 — "각 $\theta$ 는", "저항 $R\,[\Omega]$" 처럼.
-  · 부정(NOT)은 $\overline{A}$ 로 쓴다. NOT(A) · not(a+b) 같은 «글자» 표기는 절대 쓰지 마라.
-  · 곱은 $\cdot$ 또는 $\times$, 아래첨자는 $I_1$, 위첨자는 $V^2$,
-    분수는 $\dfrac{a}{b}$, 근호는 $\sqrt{3}$, 각도는 $30^\circ$ 로 쓴다.
-  · 단위는 $[\mathrm{VA}]$ · $[\mathrm{kW}]$ · $[\Omega]$ · $[\mu\mathrm{F}]$ 처럼 로만체로 붙인다.
-  · 보기: $Y=A+B\overline{C}$, $\overline{A+B\overline{C}}=\overline{A}\cdot\overline{B\overline{C}}$
-  · 보기: $P=\sqrt{3}\,V I\cos\theta=\sqrt{3}\times 380\times 20\times 0.8=10{,}530\,[\mathrm{W}]$
-- ★ 아래 «특수문자» 는 본문에 절대 쓰지 마라. 반드시 왼쪽 LaTeX 로 바꿔 써라.
-  · × ÷ ± ≤ ≥ ≠ ≒ ∠ ∴ ∵ ∞ ∑ ∫ → $\times$ $\div$ $\pm$ $\le$ $\ge$ $\ne$ $\approx$ $\angle$ $\therefore$ $\because$ $\infty$ $\sum$ $\int$
-  · Ω Δ Σ Φ μ π θ φ ω η λ ρ → $\Omega$ $\Delta$ $\Sigma$ $\Phi$ $\mu$ $\pi$ $\theta$ $\phi$ $\omega$ $\eta$ $\lambda$ $\rho$
-  · ² ³ ⁻¹ ₁ ₂ ₃ (위·아래 첨자 글자) → $x^2$ $x^3$ $x^{-1}$ $I_1$ $I_2$ $I_3$
-  · ㎸ ㎾ ㎿ ㎡ ㎥ ㎐ ㎌ ㏀ ㏈ ℃ (한 글자 단위 기호) → $[\mathrm{kV}]$ $[\mathrm{kW}]$ $[\mathrm{MW}]$ $[\mathrm{m^2}]$ $[\mathrm{m^3}]$ $[\mathrm{Hz}]$ $[\mu\mathrm{F}]$ $[\mathrm{k}\Omega]$ $[\mathrm{dB}]$ $[^\circ\mathrm{C}]$
-  · 윗줄 친 글자(V̄ · Ā) 같은 결합 문자도 쓰지 마라 — $\overline{V}$ 로 쓴다.
-  이 기호들을 날글자로 쓰면 화면에서 깨져 읽히지 않는다. 예외는 없다.
-- 마크다운은 **굵게** 와 - 목록만 쓴다.
-- 지어내지 마라. 그림에서 안 보이는 값은 "그림에 안 나와 있음" 이라고 적어라.`;
+[1. 기본 말투 및 표기 규칙]
+- 처음 보는 사람도 이해할 수 있게 담백한 평서문으로 작성한다. 감탄사, 이모지, 불필요한 격려 금지.
+- "초등학생도 알게", "쉽게 말해" 등 독자를 낮추는 표현이나 유치한 비유 금지. 용어는 간결히 뜻만 푼다.
+- 수식·기호·단위는 하나도 빠짐없이 LaTeX로 작성한다. (문장 안 $…$ / 단독 수식 $$…$$ / 곱하기는 \\cdot 또는 \\times / 단위는 로만체 [\\mathrm{A}], [\\mathrm{MVA}] 등)
+- 본문에 특수문자(× ÷ ± ≤ ≥ ∠ ∴ Ω Δ μ π θ ² ³ ㎸ ㎾ 등)를 그대로 쓰지 말고 무조건 LaTeX로 변환한다.
+- 불필요한 서술어("~를 구합니다", "~에 대입합니다" 등)와 인사말, 감탄사는 전면 제거한다. 군더더기 없이 '핵심 정보'와 '수식'만 간결하게 나열한다.
+- 억지로 빈칸("해당 없음" 등)을 채우지 마라. 서술형은 서술형에 맞게, 계산형은 계산형에 맞게 유연하게 작성한다.
+- 마크다운은 **굵게** 와 - 목록만 쓴다.`;
 
 /* 문제 하나를 처음부터 끝까지 풀어 주는 해설 프롬프트 */
 function easyPrompt(r, textOnly){
@@ -3348,59 +3349,62 @@ ${qs.slice(0, 2400) || "(없음)"}
 [답안 글${textOnly ? "" : "(있으면 참고. 없으면 그림만 보고 판단)"}]
 ${as.slice(0, 1800) || "(없음)"}
 
-[먼저 판단할 것]
-문제에 물음이 (1) (2) … 또는 ① ② … 처럼 «여러 개» 인지 «하나» 인지 먼저 보아라.
-답안 글에 (1) (2) … 가 있으면 그 번호가 곧 물음 번호다. 그 번호에 맞춰 써라.
+[공통 규칙 — 전기기사 실기 맞춤형 해설]
+${EASY_RULE}
 
-════════ 물음이 여러 개일 때 — 이 짜임새로만 써라 ════════
+[2. 본문 구조 — 문제 유형에 따라 아래 A, B, C 중 하나만 선택하여 작성]
 
-**공통으로 알아야 할 것**
-모든 물음에 두루 쓰이는 개념·공식만 두세 개. 물음 하나에만 쓰이는 것은 여기 적지 마라.
+■ 유형 A: 계산 문제 (수식 위주)
+1. 주어진 값
+- 기호, 값, 뜻만 짧게 나열. (예: $P = 10\\mathrm{[kW]}$ (출력))
+2. 핵심 공식 (★ 3단 표기 필수)
+- 사용할 핵심 공식을 설명 문장 없이 다음 3줄로만 연달아 쓴다.
+  1) 기호 수식: $$P = \\sqrt{3} \\cdot V \\cdot I \\cdot \\cos\\theta \\cdot \\eta$$
+  2) 의미 수식: $$출력 = 루트3 \\times 선간전압 \\times 선전류 \\times 역률 \\times 효율$$
+  3) 발음 수식: $$피 = 루트삼 \\times 브이 \\times 아이 \\times 코사인세타 \\times 에타$$
+  (※ 발음 수식 주의: 기호나 단위는 철저히 실제 읽는 소리대로 적는다. 예: %는 '퍼센트', 기호가 영문이면 영문 발음 그대로 표기)
+3. 풀이 및 정답
+- 변형된 공식에 한글 뜻을 = 로 연결하여 표기한 뒤, 바로 아래에 숫자 대입과 계산 결과를 연달아 적는다.
+- 반드시 아래 양식을 지킨다.
+  [계산 과정] :
+  $$I = \\frac{P}{\\sqrt{3} \\cdot V \\cdot \\cos\\theta \\cdot \\eta} = \\frac{\\text{출력}}{\\sqrt{3} \\cdot \\text{선간전압} \\cdot \\text{역률} \\cdot \\text{효율}}$$
+  $$I = \\frac{10 \\times 10^3}{\\sqrt{3} \\cdot 380 \\cdot 0.80 \\cdot 0.85}$$
+  $$I \\approx 22.34\\mathrm{[A]}$$
+  [답] : $22.34\\mathrm{[A]}$
+4. 단위 계산 방법 및 주의점 (※ 필요시)
+- 단위의 환산이나 도출 과정이 필요할 경우 따로 $$...$$ 로 표기하여 직관적으로 보여준다.
+  (예: $$[\\mathrm{kVA}] = \\frac{\\mathrm{[kW]}}{\\cos\\theta}$$)
+- 주의점은 맨 앞에 * 를 붙여 간략히 쓴다.
 
-그다음 «물음 번호마다 한 덩어리». 덩어리 제목은 원문 번호를 그대로 쓴다.
+■ 유형 B: 단답형 / 서술형 문제 (글 위주)
+- 서론, 본론 등 쓸데없는 설명은 모두 빼고 전기기사 실기 채점 기준에 맞춰 최소한의 분량으로 압축하여 작성한다.
+- 문제에서 요구한 개수(3가지, 5가지 등)에 정확히 맞춰서 작성한다.
+- 수험생이 외우기 쉽도록 정답의 앞글자를 딴 두문자 암기 팁을 정답 맨 위에 배치한다.
+- [출력 양식 예시]
+  [난소유전내] : 난 소유하고 있는 전을 내놓고 몰드 변압기 삼.
+  ① 난연성이 우수하다.
+  ② 소형 및 경량화가 가능하다.
+  ③ 유지보수가 용이하다. (절연유를 사용하지 않음)
+  ④ 전력 손실이 적다.
+  ⑤ 내습 및 내진성이 우수하다.
 
-**(1) 〈그 물음을 한마디로〉**
-- 목적: 무엇을 구하라는 것인지 한 줄
-- 쓰는 값: 이 물음에 «실제로 쓰이는» 값만 기호 = 값 [단위] 로. 안 쓰는 값은 적지 마라
-- 쓰는 식: 식 하나와, 왜 그 식인지 한 줄
-- 넣고 계산: 숫자를 넣은 줄 → 결과 (단위까지)
-- 답: 〈답안지의 그 번호 답과 글자까지 같게〉
+■ 유형 C: 시퀀스 / 논리 회로 / 도면 문제 (의식의 흐름 전개)
+1. 초기 논리식 도출 원리 (Why & How)
+- 주어진 진리표나 타임차트에서 '어떻게' 식을 뽑아냈는지 첫 단추를 반드시 설명한다.
+- (예: "진리표에서 출력이 '1'이 되는 행만 찾습니다. 이때 입력이 0이면 부정($\\bar{A}$), 1이면 긍정($A$)으로 곱한 뒤 모두 더해줍니다.")
+2. 논리식 간략화와 개념 풀이
+- 수식을 전개할 때 사용된 불 대수 법칙이나 드모르간의 정리 등은 이름만 던지지 말고 그 자리에서 뜻을 한 줄로 푼다.
+- (예: "드모르간의 정리(전체 부정을 쪼개면 곱 기호는 더하기로, 더하기는 곱 기호로 바뀌는 법칙)를 적용합니다.")
+- 계산 과정은 한 줄에 한 단계씩 보여준다.
+3. 도면 및 회로 변환 규칙
+- 간략화된 최종 식을 보며 도면을 어떻게 그리는지 직관적으로 매칭해 준다.
+- (예: "논리곱($\\cdot$)은 AND 게이트(직렬)로, 논리합($+$)은 OR 게이트(병렬)로 연결합니다.")
 
-**(2) …** 이렇게 마지막 물음까지 하나도 빠뜨리지 말고 이어서 써라.
-앞 덩어리에서 구한 값을 뒤에서 쓰면 «(1)에서 구한 39.67[MVA]» 처럼 어디서 온 값인지 밝혀라.
-답안에 있는 번호는 전부 나와야 한다. 물음이 13개면 덩어리도 13개다.
-
-**자주 틀리는 곳**
-두세 가지. 각각 앞에 «(3)» 처럼 어느 물음 이야기인지 번호를 붙여라.
-
-════════ 물음이 하나일 때 — 이 짜임새로만 써라 ════════
-
-**무엇을 묻는 문제인가**
-한두 줄. 주어진 것과 구하는 것을 분명히 갈라서.
-
-**주어진 값**
-- 기호 = 값 [단위] 꼴로 하나씩. 그림에만 있고 글에는 없는 값도 빠짐없이.
-- 그림에서 읽히지 않는 값은 "그림에 안 나와 있음" 이라고 적어라.
-
-**알아야 할 것**
-먼저 알아야 하는 개념·공식 두세 개. 각각 왜 그런지 한 줄씩.
-
-**푸는 순서**
-번호를 매겨 단계별로. 각 단계마다 — 무엇을 구하는 단계인지 · 쓰는 식 ·
-숫자를 넣은 계산 한 줄(단위 포함) · 그 단계의 답.
-계산을 건너뛰지 마라. 중간값을 반올림했으면 어디서 반올림했는지 밝혀라.
-
-**답**
-최종 답을 단위까지 붙여 한 줄로.
-
-**자주 틀리는 곳**
-두세 가지. 왜 틀리는지와 어떻게 피하는지 같이.
-
-════════ 둘 다에 해당하는 것 ════════
-- 단위 기호는 수식 안에 넣어라. 수식 밖에 \\Omega · \\Delta 같은 명령을 그대로 쓰지 마라
-  (수식 밖에서는 Ω · Δ · ℃ 처럼 글자로).
-- 맨 끝에 **이 문제가 물고 늘어질 수 있는 것** — 변형되어 나올 만한 물음 두 개, 한 줄 답까지.
-${EASY_RULE}`;
+[여러 물음이 있을 때]
+문제에 (1) (2) … 또는 ① ② … 처럼 물음이 여러 개면, 물음마다 위 A·B 짜임새를 하나씩
+통째로 반복해서 쓴다. 덩어리 제목은 원문 번호를 그대로 쓴다. 물음마다 유형이 다르면
+(계산형·서술형·시퀀스형이 섞여 있으면) 그 물음에 맞는 유형(A·B·C)을 골라 쓴다. 답안에 있는 번호는
+전부 나와야 한다 — 물음이 5개면 덩어리도 5개다.`;
 }
 
 /* ══════════════════════════════════════════════════════
@@ -6659,7 +6663,13 @@ body.onlyimport #boxFiles,body.onlyimport #boxImport{display:block!important}
     /* ★ 줄머리의 마크다운 표시(- · 3) · ####)는 떼어 두고 나머지만 손댄다.
        안 그러면 «- 1/√3 …» 의 앞 붙임표까지 수식에 빨려 들어가
        목록이 목록으로 안 보이고 뺄셈처럼 그려진다. */
+    /* ★ [[box]]·[[/box]]·```코드``` 는 내가 만든 표시라 수식이 아니다 — 그런데
+       «[영문]」 을 단위로 보고 \mathrm{} 로 감싸는 줄(위쪽)이 [[box]] 속의
+       [box] 도 단위로 착각해 통째로 망가뜨렸다(«$[[\mathrm{box}]]$» 처럼).
+       이 표시가 정확히 나온 줄은 아예 손대지 않고 그대로 돌려준다. */
     return s.split('\n').map(line => {
+      const bare = line.trim();
+      if(bare==='[[box]]' || bare==='[[/box]]' || /^```\s*[\w+-]*\s*$/.test(bare)) return line;
       const head = (line.match(/^(\s*(?:[-*+]\s+|\d+[.)]\s+|#{1,6}\s+|>\s*)?)/) || [''])[0];
       const parts = line.slice(head.length)
         .split(/(\$\$[\s\S]*?\$\$|\$[^\n$]*?\$|`[^`]*`|!\[[^\]\n]*\]\([^)\n]*\))/g);
@@ -6755,6 +6765,12 @@ body.onlyimport #boxFiles,body.onlyimport #boxImport{display:block!important}
   border:1px solid var(--line,#e2e8f0);border-radius:8px;cursor:zoom-in}
 /* .ovl .mdimg 폭 규칙은 v100 으로 옮겼다 — !important 가 낱줄 크기를 눌렀다 */
 .mdimg.zoom{cursor:zoom-out;max-width:none}
+/* 📌 그림 크기 고정 — 문항마다 따로 정해 둔 크기(%)를 무시하고 다 같은 기준으로 보여준다.
+   저장된 값 자체는 안 건드린다 — 이 켜짐 상태에서만 화면에서 무시할 뿐이라, 끄면
+   원래 정해 둔 크기로 바로 돌아온다. 그래서 기존 낱장 크기 손잡이와 안 부딪힌다. */
+body.img-fix .qmd .mdimg,body.img-fix .ez .mdimg,body.img-fix .easybox .mdimg,
+body.img-fix #ovl .mdimg{width:auto!important;max-width:100%!important}
+body.img-fix .qmd figure[data-w],body.img-fix .ez figure[data-w]{width:auto!important}
 
 /* ── 고쳐 쓰는 창 ── */
 .edw{position:fixed;inset:0;z-index:999;display:none;background:rgba(15,23,42,.45)}
@@ -11977,6 +11993,35 @@ body.rd-night{
 body.rd-night img{filter:brightness(.92) contrast(1.04)}
 body.rd-night .katex{color:#E8EDF4}
 
+/* «코드» 읽기 테마 — 화면 전체를 어둡게. ```코드``` 박스 기능과는 다른 것이다
+   (그건 박스 하나만, 이건 화면 전체) — 켜고 끄기 따로 되고 같이 켜도 된다.
+   ★ 이 앱은 색 이름 체계가 두 벌이다 — 오래된 쪽(--paper·--ink 등, 위 세 테마가
+     쓰는 것)과 나중에 새로 판을 짠 쪽(--surface·--bg·--brand 등, 한눈에 보기의
+     실제 글 상자 «.ovl .pane» 이 쓰는 것). 둘 다 같이 새로 칠해야 진짜로 다 어두워진다. */
+body.rd-code{
+  --paper:#0D1117; --card:#161B22; --ink:#C9D1D9; --ink-2:#8B949E; --rule:#30363D;
+  --accent:#58A6FF; --ok:#7EE787; --stamp:#F0883E;
+  --bg:#0D1117; --surface:#161B22; --surface-2:#1C2330; --surface-3:#242C3B;
+  --muted:#8B949E; --line:#30363D; --line-strong:#3D4757;
+  --brand:#58A6FF; --brand-2:#79C0FF; --brand-soft:rgba(88,166,255,.14);
+}
+/* ★ 처음엔 .ez·.qmd 에 모노스페이스 글꼴을 통째로 입혔다 — 그런데 이게 수식(KaTeX)
+   안쪽까지 새어 들어가서, 분수 줄이 뭉개지고 근호가 사라지고, 화면에 안 보여야 할
+   스크린리더용 사본까지 겹쳐 보이는 심각한 문제가 났다(글꼴 계산이 어긋나면서
+   KaTeX 가 감춰 두는 방식 자체가 깨진 것으로 보인다). 그래서 모노스페이스는
+   포기하고, 수식 글꼴은 손대지 않는다 — 어두운 색만으로도 "코드" 느낌은 충분하다. */
+body.rd-code .qmd .katex,body.rd-code .ez .katex,body.rd-code .easybox .katex{
+  font-family:KaTeX_Main,"Times New Roman",serif!important;
+}
+body.rd-code .qmd .katex,body.rd-code .ez .katex,body.rd-code .easybox .katex{color:#D2A8FF}
+body.rd-code .qmd strong,body.rd-code .ez strong,body.rd-code .easybox strong{color:#FF7B72}
+body.rd-code .qmd table,body.rd-code .ez table{background:#161B22;border-color:#30363D}
+body.rd-code img{filter:brightness(.9) contrast(1.05);border-radius:6px}
+body.rd-code .qbox{background:rgba(88,166,255,.1);border-color:#58A6FF}
+body.rd-code .qmd code,body.rd-code .ez code{background:rgba(88,166,255,.14);color:#79C0FF}
+/* 이미 어두운 화면 위에 ```코드``` 박스까지 있으면 경계가 안 보인다 — 살짝 밝혀서 구분한다 */
+body.rd-code .codeblk{background:#010409;border:1px solid #30363D}
+
 /* ── ② 글자 결 ─────────────────────────────────────── */
 body.rd-on{
   --fs:14.5px; --fs-ez:14.5px; --lh:1.72; --lh-ez:1.78;
@@ -12051,7 +12096,7 @@ body.rd-on .qmd th,body.rd-on .ez th{font-weight:800}
 (function(){
 'use strict';
 const KEY='prac:read:v1';
-const THEMES=[['paper','종이'],['plain','기본'],['night','밤']];
+const THEMES=[['paper','종이'],['plain','기본'],['night','밤'],['code','코드']];
 let V=(()=>{ try{ return Object.assign({on:true,th:'paper'},JSON.parse(localStorage.getItem(KEY)||'{}')) }
              catch(e){ return {on:true,th:'paper'} } })();
 function apply(){
