@@ -765,7 +765,16 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
       <button type="button" data-ts="1" aria-label="수식 크게">√+</button>
     </span>
     <button class="zb" type="button" id="ovImgFix" title="문항마다 따로 정해 둔 그림 크기를 무시하고 다 같은 기준으로 보여줍니다">📌 그림 고정</button>
+    <span class="lockset ovlock" id="ovLockSet" title="잠근 칸은 변환·다시쓰기에서 통째로 건너뜁니다">
+      <span class="lockt">🔒</span>
+      <button class="zb lk" data-lock="q"  type="button" title="문제 칸 변환 금지">문제</button>
+      <button class="zb lk" data-lock="a"  type="button" title="답안 칸 변환 금지">답안</button>
+      <button class="zb lk" data-lock="ez" type="button" title="쉬운 풀이 변환 금지">풀이</button>
+    </span>
     <button class="zb" type="button" id="ovReformat" title="원본(그림·기존 데이터)에서 이 문항의 문제·답안·쉬운 풀이를 처음부터 다시 만듭니다 — 겉모습만 손보는 게 아니라 내용을 새로 뽑습니다">✨ 이 문제 꾸미기</button>
+    <!-- ★ v192 · 변환 중지 — 목록 화면까지 나가지 않고 여기서 바로 세운다.
+         돌고 있을 때만 나타난다(평소엔 자리를 안 잡는다). -->
+    <button class="zb ovstop" type="button" id="ovCvStop" hidden title="지금 돌고 있는 글자 변환·해설 만들기를 멈춥니다">■ 변환 중지</button>
     <button class="zb" type="button" id="ovPrev">‹ 이전</button>
     <button class="zb" type="button" id="ovNext">다음 ›</button>
     <button class="zb pick" type="button" id="ovClose">닫기 (Esc)</button>
@@ -773,6 +782,21 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
   <div class="otabs">
     <button type="button" data-oseg="a" class="on">답안</button>
     <button type="button" data-oseg="e">쉬운 풀이</button>
+  </div>
+  <!-- ★ v192 · 한눈에보기 안에서 진행 상황을 본다.
+       여태 진행 로그는 목록 화면 아래쪽에만 있어서, 한눈에를 열어 둔 채로는
+       «지금 되고 있는 건지 멈춘 건지» 알 길이 없었다. 이제 여기서 바로 보인다:
+       무엇을 하는 중인지 · 몇 번째인지 · 막대 · 지나간 줄 · 그리고 «완료» 표시. -->
+  <div class="ovjob" id="ovJob" hidden>
+    <div class="ovjob-h">
+      <b id="ovJobT">준비 중…</b>
+      <span class="ovjob-n" id="ovJobN"></span>
+      <span class="sp"></span>
+      <button type="button" id="ovRfStop" class="stop">■ 중지</button>
+      <button type="button" id="ovJobX" class="x" title="닫기">✕</button>
+    </div>
+    <div class="ovjob-bar"><i id="ovJobBar"></i></div>
+    <div class="ovjob-log" id="ovJobLog"></div>
   </div>
   <div class="ob">
     <div class="pane left" id="ovLeft"></div>
@@ -877,6 +901,19 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
         </select>
         <button class="chip" id="fSplit" type="button" title="넓은 화면에서 문제와 답안을 좌우로 나눕니다">▥ 두 칸</button>
         <button class="chip" id="fImgFix" type="button" title="문항마다 따로 정해 둔 그림 크기를 무시하고, 그림을 다 같은 기준으로 보여줍니다 (저장된 크기값 자체는 안 바뀝니다)">📌 그림 크기 고정</button>
+        <span class="cvsep"></span>
+        <!-- ★ v192 · 칸별 «변환 금지» 자물쇠 ─────────────────────────
+             왜 넣었나 — 세 칸 중 «이미 손봐 둬서 건드리면 안 되는 칸» 이 늘 있다.
+             문제만 멀쩡하고 답안이 엉망일 때 «✨ 이 문제 꾸미기» 를 누르면
+             멀쩡하던 문제까지 새로 뽑혀 덮어써졌다. 이제 잠가 두면 그 칸은
+             변환·재작성 모두 통째로 건너뛴다 — 일괄 작업도 이 자물쇠를 지킨다.
+             (한눈에보기 머리줄에도 똑같은 자물쇠 세 개를 둔다) -->
+        <span class="lockset" id="lockSet" title="잠근 칸은 변환·다시쓰기에서 통째로 건너뜁니다">
+          <span class="lockt">변환 금지</span>
+          <button class="chip lk" data-lock="q"  type="button" title="문제 칸을 잠급니다 — 그림→글자 변환에서 문제를 건너뜁니다">문제</button>
+          <button class="chip lk" data-lock="a"  type="button" title="답안 칸을 잠급니다 — 그림→글자 변환에서 답안을 건너뜁니다">답안</button>
+          <button class="chip lk" data-lock="ez" type="button" title="쉬운 풀이 칸을 잠급니다 — 해설 새로 쓰기를 건너뜁니다">쉬운 풀이</button>
+        </span>
         <span class="cvstat" id="cvStat"></span>
         <div class="cvprog" id="cvProg" hidden><i id="cvBar"></i></div>
       </div>
@@ -2733,6 +2770,41 @@ function mdLite(t){
   }
   close(); return out;
 }
+/* ══════════════════════════════════════════════════════════════
+   v192 · «고쳐도 안 깨지는» 서식 알아보기
+
+   여태 서식은 «글자가 정확히 이 모양일 때만» 입혀졌다. 그래서 고치기 창에서
+   글자 몇 개만 지워도 — 괄호 한 짝, 뒤에 붙은 빈칸 하나 — 파란 줄과 박스가
+   통째로 풀렸다. 고치는 건 당연히 할 수 있어야 하는 일이므로, 알아보는 쪽을
+   너그럽게 만든다. 아래 세 가지를 견딘다.
+     ① 굵게 감싼 것      **(1) …**  __(1) …__   → 벗겨 내고 본다
+     ② 전각 괄호·번호     （1）  ⑴              → 반각으로 맞춰 본다
+     ③ 번호 뒤 빈칸 없음  (1)내용                → 있든 없든 같게 본다
+   ══════════════════════════════════════════════════════════════ */
+/* 굵게 표시를 벗긴다 — 알아보기용으로만 쓰고, 그려낼 땐 원래 줄을 쓴다 */
+const unbold = s => String(s)
+  .replace(/^\s*(?:\*\*|__)\s*([\s\S]*?)\s*(?:\*\*|__)\s*$/, '$1').trim();
+/* 괄호·번호를 반각으로 맞춘다 */
+const flatnum = s => String(s)
+  .replace(/[（(]\s*(\d{1,2})\s*[）)]/g, '($1)')
+  .replace(/[⑴-⒇]/g, m => '(' + (m.charCodeAt(0) - 0x2473) + ')');
+/* 알아보기용 «맨몸» 줄 */
+const bareline = s => flatnum(unbold(s));
+
+/* 박스 여닫는 표시 — [[box]] · [[ box ]] · [box] · [[박스]] · [[BOX]] 다 받는다 */
+const BOXOPEN  = t => /^\[{1,2}\s*(?:box|박스)\s*\]{1,2}\s*$/i.test(String(t).trim());
+const BOXCLOSE = t => /^\[{1,2}\s*\/\s*(?:box|박스|end)\s*\]{1,2}\s*$/i.test(String(t).trim())
+                   || /^\[{1,2}\s*(?:\/box|endbox|박스끝)\s*\]{1,2}\s*$/i.test(String(t).trim());
+
+/* 큰 물음 (1)(2)(3) — 뒤에 빈칸이 없어도, 굵게 감싸도 알아본다 */
+const NUMLINE = t => /^\(\d{1,2}\)/.test(bareline(t));
+/* 잔물음 ①②③ · 1) · 가. */
+const SUBLINE = t => /^(?:[①-⑳㉑-㉟]|\d{1,2}\)|[가-핳]\.)/.test(bareline(t));
+/* «답 : 4000[kVA]» — 앞에 ▶ ► ▷ - • 같은 머리표가 붙어 있어도 답 줄로 본다 */
+const ANSLINE = t => /^(?:[▶►▷▸‣·•\-–—]\s*)?답\s*[:：]/.test(bareline(t));
+/* 박스 안의 «1. 주어진 값» 같은 짧은 소제목 (계산식은 제외) */
+const BOXHEAD = t => /^\d+\.\s*[^\d$]{1,20}$/.test(bareline(t));
+
 /* ★ 예전에는 여기서 $…$ 를 «벗겨» 버렸다. 해설에 LaTeX 를 못 쓰게 막아 두었기 때문이다.
    이제 해설도 수식으로 쓴다 — 달러 기호를 그대로 남겨 KaTeX 가 그리게 한다. */
 const inl = x => x.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
@@ -2754,6 +2826,47 @@ const inl = x => x.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
    ══════════════════════════════════════════════════════════════ */
 
 /* 마크다운 — 표·제목·목록·굵게·코드·수식까지. 필기뷰어 해설칸과 같은 결. */
+/* 박스 «안» 을 그린다 — 밖과 같은 규칙(파란 물음 줄 · 잔물음 · 목록 · 답 줄)을 쓰고,
+   빈 줄은 친 만큼 벌린다. 안쪽에서 또 박스를 열지는 않는다(겹박스는 읽기 나쁘다). */
+function boxInner(rawLines){
+  let html = '', ul = false, first = true;
+  const shutUl = () => { if(ul){ html += '</ul>'; ul = false; } };
+  for(let k = 0; k < rawLines.length; k++){
+    const line = rawLines[k];
+    const t = line.trim();
+    if(!t){
+      /* 빈 줄 — 이어진 만큼 세어서 그만큼 벌린다 (엔터 두 번이면 한 칸, 세 번이면 두 칸) */
+      shutUl();
+      let blanks = 1;
+      while(k + blanks < rawLines.length && !rawLines[k + blanks].trim()) blanks++;
+      if(!first) html += `<div class="boxgap"${blanks >= 3 ? ' data-big="1"' : ''}></div>`;
+      k += blanks - 1; continue;
+    }
+    if(BOXHEAD(t)){ shutUl(); html += `<p class="boxhead">${inlR(t)}</p>`; first = false; continue; }
+    if(/^[-*]\s/.test(t)){
+      if(!ul){ html += '<ul>'; ul = true; }
+      html += `<li>${inlR(t.replace(/^[-*]\s/, ''))}</li>`; first = false; continue;
+    }
+    shutUl();
+    const bare = bareline(t);
+    if(NUMLINE(t)){
+      const pm = bare.match(/^(\(\d{1,2}\))\s*([\s\S]*)$/);
+      html += `<p class="num"><span class="numbadge">${pm[1]}</span>${inlR(pm[2])}</p>`;
+      first = false; continue;
+    }
+    if(SUBLINE(t)){
+      const pm = bare.match(/^([①-⑳㉑-㉟]|\d{1,2}\)|[가-핳]\.)\s*([\s\S]*)$/);
+      html += `<p class="subnum"><span class="numbadge">${pm[1]}</span>${inlR(pm[2])}</p>`;
+      first = false; continue;
+    }
+    if(ANSLINE(t)){ html += `<p class="ansline">${inlR(t)}</p>`; first = false; continue; }
+    if(/^#{1,6}\s/.test(t)){ html += `<h4>${inlR(t.replace(/^#+\s/, ''))}</h4>`; first = false; continue; }
+    html += `<p>${inlR(t)}</p>`; first = false;
+  }
+  shutUl();
+  return html;
+}
+
 function mdRich(src){
   const lines = esc(String(src || "")).split("\n");
   let out = "", ul = false, ol = false, i = 0;
@@ -2804,24 +2917,32 @@ function mdRich(src){
       continue;
     }
 
-    /* 박스 — [[box]] 로 열고 [[/box]] 로 닫은 사이를 테두리 있는 박스로 그린다 */
-    if(t === '[[box]]'){
+    /* 박스 — [[box]] 로 열고 [[/box]] 로 닫은 사이를 테두리 있는 박스로 그린다.
+
+       ★ v192 — 손으로 «고치기» 하다가 서식이 통째로 풀리던 것을 고쳤다.
+       예전에는 여는 표시를 t === '[[box]]' 로 «글자 하나까지 똑같을 때만» 알아봤다.
+       그래서 대괄호 한 짝을 지우거나([[box]), 사이에 빈칸이 들어가거나([[ box ]]),
+       한글로 쓰면([[박스]]) 못 알아보고 박스가 통째로 사라졌다. 이제 웬만큼
+       흐트러져도 알아본다 — 글자를 고치는 게 서식을 깨는 일이 되면 안 된다.
+
+       ★ 그리고 박스 «안» 도 밖과 똑같은 규칙으로 그린다. 예전엔 안쪽을 죄다
+       맨 문단(<p>)으로만 찍어서, 박스에 넣는 순간 (1) 파란 줄도 ① 잔물음도
+       다 풀려 밋밋해졌다. 이제 안에서도 (1)·①·목록·소제목이 살아 있다.
+
+       ★ 빈 줄도 살린다. 예전엔 .filter(Boolean) 로 빈 줄을 통째로 버려서,
+       박스 안에서 엔터를 두 번 세 번 쳐도 아무 일도 안 일어났다(그래서 ** 같은
+       가짜 빈 줄을 넣어 쓰시게 만들었다). 이제 친 만큼 벌어진다. */
+    if(BOXOPEN(t)){
       close();
       const body=[]; i++;
-      while(i < lines.length && lines[i].trim() !== '[[/box]]'){ body.push(lines[i]); i++; }
-      if(i < lines.length) i++;   /* 닫는 줄까지 건너뛴다 */
-      /* «1. 주어진 값» 처럼 짧게 번호만 붙은 줄은 소제목으로 보고 굵게 그린다.
-         숫자나 $(수식) 가 더 들어간 줄(진짜 계산식)은 소제목이 아니니 손대지 않는다. */
-      const isBoxHead = l => /^\d+\.\s+[^\d$]{1,20}$/.test(l);
-      const inner = body.map(l=>l.trim()).filter(Boolean)
-        .map((l,idx) => {
-          if(isBoxHead(l)) return `<p class="boxhead">${inlR(l)}</p>`;
-          let html = `<p>${inlR(l)}</p>`;
-          /* 박스 첫 줄(제목)의 앞머리 (1) · ① 도 다른 데와 같은 파란색으로 맞춘다 */
-          if(idx===0) html = html.replace(/(<strong>)(\(\d{1,2}\)|[①-⑳㉑-㉟])(\s*)/, '$1<span class="numbadge">$2</span>$3');
-          return html;
-        }).join('');
-      out += `<div class="qbox">${inner}</div>`;
+      let depth=1;
+      while(i < lines.length){
+        const s = lines[i].trim();
+        if(BOXCLOSE(s)){ depth--; if(!depth){ i++; break; } }
+        else if(BOXOPEN(s)) depth++;          /* 안에 또 열려 있어도 안 터지게 */
+        body.push(lines[i]); i++;
+      }
+      out += `<div class="qbox">${boxInner(body)}</div>`;
       continue;
     }
 
@@ -2858,27 +2979,38 @@ function mdRich(src){
     }
     /* (1)(2)(3) 은 큰 물음 구분 — 파란 줄을 친다.
        ①②③ · 가.나.다. 는 그 «안의» 잔물음이라, 굵은 글자로만 가볍게 — 안 그러면
-       (2) 안에 ①②가 또 있을 때 파란 줄이 겹겹이 쌓여 꾸역꾸역 들어찬 것처럼 보인다. */
-    if(/^\(\d{1,2}\)\s/.test(t)){
+       (2) 안에 ①②가 또 있을 때 파란 줄이 겹겹이 쌓여 꾸역꾸역 들어찬 것처럼 보인다.
+       ★ v192 — **(1)** 처럼 굵게 감싸거나 «(1)내용» 처럼 빈칸을 빼먹어도 알아본다.
+         (AI 가 자꾸 굵게 감싸는 바람에 색이 사라지던 것을, 프롬프트로 막는 대신
+          알아보는 쪽을 너그럽게 해서 근본에서 없앴다) */
+    if(NUMLINE(t)){
       close();
-      const pm = t.match(/^(\(\d{1,2}\))\s+([\s\S]*)$/);
-      if(pm) out += `<p class="num"${alignAttr}><span class="numbadge">${pm[1]}</span>${inlR(pm[2])}</p>`;
-      else out += `<p class="num"${alignAttr}>${inlR(t)}</p>`;
+      const pm = bareline(t).match(/^(\(\d{1,2}\))\s*([\s\S]*)$/);
+      out += `<p class="num"${alignAttr}><span class="numbadge">${pm[1]}</span>${inlR(pm[2])}</p>`;
       i++; continue;
     }
-    if(/^([①-⑳㉑-㉟]|\d{1,2}\)|[가-핳]\.)\s/.test(t)){
+    if(SUBLINE(t)){
       close();
-      const pm = t.match(/^([①-⑳㉑-㉟]|\d{1,2}\)|[가-핳]\.)\s+([\s\S]*)$/);
-      if(pm) out += `<p class="subnum"${alignAttr}><span class="numbadge">${pm[1]}</span>${inlR(pm[2])}</p>`;
-      else out += `<p class="subnum"${alignAttr}>${inlR(t)}</p>`;
+      const pm = bareline(t).match(/^([①-⑳㉑-㉟]|\d{1,2}\)|[가-핳]\.)\s*([\s\S]*)$/);
+      out += `<p class="subnum"${alignAttr}><span class="numbadge">${pm[1]}</span>${inlR(pm[2])}</p>`;
       i++; continue;
     }
+    if(ANSLINE(t)){ close(); out += `<p class="ansline"${alignAttr}>${inlR(t)}</p>`; i++; continue; }
     close(); out += `<p${alignAttr}>${inlR(t)}</p>`; i++;
   }
   close();
   /* 물음 앞의 설명글(지문)에 시인성을 준다 — 첫 번호 물음이 나오기 전까지를
-     강조 상자로 감싼다. 번호 물음이 아예 없으면(짧은 단일 문제) 손대지 않는다. */
-  const firstNumAt = out.indexOf('<p class="num"');
+     강조 상자로 감싼다. 번호 물음이 아예 없으면(짧은 단일 문제) 손대지 않는다.
+
+     ★ v192 — 여기서 박스가 통째로 비어 보이던 버그를 잡았다.
+     예전에는 «첫 <p class="num">» 자리를 글자 위치로만 찾아 그 앞뒤를 잘랐다.
+     그런데 그 물음 줄이 박스 «안» 에 있으면, 자르는 자리가 <div class="qbox"> 의
+     한복판이 된다 — 여는 태그와 닫는 태그가 갈라져 박스가 빈 껍데기로 나오고
+     내용은 박스 밖으로 쏟아졌다(**(1)번문항** 을 넣으면 늘 이랬다).
+     그래서 박스가 먼저 나오면 거기서 자른다 — 태그를 가로지르지 않는다. */
+  let firstNumAt = out.indexOf('<p class="num"');
+  const firstBoxAt = out.indexOf('<div class="qbox"');
+  if(firstBoxAt >= 0 && (firstNumAt < 0 || firstNumAt > firstBoxAt)) firstNumAt = firstBoxAt;
   if(firstNumAt > 0) out = `<div class="introbox">${out.slice(0, firstNumAt)}</div>${out.slice(firstNumAt)}`;
   return out;
 }
@@ -3164,8 +3296,12 @@ async function cvOne(r, side){
 
 async function cvRow(r, force){
   const patch = {};
-  if(r.q_url && (force || !r.q_md)){ const m = await cvOne(r, "q"); if(m) patch.q_md = m; }
-  if(r.a_url && (force || !r.a_md)){ const m = await cvOne(r, "a"); if(m) patch.a_md = m; }
+  /* ★ v192 — 잠긴 칸은 손대지 않는다. 여기 한 곳만 막으면 낱개든 일괄이든
+     («변환» · «이 회차 전체» · «한 번에») 전부 이 자물쇠를 지키게 된다. */
+  const lockQ = (()=>{ try{ return window.__locked && window.__locked('q') }catch(e){ return false } })();
+  const lockA = (()=>{ try{ return window.__locked && window.__locked('a') }catch(e){ return false } })();
+  if(r.q_url && !lockQ && (force || !r.q_md)){ const m = await cvOne(r, "q"); if(m) patch.q_md = m; }
+  if(r.a_url && !lockA && (force || !r.a_md)){ const m = await cvOne(r, "a"); if(m) patch.a_md = m; }
   if(!Object.keys(patch).length) return false;
   const up = await sb.from("practicals").update(patch).eq("id", r.id);
   if(up.error) throw new Error(/q_md|a_md|schema cache/i.test(up.error.message)
@@ -3311,74 +3447,185 @@ $("#fSplit")?.addEventListener("click", () => {
   $("#fImgFix")?.addEventListener("click", flip);
   $("#ovImgFix")?.addEventListener("click", flip);
 })();
-/* ✨ 이 문제 꾸미기 (v191) — 겉모습만 손보던 것을 «진짜 다시 만들기» 로 바꿨다.
-
-   예전엔 reformatRow() 로 «이미 있는 글» 의 짜임새만 고쳐 썼다. 그러다 보니
-   옛날 프롬프트로 뽑아 둔 뼈대(«공통으로 알아야 할 것» 식 / «무엇을 묻는 문제인가» 식 /
-   «1.주어진 값 2.핵심 공식» 식 …)가 그대로 남아, 회차마다 양식이 제각각으로
-   섞여 버렸다. 겉을 아무리 다듬어도 뼈대가 안 바뀌니 통일이 될 수가 없었다.
-
-   그래서 이제는 원본에서 다시 뽑는다 ──
-     ① ⚡ cvRow(r,true)  — 원본 그림(q_url·a_url)에서 문제·답안 글자를 새로 뽑는다.
-                            그림이 없는 문항은 이 단계를 건너뛴다(뽑을 원본이 없으므로).
-     ② ✎ ezMake(id,true) — ①에서 새로 뽑힌 문제·답안을 바탕으로, «지금» 프롬프트로
-                            쉬운 풀이를 처음부터 다시 쓴다. 그래서 양식이 저절로 통일된다.
-
-   ①을 먼저 하는 게 핵심이다. 순서가 거꾸로면 옛 글자 위에 새 해설이 얹혀
-   앞뒤가 안 맞는 물건이 나온다 — 예전에 단추 두 개로 나뉘어 있을 때 실제로 그랬다. */
-$("#ovReformat")?.addEventListener("click", async () => {
-  if(CVBUSY || EZBUSY) return alert("지금 다른 작업이 돌고 있습니다. 그것부터 끝내거나 중지해 주세요.");
-  const r = ROWS.find(x => String(x.id) === String(OVID));
-  if(!r) return cvSay("지금 보고 있는 문항을 찾지 못했습니다 — 한눈에에서 문항을 먼저 열어 주세요.");
-
-  const hasImg = !!(r.q_url || r.a_url);
-  const name = `${r.year}년 제${r.session}회 ${r.no}번`;
-  if(!confirm(`${name} 을(를) 원본에서 처음부터 다시 만듭니다.\n\n`
-    + (hasImg ? "① 그림 → 문제·답안 글자 새로 뽑기\n" : "① 원본 그림이 없어 글자 뽑기는 건너뜁니다\n")
-    + "② 새 문제·답안으로 쉬운 풀이 새로 쓰기\n\n"
-    + "지금 있는 내용은 새 것으로 덮어씁니다. 30~60초쯤 걸립니다. 계속할까요?")) return;
-
-  const btn = $("#ovReformat");
-  const t0 = btn ? btn.textContent : "";
-  if(btn){ btn.disabled = true; btn.textContent = "✨ 만드는 중…"; }
-  CVBUSY = true; EZBUSY = true;
-  log(`이 문제 꾸미기 시작 — ${name}`);
-
-  let hurt = "";
-  try{
-    /* ① 원본 그림에서 글자를 새로 뽑는다. «변환 안 함» 으로 걸어 둔 문항이라도
-       사람이 직접 이 단추를 눌렀으니 이번 한 번은 풀고 돌린다(끝나면 도로 건다). */
-    if(hasImg){
-      cvSay("① 그림을 글자로 새로 뽑는 중…");
-      let was = false;
-      try{ was = window.__cvNO && window.__cvNO.has(String(r.id)); }catch(e){}
-      try{
-        if(was && window.__cvNODel) window.__cvNODel(String(r.id));
-        await window.cvRow(r, true);
-      } finally {
-        if(was && window.__cvNOAdd) window.__cvNOAdd(String(r.id));
-      }
-      log(`① 글자 새로 뽑기 됨 — ${name}`);
-    }
-    /* ② 새로 뽑힌 글자를 바탕으로 쉬운 풀이를 처음부터 다시 쓴다.
-       easy_md 를 먼저 비워야 «이미 있으니 건너뜀» 으로 빠지지 않는다. */
-    cvSay("② 쉬운 풀이를 새로 쓰는 중…");
-    r.easy_md = null;
-    await window.ezMake(r.id, true);
-    log(`② 쉬운 풀이 새로 쓰기 됨 — ${name}`);
-  }catch(e){
-    hurt = (e && e.message) || String(e);
-    log(`이 문제 꾸미기 실패 — ${name} — ${hurt}`);
+/* ══ v192 · 진행 상황을 한눈에보기 «안» 에서 보여 준다 ═══════════════
+   여태 로그는 목록 화면 아래에만 있었다. 한눈에를 띄워 놓고 «✨ 꾸미기» 를
+   누르면 화면은 가만히 있고 아무 말도 없어서, 되는 중인지 죽은 건지 알 수가
+   없었다. 이제 위쪽에 판이 하나 뜨고 — 무엇을 하는 중인지 · 몇 번째인지 ·
+   막대 · 지나간 줄이 남고 · 끝나면 «완료» 라고 초록으로 못 박는다.
+   목록 쪽 로그(window.__pracLog)에도 그대로 같이 적는다. */
+let RFBUSY = false, RFSTOP = false;
+const rfEl = k => document.getElementById(k);
+function rfShow(){ const j = rfEl("ovJob"); if(j){ j.hidden = false; j.classList.remove("done","bad"); } }
+function rfSay(msg, alsoAlert){
+  const t = rfEl("ovJobT"); if(t) t.textContent = msg;
+  try{ cvSay(msg); }catch(e){}
+  if(alsoAlert && !rfEl("ovJob")) alert(msg);
+}
+function rfLog(line){
+  const box = rfEl("ovJobLog"); if(box){
+    const d = document.createElement("div");
+    d.textContent = line;
+    if(/^✗/.test(line)) d.className = "bad";
+    else if(/^✓/.test(line)) d.className = "ok";
+    box.appendChild(d); box.scrollTop = box.scrollHeight;
   }
+  try{ window.__pracLog && window.__pracLog(line); }catch(e){}
+}
+function rfStart(total, name){
+  RFBUSY = true;
+  rfShow();
+  const box = rfEl("ovJobLog"); if(box) box.innerHTML = "";
+  const bar = rfEl("ovJobBar"); if(bar) bar.style.width = "0%";
+  const stop = rfEl("ovRfStop"); if(stop) stop.hidden = false;
+  const n = rfEl("ovJobN"); if(n) n.textContent = `0 / ${total}`;
+  const b = document.getElementById("ovReformat");
+  if(b){ b.disabled = true; b.dataset.t0 = b.textContent; b.textContent = "✨ 손보는 중…"; }
+  rfSay("와꾸 다시 맞추는 중…");
+  rfLog(`시작 — ${name} · 손볼 칸 ${total}개`);
+}
+function rfStep(n, total, msg){
+  const el = rfEl("ovJobN"); if(el) el.textContent = `${n} / ${total}`;
+  const bar = rfEl("ovJobBar"); if(bar) bar.style.width = ((n - 1) / total * 100) + "%";
+  rfSay(msg);
+}
+function rfEnd(ok, bad, stopped){
+  RFBUSY = false; RFSTOP = false;
+  const bar = rfEl("ovJobBar"); if(bar) bar.style.width = "100%";
+  /* 세던 숫자도 끝까지 채운다 — 예전엔 «2 / 3» 에 멈춰 있어서 다 된 건지 헷갈렸다 */
+  const cnt = rfEl("ovJobN");
+  if(cnt){ const m = (cnt.textContent || "").match(/\/\s*(\d+)/); if(m) cnt.textContent = `${m[1]} / ${m[1]}`; }
+  const stop = rfEl("ovRfStop"); if(stop) stop.hidden = true;
+  const b = document.getElementById("ovReformat");
+  if(b){ b.disabled = false; b.textContent = b.dataset.t0 || "✨ 이 문제 꾸미기"; }
+  const j = rfEl("ovJob");
+  const msg = stopped ? `중지함 — ${ok}개까지 됨` + (bad ? ` · ${bad}개 실패` : "")
+            : bad ? `끝남 — ${ok}개 됨 · ${bad}개 실패`
+                  : `✅ 완료 — ${ok}개 다 손봤습니다`;
+  if(j) j.classList.add(bad || stopped ? "bad" : "done");
+  rfSay(msg);
+  rfLog(msg);
+  /* 깨끗이 끝났으면 잠시 뒤 스스로 접는다 — 실패가 있으면 남겨 둔다(읽어야 하니까) */
+  if(!bad && !stopped) setTimeout(() => { const x = rfEl("ovJob"); if(x && !RFBUSY) x.hidden = true; }, 6000);
+}
+document.getElementById("ovJobX")?.addEventListener("click", () => { const j = rfEl("ovJob"); if(j) j.hidden = true; });
 
-  CVBUSY = false; EZBUSY = false;
-  if(btn){ btn.disabled = false; btn.textContent = t0 || "✨ 이 문제 꾸미기"; }
-  cvSay(hurt ? `이 문제 꾸미기 실패 — ${hurt}` : "이 문제 꾸미기 완료");
-  log(`이 문제 꾸미기 끝 — ${name}`);
+/* ══ v192 · 변환 중지 단추를 한눈에보기에도 ═══════════════════════
+   목록 쪽 «중지» 는 화면을 나가야 눌렀다. 돌고 있는 동안에는 여기서도 세울 수
+   있어야 한다. 목록 쪽 #cvStop 을 그대로 대신 눌러 주는 방식이라, 멈추는 규칙이
+   두 벌이 되지 않는다(한쪽만 고쳐도 양쪽이 같이 맞는다). */
+document.getElementById("ovCvStop")?.addEventListener("click", () => {
+  try{ CVSTOP = true; }catch(e){}
+  const s = document.getElementById("cvStop");
+  if(s && !s.hidden) s.click();
+  rfShow(); rfSay("멈추는 중… 지금 하고 있는 문항이 끝나면 섭니다.");
+});
+/* 돌고 있을 때만 보이게 하고, 목록 쪽 진행 상황을 한눈에 판에 그대로 옮겨 적는다 */
+setInterval(() => {
+  const ovl = document.getElementById("ovl");
+  if(!ovl || !ovl.classList.contains("on")) return;
+  let busy = false;
+  try{ busy = CVBUSY || EZBUSY; }catch(e){}
+  const b = document.getElementById("ovCvStop");
+  if(b) b.hidden = !busy;
+  if(!busy || RFBUSY) return;             /* 꾸미기가 돌 때는 그쪽 글이 우선 */
+  const stat = document.getElementById("cvStat");
+  const txt = stat ? (stat.textContent || "").trim() : "";
+  if(!txt || txt === window.__ovLastStat) return;
+  window.__ovLastStat = txt;
+  rfShow();
+  const t = rfEl("ovJobT"); if(t) t.textContent = txt;
+  const src = document.getElementById("cvBar");
+  const bar = rfEl("ovJobBar");
+  if(src && bar) bar.style.width = src.style.width || "0%";
+}, 700);
+
+/* ══ v192 · 칸별 «변환 금지» 자물쇠 ══════════════════════════════
+   문제·답안·쉬운 풀이 세 칸을 따로 잠근다. 잠근 칸은 «✨ 이 문제 꾸미기» 도,
+   일괄 작업도 통째로 건너뛴다. 왜 필요했나 — 세 칸 중 «이미 손봐 둬서 건드리면
+   안 되는 칸» 이 늘 있는데, 예전엔 한 번 누르면 셋 다 덮어써져서 멀쩡하던 것까지
+   날아갔다. 잠금은 이 기기에 남는다(사람마다 손봐 둔 칸이 다르므로). */
+(() => {
+  const LK = "prac:lock:v1";
+  const read = () => { try{ return JSON.parse(localStorage.getItem(LK) || "{}") || {}; }catch(e){ return {}; } };
+  let L = read();
+  const paint = () => {
+    $$('.lockset .lk').forEach(b => {
+      const on = !!L[b.dataset.lock];
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  };
+  const flip = f => {
+    L[f] = !L[f];
+    try{ localStorage.setItem(LK, JSON.stringify(L)); }catch(e){}
+    paint();
+    const NM = { q:"문제", a:"답안", ez:"쉬운 풀이" };
+    try{ cvSay(`${NM[f]} — ${L[f] ? "변환 금지로 잠갔습니다 (앞으로 건너뜁니다)" : "잠금을 풀었습니다"}`); }catch(e){}
+    try{ window.__pracLog && window.__pracLog(`${NM[f]} ${L[f] ? "잠금" : "잠금 해제"}`); }catch(e){}
+  };
+  document.addEventListener("click", e => {
+    const b = e.target.closest(".lockset .lk"); if(!b) return;
+    e.preventDefault(); e.stopPropagation(); flip(b.dataset.lock);
+  }, true);
+  /* 다른 곳(일괄 작업 · 꾸미기)에서 물어볼 수 있게 내준다 */
+  window.__locked = f => { L = read(); return !!L[f]; };
+  window.__lockPaint = paint;
+  paint();
+  setTimeout(paint, 800);
+})();
+
+/* ✨ 이 문제 꾸미기 (v192) — «있는 글» 의 와꾸만 다시 맞춘다.
+
+   v191 에서는 원본 그림부터 다시 읽었는데(OCR), 그러면 이미 손봐 둔 글까지
+   새로 뽑혀 덮어써지고 시간·비용도 크게 든다. 지금 필요한 건 그게 아니라
+   «이미 있는 글을 반듯한 와꾸로 다시 앉히는 것» 이므로 그림은 건드리지 않는다.
+   잠근 칸은 건너뛰고, 진행 상황은 한눈에보기 안에서도 보이게 적어 준다. */
+$("#ovReformat")?.addEventListener("click", async () => {
+  if(RFBUSY) return;
+  const r = ROWS.find(x => String(x.id) === String(OVID));
+  if(!r) return rfSay("지금 보고 있는 문항을 찾지 못했습니다 — 한눈에에서 문항을 먼저 열어 주세요.", true);
+
+  const all = [["q_md","문제","q"],["a_md","답안","a"],["easy_md","쉬운 풀이","ez"]];
+  const todo = all.filter(([key,, lk]) => r[key] && !window.__locked(lk));
+  const lockedOut = all.filter(([,, lk]) => window.__locked(lk)).map(x => x[1]);
+  const empty = all.filter(([key,, lk]) => !r[key] && !window.__locked(lk)).map(x => x[1]);
+
+  const name = `${r.year}년 제${r.session}회 ${r.no}번`;
+  if(!todo.length){
+    return rfSay(lockedOut.length
+      ? `할 게 없습니다 — 세 칸이 다 잠겨 있거나 비어 있습니다 (잠금: ${lockedOut.join("·")})`
+      : "할 게 없습니다 — 이 문항은 세 칸이 다 비어 있습니다.", true);
+  }
+  if(!confirm(`${name} 의 와꾸를 다시 맞춥니다.\n\n`
+    + `· 손볼 칸 : ${todo.map(x => x[1]).join(" · ")}\n`
+    + (lockedOut.length ? `· 잠겨서 건너뜀 : ${lockedOut.join(" · ")}\n` : "")
+    + (empty.length ? `· 내용이 없어 건너뜀 : ${empty.join(" · ")}\n` : "")
+    + `\n그림은 건드리지 않습니다. 숫자·정답도 그대로 두고 줄 나눔·박스만 다시 잡습니다.\n계속할까요?`)) return;
+
+  RFBUSY = false; RFSTOP = false;
+  rfStart(todo.length, name);
+  let ok = 0, bad = 0, n = 0;
+  for(const [field, label] of todo){
+    if(RFSTOP){ rfSay("중지했습니다.", true); break; }
+    n++;
+    rfStep(n, todo.length, `${label} 손보는 중…`);
+    try{
+      const done = await reformatRow(r, field);
+      if(done){ ok++; rfLog(`✓ ${label} — 와꾸 다시 맞춤`); }
+      else { rfLog(`· ${label} — 바뀐 것 없음`); }
+    }catch(e){
+      bad++; rfLog(`✗ ${label} 실패 — ${(e && e.message) || e}`);
+    }
+    /* 한 칸이 끝날 때마다 바로 화면에 반영한다 — 다 끝날 때까지 기다리지 않는다 */
+    try{ if(String(OVID) === String(r.id)) ovDraw(); }catch(e){}
+    await new Promise(x => setTimeout(x, 350));
+  }
+  rfEnd(ok, bad, RFSTOP);
   try{ (window.__pracRedraw || drawList)(); }catch(e){}
   try{ cvCount(); }catch(e){}
-  if(String(OVID) === String(r.id)) ovDraw();   /* 한눈에가 열려 있으면 그 자리에서 바로 갈아 끼운다 */
+  if(String(OVID) === String(r.id)) ovDraw();
 });
+$("#ovRfStop")?.addEventListener("click", () => { RFSTOP = true; rfSay("멈추는 중… 지금 칸이 끝나면 섭니다."); });
 $("#cvGap")?.addEventListener("click", () => cvRun(false));
 $("#cvAll")?.addEventListener("click", () => cvRun(true));
 
@@ -3607,6 +3854,9 @@ async function ezMake(id, force, quiet){
      «해설 만들기» 를 눌러도 아무 일도 안 일어나는 것처럼 보였다. */
   if(!r || (!r.q_url && !r.q_md)) return;
   if(r.easy_md && !force) return;
+  /* ★ v192 — 쉬운 풀이를 잠가 뒀으면 여기서 바로 돌아간다.
+     한 곳만 막으면 낱개·일괄·자동 채우기가 전부 이 자물쇠를 지킨다. */
+  try{ if(window.__locked && window.__locked('ez')) return; }catch(e){}
 
   const card = document.querySelector(`.pcard[data-id="${id}"]`);
   let box = card?.querySelector(".easybox");
@@ -4361,29 +4611,63 @@ function reformatPrompt(text, kind){
 [원문]
 ${body}`;
   }
-  /* 문제·답안 — 이제 «살짝 굵게만» 이 아니라 «구성을 다시 짠다» 로 바꾼다.
-     단, 숫자·정답·계산 결과·조건은 토씨 하나 안 바꾼다 — 문장 순서·나눔·군더더기
-     정리만 자유롭게 한다. ★ 제일 중요한 것: (1)(2)(3) 은 줄 맨 앞에 «맨 글자» 그대로
-     써라 — **(1)** 처럼 굵게 감싸면 안 된다. 화면에서 이 표시를 찾아 자동으로
-     파란 줄・파란 글자를 입히는데, **로 감싸면 그 자동 인식이 깨져서 오히려 색이
-     사라진다(실제로 이 문제가 있었다). 색은 화면이 알아서 입히니 손대지 마라. */
-  const qaPart = kind === 'q' ? `
-- 물음 앞의 설명글(지문)은 하나의 문단으로 정리해 앞에 둔다 — 이 부분은 화면이
-  자동으로 상자를 그려 주니 너는 그냥 «보통 문장» 으로만 써라. **로 감싸지 마라.
-- 조건·단서(«단, …»)도 빠짐없이 지문에 남겨라.`
-    : `
-- 계산 과정이 뒤죽박죽이거나 한 줄에 몰려 있으면 물음 번호별로 줄을 갈라 정리해라.
-  단, 식·대입한 숫자·계산 결과·최종 답은 원문과 완전히 같아야 한다.`;
-  return `아래는 이미 완성된 글이다. 사실 관계(조건·숫자·계산·최종 답)는 단 하나도
-바꾸지 말고, 그 사실을 «어떻게 나열하는지» 만 다시 정리해서 훨씬 읽기 좋게 새로 써라.
-문장을 다시 쓰는 것은 괜찮다 — 다만 값이나 결론이 원문과 달라지면 안 된다.
+  /* ★ v192 — 답안 와꾸를 사진처럼 못 박는다.
+     그동안 «읽기 좋게 정리해라» 정도로만 말해 둬서, 돌릴 때마다 결과가 달랐다
+     (답이 계산식 뒤에 붙기도 하고, 번호가 한 줄에 몰리기도 했다).
+     이제 나올 모양을 통째로 예시로 보여 주고 «이 틀에서 벗어나지 마라» 고 한다.
+     (1)(2) 를 **굵게** 감싸도 이제는 화면이 알아보므로, 굵게 쓰라고 시켜도 안전하다 —
+     v192 에서 알아보는 쪽을 너그럽게 고쳤다. */
+  if(kind === 'a'){
+    return `아래는 이미 완성된 «답안» 이다. 숫자·식·계산 결과·최종 답은 단 하나도 바꾸지 말고,
+줄 나눔과 배치만 아래 [틀] 과 똑같이 맞춰서 다시 써라. 새로 계산하지 마라.
+
+[틀] — 이 모양에서 벗어나지 마라
+[[box]]
+**(1)번문항**
+① $여기에 원문의 식 그대로$
+▶답 : 4000[kVA]
+② $여기에 원문의 식 그대로$
+▶답 : 3000[kVA]
+
+**(2)번문항**
+$여기에 원문의 식 그대로$
+▶답 : 10,000[kVA]
+
+**(5)번문항**
+- 명칭 : 주변압기 차동 계전기
+- 역할 : 변압기의 내부 고장 보호
+[[/box]]
 
 [규칙]
-- 마크다운은 - 목록만 쓴다. **굵게** 는 쓰지 마라 (아래 번호 규칙과 부딪힌다).
-- 물음 번호 (1) (2) (3) … 은 반드시 줄 맨 앞에 «(1) 물음 내용…» 처럼 맨 글자로
-  둔다. 굵게(**) 로 감싸지 마라 — 화면이 이 모양을 찾아 스스로 파랗게 칠한다.
+- 전체를 [[box]] 한 개로 감싼다. [[box]] 와 [[/box]] 는 줄 맨 앞에 단독으로 쓴다.
+- 물음 제목은 **(1)번문항** 처럼 굵게, 한 줄에 하나씩 쓴다.
+- 물음과 물음 사이에는 반드시 빈 줄을 한 줄 넣는다.
+- 잔물음이 있으면 ① ② ③ 을 줄 맨 앞에 쓰고, 한 줄에 하나씩만 둔다.
+- 최종 답은 반드시 «▶답 : 값» 형태로 «따로 한 줄» 을 만들어 쓴다.
+  계산식과 같은 줄에 붙이지 마라 — 이게 제일 중요하다.
+- 서술형 물음(명칭·역할·이유)은 «- 명칭 : …» 처럼 목록으로 쓴다.
+- 수식은 원문의 LaTeX 를 글자 하나 안 바꾸고 그대로 옮긴다. $ 표시도 그대로 둔다.
+- 원문에 없는 내용을 지어내지 말고, 있는 물음을 빠뜨리지도 마라.
+
+[원문]
+${body}`;
+  }
+  /* 문제 — 지문 한 덩어리 + (1)(2) 물음. 굵게 감싸도 되지만 목록 남발은 막는다. */
+  const qaPart = `
+- 물음 앞의 설명글(지문)은 하나의 문단으로 정리해 앞에 둔다 — 이 부분은 화면이
+  자동으로 상자를 그려 주니 너는 그냥 «보통 문장» 으로만 써라.
+- 조건·단서(«단, …»)도 빠짐없이 지문에 남겨라.`;
+  return `아래는 이미 완성된 «문제» 다. 사실 관계(조건·숫자·표·최종 물음)는 단 하나도
+바꾸지 말고, 그 사실을 «어떻게 나열하는지» 만 다시 정리해서 훨씬 읽기 좋게 새로 써라.
+문장을 다시 쓰는 것은 괜찮다 — 다만 값이나 조건이 원문과 달라지면 안 된다.
+
+[규칙]
+- 물음 번호 (1) (2) (3) … 은 반드시 줄 맨 앞에 두고, 한 줄에 하나씩만 쓴다.
+  (굵게 감싸도 되고 안 감싸도 된다 — 화면이 알아서 파랗게 칠한다)
+- 물음과 물음 사이에는 빈 줄을 한 줄 넣는다.
 - 물음 하나의 내용은 한 문단(또는 몇 줄)으로 잇는다 — 목록(- )을 남발하지 마라.${qaPart}
-- 수식·LaTeX 표기는 원문 그대로 살린다. 손대지 마라.
+- 수식·LaTeX 표기는 원문 그대로 살린다. 손대지 마라. $ 표시도 그대로 둔다.
+- [[그림 …]] 표시가 있으면 그 줄을 그대로 옮겨라 — 지우면 그림이 사라진다.
 - 원문에 없는 내용을 지어내지 마라. 원문에 있는 조건·숫자·결과를 빼지도 마라.
 
 [원문]
@@ -7046,6 +7330,53 @@ body.img-fix #ovl .tw img,body.img-fix #ovl .imgbox img{width:auto!important;max
 .fixbadge.show{opacity:1;transform:translateY(0)}
 .fixbadge.off{background:rgba(100,116,139,.92)}
 @media(max-width:520px){ .fixbadge{right:10px;bottom:12px;height:28px;font-size:11.5px} }
+
+/* ★ v192 · 칸별 변환 금지 자물쇠 — 잠긴 것은 한눈에 보이게 붉은 자물쇠로 */
+.lockset{display:inline-flex;align-items:center;gap:4px;flex:none}
+.lockset .lockt{font:700 10.5px/1 var(--font-d,system-ui);color:var(--muted,#64748b);margin-right:2px}
+.lockset .lk{position:relative}
+.lockset .lk.on{background:#fef2f2!important;border-color:#f0a9a9!important;color:#b91c1c!important;font-weight:800}
+.lockset .lk.on::before{content:"🔒";margin-right:3px;font-size:.92em}
+.ovlock .lockt{font-size:13px;color:var(--muted,#64748b)}
+.ovlock .lk{min-width:0;padding:0 8px}
+@media(max-width:900px){ .ovlock .lockt{display:none} }
+
+/* ★ v192 · 박스 안에서 엔터를 친 만큼 벌어지게 (예전엔 빈 줄이 버려졌다) */
+.boxgap{height:9px}
+.boxgap[data-big]{height:18px}
+
+/* ★ v192 · «답 : …» 줄은 어느 화면에서나 먼저 눈에 띄게.
+   여태 이 색은 «읽기 테마» 를 켰을 때만 나와서, 평소엔 답이 계산식에 묻혔다.
+   ▶답 처럼 머리표가 붙어 있어도 같이 잡는다. */
+.ansline{background:#fdf6e3;border-left:3px solid #e8c98b;border-radius:0 6px 6px 0;
+  padding:3px 9px!important;margin:3px 0!important;font-weight:700}
+.qbox .ansline{margin-left:14px!important}
+
+/* ★ v192 · 한눈에보기 안 진행 상황 판 */
+.ovjob{flex:none;margin:0 10px 8px;padding:9px 11px;border-radius:11px;
+  border:1px solid #dce4ff;background:#f7f9ff;font:600 12px/1.5 var(--font-d,system-ui)}
+.ovjob[hidden]{display:none}
+.ovjob.done{border-color:#bbe6c6;background:#f3fbf5}
+.ovjob.bad{border-color:#f0bcbc;background:#fdf5f5}
+.ovjob-h{display:flex;align-items:center;gap:8px}
+.ovjob-h b{font:800 12.5px/1.3 var(--font-d,system-ui);color:var(--ink,#0f172a)}
+.ovjob-h .sp{flex:1}
+.ovjob-n{font:700 11px/1 var(--font-m,monospace);color:var(--muted,#64748b)}
+.ovjob-h button{height:24px;padding:0 9px;border-radius:7px;cursor:pointer;
+  border:1px solid var(--line,#e2e8f0);background:var(--surface,#fff);
+  font:700 11px/1 var(--font-d,system-ui)}
+.ovjob-h .stop{border-color:#f0a9a9;color:#b91c1c}
+.ovjob-h button:hover{filter:brightness(.97)}
+.ovjob-bar{height:5px;border-radius:3px;background:#e3e9f6;margin:7px 0 0;overflow:hidden}
+.ovjob-bar > i{display:block;height:100%;width:0;border-radius:3px;
+  background:var(--accent,#2563eb);transition:width .25s ease}
+.ovjob.done .ovjob-bar > i{background:#16a34a}
+.ovjob-log{margin-top:6px;max-height:96px;overflow:auto;
+  font:600 11px/1.65 var(--font-m,monospace);color:var(--muted,#475569);white-space:pre-wrap}
+.ovjob-log div{padding:1px 0}
+.ovjob-log div.bad{color:#b91c1c}
+.ovjob-log div.ok{color:#15803d}
+@media(max-width:520px){ .ovjob{margin:0 7px 6px;padding:8px 9px} .ovjob-log{max-height:70px} }
 
 /* ── 고쳐 쓰는 창 ── */
 .edw{position:fixed;inset:0;z-index:999;display:none;background:rgba(15,23,42,.45)}
@@ -10492,6 +10823,11 @@ function paintAll(root){
 window.__rawPaintAll=paintAll;
 
 /* ── 도구줄 ── */
+/* ★ v192 — 고정 중에는 크기·자르기 손잡이가 값을 못 바꾸게 막는다.
+   여태 «고정» 은 보여 줄 때만 무시하는 것이었고, 손잡이는 그대로 살아 있었다.
+   그래서 실수로 슬라이더를 건드리면 저장값이 조용히 바뀌어 있다가, 고정을 푸는
+   순간 «기준이 또 달라져» 있었다. 이제 잠근 동안에는 값 자체가 얼어붙는다. */
+const FROZEN = () => GFIX();
 let BAR=null, CUR=null;
 function bar(){
   if(BAR) return BAR;
@@ -10513,8 +10849,15 @@ function bar(){
   BAR.addEventListener('pointerdown',e=>e.stopPropagation());
 
   const rg=BAR.querySelector('input'), vv=BAR.querySelector('.v');
+  const froze=()=>{
+    if(!FROZEN()) return false;
+    try{ window.__pracLog && window.__pracLog('📌 그림이 고정돼 있어 크기를 바꾸지 않았습니다 — 고정을 먼저 푸세요.') }catch(e){}
+    alert('📌 그림 고정이 켜져 있습니다.\n\n고정 중에는 크기·자르기를 바꿀 수 없습니다 —\n기준이 도중에 바뀌지 않게 일부러 막아 둔 것입니다.\n바꾸려면 «📌 고정됨» 을 눌러 먼저 푸세요.');
+    return true;
+  };
   const put=p=>{
     if(!CUR) return;
+    if(froze()){ rg.value = (FIX[CUR.k]&&FIX[CUR.k].w) || 100; return; }
     vv.textContent=p+'%';
     const k=CUR.k; FIX[k]=Object.assign({},FIX[k],{w:p});
     if(p>=100) delete FIX[k].w;
@@ -10525,7 +10868,7 @@ function bar(){
   $$('button[data-p]',BAR).forEach(b=>b.onclick=()=>{ rg.value=b.dataset.p; put(+b.dataset.p) });
   BAR.querySelector('[data-x]').onclick=close;
   BAR.querySelector('[data-reset]').onclick=()=>{
-    if(!CUR) return; delete FIX[CUR.k]; save(); paint(CUR.im); rg.value=100; vv.textContent='100%'; place();
+    if(!CUR||froze()) return; delete FIX[CUR.k]; save(); paint(CUR.im); rg.value=100; vv.textContent='100%'; place();
   };
   BAR.querySelector('[data-zoom]').onclick=()=>{
     if(!CUR) return;
@@ -12381,7 +12724,7 @@ function markAns(root){
     if(p.dataset.ansd) return;
     p.dataset.ansd='1';
     const t=(p.textContent||'').trim();
-    if(/^답\s*[:：]/.test(t)||/^\s*답\s*$/.test(t)) p.classList.add('ansline');
+    if(/^(?:[▶►▷▸‣·•\-–—]\s*)?답\s*[:：]/.test(t)||/^\s*답\s*$/.test(t)) p.classList.add('ansline');
   });
 }
 const boot=setInterval(()=>{
