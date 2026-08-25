@@ -765,7 +765,7 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
       <button type="button" data-ts="1" aria-label="수식 크게">√+</button>
     </span>
     <button class="zb" type="button" id="ovImgFix" title="문항마다 따로 정해 둔 그림 크기를 무시하고 다 같은 기준으로 보여줍니다">📌 그림 고정</button>
-    <button class="zb" type="button" id="ovReformat" title="지금 보고 있는 문항의 문제·답안·쉬운 풀이를 한꺼번에 새로 씁니다 — 사실 관계(숫자·정답)는 그대로 둡니다">✨ 이 문항 다시 쓰기</button>
+    <button class="zb" type="button" id="ovReformat" title="원본(그림·기존 데이터)에서 이 문항의 문제·답안·쉬운 풀이를 처음부터 다시 만듭니다 — 겉모습만 손보는 게 아니라 내용을 새로 뽑습니다">✨ 이 문제 꾸미기</button>
     <button class="zb" type="button" id="ovPrev">‹ 이전</button>
     <button class="zb" type="button" id="ovNext">다음 ›</button>
     <button class="zb pick" type="button" id="ovClose">닫기 (Esc)</button>
@@ -3279,48 +3279,104 @@ $("#fSplit")?.addEventListener("click", () => {
 (() => {
   const on = () => { try{ return localStorage.getItem("prac:imgfix") === "1"; }catch(e){ return false; } };
   const paint = () => {
-    document.body.classList.toggle("img-fix", on());
-    $("#fImgFix")?.classList.toggle("on", on());
-    $("#ovImgFix")?.classList.toggle("on", on());
+    const v = on();
+    document.body.classList.toggle("img-fix", v);
+    $("#fImgFix")?.classList.toggle("on", v);
+    $("#ovImgFix")?.classList.toggle("on", v);
+    /* 단추 글씨도 지금 상태를 말하게 한다 — 눌러 놓고 «켜졌나?» 되묻지 않게 */
+    const ov = $("#ovImgFix"); if(ov) ov.textContent = v ? "📌 고정됨" : "📌 그림 고정";
+    const fb = $("#fImgFix"); if(fb) fb.textContent = v ? "📌 그림 크기 고정됨" : "📌 그림 크기 고정";
+    /* 아직 글자로 안 바꾼 원본 그림은 CSS 만으로 안 되고 다시 그려 줘야 한다 */
+    try{ window.__rawPaintAll && window.__rawPaintAll(); }catch(e){}
   };
   paint();
+
+  /* 오른쪽 아래에 잠깐 뜨는 알림 — 본문을 가리지 않는다 */
+  let bEl = null, bT = 0;
+  const badge = v => {
+    if(!bEl){ bEl = document.createElement("div"); bEl.className = "fixbadge"; document.body.appendChild(bEl); }
+    bEl.textContent = v ? "📌 그림 크기 고정됨" : "📌 그림 고정 해제";
+    bEl.classList.toggle("off", !v);
+    requestAnimationFrame(() => bEl.classList.add("show"));
+    clearTimeout(bT);
+    bT = setTimeout(() => bEl.classList.remove("show"), 1600);
+  };
+
   const flip = () => {
-    try{ localStorage.setItem("prac:imgfix", on() ? "0" : "1"); }catch(e){}
+    const next = !on();
+    try{ localStorage.setItem("prac:imgfix", next ? "1" : "0"); }catch(e){}
     paint();
+    badge(next);
   };
   $("#fImgFix")?.addEventListener("click", flip);
   $("#ovImgFix")?.addEventListener("click", flip);
 })();
-/* ✨ 이 문항 다시 쓰기 — 누르면 바로, 지금 보고 있는 문항 하나의
-   문제·답안·쉬운 풀이를 순서대로 다시 쓴다. 범위 고르기·칸 고르기 없이
-   한 번에 끝난다 — 여러 단추로 나뉘어 있던 게 오히려 복잡하기만 했다. */
+/* ✨ 이 문제 꾸미기 (v191) — 겉모습만 손보던 것을 «진짜 다시 만들기» 로 바꿨다.
+
+   예전엔 reformatRow() 로 «이미 있는 글» 의 짜임새만 고쳐 썼다. 그러다 보니
+   옛날 프롬프트로 뽑아 둔 뼈대(«공통으로 알아야 할 것» 식 / «무엇을 묻는 문제인가» 식 /
+   «1.주어진 값 2.핵심 공식» 식 …)가 그대로 남아, 회차마다 양식이 제각각으로
+   섞여 버렸다. 겉을 아무리 다듬어도 뼈대가 안 바뀌니 통일이 될 수가 없었다.
+
+   그래서 이제는 원본에서 다시 뽑는다 ──
+     ① ⚡ cvRow(r,true)  — 원본 그림(q_url·a_url)에서 문제·답안 글자를 새로 뽑는다.
+                            그림이 없는 문항은 이 단계를 건너뛴다(뽑을 원본이 없으므로).
+     ② ✎ ezMake(id,true) — ①에서 새로 뽑힌 문제·답안을 바탕으로, «지금» 프롬프트로
+                            쉬운 풀이를 처음부터 다시 쓴다. 그래서 양식이 저절로 통일된다.
+
+   ①을 먼저 하는 게 핵심이다. 순서가 거꾸로면 옛 글자 위에 새 해설이 얹혀
+   앞뒤가 안 맞는 물건이 나온다 — 예전에 단추 두 개로 나뉘어 있을 때 실제로 그랬다. */
 $("#ovReformat")?.addEventListener("click", async () => {
-  if(CVBUSY || EZBUSY) return;
+  if(CVBUSY || EZBUSY) return alert("지금 다른 작업이 돌고 있습니다. 그것부터 끝내거나 중지해 주세요.");
   const r = ROWS.find(x => String(x.id) === String(OVID));
   if(!r) return cvSay("지금 보고 있는 문항을 찾지 못했습니다 — 한눈에에서 문항을 먼저 열어 주세요.");
-  if(!confirm(`${r.year}년 제${r.session}회 ${r.no}번의 문제·답안·쉬운 풀이를 새로 씁니다.\n`
-    + `사실 관계(숫자·정답)는 그대로 두고 짜임새만 다시 정리합니다. 계속할까요?`)) return;
 
-  EZBUSY = true;
-  const btn = $("#ovReformat"); if(btn) btn.disabled = true;
-  log(`이 문항 다시 쓰기 시작 — ${r.year}-${r.session} ${r.no}번`);
-  const fields = [["q_md","문제"],["a_md","답안"],["easy_md","쉬운 풀이"]];
-  for(const [field,label] of fields){
-    if(!r[field]){ log(`${label} 없음 — 건너뜀`); continue; }
-    cvSay(`${label} 다시 쓰는 중…`);
-    try{
-      const done = await reformatRow(r, field);
-      log(done ? `${label} 됨 — ${r.year}-${r.session} ${r.no}번` : `${label} 건너뜀(내용 없음)`);
-    }catch(e){
-      log(`${label} 실패 — ${r.year}-${r.session} ${r.no}번 — ${e.message || e}`);
+  const hasImg = !!(r.q_url || r.a_url);
+  const name = `${r.year}년 제${r.session}회 ${r.no}번`;
+  if(!confirm(`${name} 을(를) 원본에서 처음부터 다시 만듭니다.\n\n`
+    + (hasImg ? "① 그림 → 문제·답안 글자 새로 뽑기\n" : "① 원본 그림이 없어 글자 뽑기는 건너뜁니다\n")
+    + "② 새 문제·답안으로 쉬운 풀이 새로 쓰기\n\n"
+    + "지금 있는 내용은 새 것으로 덮어씁니다. 30~60초쯤 걸립니다. 계속할까요?")) return;
+
+  const btn = $("#ovReformat");
+  const t0 = btn ? btn.textContent : "";
+  if(btn){ btn.disabled = true; btn.textContent = "✨ 만드는 중…"; }
+  CVBUSY = true; EZBUSY = true;
+  log(`이 문제 꾸미기 시작 — ${name}`);
+
+  let hurt = "";
+  try{
+    /* ① 원본 그림에서 글자를 새로 뽑는다. «변환 안 함» 으로 걸어 둔 문항이라도
+       사람이 직접 이 단추를 눌렀으니 이번 한 번은 풀고 돌린다(끝나면 도로 건다). */
+    if(hasImg){
+      cvSay("① 그림을 글자로 새로 뽑는 중…");
+      let was = false;
+      try{ was = window.__cvNO && window.__cvNO.has(String(r.id)); }catch(e){}
+      try{
+        if(was && window.__cvNODel) window.__cvNODel(String(r.id));
+        await window.cvRow(r, true);
+      } finally {
+        if(was && window.__cvNOAdd) window.__cvNOAdd(String(r.id));
+      }
+      log(`① 글자 새로 뽑기 됨 — ${name}`);
     }
-    await new Promise(x => setTimeout(x, 400));
+    /* ② 새로 뽑힌 글자를 바탕으로 쉬운 풀이를 처음부터 다시 쓴다.
+       easy_md 를 먼저 비워야 «이미 있으니 건너뜀» 으로 빠지지 않는다. */
+    cvSay("② 쉬운 풀이를 새로 쓰는 중…");
+    r.easy_md = null;
+    await window.ezMake(r.id, true);
+    log(`② 쉬운 풀이 새로 쓰기 됨 — ${name}`);
+  }catch(e){
+    hurt = (e && e.message) || String(e);
+    log(`이 문제 꾸미기 실패 — ${name} — ${hurt}`);
   }
-  EZBUSY = false;
-  if(btn) btn.disabled = false;
-  log(`이 문항 다시 쓰기 끝 — ${r.year}-${r.session} ${r.no}번`);
-  cvSay("이 문항 다시 쓰기 완료");
-  drawList();
+
+  CVBUSY = false; EZBUSY = false;
+  if(btn){ btn.disabled = false; btn.textContent = t0 || "✨ 이 문제 꾸미기"; }
+  cvSay(hurt ? `이 문제 꾸미기 실패 — ${hurt}` : "이 문제 꾸미기 완료");
+  log(`이 문제 꾸미기 끝 — ${name}`);
+  try{ (window.__pracRedraw || drawList)(); }catch(e){}
+  try{ cvCount(); }catch(e){}
   if(String(OVID) === String(r.id)) ovDraw();   /* 한눈에가 열려 있으면 그 자리에서 바로 갈아 끼운다 */
 });
 $("#cvGap")?.addEventListener("click", () => cvRun(false));
@@ -5526,6 +5582,20 @@ body.oneup .pcol{padding:0!important}
 @media(max-width:899px){ .pgrid,.pgrid.split,.pgrid.split3{grid-template-columns:1fr!important} }
 .pcol-ez .ez{margin-top:0!important;border-top:0!important;padding-top:0!important}
 
+/* ★ v191 — 세 칸으로 볼 때 오른쪽 «쉬운 풀이» 글이 화면 밖으로 잘리던 것.
+   까닭 ① 긴 줄(«큐씨 = 큐원마이너스큐투 = …» 같은 한글 풀어쓰기, 값 나열)이
+        띄어쓰기가 없어 줄바꿈 자리를 못 찾고 그대로 옆으로 뻗었다.
+   까닭 ② 그 칸이 넘친 만큼을 잘라 버리기만 하고 옆으로 굴릴 길이 없었다.
+   그래서 ① 어디서든 줄을 바꿀 수 있게 하고, ② 그래도 안 되는 것(수식·표)은
+   그 줄만 옆으로 굴러가게 둔다 — 칸 자체를 밀어내지는 않는다. */
+.pcol-ez, .pcol-ez .ez, #ovRight, #ovRight .ez{min-width:0}
+.pcol-ez .ez, #ovRight .ez, .easybox{overflow-x:auto}
+.pcol-ez .ez p, .pcol-ez .ez li, .pcol-ez .ez td, .pcol-ez .ez th,
+.pcol-ez .ez h1, .pcol-ez .ez h2, .pcol-ez .ez h3, .pcol-ez .ez h4,
+#ovRight .ez p, #ovRight .ez li, #ovRight .ez td, #ovRight .ez th,
+.easybox p, .easybox li, .easybox td, .easybox th{overflow-wrap:anywhere; word-break:break-word}
+.pcol-ez .ez table, #ovRight .ez table, .easybox table{display:block; max-width:100%; overflow-x:auto}
+
 /* ── 본문 글자 ── */
 .qmd{font-size:var(--qfs,12.5px)!important;line-height:1.42!important}
 .qmd p{margin:2px 0!important}
@@ -6961,6 +7031,21 @@ body.onlyimport #boxFiles,body.onlyimport #boxImport{display:block!important}
 body.img-fix .qmd .mdimg,body.img-fix .ez .mdimg,body.img-fix .easybox .mdimg,
 body.img-fix #ovl .mdimg{width:auto!important;max-width:100%!important}
 body.img-fix .qmd figure[data-w],body.img-fix .ez figure[data-w]{width:auto!important}
+/* ★ v191 — 아직 «글자» 로 안 바꾼 원본 그림(확대창·한눈에 그림칸)까지 덮는다.
+   여태 이 세 줄이 없어서 «고정을 눌러도 아무 일도 안 일어나는» 것처럼 보였다. */
+body.img-fix .pz .pz-stage img,body.img-fix .ovl .tw img,body.img-fix .ovl .imgbox img,
+body.img-fix #ovl .tw img,body.img-fix #ovl .imgbox img{width:auto!important;max-width:100%!important}
+
+/* ★ v191 — 고정을 켰는지 눈으로 알 수 있게. 글 위에 겹치지 않게 오른쪽 아래에
+   잠깐만 떴다 사라진다(끌 때도 똑같이 알려 준다). */
+.fixbadge{position:fixed;right:14px;bottom:16px;z-index:100060;pointer-events:none;
+  display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:15px;
+  background:rgba(17,24,39,.9);color:#fff;font:700 12px/1 var(--font,system-ui);
+  box-shadow:0 6px 18px rgba(15,23,42,.28);opacity:0;transform:translateY(6px);
+  transition:opacity .18s ease,transform .18s ease}
+.fixbadge.show{opacity:1;transform:translateY(0)}
+.fixbadge.off{background:rgba(100,116,139,.92)}
+@media(max-width:520px){ .fixbadge{right:10px;bottom:12px;height:28px;font-size:11.5px} }
 
 /* ── 고쳐 쓰는 창 ── */
 .edw{position:fixed;inset:0;z-index:999;display:none;background:rgba(15,23,42,.45)}
@@ -10368,6 +10453,12 @@ function keyOf(im){
 
 /* ── 그리기 ── */
 const RO=new ResizeObserver(es=>es.forEach(e=>paint(e.target)));
+/* ★ v191 — «📌 그림 고정» 이 켜져 있으면 낱장 크기(%)를 입히지 않는다.
+   여태 고정이 안 먹은 진짜 까닭이 여기였다. 고정은 «글자로 바꾼» 그림(.mdimg)만
+   덮고 있었고, 아직 «원본 그림» 인 문항은 이 paint() 가 매번 저장해 둔 %를
+   인라인으로 다시 발라 버려서 아무 일도 안 일어난 것처럼 보였다.
+   저장값(FIX) 자체는 그대로 두므로 고정을 끄면 곧바로 원래 크기로 돌아온다. */
+const GFIX=()=>{ try{ return localStorage.getItem('prac:imgfix')==='1' }catch(e){ return false } };
 function paint(im){
   const k=keyOf(im); const f=k?FIX[k]:null;
   const host=im.closest('.pz-stage,.tw,.imgbox');
@@ -10378,7 +10469,7 @@ function paint(im){
     im.classList.remove('rawfixed'); host?.classList.remove('rawfixed');
     return;
   }
-  if(f.w&&f.w<100){ im.style.width=f.w+'%'; im.style.maxWidth='100%'; }
+  if(f.w&&f.w<100&&!GFIX()){ im.style.width=f.w+'%'; im.style.maxWidth='100%'; }
   else im.style.removeProperty('width');
   if(Array.isArray(f.c)){
     const [l,t,w,h]=f.c;
@@ -10397,6 +10488,8 @@ function paintAll(root){
     paint(im);
   });
 }
+/* 고정 단추를 눌렀을 때 그 자리에서 바로 다시 그리게 밖으로 내준다 */
+window.__rawPaintAll=paintAll;
 
 /* ── 도구줄 ── */
 let BAR=null, CUR=null;
@@ -11651,6 +11744,12 @@ let NO=(()=>{ try{ return new Set(JSON.parse(localStorage.getItem(NKEY)||'[]').m
 const nsave=()=>{ try{ localStorage.setItem(NKEY,JSON.stringify([...NO])) }catch(e){} };
 const isNo=id=>NO.has(String(id));
 window.__pracNoCv=isNo;
+/* ★ v191 — «✨ 이 문제 꾸미기» 가 이 문항 하나만 잠깐 걸림을 풀고 돌릴 수 있게 내준다.
+   (사람이 직접 그 문항을 열어 놓고 누른 것이므로 그 한 번은 뜻이 분명하다.
+    끝나면 도로 걸어 두므로 «변환 안 함» 목록은 그대로 남는다) */
+window.__cvNO=NO;
+window.__cvNOAdd=k=>{ NO.add(String(k)); nsave(); };
+window.__cvNODel=k=>{ NO.delete(String(k)); nsave(); };
 function toggleNo(id){
   const k=String(id);
   NO.has(k)?NO.delete(k):NO.add(k);
@@ -11730,44 +11829,22 @@ document.addEventListener('click',e=>{
 setInterval(()=>{ try{ restore() }catch(e){} },2500);
 setTimeout(()=>{ try{ restore() }catch(e){} },1500);
 
-/* ══ ④ 한눈에 머리에 «이 문항 변환 · 해설» ══ */
-function addOvBtns(){
-  const box=$('#ovl .ovacts'); if(!box||$('[data-ova="cv"]',box)) return;
-  const mk=(k,ico,t,title)=>{
-    const b=document.createElement('button');
-    b.type='button'; b.className='oamk'; b.dataset.ova=k; b.title=title;
-    b.innerHTML=`${ico}<span class="t"> ${t}</span>`;
-    return b;
-  };
-  const cv=mk('cv','⚡','글자 변환','이 문항의 그림을 글자로 바꿉니다');
-  const ez=mk('ez','✎','쉬운 해설','이 문항의 쉬운 풀이를 씁니다 (있으면 다시 씁니다)');
-  box.insertBefore(ez,box.firstChild);
-  box.insertBefore(cv,box.firstChild);
+/* ══ ④ v191 — «⚡ 글자 변환» · «✎ 쉬운 해설» 두 단추를 뺀다 ══
 
-  box.addEventListener('click',async e=>{
-    const b=e.target.closest('[data-ova="cv"],[data-ova="ez"]'); if(!b) return;
-    e.preventDefault(); e.stopPropagation();
-    let id=null; try{ id=OVID }catch(x){}
-    const r=rowOf(id); if(!r) return;
-    const k=b.dataset.ova;
-    b.disabled=true; const t0=b.innerHTML; b.innerHTML='…';
-    try{
-      if(k==='cv'){
-        if(isNo(id)&&!confirm('이 문항은 «변환 안 함» 으로 걸려 있습니다. 그래도 바꿀까요?')) throw 0;
-        const fn=window.cvRow;
-        /* 한 문항만은 «변환 안 함» 걸림을 잠깐 풀고 부른다 */
-        const was=NO.has(String(id)); if(was) NO.delete(String(id));
-        try{ await fn(r,true); } finally { if(was){ NO.add(String(id)); nsave(); } }
-        log(`변환 ✓ ${nameOf(id)} (한눈에에서)`);
-      }else{
-        r.easy_md=null;
-        await window.ezMake(id,true);
-        log(`해설 ✓ ${nameOf(id)} (한눈에에서)`);
-      }
-      try{ ovDraw(); }catch(x){}
-    }catch(x){ if(x) log(`실패 — ${nameOf(id)} · ${(x&&x.message)||x}`); }
-    b.disabled=false; b.innerHTML=t0;
-  });
+   왜 뺐나 ──
+     한 문항을 손보려면 «⚡ 로 그림을 글자로» 누르고, 다 될 때까지 기다렸다가
+     다시 «✎ 로 해설을» 눌러야 했다. 두 번 누르는 걸 잊거나 순서를 거꾸로 하면
+     옛 글자 위에 새 해설이 얹혀, 회차마다 짜임새가 제각각이 되는 원인이 됐다.
+     이제 머리줄의 «✨ 이 문제 꾸미기» 하나가 ⚡ 다음에 ✎ 를 알아서 이어서 돈다.
+     (이 자리를 비워 두면 맞음·틀림·북마크 같은 진짜 «표시» 단추들만 남아
+      줄이 짧아지고 눈에 잘 들어온다)
+
+   지우지 않고 남겨 둔 것 ── window.cvRow · window.ezMake 는 그대로다.
+   목록 쪽 일괄 작업과 «✨ 이 문제 꾸미기» 가 똑같이 그 둘을 부른다. */
+function addOvBtns(){
+  /* 예전 판에서 이미 붙어 버린 단추가 있으면 걷어낸다 (브라우저에 남은 화면 대비) */
+  const box=$('#ovl .ovacts'); if(!box) return;
+  $$('[data-ova="cv"],[data-ova="ez"]',box).forEach(b=>b.remove());
 }
 const w2=setInterval(()=>{ if($('#ovl .ovacts')){ addOvBtns(); clearInterval(w2); } },500);
 setTimeout(()=>clearInterval(w2),25000);
