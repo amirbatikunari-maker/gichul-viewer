@@ -771,7 +771,17 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
       <button class="zb lk" data-lock="a"  type="button" title="답안 칸 변환 금지">답안</button>
       <button class="zb lk" data-lock="ez" type="button" title="쉬운 풀이 변환 금지">풀이</button>
     </span>
-    <button class="zb" type="button" id="ovReformat" title="원본(그림·기존 데이터)에서 이 문항의 문제·답안·쉬운 풀이를 처음부터 다시 만듭니다 — 겉모습만 손보는 게 아니라 내용을 새로 뽑습니다">✨ 이 문제 꾸미기</button>
+    <button class="zb" type="button" id="ovReformat" title="이 문항 / 이 회차 / 전체 / 실패한 것 중에서 골라, 있는 글의 와꾸를 다시 맞춥니다 (그림은 안 건드립니다)">✨ 이 문제 꾸미기</button>
+    <!-- ★ v194 · 꾸미기 범위 고르기 — «도구» 의 빠르게 돌리기와 같은 결로 -->
+    <div class="rfpop" id="rfPop" hidden>
+      <div class="rfh">어디까지 꾸밀까요</div>
+      <button type="button" data-scope="one">✨ 이 문제만</button>
+      <button type="button" data-scope="sess">⚡ 이 회차 빠르게</button>
+      <button type="button" data-scope="all">⚡ 전체 빠르게</button>
+      <button type="button" data-scope="fail">↻ 실패한 것 다시</button>
+      <div class="rfn">동시에 돌리는 개수는 «도구 → 동시» 값을 따릅니다.<br>그림은 안 건드리고 있는 글의 와꾸만 고칩니다.</div>
+      <button type="button" class="rfx" data-rfclear>실패 기록 비우기</button>
+    </div>
     <!-- ★ v192 · 변환 중지 — 목록 화면까지 나가지 않고 여기서 바로 세운다.
          돌고 있을 때만 나타난다(평소엔 자리를 안 잡는다). -->
     <button class="zb ovstop" type="button" id="ovCvStop" hidden title="지금 돌고 있는 글자 변환·해설 만들기를 멈춥니다">■ 변환 중지</button>
@@ -3476,7 +3486,7 @@ function rfLog(line){
   try{ window.__pracLog && window.__pracLog(line); }catch(e){}
 }
 function rfStart(total, name){
-  RFBUSY = true;
+  RFBUSY = true; RFSTOP = false;
   rfShow();
   const box = rfEl("ovJobLog"); if(box) box.innerHTML = "";
   const bar = rfEl("ovJobBar"); if(bar) bar.style.width = "0%";
@@ -3590,58 +3600,154 @@ setInterval(() => {
   setTimeout(paint, 800);
 })();
 
-/* ✨ 이 문제 꾸미기 (v192) — «있는 글» 의 와꾸만 다시 맞춘다.
+/* ══ v194 · «✨ 이 문제 꾸미기» 에 범위를 붙인다 ═══════════════════
+   한 문항씩 눌러서는 1000개를 못 고친다. «도구» 메뉴의 빠르게 돌리기와 똑같이
+   범위를 고르고 여러 개를 동시에 돌린다 — 다만 이쪽은 그림을 새로 읽지 않고
+   «있는 글의 와꾸» 만 고치므로 훨씬 싸고 빠르다.
+     · 이 문제만    — 지금 보고 있는 문항
+     · 이 회차      — 화면에 걸린 연도·회차 (없으면 지금 문항의 회차)
+     · 전체         — 이 과목 전부
+     · 실패한 것    — 아래 «꾸미기 실패» 로 적힌 것만 다시
+   동시에 몇 개씩 돌릴지는 «도구» 의 «동시» 값을 그대로 따른다(따로 안 만든다). */
+const RFF_KEY = "prac:rffail:v1";
+const rffAll = () => { try{ return JSON.parse(localStorage.getItem(RFF_KEY) || "{}") || {}; }catch(e){ return {}; } };
+const rffPut = (id, why) => { const F = rffAll(); F[String(id)] = String(why || "").slice(0, 80);
+  try{ localStorage.setItem(RFF_KEY, JSON.stringify(F)); }catch(e){} };
+const rffDel = id => { const F = rffAll(); delete F[String(id)];
+  try{ localStorage.setItem(RFF_KEY, JSON.stringify(F)); }catch(e){} };
 
-   v191 에서는 원본 그림부터 다시 읽었는데(OCR), 그러면 이미 손봐 둔 글까지
-   새로 뽑혀 덮어써지고 시간·비용도 크게 든다. 지금 필요한 건 그게 아니라
-   «이미 있는 글을 반듯한 와꾸로 다시 앉히는 것» 이므로 그림은 건드리지 않는다.
-   잠근 칸은 건너뛰고, 진행 상황은 한눈에보기 안에서도 보이게 적어 준다. */
-$("#ovReformat")?.addEventListener("click", async () => {
-  if(RFBUSY) return;
-  const r = ROWS.find(x => String(x.id) === String(OVID));
-  if(!r) return rfSay("지금 보고 있는 문항을 찾지 못했습니다 — 한눈에에서 문항을 먼저 열어 주세요.", true);
-
-  const all = [["q_md","문제","q"],["a_md","답안","a"],["easy_md","쉬운 풀이","ez"]];
-  const todo = all.filter(([key,, lk]) => r[key] && !window.__locked(lk));
-  const lockedOut = all.filter(([,, lk]) => window.__locked(lk)).map(x => x[1]);
-  const empty = all.filter(([key,, lk]) => !r[key] && !window.__locked(lk)).map(x => x[1]);
-
-  const name = `${r.year}년 제${r.session}회 ${r.no}번`;
-  if(!todo.length){
-    return rfSay(lockedOut.length
-      ? `할 게 없습니다 — 세 칸이 다 잠겨 있거나 비어 있습니다 (잠금: ${lockedOut.join("·")})`
-      : "할 게 없습니다 — 이 문항은 세 칸이 다 비어 있습니다.", true);
+/* 잠기지 않았고 내용이 있는 칸만 «손볼 칸» 이다 */
+function rfFields(r){
+  return [["q_md","문제","q"],["a_md","답안","a"],["easy_md","쉬운 풀이","ez"]]
+    .filter(([key,, lk]) => r[key] && !window.__locked(lk));
+}
+function rfPool(scope){
+  const rows = Array.isArray(ROWS) ? ROWS : [];
+  if(scope === "one"){
+    const r = rows.find(x => String(x.id) === String(OVID));
+    return r ? [r] : [];
   }
-  if(!confirm(`${name} 의 와꾸를 다시 맞춥니다.\n\n`
-    + `· 손볼 칸 : ${todo.map(x => x[1]).join(" · ")}\n`
-    + (lockedOut.length ? `· 잠겨서 건너뜀 : ${lockedOut.join(" · ")}\n` : "")
-    + (empty.length ? `· 내용이 없어 건너뜀 : ${empty.join(" · ")}\n` : "")
-    + `\n그림은 건드리지 않습니다. 숫자·정답도 그대로 두고 줄 나눔·박스만 다시 잡습니다.\n계속할까요?`)) return;
-
-  RFBUSY = false; RFSTOP = false;
-  rfStart(todo.length, name);
-  let ok = 0, bad = 0, n = 0;
-  for(const [field, label] of todo){
-    if(RFSTOP){ rfSay("중지했습니다.", true); break; }
-    n++;
-    rfStep(n, todo.length, `${label} 손보는 중…`);
-    try{
-      const done = await reformatRow(r, field);
-      if(done){ ok++; rfLog(`✓ ${label} — 와꾸 다시 맞춤`); }
-      else { rfLog(`· ${label} — 바뀐 것 없음`); }
-    }catch(e){
-      bad++; rfLog(`✗ ${label} 실패 — ${(e && e.message) || e}`);
+  if(scope === "fail"){
+    const F = rffAll();
+    return rows.filter(r => F[String(r.id)] && rfFields(r).length);
+  }
+  let pool = rows.filter(r => rfFields(r).length);
+  if(scope === "sess"){
+    const yr = $("#fYear")?.value || "", ss = $("#fSess")?.value || "";
+    if(yr || ss) pool = pool.filter(r => (!yr || String(r.year) === yr) && (!ss || String(r.session) === ss));
+    else{
+      const cur = rows.find(x => String(x.id) === String(OVID)) || (Array.isArray(SHOWN) ? SHOWN[0] : null);
+      if(!cur) return [];
+      pool = pool.filter(r => String(r.year) === String(cur.year) && String(r.session) === String(cur.session));
     }
-    /* 한 칸이 끝날 때마다 바로 화면에 반영한다 — 다 끝날 때까지 기다리지 않는다 */
-    try{ if(String(OVID) === String(r.id)) ovDraw(); }catch(e){}
-    await new Promise(x => setTimeout(x, 350));
   }
+  return pool;
+}
+
+/* 한 문항의 손볼 칸을 차례로 고친다. 돌려주는 값 : null(됨) 또는 { why } */
+async function rfOne(r){
+  const fields = rfFields(r);
+  if(!fields.length) return null;              /* 다 잠겼거나 비었으면 할 일이 없다 */
+  let hurt = "";
+  for(const [field, label] of fields){
+    if(RFSTOP) break;
+    try{ await reformatRow(r, field); }
+    catch(e){ hurt = `${label} — ${(e && e.message) || e}`; break; }
+  }
+  return hurt ? { why: hurt } : null;
+}
+
+async function rfRun(scope){
+  if(RFBUSY) return;
+  let busy = false; try{ busy = CVBUSY || EZBUSY; }catch(e){}
+  if(busy) return alert("지금 변환·해설 작업이 돌고 있습니다. 그것부터 끝내거나 중지해 주세요.");
+
+  const NM = { one:"이 문제", sess:"이 회차", all:"전체", fail:"실패한 것" };
+  const pool = rfPool(scope);
+  if(!pool.length){
+    const locked = ["q","a","ez"].filter(f => window.__locked(f)).length;
+    return alert(scope === "fail" ? "꾸미기에 실패한 문항이 없습니다."
+      : locked === 3 ? "세 칸이 모두 «변환 금지» 로 잠겨 있습니다.\n잠금을 먼저 푸세요."
+      : "손볼 문항이 없습니다 — 이 범위는 내용이 비어 있거나 다 잠겨 있습니다.");
+  }
+
+  /* 몇 칸을 손보는지 미리 세어 보여 준다 — 그래야 시간·비용을 가늠할 수 있다 */
+  const cells = pool.reduce((n, r) => n + rfFields(r).length, 0);
+  const lockedNames = ["q","a","ez"].filter(f => window.__locked(f))
+    .map(f => ({ q:"문제", a:"답안", ez:"쉬운 풀이" })[f]);
+  let conc = 8; try{ conc = (window.__fastConc && window.__fastConc()) || 8; }catch(e){}
+  conc = Math.max(1, Math.min(conc, pool.length));
+
+  if(pool.length > 1 && !confirm(`${NM[scope]} — 문항 ${pool.length}개 · 손볼 칸 ${cells}개의 와꾸를 다시 맞춥니다.\n`
+    + (lockedNames.length ? `잠겨서 건너뜀 : ${lockedNames.join(" · ")}\n` : "")
+    + `\n동시에 ${conc}개씩 돌립니다. 그림은 건드리지 않고, 숫자·정답도 그대로 둡니다.\n`
+    + `지금 있는 글은 새 것으로 덮어씁니다. 계속할까요?`)) return;
+
+  rfStart(pool.length, NM[scope]);
+  try{ CVSTOP = false; }catch(e){}
+
+  let idx = 0, done = 0, ok = 0, bad = 0;
+  async function worker(){
+    while(true){
+      if(RFSTOP) return;
+      const k = idx++; if(k >= pool.length) return;
+      const r = pool[k];
+      const nm = `${r.year}년 제${r.session}회 ${r.no}번`;
+      const out = await rfOne(r);
+      done++;
+      if(out){ bad++; rffPut(r.id, out.why); rfLog(`✗ ${nm} — ${out.why}`); }
+      else{ ok++; rffDel(r.id); rfLog(`✓ ${nm}`); }
+      rfStep(done, pool.length, `와꾸 맞추는 중 — 됨 ${ok}` + (bad ? ` · 실패 ${bad}` : ""));
+      /* 열어 둔 문항이 방금 끝났으면 그 자리에서 바로 갈아 끼운다 */
+      try{ if(String(OVID) === String(r.id)) ovDraw(); }catch(e){}
+      if(done % 8 === 0){ try{ drawList(); }catch(e){} }
+      await new Promise(x => setTimeout(x, 150));
+    }
+  }
+  /* 한꺼번에 던지면 첫머리에서만 몰려 거절당한다 — 150ms 씩 벌려 넣는다 */
+  const live = [];
+  for(let i = 0; i < conc; i++){
+    live.push(worker());
+    await new Promise(x => setTimeout(x, 150));
+  }
+  await Promise.all(live);
+
   rfEnd(ok, bad, RFSTOP);
+  if(bad) rfLog(`실패한 ${bad}개는 «✨ 꾸미기 → 실패한 것» 으로 다시 돌릴 수 있습니다.`);
   try{ (window.__pracRedraw || drawList)(); }catch(e){}
   try{ cvCount(); }catch(e){}
-  if(String(OVID) === String(r.id)) ovDraw();
+  try{ if(String(OVID)) ovDraw(); }catch(e){}
+}
+
+/* 단추를 누르면 범위 고르는 쪽지가 뜬다 (한 문항만 하려면 «이 문제만») */
+$("#ovReformat")?.addEventListener("click", e => {
+  e.preventDefault(); e.stopPropagation();
+  if(RFBUSY) return;
+  const p = $("#rfPop"); if(!p) return;
+  p.hidden = !p.hidden;
+  if(!p.hidden){
+    const F = rffAll();
+    const n = Object.keys(F).length;
+    const fb = $('#rfPop [data-scope="fail"]');
+    if(fb){ fb.textContent = n ? `↻ 실패한 것 다시 (${n})` : "↻ 실패한 것 다시 (없음)"; fb.disabled = !n; }
+  }
 });
-$("#ovRfStop")?.addEventListener("click", () => { RFSTOP = true; rfSay("멈추는 중… 지금 칸이 끝나면 섭니다."); });
+document.addEventListener("click", e => {
+  const p = $("#rfPop"); if(!p || p.hidden) return;
+  if(e.target.closest("#rfPop") || e.target.closest("#ovReformat")) return;
+  p.hidden = true;
+});
+$$('#rfPop [data-scope]').forEach(b => b.addEventListener("click", () => {
+  const p = $("#rfPop"); if(p) p.hidden = true;
+  rfRun(b.dataset.scope);
+}));
+$("#rfPop [data-rfclear]")?.addEventListener("click", () => {
+  if(!confirm("꾸미기 실패 기록을 모두 지웁니다. 계속할까요?")) return;
+  try{ localStorage.removeItem(RFF_KEY); }catch(e){}
+  const p = $("#rfPop"); if(p) p.hidden = true;
+  rfShow(); rfSay("꾸미기 실패 기록을 비웠습니다.");
+});
+$("#ovRfStop")?.addEventListener("click", () => { RFSTOP = true; rfSay("멈추는 중… 지금 문항이 끝나면 섭니다."); });
 $("#cvGap")?.addEventListener("click", () => cvRun(false));
 $("#cvAll")?.addEventListener("click", () => cvRun(true));
 
@@ -3750,9 +3856,68 @@ const EASY_RULE = `
 - 본문에 특수문자(× ÷ ± ≤ ≥ ∠ ∴ Ω Δ μ π θ ² ³ ㎸ ㎾ 등)를 그대로 쓰지 말고 무조건 LaTeX로 변환한다.
 - 불필요한 서술어("~를 구합니다", "~에 대입합니다" 등)와 인사말, 감탄사는 전면 제거한다. 군더더기 없이 '핵심 정보'와 '수식'만 간결하게 나열한다.
 - 억지로 빈칸("해당 없음" 등)을 채우지 마라. 서술형은 서술형에 맞게, 계산형은 계산형에 맞게 유연하게 작성한다.
+- ★ «이 문제가 물고 늘어질 수 있는 것», «이 문제가 파고들 수 있는 것», «더 나아가면»,
+  «출제 변형», «비슷한 문제였다면» 같은 «다른 문제였다면 이랬을 것» 류의 항목은 절대 쓰지 마라.
+  지금 이 문제만 푼다. 묻지도 않은 가정을 붙이면 외울 것만 늘고 정작 이 문제의 답이 묻힌다.
 - 마크다운은 **굵게** 와 - 목록만 쓴다.`;
 
-/* 문제 하나를 처음부터 끝까지 풀어 주는 해설 프롬프트 */
+/* ══════════════════════════════════════════════════════════════
+   v195 · 안 볼 항목 걷어내기 — «이 문제가 물고 늘어질 수 있는 것»
+
+   프롬프트에서 못 쓰게 막아 둬도, 이미 만들어 둔 1330개 해설 «안» 에는 그 글이
+   그대로 남아 있다. 그걸 지우자고 1330개를 다시 돌리는 건 돈과 시간 낭비다 —
+   그래서 «그릴 때» 걷어낸다. 저장된 글은 그대로 두므로, 나중에 마음이 바뀌면
+   아래 목록에서 한 줄만 빼면 도로 보인다. («✨ 꾸미기» 를 돌리면 저장된 글에서도
+   영영 사라진다 — 아래 dropCut 을 AI 에 넘기기 전에 한 번 더 태우기 때문이다)
+
+   지우는 범위 — 그 제목 줄부터 «다음 큰 제목이 나오기 전까지». 다음 큰 제목은
+   #제목 · [[box]] · 굵게만 있는 짧은 줄 셋 중 하나로 본다. 못 찾으면 글 끝까지다
+   (실제로 이 항목은 늘 맨 끝에 붙어 있었다). */
+const CUT_HEADS = [
+  /이\s*문제가\s*물고\s*늘어질/,
+  /이\s*문제가\s*파고들/,
+  /출제\s*변형/,
+  /더\s*나아가면/
+];
+function dropCut(src){
+  const s = String(src == null ? "" : src);
+  if(!CUT_HEADS.some(re => re.test(s))) return s;      /* 흔한 경우 — 손대지 않는다 */
+  const lines = s.split("\n");
+  const out = [];
+  const isHead = l => {
+    const t = l.trim();
+    if(!t) return false;
+    if(/^#{1,6}\s/.test(t)) return true;
+    if(/^\[{1,2}\s*(?:box|박스)\s*\]{1,2}$/i.test(t)) return true;
+    /* «**자주 틀리는 곳**» 처럼 굵게만 있는 짧은 줄 */
+    if(/^(?:\*\*|__).{1,24}(?:\*\*|__)$/.test(t)) return true;
+    return false;
+  };
+  /* 제목이 굵게 감싸여 있거나 앞에 ■ ▶ 같은 머리표가 붙어 있어도 잡는다 */
+  const bare = l => l.trim().replace(/^[■▶►◆●·\-–—\s]+/, "").replace(/^(?:\*\*|__)|(?:\*\*|__)$/g, "").trim();
+  for(let i = 0; i < lines.length; i++){
+    const b = bare(lines[i]);
+    if(b && CUT_HEADS.some(re => re.test(b))){
+      i++;
+      while(i < lines.length && !isHead(lines[i])) i++;
+      i--;                                             /* 그 큰 제목은 남긴다 */
+      continue;
+    }
+    out.push(lines[i]);
+  }
+  return out.join("\n").replace(/\n{3,}$/, "\n");
+}
+try{ window.__dropCut = dropCut; }catch(e){}
+
+/* 그리기 직전에 한 번 태운다 — 저장된 글은 안 건드린다 */
+['mdLite','mdRich'].forEach(k => {
+  const f = window[k];
+  if(typeof f !== 'function' || f.__cut) return;
+  const w = function(src){ return f.call(this, dropCut(src)); };
+  w.__cut = 1;
+  ['__mlmath','__cellbr','__indent','__crop','__sz','__img','__tex','__sci'].forEach(t => { w[t] = f[t]; });
+  try{ window[k] = w; }catch(e){}
+});
 function easyPrompt(r, textOnly){
   /* 글자로 바꿔 둔 것(q_md·a_md)이 있으면 그쪽이 훨씬 정확하다 — OCR 원문(q_text)보다 먼저 쓴다 */
   const qs = (r.q_md || r.q_text || "");
@@ -3890,7 +4055,9 @@ async function ezMake(id, force, quiet){
   }
   try{
     const blob = r.q_url ? await fetch(r.q_url).then(x => x.blob()) : null;
-    const md = await askAI(easyPrompt(r, !blob), blob, 3600);
+    const md0 = await askAI(easyPrompt(r, !blob), blob, 3600);
+    /* ★ v195 — 프롬프트로 막아 뒀지만, 그래도 써 오면 저장 전에 잘라 낸다 */
+    const md = (window.__dropCut ? window.__dropCut(md0 || "") : md0);
     const up = await sb.from("practicals").update({ easy_md: md }).eq("id", r.id);
     if(up.error) throw new Error(/easy_md|schema cache/i.test(up.error.message)
       ? "easy_md 칸이 없습니다 — supabase-실기.sql 을 다시 돌려 주세요." : up.error.message);
@@ -4698,7 +4865,11 @@ ${body}`;
 async function reformatRow(r, field){
   const src = r[field]; if(!src) return false;
   const kind = field === 'easy_md' ? 'ez' : field === 'q_md' ? 'q' : 'a';
-  const md = await askAI(reformatPrompt(src, kind), null, 3600);
+  /* ★ v195 — 안 볼 항목은 AI 에 넘기기 «전» 에 잘라 낸다. 그래야 새로 쓴 글에
+     그 부분이 되살아나지 않고, 저장될 때 영영 사라진다(그리기 때만 감추는 게 아니라). */
+  const clean = (window.__dropCut ? window.__dropCut(src) : src);
+  const md0 = await askAI(reformatPrompt(clean, kind), null, 3600);
+  const md = (window.__dropCut ? window.__dropCut(md0 || "") : md0);
   if(!md || !md.trim()) return false;
   const up = await sb.from("practicals").update({ [field]: md }).eq("id", r.id);
   if(up.error) throw new Error(up.error.message);
@@ -7398,6 +7569,23 @@ body.img-fix #ovl .tw img,body.img-fix #ovl .imgbox img{width:auto!important;max
 .ovjob-log div.bad{color:#b91c1c}
 .ovjob-log div.ok{color:#15803d}
 @media(max-width:520px){ .ovjob{margin:0 7px 6px;padding:8px 9px} .ovjob-log{max-height:70px} }
+
+/* ★ v194 · 꾸미기 범위 고르는 쪽지 */
+.rfpop{position:fixed;z-index:100055;top:56px;right:14px;width:236px;
+  display:flex;flex-direction:column;gap:5px;padding:9px;border-radius:12px;
+  background:var(--surface,#fff);border:1px solid var(--line,#e2e8f0);
+  box-shadow:0 14px 40px rgba(15,23,42,.2)}
+.rfpop[hidden]{display:none}
+.rfpop .rfh{font:800 10px/1 var(--font-d,system-ui);letter-spacing:.06em;
+  color:var(--muted,#64748b);padding:2px 2px 4px}
+.rfpop button{height:32px;padding:0 10px;text-align:left;cursor:pointer;
+  border:1px solid var(--line,#e2e8f0);border-radius:9px;background:var(--surface,#fff);
+  font:700 12px/1 var(--font-d,system-ui);color:var(--ink,#0f172a)}
+.rfpop button:hover:not(:disabled){border-color:#b8c1cf;background:#f7f9ff}
+.rfpop button:disabled{opacity:.45;cursor:default}
+.rfpop .rfn{font:600 10px/1.5 var(--font-d,system-ui);color:var(--muted,#94a3b8);padding:3px 2px 0}
+.rfpop .rfx{height:26px;font-size:11px;color:var(--muted,#64748b)}
+@media(max-width:520px){ .rfpop{right:8px;left:8px;width:auto;top:52px} }
 
 /* ── 고쳐 쓰는 창 ── */
 .edw{position:fixed;inset:0;z-index:999;display:none;background:rgba(15,23,42,.45)}
@@ -14229,6 +14417,9 @@ const OPTS=[4,8,12,16,24,32];
 const CKEY='prac:fastn:v1', AKEY='prac:fastauto:v1';
 let CONC=(()=>{ const n=parseInt(localStorage.getItem(CKEY)||'8',10); return OPTS.includes(n)?n:8 })();
 let AUTO=(()=>{ try{ return localStorage.getItem(AKEY)==='1' }catch(e){ return false } })();
+/* ★ v194 — «✨ 꾸미기» 도 같은 «동시» 값을 따르도록 밖으로 내준다.
+   설정을 두 벌 만들면 «도구에선 24인데 꾸미기는 왜 8이지?» 가 된다. */
+window.__fastConc = () => { try{ return AUTO ? 8 : CONC; }catch(e){ return 8; } };
 let RUN=false;
 
 const say=t=>{ try{ cvSay(t) }catch(e){ const el=$('#cvStat'); if(el) el.textContent=t } };
