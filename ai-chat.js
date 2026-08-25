@@ -1383,7 +1383,7 @@ const CSS = `
 }
 
 .aic-bub code{
-  font:500 .9em/1.5 var(--font-m,ui-monospace);
+  font:500 .9em/1.5 var(--font-m,monospace);
   background:rgba(125,140,160,.16);
   padding:1px 5px;
   border-radius:5px
@@ -1424,7 +1424,7 @@ const CSS = `
 }
 
 .aic-meta{
-  font:500 11px/1 var(--font-m,ui-monospace);
+  font:500 11px/1 var(--font-m,monospace);
   color:var(--ink-2,#8894a5);
   padding:0 4px
 }
@@ -1603,7 +1603,7 @@ html[data-theme="dark"] .aic-err{
 }
 
 .aic-who{
-  font:600 11px/1 var(--font-m,ui-monospace);
+  font:600 11px/1 var(--font-m,monospace);
   color:var(--ink-2,#8894a5);
   max-width:120px;
   overflow:hidden;
@@ -2930,6 +2930,17 @@ function md(
       ""
     );
 
+  /*
+    ★ 모델이 백슬래시(\) 대신 원화 기호(₩)를 써서 수식이 깨질 때가 있다
+    (한국어 자판 습관이 학습 데이터에 섞여 든 것으로 보인다). ₩ 바로 뒤에
+    실제 LaTeX 명령 이름이 붙어 있을 때만 \ 로 되돌린다 — "₩10,000"처럼
+    진짜 원화 금액은 이 명령 이름들과 안 겹치니 그대로 둔다.
+  */
+  s = s.replace(
+    /₩(times|frac|dfrac|sqrt|text|approx|cdot|theta|Theta|Omega|omega|Delta|delta|pi|mu|div|pm|le|ge|ne|angle|therefore|because|infty|sum|int|Sigma|Phi|phi|eta|lambda|rho|mathrm|overline|circ|left|right|,)/g,
+    "\\$1"
+  );
+
 
   /*
     코드 블록
@@ -3762,6 +3773,10 @@ function buildSystem() {
 7. 질문이 짧으면 답변도 짧게 합니다.
 8. 복잡한 문제는 단계적으로 정리합니다.
 9. 한국어로 답합니다.
+10. 수식(LaTeX)을 쓸 때는 반드시 실제 백슬래시(\\) 문자로 명령을 시작한다.
+    예: \\times, \\frac, \\sqrt, \\text — 이렇게. 원화 기호(₩)를 백슬래시 대신
+    쓰지 마라 — ₩times, ₩sqrt 처럼 쓰면 수식이 전혀 안 그려진다.
+    문장 안 수식은 $…$, 따로 세우는 수식은 $$…$$ 로 감싼다.
 
 `;
 
