@@ -3320,9 +3320,13 @@ async function cvRun(force){
      «변환» 은 이 과목 전체를 본다. 한 문항만 다시 하려면 카드의 «↻ 다시 변환». */
   /* «남은 것» 의 뜻을 cvCount 와 한 글자까지 맞춘다 —
      답안 그림만 있고 그 글자가 이미 있는 줄이 매번 헛돌던 것을 막는다. */
+  /* ★ v193 — 잠근 칸은 아예 담지 않는다. force(처음부터 다시)일 때도 마찬가지다:
+     둘 다 잠겼으면 그 문항은 할 일이 없다. */
+  const lkQ = () => !!(window.__locked && window.__locked('q'));
+  const lkA = () => !!(window.__locked && window.__locked('a'));
   const pool = ROWS
-    .filter(r => force ? (r.q_url || r.a_url)
-                       : ((r.q_url && !r.q_md) || (r.a_url && !r.a_md)));
+    .filter(r => force ? ((r.q_url && !lkQ()) || (r.a_url && !lkA()))
+                       : ((r.q_url && !r.q_md && !lkQ()) || (r.a_url && !r.a_md && !lkA())));
   if(!pool.length){
     cvSay("변환할 문항이 없습니다 — 지금 조건 안은 모두 글자로 바뀌어 있습니다.");
     return;
@@ -3570,6 +3574,18 @@ setInterval(() => {
   /* 다른 곳(일괄 작업 · 꾸미기)에서 물어볼 수 있게 내준다 */
   window.__locked = f => { L = read(); return !!L[f]; };
   window.__lockPaint = paint;
+
+  /* ★ v193 — «아직 할 일이 남았나» 를 한 곳에서만 판단한다.
+     v192 에서는 자물쇠를 cvRow·ezMake «안» 에서만 막았다. 그런데 그 둘을 부르는
+     쪽(빠르게·동시 돌리기·한 번에)은 여전히 «아직 안 됐네?» 라고 여겨서,
+     잠긴 문항을 계속 물어 오고 → 돌려도 안 채워지니 → «돌렸으나 채워지지 않음» 으로
+     세 번 다시 하고 → 끝내 «실패» 로 적어 두었다. 잠글수록 실패 목록만 쌓였다.
+     그래서 판단 자체를 자물쇠까지 아는 하나로 모은다 — 잠긴 칸은 «할 일» 이 아니다. */
+  window.__needCv = r => !!(
+       (r.q_url && !r.q_md && !window.__locked('q'))
+    || (r.a_url && !r.a_md && !window.__locked('a')));
+  window.__needEz = r => !!(!r.easy_md && (r.q_url || r.q_md) && !window.__locked('ez'));
+
   paint();
   setTimeout(paint, 800);
 })();
@@ -3665,7 +3681,11 @@ $("#cvAll")?.addEventListener("click", () => cvRun(true));
 $("#cvAllSess")?.addEventListener("click", async () => {
   if(CVBUSY || EZBUSY) return alert("지금 다른 작업이 돌고 있습니다.");
   const yr = $("#fYear").value, ss = $("#fSess").value;
-  let pool = ROWS.filter(r => r.q_url || r.a_url);
+  /* ★ v193 — 잠근 칸은 담지 않는다 */
+  const lkQ2 = !!(window.__locked && window.__locked('q'));
+  const lkA2 = !!(window.__locked && window.__locked('a'));
+  if(lkQ2 && lkA2) return alert('문제·답안이 둘 다 «변환 금지» 로 잠겨 있습니다.\n잠금을 먼저 푸세요.');
+  let pool = ROWS.filter(r => (r.q_url && !lkQ2) || (r.a_url && !lkA2));
   let label = "이 과목 전체";
   if(yr || ss){
     pool = pool.filter(r => (!yr || String(r.year) === yr) && (!ss || String(r.session) === ss));
@@ -4565,8 +4585,9 @@ function cvCount(){
      ② 그림이 아예 없는 줄(글자로만 들어온 줄)까지 «남았다» 에 넣었다.
         그건 채울 것이 없으니 이미 다 된 것이다.
      이제 두 단추의 대상과 «똑같은 식» 으로 센다 — 숫자가 0 이면 정말 0 이다. */
-  const cvLeft = r => (r.q_url && !r.q_md) || (r.a_url && !r.a_md);
-  const ezLeft = r => !r.easy_md && (r.q_url || r.q_md);
+  /* ★ v193 — 잠근 칸은 «남은 것» 으로 세지 않는다 (한 곳에서만 판단한다) */
+  const cvLeft = r => window.__needCv ? window.__needCv(r) : ((r.q_url && !r.q_md) || (r.a_url && !r.a_md));
+  const ezLeft = r => window.__needEz ? window.__needEz(r) : (!r.easy_md && (r.q_url || r.q_md));
 
   const has = ROWS.filter(r => r.q_url || r.a_url || r.q_md || r.a_md);
   if(!has.length) return cvSay("");
@@ -11588,8 +11609,9 @@ function noteFail(kind,id,failed){
 /* 이미 잘 된 문항은 실패 목록에서 지워 준다(밖에서 따로 돌렸을 수도 있다) */
 function prune(){
   const cv=F.cv.filter(id=>{ const r=rowOf(id); if(!r) return false;
-    return (r.q_url&&!r.q_md)||(r.a_url&&!r.a_md) });
-  const ez=F.ez.filter(id=>{ const r=rowOf(id); return r&&!r.easy_md });
+    return window.__needCv ? window.__needCv(r) : ((r.q_url&&!r.q_md)||(r.a_url&&!r.a_md)) });
+  const ez=F.ez.filter(id=>{ const r=rowOf(id); if(!r) return false;
+    return window.__needEz ? window.__needEz(r) : !r.easy_md });
   if(cv.length!==F.cv.length||ez.length!==F.ez.length){ F.cv=cv; F.ez=ez; fsave(); }
 }
 
@@ -11602,7 +11624,10 @@ const hook=setInterval(()=>{
       const nm=`${r.year}년 제${r.session}회 ${r.no}번`;
       try{
         const out=await o.apply(this,arguments);
-        const bad=(r.q_url&&!r.q_md)||(r.a_url&&!r.a_md);
+        /* ★ v193 — 잠가 둬서 안 한 것은 «실패» 가 아니다 (그렇게 적으면
+           실패 목록이 잠근 문항으로 가득 차고, 재시도가 헛돈다) */
+        const bad=!!(window.__needCv ? window.__needCv(r)
+                    : ((r.q_url&&!r.q_md)||(r.a_url&&!r.a_md)));
         noteFail('cv',r.id,bad);
         addLog(`변환 ${bad?'✕':'✓'} ${nm}`+(bad?' — 못 바꿨습니다':''), bad?'bad':'ok');
         return out;
@@ -11831,7 +11856,8 @@ async function retry(kind){
     say(`실패 재시도 ${n}/${ids.length} — ${r.year}년 제${r.session}회 ${r.no}번 · 됨 ${ok}`+(bad?` · 실패 ${bad}`:''));
     if(bar) bar.style.width=(n/ids.length*100)+'%';
     try{
-      if(kind==='cv'){ await window.cvRow(r,true); ((r.q_url&&!r.q_md)||(r.a_url&&!r.a_md))?bad++:ok++; }
+      if(kind==='cv'){ await window.cvRow(r,true);
+        (window.__needCv ? window.__needCv(r) : ((r.q_url&&!r.q_md)||(r.a_url&&!r.a_md)))?bad++:ok++; }
       else{ r.easy_md=null; await window.ezMake(r.id,true,true); r.easy_md?ok++:bad++; }
     }catch(e){ bad++; }
     paint();
@@ -11932,8 +11958,9 @@ setInterval(()=>{
 },400);
 
 /* ══ ③ 한 번에 — 글자 변환 + 쉬운 풀이 ══ */
-const needCv = r => (r.q_url&&!r.q_md)||(r.a_url&&!r.a_md);
-const needEz = r => !r.easy_md && (r.q_url||r.q_md);
+/* ★ v193 — 자물쇠를 아는 한 벌짜리 판단을 쓴다 */
+const needCv = r => window.__needCv ? window.__needCv(r) : !!((r.q_url&&!r.q_md)||(r.a_url&&!r.a_md));
+const needEz = r => window.__needEz ? window.__needEz(r) : !!(!r.easy_md && (r.q_url||r.q_md));
 
 function pick(scope){
   const yr=$('#fYear')?.value||'', ss=$('#fSess')?.value||'';
@@ -13719,7 +13746,7 @@ const FAILS =()=>{ try{ return (window.__pracFail&&window.__pracFail())||{} }cat
 /* ── 무엇이 «안 된 것» 인가 ── 셈과 거르개가 한 식을 쓴다 ── */
 const needQ  = r => !!(r.q_url && !r.q_md);
 const needA  = r => !!(r.a_url && !r.a_md);
-const needEz = r => !r.easy_md && !!(r.q_url || r.q_md);
+const needEz = r => window.__needEz ? window.__needEz(r) : !!(!r.easy_md && (r.q_url || r.q_md));
 const failed = r => !!FAILS()[String(r.id)];
 const PRED = {
   any : r => needQ(r)||needA(r)||needEz(r)||failed(r),
@@ -14185,8 +14212,8 @@ const wt=setInterval(()=>{ if($('.edw')){ wire(); if($('.edw').__cellbr) clearIn
      ③ 폰에서는 메모리가 먼저 죽는다. 폰이면 8~12 위로는 권하지 않는다.
    ══════════════════════════════════════ */
 const rowsAll=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
-const needCv = r => !!((r.q_url&&!r.q_md)||(r.a_url&&!r.a_md));
-const needEz = r => !r.easy_md && !!(r.q_url||r.q_md);
+const needCv = r => window.__needCv ? window.__needCv(r) : !!((r.q_url&&!r.q_md)||(r.a_url&&!r.a_md));
+const needEz = r => window.__needEz ? window.__needEz(r) : !!(!r.easy_md && (r.q_url||r.q_md));
 const FAILS  = ()=>{ try{ return (window.__pracFail&&window.__pracFail())||{} }catch(e){ return {} } };
 const FKEY='prac:jobfail:v1';
 function failPut(id,why){
@@ -14231,6 +14258,10 @@ function poolOf(scope){
    거절당하면 조금씩 다르게 쉬었다(같이 몰려 들어가지 않게) 두 번까지 더 해 본다.
    돌려준 값 : null(됨) 또는 { why, busy } */
 async function doOne(r){
+  /* ★ v193 — 잠가 둔 칸밖에 없으면 «할 일 없음» 으로 곧장 끝낸다.
+     예전에는 잠긴 문항도 세 번 다시 돌린 뒤 «돌렸으나 채워지지 않음» 실패로
+     적었다 — 잠글수록 실패 목록만 불어났다. 이제는 조용히 넘어간다. */
+  if(!needCv(r) && !needEz(r)) return null;
   for(let k=0; k<3; k++){
     try{
       if(needCv(r)) await cvRow(r,false);
@@ -14744,8 +14775,8 @@ const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelect
 const rowsAll=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
 const FAILS=()=>{ try{ return (window.__pracFail&&window.__pracFail())||{} }catch(e){ return {} } };
 const FKEY='prac:jobfail:v1';
-const needCv = r => !!((r.q_url&&!r.q_md)||(r.a_url&&!r.a_md));
-const needEz = r => !r.easy_md && !!(r.q_url||r.q_md);
+const needCv = r => window.__needCv ? window.__needCv(r) : !!((r.q_url&&!r.q_md)||(r.a_url&&!r.a_md));
+const needEz = r => window.__needEz ? window.__needEz(r) : !!(!r.easy_md && (r.q_url||r.q_md));
 
 /* ══ ① 사유 가르기 ══ */
 const KINDS=[
