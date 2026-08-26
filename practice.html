@@ -2846,17 +2846,75 @@ const inl = x => x.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
 /* 마크다운 — 표·제목·목록·굵게·코드·수식까지. 필기뷰어 해설칸과 같은 결. */
 /* 박스 «안» 을 그린다 — 밖과 같은 규칙(파란 물음 줄 · 잔물음 · 목록 · 답 줄)을 쓰고,
    빈 줄은 친 만큼 벌린다. 안쪽에서 또 박스를 열지는 않는다(겹박스는 읽기 나쁘다). */
+/* ★ v198 · 여러 줄로 쪼개진 표 행을 도로 한 줄로 붙인다.
+
+   AI 가 칸 안에서 줄을 바꿔 쓰면(«단면적⏎[mm²]») 한 행이 물리적으로 여러 줄이 된다.
+   마크다운 표는 «한 줄 = 한 행» 이라, 이 상태로는 표로 안 보이고 날글자로 찍힌다
+   (실제로 후강전선관 규격표가 통째로 이렇게 깨졌다).
+   그래서 세로 막대(|) 로 시작한 줄은, 막대 개수가 첫 줄만큼 찰 때까지 다음 줄을
+   이어 붙인다. 칸 안의 줄바꿈은 <br> 로 바꿔 살려 둔다 — 두 줄짜리 머리글이
+   한 줄로 뭉개지지 않게. */
+function mendRows(lines){
+  const bars = l => (l.match(/\|/g) || []).length;
+  const out = [];
+  for(let i = 0; i < lines.length; i++){
+    const t = lines[i];
+    if(!/^\s*\|/.test(t)){ out.push(t); continue; }
+    /* 이 행이 몇 칸짜리인지 — 구분줄(|---|---|)이 있으면 그것을 기준으로 삼는다 */
+    let want = bars(t);
+    for(let j = i + 1; j < lines.length; j++){
+      const s = (lines[j] || '').trim();
+      if(/^\|[\s:\-|]+\|?$/.test(s)){ want = Math.max(want, bars(s)); break; }
+      if(!/^\s*\|/.test(s) && !s) break;
+    }
+    let acc = t;
+    /* 끝이 | 로 안 닫혔거나 막대가 모자라면, 다음 줄을 <br> 로 이어 붙인다 */
+    while(i + 1 < lines.length
+       && (bars(acc) < want || !/\|\s*$/.test(acc))
+       && !/^\s*\|[\s:\-|]+\|?\s*$/.test((lines[i+1] || '').trim())
+       && (lines[i+1] || '').trim() !== ''){
+      i++;
+      acc = acc.replace(/\s*$/, '') + '<br>' + lines[i].trim();
+      if(bars(acc) >= want && /\|\s*$/.test(acc)) break;
+    }
+    /* 칸 시작 바로 뒤에 붙은 <br> 는 군더더기다 — 없앤다 */
+    out.push(acc.replace(/\|\s*<br>/g, '| ').replace(/<br>\s*\|/g, ' |'));
+  }
+  return out;
+}
+
 function boxInner(rawLines){
+  /* ★ v198 — 박스 «안» 의 표가 통째로 깨져 나오던 것을 고쳤다.
+     ① 박스 안에서는 표를 그리는 갈래가 아예 없어서, | 로 그린 표가 그대로
+        «| 단면적 | 허용전류[A] | …» 라는 날글자로 찍혔다.
+     ② 게다가 칸 안에서 줄을 바꾼 표(«단면적⏎[mm²]»)는 한 행이 여러 줄로
+        쪼개져 있어서, 밖에서 그리더라도 표로 안 보였다. 그래서 먼저 행을
+        도로 붙여 놓고(mendRows) 그린다 — 세로 막대 개수가 찰 때까지 잇는다. */
+  const rows = mendRows(rawLines);
   let html = '', ul = false, first = true;
   const shutUl = () => { if(ul){ html += '</ul>'; ul = false; } };
-  for(let k = 0; k < rawLines.length; k++){
-    const line = rawLines[k];
+  const isRow2 = l => /^\s*\|.*\|\s*$/.test(l);
+  const cells2 = l => l.trim().replace(/^\||\|$/g, '').split('|').map(s => s.trim());
+  for(let k = 0; k < rows.length; k++){
+    const line = rows[k];
     const t = line.trim();
+    /* 표 — 둘째 줄이 |---|---| 모양이면 표로 본다 (밖과 같은 규칙) */
+    if(isRow2(t) && /^\|[\s:\-|]+\|?$/.test((rows[k+1] || '').trim())){
+      shutUl();
+      const head = cells2(rows[k]); k += 2;
+      const body = [];
+      while(k < rows.length && isRow2(rows[k].trim())){ body.push(cells2(rows[k])); k++; }
+      k--;
+      html += `<div class="tblwrap"><table><thead><tr>${head.map(h => `<th>${inlR(h)}</th>`).join('')}</tr></thead><tbody>`
+            + body.map(r => `<tr>${r.map(c => `<td>${inlR(c)}</td>`).join('')}</tr>`).join('')
+            + '</tbody></table></div>';
+      first = false; continue;
+    }
     if(!t){
       /* 빈 줄 — 이어진 만큼 세어서 그만큼 벌린다 (엔터 두 번이면 한 칸, 세 번이면 두 칸) */
       shutUl();
       let blanks = 1;
-      while(k + blanks < rawLines.length && !rawLines[k + blanks].trim()) blanks++;
+      while(k + blanks < rows.length && !rows[k + blanks].trim()) blanks++;
       if(!first) html += `<div class="boxgap"${blanks >= 3 ? ' data-big="1"' : ''}></div>`;
       k += blanks - 1; continue;
     }
@@ -2886,7 +2944,9 @@ function boxInner(rawLines){
 }
 
 function mdRich(src){
-  const lines = esc(String(src || "")).split("\n");
+  /* ★ v198 — 칸 안에서 줄바꿈된 표는 한 행이 여러 줄로 쪼개져 표로 안 보인다.
+     그리기 전에 도로 붙여 둔다(박스 안팎 모두 같은 손질을 받게). */
+  const lines = mendRows(esc(String(src || "")).split("\n"));
   let out = "", ul = false, ol = false, i = 0;
   const close = () => { if(ul){ out += "</ul>"; ul = false; } if(ol){ out += "</ol>"; ol = false; } };
   const isRow = t => /^\|.*\|/.test(t);
@@ -4933,6 +4993,11 @@ $여기에 원문의 식 그대로$
 
 [규칙]
 - 전체를 [[box]] 한 개로 감싼다. [[box]] 와 [[/box]] 는 줄 맨 앞에 단독으로 쓴다.
+- ★ 원문에 있는 물음은 (1)(2)(3)… 하나도 빠짐없이 다 옮겨라. 마지막 물음까지
+  반드시 쓰고 [[/box]] 로 닫아라. 중간에서 끊지 마라 — 이게 제일 중요하다.
+- ★ 표는 «한 줄에 한 행» 이다. 칸 안에서 줄을 바꾸지 마라. 두 줄로 쓰고 싶으면
+  칸 안에 <br> 을 넣어라 (예: | 단면적<br>[mm²] | 허용전류[A] |).
+  표는 원문에 있는 행을 하나도 빼지 말고 그대로 옮긴다.
 - 물음 제목은 **(1)번문항** 처럼 굵게, 한 줄에 하나씩 쓴다.
 - 물음과 물음 사이에는 반드시 빈 줄을 한 줄 넣는다.
 - 잔물음이 있으면 ① ② ③ 을 줄 맨 앞에 쓰고, 한 줄에 하나씩만 둔다.
@@ -4973,9 +5038,39 @@ async function reformatRow(r, field){
   /* ★ v195 — 안 볼 항목은 AI 에 넘기기 «전» 에 잘라 낸다. 그래야 새로 쓴 글에
      그 부분이 되살아나지 않고, 저장될 때 영영 사라진다(그리기 때만 감추는 게 아니라). */
   const clean = (window.__dropCut ? window.__dropCut(src) : src);
-  const md0 = await askAI(reformatPrompt(clean, kind), null, 3600);
+
+  /* ★ v198 — 길이를 넉넉히 준다. 3600 으로는 물음이 서너 개인 긴 답안이
+     중간에서 끊겨, 마지막 물음이 통째로 사라진 채로 저장됐다(실제로 (3)번이
+     날아갔다). 원문 길이에 맞춰 올려 잡되 위쪽으로 넉넉하게 둔다. */
+  const budget = Math.min(16000, Math.max(4000, Math.ceil(clean.length / 1.6) + 2500));
+  const md0 = await askAI(reformatPrompt(clean, kind), null, budget);
   const md = (window.__dropCut ? window.__dropCut(md0 || "") : md0);
   if(!md || !md.trim()) return false;
+
+  /* ★ v198 · 내용이 사라졌으면 «성공» 으로 덮어쓰지 않는다.
+     와꾸를 고치는 일이지 내용을 줄이는 일이 아니다. 물음 번호가 하나라도
+     없어졌거나 글이 너무 많이 짧아졌으면 원문을 그대로 두고 실패로 알린다 —
+     조용히 덮어써 버리면 뭘 잃었는지도 모르게 된다. */
+  const nums = txt => {
+    const set = new Set();
+    String(txt).split("\n").forEach(l => {
+      const m = l.trim()
+        .replace(/^\s*(?:\*\*|__)\s*/, "")
+        .replace(/[（(]\s*(\d{1,2})\s*[）)]/, "($1)")
+        .match(/^\((\d{1,2})\)/);
+      if(m) set.add(m[1]);
+    });
+    return set;
+  };
+  const was = nums(clean), now = nums(md);
+  const lost = [...was].filter(n => !now.has(n));
+  if(lost.length) throw new Error(`(${lost.join(")(")})번 물음이 사라져서 되돌렸습니다`);
+  /* 표 줄이 통째로 날아간 경우도 잡는다 */
+  const barLines = t => String(t).split("\n").filter(l => /^\s*\|.*\|/.test(l)).length;
+  if(barLines(clean) >= 3 && barLines(md) < Math.ceil(barLines(clean) * 0.6))
+    throw new Error("표가 사라져서 되돌렸습니다");
+  if(md.replace(/\s/g, "").length < clean.replace(/\s/g, "").length * 0.55)
+    throw new Error("글이 절반 넘게 줄어서 되돌렸습니다");
   const up = await sb.from("practicals").update({ [field]: md }).eq("id", r.id);
   if(up.error) throw new Error(up.error.message);
   r[field] = md;
