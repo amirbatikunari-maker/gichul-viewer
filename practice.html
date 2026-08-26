@@ -779,7 +779,7 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
       <div class="rffld" id="rfFld">
         <button type="button" data-fld="q">문제</button>
         <button type="button" data-fld="a">답안</button>
-        <button type="button" data-fld="ez">쉬운 풀이</button>
+        <button type="button" data-fld="ez">쉬운풀이</button>
       </div>
       <div class="rfh">어디까지</div>
       <button type="button" data-scope="one">✨ 이 문제만</button>
@@ -788,6 +788,16 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
       <button type="button" data-scope="all">⚡ 전체 빠르게</button>
       <button type="button" data-scope="fail">↻ 실패한 것 다시</button>
       <div class="rfn">동시에 돌리는 개수는 «도구 → 동시» 값을 따릅니다.<br>그림은 안 건드리고 있는 글의 와꾸만 고칩니다.</div>
+      <!-- ★ v199 · 원본 그림에서 글자를 «다시» 읽어 온다 (위 꾸미기와 다른 일이다).
+           와꾸만 고쳐서는 못 살리는 것 — 표가 통째로 뭉개졌거나, 물음이 날아갔거나,
+           애초에 잘못 읽힌 글자 — 는 원본에서 다시 읽는 수밖에 없다.
+           문제·답안을 따로 둔 건, 한쪽만 상했을 때 멀쩡한 쪽까지 덮어쓰지 않으려는 것. -->
+      <div class="rfh">그림 → 글자 다시 읽기 <span class="rfhs">이 문제</span></div>
+      <div class="rffld">
+        <button type="button" data-ocr="q">🅐 문제 그림</button>
+        <button type="button" data-ocr="a">🅑 답안 그림</button>
+      </div>
+      <div class="rfn">지금 글은 원본 그림에서 새로 읽은 것으로 덮어씁니다.</div>
       <button type="button" class="rfx" data-rfclear>실패 기록 비우기</button>
     </div>
     <!-- ★ v192 · 변환 중지 — 목록 화면까지 나가지 않고 여기서 바로 세운다.
@@ -3389,6 +3399,31 @@ async function cvRow(r, force){
   return true;
 }
 
+/* ★ v199 · 한 칸만 그림 → 글자로 다시 뽑는다.
+
+   cvRow 는 문제·답안을 «둘 다» 본다. 그런데 실제로는 «답안 표만 뭉개졌으니
+   답안만 다시 읽고 싶다» 같은 일이 훨씬 잦다. 둘 다 돌리면 멀쩡한 문제까지
+   새로 뽑혀 덮어써지고 시간도 두 배로 든다. 그래서 한 칸만 도는 길을 낸다.
+   which 는 'q' 또는 'a'. 잠긴 칸은 여기서도 건드리지 않는다. */
+async function cvField(r, which){
+  const url = which === 'q' ? r.q_url : r.a_url;
+  const key = which === 'q' ? 'q_md' : 'a_md';
+  const nm  = which === 'q' ? '문제' : '답안';
+  if(!url) throw new Error(`${nm}는 원본 그림이 없어 글자로 뽑을 수 없습니다`);
+  if(window.__locked && window.__locked(which))
+    throw new Error(`${nm} 칸이 «변환 금지» 로 잠겨 있습니다`);
+  const md = await cvOne(r, which);
+  if(!md || !md.trim()) throw new Error(`${nm}에서 글자를 못 읽었습니다`);
+  const patch = {}; patch[key] = md;
+  const up = await sb.from("practicals").update(patch).eq("id", r.id);
+  if(up.error) throw new Error(/q_md|a_md|schema cache/i.test(up.error.message)
+    ? "q_md · a_md 칸이 아직 없습니다 — 추가SQL_실기변환.sql 을 먼저 돌려 주세요."
+    : up.error.message);
+  Object.assign(r, patch);
+  return true;
+}
+try{ window.cvField = cvField; }catch(e){}
+
 /* 지금 화면에 걸린 조건 안의 문항을 죽 훑는다.
    force 가 false 면 «아직 안 바뀐 것» 만 골라 채운다 — 중간에 끊겨도 이어서 하면 된다. */
 async function cvRun(force){
@@ -3851,6 +3886,18 @@ window.__rfFieldsPaint = () => {
   const fb = $('#rfPop [data-scope="fail"]');
   if(fb){ const n = Object.keys(rffAll()).length;
     fb.textContent = n ? `↻ 실패한 것 다시 (${n})` : "↻ 실패한 것 다시 (없음)"; fb.disabled = !n; }
+  /* 그림 → 글자 단추는 «원본 그림이 있고 + 잠기지 않은» 칸만 누를 수 있게 */
+  const cur = (Array.isArray(ROWS) ? ROWS : []).find(x => String(x.id) === String(OVID));
+  $$('#rfPop [data-ocr]').forEach(b => {
+    const w = b.dataset.ocr;
+    const hasImg = !!(cur && (w === 'q' ? cur.q_url : cur.a_url));
+    const lk = window.__locked(w);
+    b.disabled = !hasImg || lk;
+    b.title = !cur ? "문항을 먼저 열어 주세요"
+            : !hasImg ? "이 문항은 원본 그림이 없습니다"
+            : lk ? "이 칸이 «변환 금지» 로 잠겨 있습니다"
+            : "원본 그림에서 이 칸의 글자를 다시 읽습니다 (지금 글은 덮어씁니다)";
+  });
 };
 $$('#rfFld [data-fld]').forEach(b => b.addEventListener("click", e => {
   e.preventDefault(); e.stopPropagation();
@@ -3861,6 +3908,44 @@ $("#rfFldAll")?.addEventListener("click", e => {
   e.preventDefault(); e.stopPropagation();
   window.__lockClear();
 });
+/* ★ v199 · «그림 → 글자 다시 읽기» — 지금 보고 있는 문항의 한 칸만 다시 읽는다.
+   와꾸 고치기(꾸미기)와 달리 이건 원본 그림을 다시 읽는 일이라 값이 통째로 바뀐다.
+   그래서 한 문항 · 한 칸으로 좁혀 두고, 무엇을 덮어쓰는지 먼저 물어본다. */
+$$('#rfPop [data-ocr]').forEach(b => b.addEventListener("click", async () => {
+  const which = b.dataset.ocr;
+  const nm = which === 'q' ? '문제' : '답안';
+  const p = $("#rfPop"); if(p) p.hidden = true;
+  if(RFBUSY) return;
+  let busy = false; try{ busy = CVBUSY || EZBUSY; }catch(e){}
+  if(busy) return alert("지금 다른 작업이 돌고 있습니다. 그것부터 끝내거나 중지해 주세요.");
+
+  const r = ROWS.find(x => String(x.id) === String(OVID));
+  if(!r) return alert("지금 보고 있는 문항을 찾지 못했습니다.");
+  if(window.__locked(which))
+    return alert(`${nm} 칸이 «변환 금지» 로 잠겨 있습니다.\n쪽지 위쪽 «손볼 칸» 에서 ${nm}를 먼저 켜 주세요.`);
+  if(!(which === 'q' ? r.q_url : r.a_url))
+    return alert(`이 문항은 ${nm} 원본 그림이 없어 다시 읽을 수 없습니다.`);
+
+  const name = `${r.year}년 제${r.session}회 ${r.no}번`;
+  if(!confirm(`${name} 의 ${nm}를 원본 그림에서 다시 읽습니다.\n\n`
+    + `지금 ${nm} 글은 새로 읽은 것으로 덮어씁니다 — 손으로 고쳐 두신 게 있으면 사라집니다.\n`
+    + `계속할까요?`)) return;
+
+  rfStart(1, `${name} · ${nm} 그림 → 글자`);
+  let ok = 0, bad = 0;
+  try{
+    rfStep(1, 1, `${nm} 그림을 글자로 읽는 중…`);
+    await window.cvField(r, which);
+    ok = 1; rfLog(`✓ ${name} — ${nm} 다시 읽음`);
+  }catch(e){
+    bad = 1; rfLog(`✗ ${name} — ${nm} — ${(e && e.message) || e}`);
+  }
+  rfEnd(ok, bad, false);
+  try{ (window.__pracRedraw || drawList)(); }catch(e){}
+  try{ cvCount(); }catch(e){}
+  try{ if(String(OVID) === String(r.id)) ovDraw(); }catch(e){}
+}));
+
 $$('#rfPop [data-scope]').forEach(b => b.addEventListener("click", () => {
   const p = $("#rfPop"); if(p) p.hidden = true;
   rfRun(b.dataset.scope);
@@ -7771,7 +7856,7 @@ body.img-fix #ovl .tw img,body.img-fix #ovl .imgbox img{width:auto!important;max
 @media(max-width:520px){ .ovjob{margin:0 7px 6px;padding:8px 9px} .ovjob-log{max-height:70px} }
 
 /* ★ v194 · 꾸미기 범위 고르는 쪽지 */
-.rfpop{position:fixed;z-index:100055;top:56px;right:14px;width:236px;
+.rfpop{position:fixed;z-index:100055;top:56px;right:14px;width:262px;
   display:flex;flex-direction:column;gap:5px;padding:9px;border-radius:12px;
   background:var(--surface,#fff);border:1px solid var(--line,#e2e8f0);
   box-shadow:0 14px 40px rgba(15,23,42,.2)}
@@ -7786,10 +7871,17 @@ body.img-fix #ovl .tw img,body.img-fix #ovl .imgbox img{width:auto!important;max
 .rfpop .rfh{display:flex;align-items:center;gap:6px}
 .rfpop .rfhx{margin-left:auto;cursor:pointer;font:700 10px/1 var(--font-d,system-ui);
   color:var(--accent,#2563eb);letter-spacing:0}
+.rfpop .rfhs{margin-left:auto;font:700 9.5px/1 var(--font-d,system-ui);
+  color:var(--muted,#94a3b8);letter-spacing:0}
+.rfpop .rffld button[data-ocr]{color:var(--ink,#0f172a);border-color:#d9c9a8;background:#fdfaf2}
+.rfpop .rffld button[data-ocr]::before{content:""!important;margin:0}
+.rfpop .rffld button[data-ocr]:hover:not(:disabled){border-color:#c9b183;background:#faf3e4}
+.rfpop .rffld button[data-ocr]:disabled{opacity:.45;cursor:default}
+.rffld button{white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .rffld{display:flex;gap:5px}
-.rffld button{flex:1;height:30px;padding:0 4px;text-align:center;
+.rffld button{flex:1;height:30px;padding:0 3px;text-align:center;
   border:1px solid var(--line,#e2e8f0);border-radius:9px;background:var(--surface,#fff);
-  font:700 11.5px/1 var(--font-d,system-ui);color:var(--muted,#94a3b8);cursor:pointer}
+  font:700 11px/1 var(--font-d,system-ui);color:var(--muted,#94a3b8);cursor:pointer}
 .rffld button.on{border-color:#93b4f5;background:#eef4ff;color:#1d4ed8}
 .rffld button.on::before{content:"✓ ";font-size:.9em}
 .rffld button:not(.on)::before{content:"🔒 ";font-size:.85em;opacity:.6}
