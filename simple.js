@@ -30,7 +30,15 @@ const page = (location.pathname.split("/").pop() || "index.html").toLowerCase();
    «2 · 자료함», «3 · PDF 가져오기» 는 이제 검수 화면·자동변환이 대신하고,
    .cvbar 는 변환·해설·잠금·진행바가 몰려 있는 관리용 띠다. */
 const BLOCK = {
-  "practice.html": [".filters.cvbar", "#boxFiles", "#boxImport"],
+  "practice.html": [
+    ".filters.cvbar", "#boxFiles", "#boxImport",
+    /* v207 — 화면 밖에 떠 있던 것들 */
+    ".bgm",                     /* 배경 음악 단추와 곡 목록 */
+    ".app-float",               /* 오른쪽 아래 동그라미 묶음(위로·전체메뉴·★) — AI 단추만 남김 */
+    '#pnav [data-jump]',        /* 처음·끝으로 */
+    '#pnav [data-step="-10"]',  /* 10개씩 뛰기 — ‹이전 다음› 만 남김 */
+    '#pnav [data-step="10"]'
+  ],
   "ingest.html":   []
 };
 
