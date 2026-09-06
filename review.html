@@ -171,6 +171,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
         <button id="btnFillAll">이 과목 전 회차 채우기</button>
         <button id="btnCut">페이지 잘라 넣기</button>
         <button id="btnOnlyEmpty">빈칸만 보기</button>
+        <button id="btnAllEmpty">전 회차 빈칸 모아보기</button>
         <button id="btnRenum" class="danger">번호 다시 매기기</button>
       </div>
       <p class="note" id="msg">과목·연도·회차를 고르고 «불러오기»를 누르세요.</p>
@@ -191,6 +192,25 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
         <span><i class="sw empty"></i>empty 미등록</span>
         <span>점선 테두리 = 새 후보 있음</span>
       </div>
+    </div>
+
+    <div class="card hide" id="dumpCard">
+      <h2>텍스트로 뽑기</h2>
+      <p class="note" style="margin-top:0">
+        지금 보고 있는 상태를 글로 정리함. 그대로 복사해 AI 에게 붙여넣으면
+        무엇이 비었고 어디가 막혔는지 바로 읽힘.
+      </p>
+      <div class="btns" style="margin-top:0">
+        <button id="btnDump">이 회차</button>
+        <button id="btnDumpAll">과목 전체</button>
+        <button class="pri" id="btnCopy" disabled>복사</button>
+        <button id="btnDumpSave" disabled>파일로 받기</button>
+      </div>
+      <textarea id="dump" rows="14" spellcheck="false"
+        style="width:100%;margin-top:10px;padding:10px;border:1px solid var(--line);
+               border-radius:7px;background:var(--sunk);color:var(--ink);
+               font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.6"
+        placeholder="«이 회차» 나 «과목 전체» 를 누르면 여기에 정리돼 나옵니다."></textarea>
     </div>
 
     <div class="card hide" id="detCard">
@@ -260,6 +280,9 @@ const RANK = { empty:0, raw:1, draft:2, ok:3 };
 
 let ROWS = [], CUR = null, ONLY_EMPTY = false;
 let SID = 0, YEAR = 0, SESS = 0;
+/* v211 — 과목 전체를 한 번에 훑어 빈칸만 모아 보는 모드 */
+let ALL = [], MODE = "sheet";
+const isEmpty = r => ["q","a","sol"].some(k => st(r,k) === "empty");
 
 const esc = s => String(s??"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function log(m, cls){
@@ -329,7 +352,9 @@ async function load(){
   ROWS = data || [];
   say(`${YEAR}년 ${SESS}회 · ${ROWS.length}문항`);
   $("#gridCard").classList.remove("hide");
+  $("#dumpCard").classList.remove("hide");
   $("#gridTitle").textContent = `${YEAR}년 제${SESS}회`;
+  MODE = "sheet";
   draw();
   if(CUR){ const f = ROWS.find(r => r.no === CUR.no); CUR = f || null; }
   if(CUR) detail(CUR.no); else $("#detCard").classList.add("hide");
@@ -348,6 +373,7 @@ const candOf = r => Array.isArray(r.cand) ? r.cand : [];
 
 /* ── 격자 ───────────────────────────────────────── */
 function draw(){
+  if(MODE === "all") return void drawAll();
   const box = $("#cov");
   const list = ONLY_EMPTY
     ? ROWS.filter(r => ["q","a","sol"].some(k => st(r,k) === "empty"))
@@ -380,6 +406,190 @@ $("#btnOnlyEmpty").addEventListener("click", e => {
   e.target.textContent = ONLY_EMPTY ? "전체 보기" : "빈칸만 보기";
   e.target.classList.toggle("pri", ONLY_EMPTY);
   draw();
+});
+
+/* ── 과목 전체 훑기 ─────────────────────────────── */
+async function fetchAll(sid){
+  const out = [];
+  for(let from = 0; from < 40000; from += 1000){
+    const { data, error } = await sb.from("practicals").select("*")
+      .eq("subject_id", sid)
+      .order("year",{ascending:false}).order("session",{ascending:false}).order("no")
+      .range(from, from + 999);
+    if(error) throw error;
+    out.push(...(data||[]));
+    if(!data || data.length < 1000) break;
+    say(`불러오는 중… ${out.length}문항`);
+  }
+  return out;
+}
+const sheetKey = r => `${r.year}-${r.session}`;
+
+$("#btnAllEmpty").addEventListener("click", async () => {
+  const sid = +$("#fSub").value;
+  if(!sid) return void say("과목을 먼저 고르세요.");
+  SID = sid;
+  $("#btnAllEmpty").disabled = true; say("과목 전체를 훑는 중…");
+  try{
+    ALL = await fetchAll(sid);
+    MODE = "all"; CUR = null;
+    $("#detCard").classList.add("hide");
+    $("#gridCard").classList.remove("hide");
+    $("#dumpCard").classList.remove("hide");
+    drawAll();
+  }catch(e){
+    say("훑지 못했습니다 — " + esc(e.message||e));
+  }finally{ $("#btnAllEmpty").disabled = false; }
+});
+
+/* 회차별로 묶어서, 빈칸 있는 문항만 격자에 뿌린다 */
+function drawAll(){
+  const holes = ALL.filter(isEmpty);
+  const by = {};
+  holes.forEach(r => (by[sheetKey(r)] ||= []).push(r));
+  const keys = Object.keys(by).sort((a,b) => {
+    const [ay,as] = a.split("-").map(Number), [by_,bs] = b.split("-").map(Number);
+    return by_ - ay || bs - as;
+  });
+
+  $("#gridTitle").textContent = `${SUBNAME()} · 전 회차 빈칸`;
+  const n = ALL.length;
+  let q=0,a=0,so=0,e=0,c=0;
+  ALL.forEach(r => {
+    if(st(r,"q")!=="empty") q++; else e++;
+    if(st(r,"a")!=="empty") a++; else e++;
+    if(st(r,"sol")!=="empty") so++; else e++;
+    if(candOf(r).length) c++;
+  });
+  $("#sQ").textContent=q+"/"+n; $("#sA").textContent=a+"/"+n;
+  $("#sS").textContent=so+"/"+n; $("#sE").textContent=e; $("#sC").textContent=c;
+
+  $("#cov").innerHTML = "";
+  if(!keys.length){
+    $("#cov").innerHTML = `<p class="note">빈칸이 하나도 없습니다. 다 채우셨습니다.</p>`;
+    say(`전 회차 ${n}문항 · 빈칸 없음`);
+    return;
+  }
+  const wrap = document.createElement("div");
+  keys.forEach(k => {
+    const [y,ss] = k.split("-");
+    const head = document.createElement("div");
+    head.className = "mono";
+    head.style.cssText = "font-size:12px;color:var(--mut);margin:14px 0 6px;font-weight:600";
+    head.textContent = `${y}년 제${ss}회 — 빈칸 ${by[k].length}문항`;
+    wrap.appendChild(head);
+    const g = document.createElement("div");
+    g.className = "cov";
+    g.innerHTML = by[k].map(r => {
+      const S = ["q","a","sol"].map(x => st(r,x));
+      return `<button class="cell${candOf(r).length?" hascand":""}"
+        data-go="${r.year}|${r.session}|${r.no}">
+        <div class="no"><span>${String(r.no).padStart(2,"0")}</span><i>${r.points?r.points+"점":""}</i></div>
+        <div class="stripes">${S.map(x=>`<div class="st ${x}"></div>`).join("")}</div>
+      </button>`;
+    }).join("");
+    wrap.appendChild(g);
+  });
+  $("#cov").appendChild(wrap);
+  $("#cov").querySelectorAll("[data-go]").forEach(b =>
+    b.addEventListener("click", async () => {
+      const [y,ss,no] = b.dataset.go.split("|").map(Number);
+      $("#fYear").value = String(y);
+      $("#fSess").innerHTML = `<option value="${ss}">제${ss}회</option>`;
+      $("#fSess").value = String(ss);
+      MODE = "sheet";
+      await load();
+      detail(no);
+      $("#detCard").scrollIntoView({ behavior:"smooth", block:"start" });
+    }));
+  say(`전 회차 ${n}문항 · 빈칸 있는 문항 <b>${holes.length}개</b> · 회차 ${keys.length}개`);
+}
+const SUBNAME = () => $("#fSub").selectedOptions[0]?.textContent || "과목";
+
+/* ── 텍스트로 뽑기 ──────────────────────────────── */
+function slotWord(r,k){
+  const v = st(r,k);
+  return { empty:"없음", raw:"검수 전", draft:"검수함", ok:"확정" }[v] || v;
+}
+function dumpSheet(rows, y, ss){
+  const L = [];
+  let q=0,a=0,so=0;
+  rows.forEach(r => { if(st(r,"q")!=="empty")q++; if(st(r,"a")!=="empty")a++; if(st(r,"sol")!=="empty")so++; });
+  const n = rows.length;
+  L.push(`## ${y}년 제${ss}회 — ${n}문항`);
+  L.push(`문제 ${q}/${n} · 답 ${a}/${n} · 해설 ${so}/${n}`);
+  const holes = rows.filter(isEmpty);
+  if(!holes.length){ L.push("빈칸 없음"); return L.join("\n"); }
+  L.push("");
+  L.push(`빈칸 ${holes.length}문항`);
+  holes.forEach(r => {
+    const miss = ["q","a","sol"].filter(k => st(r,k)==="empty")
+      .map(k => ({q:"문제",a:"답",sol:"해설"})[k]);
+    const has = [];
+    if(r.q_url) has.push("문제그림"); if(r.q_text) has.push("문제글");
+    if(r.a_url) has.push("답그림");  if(r.a_text) has.push("답글");
+    if(r.easy_md) has.push("해설");
+    L.push(`- ${r.no}번 — 없는 것: ${miss.join("·")}` + (has.length ? ` / 있는 것: ${has.join("·")}` : ""));
+  });
+  return L.join("\n");
+}
+function head(){
+  const now = new Date().toLocaleString("ko-KR", { hour12:false });
+  return [
+    `# 기출뷰어 검수 상태 — ${now}`,
+    `과목: ${SUBNAME()}`,
+    `앱: ${CFG.CONFIG_VERSION || "?"} · 워커: ${WORKER || "(없음)"}`,
+    ""
+  ].join("\n");
+}
+function setDump(text){
+  $("#dump").value = text;
+  $("#btnCopy").disabled = !text;
+  $("#btnDumpSave").disabled = !text;
+  $("#btnCopy").textContent = "복사";
+}
+$("#btnDump").addEventListener("click", () => {
+  if(!ROWS.length) return void say("회차를 먼저 불러오세요.");
+  setDump(head() + dumpSheet(ROWS, YEAR, SESS));
+});
+$("#btnDumpAll").addEventListener("click", async () => {
+  const sid = +$("#fSub").value;
+  if(!sid) return void say("과목을 먼저 고르세요.");
+  if(!ALL.length || SID !== sid){
+    SID = sid; say("과목 전체를 훑는 중…");
+    try{ ALL = await fetchAll(sid); }
+    catch(e){ return void say("훑지 못했습니다 — " + esc(e.message||e)); }
+  }
+  const by = {};
+  ALL.forEach(r => (by[sheetKey(r)] ||= []).push(r));
+  const keys = Object.keys(by).sort((x,z) => {
+    const [xy,xs]=x.split("-").map(Number), [zy,zs]=z.split("-").map(Number);
+    return zy-xy || zs-xs;
+  });
+  let q=0,a=0,so=0;
+  ALL.forEach(r => { if(st(r,"q")!=="empty")q++; if(st(r,"a")!=="empty")a++; if(st(r,"sol")!=="empty")so++; });
+  const top = [`전체 ${ALL.length}문항 · 회차 ${keys.length}개`,
+               `문제 ${q} · 답 ${a} · 해설 ${so}`,
+               `빈칸 있는 문항 ${ALL.filter(isEmpty).length}개`, ""].join("\n");
+  setDump(head() + top + keys.map(k => {
+    const [y,ss] = k.split("-");
+    return dumpSheet(by[k], y, ss);
+  }).join("\n\n"));
+  say(`전 회차 ${ALL.length}문항 정리함`);
+});
+$("#btnCopy").addEventListener("click", async () => {
+  const t = $("#dump").value; if(!t) return;
+  try{ await navigator.clipboard.writeText(t); }
+  catch(e){ $("#dump").select(); document.execCommand("copy"); }
+  $("#btnCopy").textContent = "복사됨 ✓";
+  setTimeout(() => { $("#btnCopy").textContent = "복사"; }, 1500);
+});
+$("#btnDumpSave").addEventListener("click", () => {
+  const t = $("#dump").value; if(!t) return;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["\ufeff"+t], { type:"text/markdown;charset=utf-8" }));
+  a.download = `검수상태-${new Date().toISOString().slice(0,10)}.md`;
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
 });
 
 /* ── 상세 ───────────────────────────────────────── */
