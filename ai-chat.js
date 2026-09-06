@@ -1194,6 +1194,9 @@ const CSS = `
   justify-content:center
 }
 
+@media(max-width:720px){
+  .aic-fab{ bottom:calc(80px + env(safe-area-inset-bottom)) }
+}
 .aic-fab:active{
   transform:scale(.94)
 }
@@ -2102,13 +2105,11 @@ function renderModelBar() {
 
     [
       "openai",
-      "GPT"
-    ],
-
-    [
-      "gemini",
-      "Gemini"
+      "Claude"
     ]
+
+    /* v202 — Gemini 탭 제거. 중계 워커가 전부 Claude 로 보내므로
+       고를 것이 없고, 이름만 남으면 헷갈린다. */
 
   ];
 
@@ -2916,6 +2917,25 @@ function esc(s) {
 }
 
 
+/* v202 — 수식 렌더.
+   ai-chat 은 여태 KaTeX 를 부르지 않아 $$ … $$ 가 글자 그대로 보였다.
+   화면(practice·index)에 KaTeX 가 이미 올라와 있으므로 그것만 불러 쓴다. */
+function aicTex(node) {
+  if (!node || !window.renderMathInElement) return;
+  try {
+    renderMathInElement(node, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$",  right: "$",  display: false },
+        { left: "\\[", right: "\\]", display: true },
+        { left: "\\(", right: "\\)", display: false }
+      ],
+      throwOnError: false,
+      ignoredTags: ["script", "style", "textarea", "pre", "code"]
+    });
+  } catch (e) {}
+}
+
 function md(
   src
 ) {
@@ -3454,9 +3474,11 @@ function bubble(
   scroll();
 
 
-  return row.querySelector(
+  const _bub = row.querySelector(
     ".aic-bub"
   );
+  aicTex(_bub);
+  return _bub;
 
 }
 
@@ -4186,12 +4208,7 @@ async function send(
     AI 응답 자리
   */
   const meta =
-    `${
-      pick.provider ===
-        "openai"
-        ? "GPT"
-        : "Gemini"
-    } · ${pick.model}`;
+    `Claude · ${pick.model}`;
 
 
   const bub =
@@ -4542,6 +4559,11 @@ async function send(
         `;
 
     }
+
+
+    /* v202 — 흘러나오는 도중에는 수식이 반쪽이라 그리지 않고,
+       다 받은 뒤 한 번만 그린다. */
+    aicTex(bub);
 
 
     /*
@@ -5233,12 +5255,7 @@ async function openThread(
             "assistant" &&
           m.model
 
-            ? `${
-                m.provider ===
-                  "openai"
-                  ? "GPT"
-                  : "Gemini"
-              } · ${m.model}`
+            ? `Claude · ${m.model}`
 
             : null
 

@@ -37,9 +37,11 @@ const EFFORT = { off: 0, low: 1024, mid: 4000, high: 10000 };
 const IMG_MAX = 4.6 * 1024 * 1024;
 
 const tiers = env => ({
-  best: env.MODEL_BEST || env.MODEL || "claude-opus-4-6",
-  mid:  env.MODEL_MID  || env.MODEL || "claude-sonnet-4-6",
-  fast: env.MODEL_FAST || env.MODEL || "claude-haiku-4-6"
+  /* v202 — 기본값을 실제로 있는 모델로. 변수를 안 넣어도 돌아감.
+     MODEL 하나만 넣으면 셋 다 그걸 씀. */
+  best: env.MODEL_BEST || env.MODEL || "claude-opus-5",
+  mid:  env.MODEL_MID  || env.MODEL || "claude-opus-5",
+  fast: env.MODEL_FAST || env.MODEL || "claude-opus-5"
 });
 
 /* ─── 공통 ─────────────────────────────────────────────── */
