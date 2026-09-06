@@ -26,13 +26,17 @@ const KEY = "app:simple";
 const page = (location.pathname.split("/").pop() || "index.html").toLowerCase();
 
 /* 간단히 모드에서 감출 것 — 화면별 */
+/* 통째로 접을 블록 — 단추를 하나씩 세는 것보다 이쪽이 훨씬 깔끔하다.
+   «2 · 자료함», «3 · PDF 가져오기» 는 이제 검수 화면·자동변환이 대신하고,
+   .cvbar 는 변환·해설·잠금·진행바가 몰려 있는 관리용 띠다. */
+const BLOCK = {
+  "practice.html": [".filters.cvbar", "#boxFiles", "#boxImport"],
+  "ingest.html":   []
+};
+
 const ADV = {
   "practice.html": [
     /* 변환·해설 만들기 — 검수 화면에서 하면 되는 일 */
-    "cvGap","cvAllSess","cvAll","cvStop",
-    "ezRun","ezRedoSess","ezRedoAll","ezSetup",
-    /* 업로더 — 이제 검수 화면이 대신함 */
-    "run","peek","save","fillGap","stop",
     /* 과목 관리 */
     "subAdd","subRen","subDel",
     /* 시험 모드·세션 — 쓸 때만 «자세히» 로 */
@@ -73,13 +77,15 @@ document.head.appendChild(css);
 
 /* ── 표시하기 ───────────────────────────────────── */
 function mark(){
+  (BLOCK[page] || []).forEach(sel =>
+    document.querySelectorAll(sel).forEach(el => el.setAttribute("data-adv","1")));
   LIST.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.setAttribute("data-adv", "1");
   });
   /* 안에 있던 것이 전부 감춰져 텅 빈 줄은 그 줄째 감춘다.
      안 그러면 빈 테두리만 남아 오히려 지저분해진다. */
-  document.querySelectorAll(".bar,.tools,.row,.btns,.chips,.toolbar,.deck,.panel")
+  document.querySelectorAll(".bar,.tools,.row,.btns,.chips,.toolbar,.deck,.panel,.filters")
     .forEach(row => {
       const kids = [...row.children];
       if (!kids.length) return;
