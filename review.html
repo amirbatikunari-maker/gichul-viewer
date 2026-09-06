@@ -212,15 +212,20 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   <div class="sheet">
     <header>
       <h3>페이지 잘라 넣기</h3>
+      <button class="sm" id="cutAsk">AI로 경계 찾기</button>
       <button class="sm" id="cutAdd">＋ 절단선</button>
       <button class="sm" id="cutClear">선 지우기</button>
       <button class="sm" id="cutClose">닫기</button>
     </header>
     <div class="body">
-      <div class="row" style="margin-bottom:10px">
-        <div style="flex:2"><label for="cutFile">페이지 사진·스캔 고르기</label>
-          <input id="cutFile" type="file" accept="image/*"></div>
-      </div>
+      <details style="margin-bottom:10px">
+        <summary style="cursor:pointer;font-size:13px;color:var(--mut)">
+          다른 그림 파일에서 가져오기</summary>
+        <div class="row" style="margin-top:8px">
+          <div style="flex:2"><label for="cutFile">페이지 사진·스캔 고르기</label>
+            <input id="cutFile" type="file" accept="image/*"></div>
+        </div>
+      </details>
       <p class="note" style="margin-top:0">
         그림 위를 <b>클릭</b>하면 그 자리에 절단선이 생김. 선을 <b>끌어서</b> 옮기고,
         선 오른쪽 <b>×</b>로 지움. 선으로 나뉜 칸마다 몇 번 문항의 어느 슬롯인지 고르면 됨.
@@ -405,6 +410,7 @@ function detail(no){
           `<option value="${v}"${v===s?" selected":""}>${v}</option>`).join("")}</select>
         ${S.url ? `<button class="sm" data-up="${k}">그림 올리기</button>` : ""}
         ${k === "sol" ? `<button class="sm" data-gen="1">해설 뽑기</button>` : ""}
+        ${k === "q" && url ? `<button class="sm" data-cutthis="1">이 그림 자르기</button>` : ""}
         ${url||txt ? `<button class="sm danger" data-clr="${k}">비우기</button>` : ""}
         ${url ? `<button class="sm" data-open="${esc(url)}">원본</button>` : ""}
       </div>
@@ -426,6 +432,8 @@ function detail(no){
     b.addEventListener("click", () => pickImage(b.dataset.up)));
   $("#slots").querySelectorAll("[data-gen]").forEach(b =>
     b.addEventListener("click", () => genSol(b)));
+  $("#slots").querySelectorAll("[data-cutthis]").forEach(b =>
+    b.addEventListener("click", () => cutExisting()));
   $("#slots").querySelectorAll("[data-clr]").forEach(b =>
     b.addEventListener("click", () => clearSlot(b.dataset.clr)));
   $("#slots").querySelectorAll("[data-open]").forEach(b =>
@@ -482,12 +490,14 @@ async function put(path, blob){
 }
 
 /* 이미 검수한 슬롯은 덮지 않고 후보로 쌓음 */
-async function assign(k, url, row){
+async function assign(k, url, row, force){
   const R = row || CUR;
   const cur = st(R, k), col = SLOT[k].url;
   const old = R[col];
   const o = {};
-  if(RANK[cur] >= RANK.draft && old){
+  /* force — 내가 그 그림을 «일부러 다시 자른» 경우.
+     이때까지 후보로 밀면 정작 고친 그림이 화면에 안 나타나 헷갈린다. */
+  if(!force && RANK[cur] >= RANK.draft && old){
     const cand = (Array.isArray(R.cand) ? R.cand : []).concat([{
       slot:k, url, at:new Date().toISOString()
     }]);
@@ -672,7 +682,83 @@ $("#btnCut").addEventListener("click", openCut);
 $("#cutClose").addEventListener("click", closeCut);
 $("#cutModal").addEventListener("click", e => { if(e.target.id === "cutModal") closeCut(); });
 
+/* ── 이미 올라간 문제 그림을 그 자리에서 자르기 ──────────
+   복원본은 문제 바로 아래에 답이 같이 찍혀 있는 경우가 많다.
+   자동 분할이 못 가른 것을 여기서 손으로 가른다.
+   원본 주소를 그대로 캔버스에 올리므로 파일을 다시 고를 필요가 없다. */
+let CUTROW = null;
+
+async function cutExisting(){
+  if(!CUR || !CUR.q_url) return;
+  CUTROW = CUR;
+  openCut();
+  $("#cutMsg").textContent = "그림 불러오는 중…";
+  try{
+    /* 주소를 img.src 로 바로 쓰면 캔버스가 «오염» 돼 잘라내지 못한다.
+       파일로 받아서 넣으면 그 문제가 없다. */
+    const res = await fetch(CUR.q_url, { mode:"cors" });
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    const blob = await res.blob();
+    await new Promise((ok, no) => {
+      const im = new Image();
+      im.onload = () => { IMG = im; LINES = []; paintCut(); ok(); };
+      im.onerror = () => no(new Error("그림을 읽지 못했습니다"));
+      im.src = URL.createObjectURL(blob);
+    });
+    $("#cutMsg").textContent = `${CUR.no}번 문제 그림 — 답이 시작되는 자리에 선을 그으세요`;
+    presetSegs();
+  }catch(e){
+    $("#cutMsg").textContent = "불러오지 못했습니다 — " + (e.message||e)
+      + " · 아래에서 파일을 직접 고르셔도 됩니다";
+  }
+}
+
+/* 이 문항을 자르는 경우, 칸 배정을 미리 «위=문제 / 아래=답» 으로 채워 둔다 */
+function presetSegs(){
+  if(!CUTROW) return;
+  const segs = segments();
+  if(segs.length !== 2) return;
+  const a = $('#segs [data-no="0"]'), b = $('#segs [data-no="1"]');
+  const sa = $('#segs [data-slot="0"]'), sb = $('#segs [data-slot="1"]');
+  if(a){ a.value = String(CUTROW.no); } if(sa){ sa.value = "q"; }
+  if(b){ b.value = String(CUTROW.no); } if(sb){ sb.value = "a"; }
+  hints();
+}
+
+/* AI 에게 «답이 시작되는 높이» 를 물어 선을 미리 그어 준다 */
+async function askCut(){
+  if(!IMG) return void ($("#cutMsg").textContent = "그림을 먼저 고르세요.");
+  if(!CUTROW || !CUTROW.q_url)
+    return void ($("#cutMsg").textContent = "이미 올라간 문제 그림에서만 쓸 수 있습니다.");
+  if(!WORKER) return void ($("#cutMsg").textContent = "config.js 에 CLAUDE_WORKER_URL 이 없습니다.");
+  const btn = $("#cutAsk"); const old = btn.textContent;
+  btn.disabled = true; btn.textContent = "보는 중…";
+  try{
+    const r = await fetch(WORKER + "/split-hint", {
+      method:"POST",
+      headers:Object.assign({"Content-Type":"application/json"},
+        CFG.CLAUDE_APP_KEY ? {"x-app-key":CFG.CLAUDE_APP_KEY} : {}),
+      body:JSON.stringify({ url: CUTROW.q_url })
+    });
+    const d = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+    if(!d.ok){
+      $("#cutMsg").textContent = d.found
+        ? "답 자리를 찾긴 했는데 미덥지 않아 긋지 않았습니다 — 직접 그어 주세요"
+        : "이 그림에는 답이 같이 있지 않은 것 같습니다";
+      return;
+    }
+    LINES = [ $("#cutCv").height * d.y ];
+    paintCut(); presetSegs();
+    $("#cutMsg").textContent = "선을 그었습니다 — " + (d.why || "확인하고 필요하면 끌어서 옮기세요");
+  }catch(e){
+    $("#cutMsg").textContent = "실패 — " + (e.message||e);
+  }finally{ btn.disabled = false; btn.textContent = old; }
+}
+$("#cutAsk").addEventListener("click", askCut);
+
 $("#cutFile").addEventListener("change", () => {
+  CUTROW = null;
   const f = $("#cutFile").files?.[0]; if(!f) return;
   const img = new Image();
   img.onload = () => { IMG = img; LINES = []; paintCut(); };
@@ -807,14 +893,20 @@ $("#cutSave").addEventListener("click", async () => {
         p.parts.map((pt, i) => ({ slot:p.slot, y0:Math.round(pt[0]), y1:Math.round(pt[1]), ord:i+1 })));
       await sb.from("practicals").update({ frags }).eq("id", row.id);
       row.frags = frags;
-      await assign(p.slot, url, row);
+      /* 이 문항 자신의 그림을 다시 자른 것이면 덮어쓴다 */
+      const mine = !!(CUTROW && row.no === CUTROW.no);
+      await assign(p.slot, url, row, mine);
       ok++;
       $("#cutMsg").textContent = `${ok}/${plan.length} 넣는 중…`;
     }catch(e){ bad++; $("#cutMsg").textContent = "실패 — " + (e.message||e); }
   }
   $("#cutSave").disabled = false;
   $("#cutMsg").textContent = `끝 — ${ok}개 넣음${bad ? ` · ${bad}개 실패` : ""}`;
+  const back = CUTROW ? CUTROW.no : null;
   await load();
+  if(ok && !bad){
+    setTimeout(() => { closeCut(); if(back) detail(back); }, 600);
+  }
 });
 
 /* 여러 조각을 세로로 이어 붙여 한 장으로 만듦 (페이지 넘김 처리) */

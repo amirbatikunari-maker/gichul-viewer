@@ -398,6 +398,75 @@ async function explain(req, env, H){
   return json({ ok: true, sol: call_.input, model, effort: b.effort || "low", usage: out.usage || null }, 200, H);
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   5. /split-hint — 한 그림 안에서 «문제와 답의 경계» 를 찾아 준다
+
+   복원본은 문제 바로 아래에 답이 같이 찍혀 있는 경우가 많다.
+   자동 분할은 «답안 작성» 같은 머리글을 찾는데, 그런 표시가 없으면
+   통째로 문제 슬롯에 들어가 답 슬롯이 빈 채로 남는다.
+
+   여기서는 그림을 보고 «답이 시작되는 높이» 를 위에서부터의 비율(0~1)로
+   돌려준다. 사람은 그 자리에 그어진 선을 눈으로 확인하고 손으로 미세조정만
+   하면 된다. 자동으로 잘라 저장하지 않는다 — 잘못 자르면 되돌리기 번거롭다.
+   ═══════════════════════════════════════════════════════════════ */
+const CUT_TOOL = {
+  name: "mark_cut",
+  description: "문제 그림 안에서 답이 시작되는 높이를 표시한다.",
+  input_schema: {
+    type: "object",
+    required: ["found"],
+    properties: {
+      found: { type: "boolean", description: "답이 이 그림 안에 같이 있으면 true" },
+      y: { type: "number",
+           description: "답이 시작되는 높이. 그림 맨 위가 0, 맨 아래가 1 인 비율. found 가 true 일 때만." },
+      why: { type: "string", description: "그 자리로 본 근거 한 줄. 예: '(1) 이유 : 로 시작하는 줄'" }
+    }
+  }
+};
+const SYS_CUT = [
+  "너는 전기기사 실기 복원본을 다루는 사람이다.",
+  "그림 한 장 안에 문제와 답이 같이 찍혀 있는지 보고, 답이 시작되는 높이를 표시한다.",
+  "",
+  "답의 시작으로 보는 것",
+  "- '(1)', '①', '▶', '답 :', '정답', '풀이' 로 시작하며 문제의 물음에 대응하는 줄",
+  "- 문제 본문이 끝나고 들여쓰기·기호가 바뀌는 지점",
+  "",
+  "주의",
+  "- 문제 안의 «조건 (1) (2)» 나 보기 항목은 답이 아니다. 물음이 끝난 뒤에 오는 것만 답이다.",
+  "- 답이 안 보이면 found 를 false 로 한다. 억지로 자르지 않는다.",
+  "- y 는 답의 첫 줄 «바로 위» 여백을 가리킨다.",
+  "",
+  "반드시 mark_cut 도구로 답한다."
+].join("\n");
+
+async function splitHint(req, env, H){
+  const b = await req.json();
+  const img = await imageBlock(b.url);
+  if (!img) return json({ error: "그림을 가져오지 못했습니다" }, 400, H);
+
+  const res = await call(env, {
+    model: b.model || tiers(env).best,
+    max_tokens: 700,
+    system: SYS_CUT,
+    tools: [CUT_TOOL],
+    tool_choice: { type: "tool", name: "mark_cut" },
+    messages: [{ role: "user", content: [
+      { type: "text", text: "이 그림에서 답이 시작되는 높이를 표시해 줘." },
+      img
+    ]}]
+  });
+  const out = await res.json();
+  const c = (out.content || []).find(x => x.type === "tool_use" && x.name === "mark_cut");
+  if (!c) return json({ error: "정해진 틀로 답하지 않았습니다" }, 502, H);
+
+  const r = c.input || {};
+  /* 너무 위나 너무 아래는 잘못 본 것으로 본다 */
+  const y = Number(r.y);
+  const ok = r.found === true && isFinite(y) && y > 0.08 && y < 0.95;
+  return json({ ok, found: !!r.found, y: ok ? y : null, why: r.why || "",
+                usage: out.usage || null }, 200, H);
+}
+
 /* ═══════════════════════════════════════════════════════════════ */
 export default {
   async fetch(req, env){
@@ -449,6 +518,7 @@ export default {
       if (path === "/get-data") return await getData(req, env, H);
       if (path === "/ai/chat")  return await chat(req, env, H);
       if (path === "/explain")  return await explain(req, env, H);
+      if (path === "/split-hint") return await splitHint(req, env, H);
       if (path === "/raw"){
         const b = await req.json();
         const r = await call(env, {
@@ -462,6 +532,6 @@ export default {
       return json({ error: e.message, detail: e.message, upstream: e.upstream || null }, 502, H);
     }
 
-    return json({ error: "없는 경로입니다", detail: "/get-data · /ai/models · /ai/chat · /explain · /health" }, 404, H);
+    return json({ error: "없는 경로입니다", detail: "/get-data · /ai/models · /ai/chat · /explain · /split-hint · /selftest · /health" }, 404, H);
   }
 };
