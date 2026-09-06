@@ -167,11 +167,15 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
         </div>
       </div>
       <div class="btns">
+        <label style="flex:none;margin:0 4px 0 0;align-self:center">문항수
+          <input id="fUpto" type="number" min="0" max="60" value="18"
+                 style="width:56px;padding:5px 7px;margin-left:4px"></label>
         <button id="btnFill">빈 번호 채우기</button>
         <button id="btnFillAll">이 과목 전 회차 채우기</button>
         <button id="btnCut">페이지 잘라 넣기</button>
         <button id="btnOnlyEmpty">빈칸만 보기</button>
         <button id="btnAllEmpty">전 회차 빈칸 모아보기</button>
+        <button id="btnShellDel" class="danger">빈 껍데기 지우기</button>
         <button id="btnRenum" class="danger">번호 다시 매기기</button>
       </div>
       <p class="note" id="msg">과목·연도·회차를 고르고 «불러오기»를 누르세요.</p>
@@ -179,11 +183,14 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 
     <div class="card hide" id="gridCard">
       <h2 id="gridTitle">문항</h2>
-      <div class="stat" style="margin-bottom:10px">
+      <div class="stat" style="margin-bottom:6px">
         <span>문제 <b id="sQ">0</b></span><span>답 <b id="sA">0</b></span>
-        <span>해설 <b id="sS">0</b></span><span>빈칸 <b id="sE">0</b></span>
+        <span>해설 <b id="sS">0</b></span>
+        <span>빈 껍데기 <b id="sShell">0</b>문항</span>
+        <span>배점 합 <b id="sPt">0</b></span>
         <span>후보있음 <b id="sC">0</b></span>
       </div>
+      <p class="note" id="diag" style="margin:0 0 10px"></p>
       <div class="cov" id="cov"></div>
       <div class="legend">
         <span><i class="sw ok"></i>ok 확정</span>
@@ -390,16 +397,45 @@ function draw(){
   box.querySelectorAll(".cell").forEach(b =>
     b.addEventListener("click", () => detail(+b.dataset.no)));
 
-  let q=0,a=0,s=0,e=0,c=0;
-  ROWS.forEach(r => {
-    if(st(r,"q")!=="empty") q++; else e++;
-    if(st(r,"a")!=="empty") a++; else e++;
-    if(st(r,"sol")!=="empty") s++; else e++;
+  stats(ROWS, `${YEAR}년 제${SESS}회`);
+}
+
+/* 껍데기 = 세 칸이 다 빈 문항. «자료가 없는 자리» 와 «자료가 일부 있는 자리» 는
+   할 일이 완전히 다르므로 따로 센다. */
+const isShell = r => ["q","a","sol"].every(k => st(r,k) === "empty");
+
+function stats(rows, label){
+  let q=0,a=0,so=0,c=0,shell=0,pt=0;
+  rows.forEach(r => {
+    if(st(r,"q")!=="empty") q++;
+    if(st(r,"a")!=="empty") a++;
+    if(st(r,"sol")!=="empty") so++;
     if(candOf(r).length) c++;
+    if(isShell(r)) shell++;
+    pt += Number(r.points) || 0;
   });
-  const n = ROWS.length;
-  $("#sQ").textContent = q+"/"+n; $("#sA").textContent = a+"/"+n;
-  $("#sS").textContent = s+"/"+n; $("#sE").textContent = e; $("#sC").textContent = c;
+  const n = rows.length;
+  $("#sQ").textContent=q+"/"+n; $("#sA").textContent=a+"/"+n;
+  $("#sS").textContent=so+"/"+n; $("#sShell").textContent=shell;
+  $("#sPt").textContent=pt; $("#sC").textContent=c;
+  $("#diag").innerHTML = diagnose(n, shell, pt);
+  return { n, q, a, so, c, shell, pt };
+}
+
+/* 배점 합이 100 이면 그 회차는 «다 있는데 번호만 밀린» 것이다.
+   실기는 회차당 배점 총합이 100 점이므로 이게 가장 확실한 잣대다. */
+function diagnose(n, shell, pt){
+  if(!n) return "";
+  if(!shell) return `<span style="color:var(--ok)">빈 껍데기 없음 — 이 회차는 다 찼습니다.</span>`;
+  if(pt >= 96 && pt <= 104)
+    return `<b style="color:var(--draft)">배점 합이 ${pt}점입니다.</b> ` +
+      `실기는 회차당 100점이므로 <b>문항은 다 있고 번호만 밀린 것</b>으로 보입니다. ` +
+      `«빈 껍데기 지우기» → «번호 다시 매기기» 를 차례로 누르면 1번부터 붙습니다.`;
+  if(pt > 0)
+    return `배점 합이 <b>${pt}점</b>입니다 (100점이어야 함). ` +
+      `<b>${100-pt}점어치 문항이 실제로 없는 것</b>으로 보입니다 — 자료를 더 넣어야 합니다. ` +
+      `빈 껍데기 ${shell}문항은 그 자리를 표시해 둔 것입니다.`;
+  return `배점이 안 적혀 있어 판단이 어렵습니다. 빈 껍데기 ${shell}문항.`;
 }
 $("#btnOnlyEmpty").addEventListener("click", e => {
   ONLY_EMPTY = !ONLY_EMPTY;
@@ -453,16 +489,8 @@ function drawAll(){
   });
 
   $("#gridTitle").textContent = `${SUBNAME()} · 전 회차 빈칸`;
+  stats(ALL, "전 회차");
   const n = ALL.length;
-  let q=0,a=0,so=0,e=0,c=0;
-  ALL.forEach(r => {
-    if(st(r,"q")!=="empty") q++; else e++;
-    if(st(r,"a")!=="empty") a++; else e++;
-    if(st(r,"sol")!=="empty") so++; else e++;
-    if(candOf(r).length) c++;
-  });
-  $("#sQ").textContent=q+"/"+n; $("#sA").textContent=a+"/"+n;
-  $("#sS").textContent=so+"/"+n; $("#sE").textContent=e; $("#sC").textContent=c;
 
   $("#cov").innerHTML = "";
   if(!keys.length){
@@ -516,8 +544,14 @@ function dumpSheet(rows, y, ss){
   let q=0,a=0,so=0;
   rows.forEach(r => { if(st(r,"q")!=="empty")q++; if(st(r,"a")!=="empty")a++; if(st(r,"sol")!=="empty")so++; });
   const n = rows.length;
-  L.push(`## ${y}년 제${ss}회 — ${n}문항`);
-  L.push(`문제 ${q}/${n} · 답 ${a}/${n} · 해설 ${so}/${n}`);
+  const shell = rows.filter(isShell).length;
+  const pt = rows.reduce((x,r) => x + (Number(r.points)||0), 0);
+  L.push(`## ${y}년 제${ss}회 — ${n}문항 · 배점 합 ${pt}점`);
+  L.push(`문제 ${q}/${n} · 답 ${a}/${n} · 해설 ${so}/${n} · 빈 껍데기 ${shell}문항`);
+  if(shell){
+    if(pt >= 96 && pt <= 104) L.push(`※ 배점이 100점에 맞음 — 문항은 다 있고 번호만 밀린 것으로 보임`);
+    else if(pt > 0)           L.push(`※ 배점이 ${pt}점 — ${100-pt}점어치가 실제로 없음`);
+  }
   const holes = rows.filter(isEmpty);
   if(!holes.length){ L.push("빈칸 없음"); return L.join("\n"); }
   L.push("");
@@ -568,9 +602,10 @@ $("#btnDumpAll").addEventListener("click", async () => {
   });
   let q=0,a=0,so=0;
   ALL.forEach(r => { if(st(r,"q")!=="empty")q++; if(st(r,"a")!=="empty")a++; if(st(r,"sol")!=="empty")so++; });
+  const shells = ALL.filter(isShell).length;
   const top = [`전체 ${ALL.length}문항 · 회차 ${keys.length}개`,
                `문제 ${q} · 답 ${a} · 해설 ${so}`,
-               `빈칸 있는 문항 ${ALL.filter(isEmpty).length}개`, ""].join("\n");
+               `빈칸 있는 문항 ${ALL.filter(isEmpty).length}개 (그중 세 칸 다 빈 껍데기 ${shells}개)`, ""].join("\n");
   setDump(head() + top + keys.map(k => {
     const [y,ss] = k.split("-");
     return dumpSheet(by[k], y, ss);
@@ -808,18 +843,38 @@ async function rpc(fn, args, tag){
   }
   return data;
 }
+const upto = () => { const v = +$("#fUpto").value; return v > 0 ? v : null; };
+
+/* 세 칸이 다 빈 문항만 골라 지운다. 자료가 한 톨이라도 있으면 안 건드린다. */
+$("#btnShellDel").addEventListener("click", async () => {
+  const rows = (MODE === "all" ? ALL : ROWS).filter(isShell);
+  if(!rows.length) return void say("지울 빈 껍데기가 없습니다.");
+  if(MODE === "all") return void say("전체 모드에서는 못 지웁니다 — 회차를 하나 골라 주세요.");
+  if(!confirm(`세 칸이 모두 빈 ${rows.length}문항을 지웁니다.\n`
+    + `자료가 한 줄이라도 있는 문항은 건드리지 않습니다.\n계속할까요?`)) return;
+  let ok = 0;
+  for(const r of rows){
+    const { error } = await sb.from("practicals").delete().eq("id", r.id);
+    if(error){ log(`${r.no}번 지우기 실패 — ${error.message}`, "bad"); }
+    else ok++;
+  }
+  say(`빈 껍데기 <b>${ok}문항</b>을 지웠습니다. 이어서 «번호 다시 매기기» 를 누르면 1번부터 붙습니다.`);
+  CUR = null; $("#detCard").classList.add("hide");
+  load();
+});
+
 $("#btnFill").addEventListener("click", async () => {
   if(!SID||!YEAR||!SESS) return void say("회차를 먼저 고르세요.");
   const n = await rpc("fill_missing_items",
-    { p_subject:SID, p_year:YEAR, p_session:SESS }, "빈 번호 채우기");
+    { p_subject:SID, p_year:YEAR, p_session:SESS, p_upto:upto() }, "빈 번호 채우기");
   if(n === null) return;
   say(n ? `빈 번호 <b>${n}개</b>를 만들었습니다.` : "빠진 번호가 없습니다.");
   if(n) load();
 });
 $("#btnFillAll").addEventListener("click", async () => {
   if(!SID) return void say("과목을 먼저 고르세요.");
-  if(!confirm("이 과목의 모든 회차에서 빠진 번호를 빈 행으로 만듭니다. 계속할까요?")) return;
-  const n = await rpc("fill_missing_all", { p_subject:SID }, "전 회차 채우기");
+  if(!confirm(`이 과목의 모든 회차를 ${upto() || "지금 있는 가장 큰 번호"}번까지 채웁니다.\n계속할까요?`)) return;
+  const n = await rpc("fill_missing_all", { p_subject:SID, p_upto:upto() }, "전 회차 채우기");
   if(n === null) return;
   say(`전 회차에서 <b>${n}개</b>를 만들었습니다.`);
   load();
