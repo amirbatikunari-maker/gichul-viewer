@@ -359,7 +359,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 #flash.err{background:var(--stamp)}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
-<link rel="stylesheet" href="./app-enhance.css?v=94">
+<link rel="stylesheet" href="./app-enhance.css?v=201">
 </head>
 <body data-data-domain="interview">
 <nav class="nav3">
@@ -748,7 +748,7 @@ const toast = t => say(t, "ok");
    예전에는 PC 일 때 Render 한 곳만 불렀는데, 무료 Render 는 안 쓰면 잠들어 있어
    첫 요청이 1분 가까이 걸리거나 그냥 실패한다. 그동안 화면에는 아무 표시도 없었다.
    이제는 두 곳을 다 순서대로 시도하고, 진행 상황을 단추 옆에 직접 보여 준다. */
-const ENDPOINTS = [CFG.WORKER_URL, CFG.WORKER_BACKUP_URL, "https://sniper-render.onrender.com"]
+const ENDPOINTS = [CFG.WORKER_URL, CFG.WORKER_BACKUP_URL]
   .filter(Boolean)
   .filter((v, i, a) => a.indexOf(v) === i);
 
@@ -2875,6 +2875,6 @@ boot().then(() => { AUTH_READY = true; }).catch(e => {
 <script src="./ai-viewer.js" defer></script>
 <script src="./music.js" defer></script>
 <!-- DATA ISOLATION CONTRACT: interview data uses iv-/iv: namespace only. Never import practice/written mistakes. -->
-<script src="./app-enhance.js?v=94" defer></script>
+<script src="./app-enhance.js?v=201" defer></script>
 </body>
 </html>

@@ -10,10 +10,10 @@ window.APP_CONFIG = {
   SUPABASE_URL: "https://nfyyctinvlytykucbgzk.supabase.co",
   SUPABASE_ANON_KEY: "sb_publishable_tRyg8GTus9I2_wt-VSmaRA_6gbU-lt5",
   APP_TITLE: "기출 해설 노트",
-  CONFIG_VERSION: "v88",
+  CONFIG_VERSION: "v201",
 
-  WORKER_URL:        "https://sniper-backend.amirbatikunari.workers.dev",
-  WORKER_BACKUP_URL: "https://sniper-render.onrender.com",
+  WORKER_URL:        "https://gichul-ai.amirbatikunari.workers.dev",
+  WORKER_BACKUP_URL: "",
 
 // ... (아래쪽 생략) ...
   /* ─────────────────────────────────────────────
@@ -30,11 +30,15 @@ window.APP_CONFIG = {
 
      AI_APP_NAME — 대화 기록을 앱별로 나눠 담는 이름표.
      ───────────────────────────────────────────── */
-AI_WORKER_URL: "https://sniper-ai.amirbatikunari.workers.dev",
+AI_WORKER_URL: "https://gichul-ai.amirbatikunari.workers.dev",
 /* APP_KEY는 공개 소스에 넣지 않습니다. Worker 시크릿으로만 관리하세요. */
 AI_APP_KEY: "",
   ADMIN_EMAILS:  ["amirbatikunari@gmail.com"],
   AI_APP_NAME:   "viewer",
+
+  /* 해설 배치(explain-batch.html)가 쓰는 주소. 위 워커와 같은 곳입니다. */
+  CLAUDE_WORKER_URL: "https://gichul-ai.amirbatikunari.workers.dev",
+  CLAUDE_APP_KEY:    "",
 
   /* AI 를 쓸 수 있는 계정. AI 는 물어볼 때마다 요금이 붙으므로
      로그인한 사람만 쓰게 막아 둡니다.
