@@ -83,8 +83,28 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .seg button:last-child{border-radius:0 7px 7px 0;border-left:0}
 .seg button[aria-pressed="true"]{background:var(--ac);border-color:var(--ac);color:#fff}
 </style>
+<style>
+.subnav{display:flex;align-items:center;gap:4px;flex-wrap:wrap;
+  max-width:1100px;margin:14px auto 0;padding:8px 12px;
+  border:1px solid var(--line);border-radius:10px;background:var(--sunk)}
+.subnav-t{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.08em;
+  color:var(--faint);margin-right:6px;white-space:nowrap}
+.subnav a{font-size:13px;font-weight:600;text-decoration:none;padding:7px 11px;
+  border-radius:7px;color:var(--mut);white-space:nowrap}
+.subnav a:hover{background:var(--acs);color:var(--ac)}
+.subnav a.on{background:var(--ac);color:#fff}
+</style>
 </head>
 <body>
+<div class="subnav">
+  <span class="subnav-t">자료 만들기</span>
+  <a href="./ingest.html">PDF 자동 변환</a>
+  <a href="./review.html">검수</a>
+  <a href="./explain-batch.html">해설 배치</a>
+  <a href="./storage-clean.html" class="on">저장소 정리</a>
+  <a href="./practice.html" style="margin-left:auto">← 실기뷰어</a>
+</div>
+
 <div class="wrap">
   <h1>저장소 정리</h1>
   <p class="sub">qfig 버킷에 있는 그림 중 어디서도 안 부르는 것을 찾아냄. 지우기 전에 눈으로 확인하는 단계가 있음.</p>

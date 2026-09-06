@@ -120,8 +120,28 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
   border-radius:6px;padding:8px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;line-height:1.65;margin-top:10px}
 .log .ok{color:var(--ok)}.log .bad{color:var(--bad)}
 </style>
+<style>
+.subnav{display:flex;align-items:center;gap:4px;flex-wrap:wrap;
+  max-width:1100px;margin:14px auto 0;padding:8px 12px;
+  border:1px solid var(--line);border-radius:10px;background:var(--sunk)}
+.subnav-t{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.08em;
+  color:var(--faint);margin-right:6px;white-space:nowrap}
+.subnav a{font-size:13px;font-weight:600;text-decoration:none;padding:7px 11px;
+  border-radius:7px;color:var(--mut);white-space:nowrap}
+.subnav a:hover{background:var(--acs);color:var(--ac)}
+.subnav a.on{background:var(--ac);color:#fff}
+</style>
 </head>
 <body>
+<div class="subnav">
+  <span class="subnav-t">자료 만들기</span>
+  <a href="./ingest.html">PDF 자동 변환</a>
+  <a href="./review.html" class="on">검수</a>
+  <a href="./explain-batch.html">해설 배치</a>
+  <a href="./storage-clean.html">저장소 정리</a>
+  <a href="./practice.html" style="margin-left:auto">← 실기뷰어</a>
+</div>
+
 <div class="wrap">
   <h1>검수</h1>
   <p class="sub">빈칸을 찾아 채우고, 잘못 잘린 것을 다시 자름. 문제·답·해설 세 칸을 문항마다 따로 관리함.</p>

@@ -1097,7 +1097,7 @@ mark.st{
 .nav3 a.on::before,.nav3 a.on + a::before{background:transparent}
 .nav3 a:not(.on):hover{color:var(--paper)}
 </style>
-<link rel="stylesheet" href="./app-enhance.css?v=208">
+<link rel="stylesheet" href="./app-enhance.css?v=209">
 </head>
 <body>
 <nav class="nav3">
@@ -1107,9 +1107,6 @@ mark.st{
   <a href="./ingest.html">자동 변환</a>
   <a href="./interview.html">면접</a>
   <a href="./portfolio.html">포트폴리오</a>
-  <a href="./review.html">검수</a>
-  <a href="./explain-batch.html">해설 배치</a>
-  <a href="./storage-clean.html">저장소</a>
 </nav>
 
 <!-- 화면 좌우 넘김 단추 — 반드시 <script> 보다 «앞» 에 있어야 한다.
@@ -5096,7 +5093,7 @@ route();
 
 /* 홈 화면 설치 + 오프라인 */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=208").catch(()=>{}));
+  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=209").catch(()=>{}));
 </script>
 <script>
 /* ══════════════════════════════════════════════════════════════
@@ -5461,7 +5458,7 @@ if("serviceWorker" in navigator && location.protocol.startsWith("http"))
 <!-- 끌어서 고른 자리를 AI 가 풀어 준다 -->
 <script src="./ai-explain.js" defer></script>
 <script src="./music.js" defer></script>
-<script src="./app-enhance.js?v=208" defer></script>
+<script src="./app-enhance.js?v=209" defer></script>
 
 <!-- ══════════════════════════════════════════════════════════════
      v89 · 필기뷰어 진도율 · 문항줄 좌우 단추

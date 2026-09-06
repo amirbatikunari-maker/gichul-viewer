@@ -133,7 +133,20 @@ body.unlocked #app{display:block}
 .nav3 a.on::before,.nav3 a.on + a::before{background:transparent}
 .nav3 a:not(.on):hover{color:var(--paper)}
 </style>
-<link rel="stylesheet" href="./app-enhance.css?v=208">
+<link rel="stylesheet" href="./app-enhance.css?v=209">
+<style>
+/* v209 — «자료 만들기» 갈래 메뉴. 푸는 화면과 만드는 화면을 갈라 둔다. */
+.subnav{display:flex;align-items:center;gap:4px;flex-wrap:wrap;
+  max-width:1100px;margin:10px auto 0;padding:8px 12px;
+  border:1px solid var(--line,#dce3ed);border-radius:10px;background:var(--surface-2,#f1f5f9)}
+.subnav-t{font:700 11px/1 var(--font-d,system-ui);letter-spacing:.08em;
+  color:var(--muted,#64748b);margin-right:6px;white-space:nowrap}
+.subnav a{font:600 13px/1 var(--font-d,system-ui);text-decoration:none;padding:7px 11px;
+  border-radius:7px;color:var(--muted,#64748b);white-space:nowrap}
+.subnav a:hover{background:rgba(31,111,235,.10);color:var(--accent,#1f6feb)}
+.subnav a.on{background:var(--accent,#1f6feb);color:#fff}
+@media(prefers-color-scheme:dark){.subnav{background:#0f1827;border-color:#22304a}}
+</style>
 </head>
 <body>
 <nav class="nav3">
@@ -143,10 +156,15 @@ body.unlocked #app{display:block}
   <a href="./ingest.html" class="on">자동 변환</a>
   <a href="./interview.html">면접</a>
   <a href="./portfolio.html">포트폴리오</a>
+</nav>
+<div class="subnav">
+  <span class="subnav-t">자료 만들기</span>
+  <a href="./ingest.html" class="on">PDF 자동 변환</a>
   <a href="./review.html">검수</a>
   <a href="./explain-batch.html">해설 배치</a>
-  <a href="./storage-clean.html">저장소</a>
-</nav>
+  <a href="./storage-clean.html">저장소 정리</a>
+</div>
+
 
 <div class="wrap">
   <h1>자동 변환</h1>
@@ -1630,7 +1648,7 @@ refresh().then(load).catch(err => showFatal("초기화 중 오류가 났습니�
 <!-- ══ AI 대화 상자 ══ config.js 의 AI_WORKER_URL 을 채워야 작동합니다 -->
 <script src="./ai-chat.js" defer></script>
 <script src="./ai-viewer.js" defer></script>
-<script src="./app-enhance.js?v=208" defer></script>
-<script src="./simple.js?v=208"></script>
+<script src="./app-enhance.js?v=209" defer></script>
+<script src="./simple.js?v=209"></script>
 </body>
 </html>

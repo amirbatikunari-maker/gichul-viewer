@@ -382,9 +382,12 @@ async function explain(req, env, H){
   const model = b.model || T.best;
   const budget = EFFORT[b.effort] ?? EFFORT.low;
 
+  /* v209 — «생각(thinking)» 과 «이 도구를 반드시 써라(tool_choice: tool)» 는
+     같이 쓸 수 없다. 둘 다 보내면 요청이 통째로 거절된다.
+     해설은 틀이 고정돼야 하므로 도구 강제를 남기고 생각을 끈다.
+     답안지가 이미 주어져 있어 생각이 없어도 결과 차이가 거의 없다. */
   const res = await call(env, {
     model, max_tokens: 4000, system: SYS_SOL,
-    ...(budget ? { thinking: { type: "enabled", budget_tokens: budget } } : {}),
     tools: [TOOL], tool_choice: { type: "tool", name: "write_solution" },
     messages: [{ role: "user", content: parts }]
   });
@@ -403,6 +406,31 @@ export default {
 
     const path = new URL(req.url).pathname.replace(/\/+$/, "") || "/";
     const T = tiers(env);
+
+    /* v209 — 자가진단.
+       가장 짧은 요청 하나를 보내고 Anthropic 이 돌려준 것을 «그대로» 보여 준다.
+       배치가 무더기로 실패할 때, 열쇠 문제인지 요청 모양 문제인지 여기서 갈린다. */
+    if (path === "/selftest"){
+      if (!env.ANTHROPIC_API_KEY)
+        return json({ ok:false, where:"설정", why:"ANTHROPIC_API_KEY 가 없습니다" }, 200, H);
+      const r = await fetch(API, {
+        method:"POST",
+        headers:{ "content-type":"application/json",
+                  "x-api-key": env.ANTHROPIC_API_KEY,
+                  "anthropic-version": VER },
+        body: JSON.stringify({ model: T.best, max_tokens: 16,
+          messages:[{ role:"user", content:"안녕. 한 글자만 답해." }] })
+      });
+      const body = await r.text();
+      let parsed = null; try{ parsed = JSON.parse(body); }catch(e){}
+      return json({
+        ok: r.ok, status: r.status, model: T.best,
+        keyHead: String(env.ANTHROPIC_API_KEY).slice(0,14) + "…",
+        keyLen: String(env.ANTHROPIC_API_KEY).length,
+        keyTrimmed: String(env.ANTHROPIC_API_KEY) === String(env.ANTHROPIC_API_KEY).trim(),
+        upstream: parsed || body.slice(0,600)
+      }, 200, H);
+    }
 
     if (path === "/health" || path === "/")
       return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY }, 200, H);

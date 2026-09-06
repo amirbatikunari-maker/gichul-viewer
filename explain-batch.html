@@ -53,8 +53,28 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .pill{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:11px;
   padding:2px 7px;border-radius:20px;border:1px solid var(--line);color:var(--mut)}
 </style>
+<style>
+.subnav{display:flex;align-items:center;gap:4px;flex-wrap:wrap;
+  max-width:1100px;margin:14px auto 0;padding:8px 12px;
+  border:1px solid var(--line);border-radius:10px;background:var(--sunk)}
+.subnav-t{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.08em;
+  color:var(--faint);margin-right:6px;white-space:nowrap}
+.subnav a{font-size:13px;font-weight:600;text-decoration:none;padding:7px 11px;
+  border-radius:7px;color:var(--mut);white-space:nowrap}
+.subnav a:hover{background:var(--acs);color:var(--ac)}
+.subnav a.on{background:var(--ac);color:#fff}
+</style>
 </head>
 <body>
+<div class="subnav">
+  <span class="subnav-t">자료 만들기</span>
+  <a href="./ingest.html">PDF 자동 변환</a>
+  <a href="./review.html">검수</a>
+  <a href="./explain-batch.html" class="on">해설 배치</a>
+  <a href="./storage-clean.html">저장소 정리</a>
+  <a href="./practice.html" style="margin-left:auto">← 실기뷰어</a>
+</div>
+
 <div class="wrap">
   <h1>해설 배치</h1>
   <p class="sub">답이 있는 문항만 골라서 해설을 한 번에 돌림. 중간에 멈춰도 이어서 할 수 있음.</p>
@@ -142,6 +162,10 @@ const APPKEY = CFG.CLAUDE_APP_KEY || "";
 const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
 
 let ROWS = [], TARGET = [], FAILED = [], RUNNING = false, STOP = false;
+/* v209 — 열쇠·설정이 잘못되면 1257개가 «전부» 같은 오류로 순식간에 탄다.
+   실제로 581개가 1초 만에 실패했다. 그래서 처음 5개가 연달아 같은 이유로
+   실패하면 스스로 멈추고 그 이유를 한 번만 크게 보여 준다. */
+let RUNBAD = 0, LASTWHY = "";
 const N = { total:0, done:0, bad:0, skip:0, tin:0, tout:0 };
 
 /* ── 기록 ─────────────────────────────────────────── */
@@ -154,6 +178,29 @@ function log(msg, cls){
   box.appendChild(d);
   box.scrollTop = box.scrollHeight;
 }
+/* 오류 문구를 보고 «무엇을 고쳐야 하는지» 를 짚어 준다 */
+function hint(why){
+  const box = $("#scanMsg");
+  let tip = "";
+  if(/403|forbidden|not allowed/i.test(why))
+    tip = `<b>Anthropic 이 요청 자체를 막았습니다.</b> 워커의
+           <code>/selftest</code> 를 브라우저로 열어 보세요 —
+           <code>https://gichul-ai.amirbatikunari.workers.dev/selftest</code><br>
+           거기 나오는 <code>upstream</code> 이 진짜 이유입니다.
+           보통 ① API 키가 잘못 붙여넣어졌거나 ② 결제·크레딧이 없거나
+           ③ 키가 해지된 경우입니다.`;
+  else if(/401|authentication/i.test(why))
+    tip = "API 키가 맞지 않습니다. 워커 설정에서 <b>ANTHROPIC_API_KEY</b> 를 다시 넣어 주세요.";
+  else if(/credit|balance/i.test(why))
+    tip = "Anthropic 계정에 잔액이 없습니다. 콘솔에서 결제 수단·크레딧을 확인해 주세요.";
+  else if(/model/i.test(why))
+    tip = "모델 이름이 맞지 않습니다. 워커 변수 <b>MODEL</b> 을 <code>claude-opus-5</code> 로 맞춰 주세요.";
+  else if(/CLAUDE_WORKER_URL|Failed to fetch|NetworkError/i.test(why))
+    tip = "워커에 닿지 못했습니다. <code>config.js</code> 의 <b>CLAUDE_WORKER_URL</b> 주소를 확인해 주세요.";
+  else tip = "위 기록의 첫 줄이 실제 이유입니다.";
+  box.innerHTML = `<span style="color:var(--bad)">멈췄습니다.</span> ${tip}`;
+}
+
 function paint(){
   $("#sTotal").textContent = N.total;
   $("#sDone").textContent  = N.done;
@@ -337,7 +384,17 @@ async function run(list){
       try{ await one(r); }
       catch(e){
         N.bad++; FAILED.push(r);
-        log(`${r.year}-${r.session} ${String(r.no).padStart(2,"0")}번 실패 — ${e.message||e}`, "bad");
+        const why = String(e.message || e).slice(0, 120);
+        log(`${r.year}-${r.session} ${String(r.no).padStart(2,"0")}번 실패 — ${why}`, "bad");
+        if(N.done === 0){
+          RUNBAD = (why === LASTWHY) ? RUNBAD + 1 : 1;
+          LASTWHY = why;
+          if(RUNBAD >= 5 && !STOP){
+            STOP = true;
+            log("같은 이유로 연달아 실패해서 멈췄습니다 — 설정 문제로 보입니다", "bad");
+            hint(why);
+          }
+        }
       }
       paint();
     }
@@ -353,7 +410,8 @@ async function run(list){
 
 $("#btnRun").addEventListener("click", () => {
   if(RUNNING || !TARGET.length) return;
-  N.done = N.bad = N.skip = N.tin = N.tout = 0; N.total = TARGET.length; paint();
+  N.done = N.bad = N.skip = N.tin = N.tout = 0; N.total = TARGET.length;
+  RUNBAD = 0; LASTWHY = ""; paint();
   log(`시작 — ${TARGET.length}문항 · 사고량 ${$("#fEffort").value} · 동시 ${$("#fConc").value}`);
   run(TARGET.slice());
 });
