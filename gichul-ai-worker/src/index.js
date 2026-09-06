@@ -444,6 +444,11 @@ async function splitHint(req, env, H){
   const img = await imageBlock(b.url);
   if (!img) return json({ error: "그림을 가져오지 못했습니다" }, 400, H);
 
+  /* 문제 그림이면 «답이 시작되는 자리», 답 그림이면 «문제가 끝나는 자리» 를 묻는다.
+     답 슬롯에도 문제가 딸려 들어간 그림이 있어서 양쪽을 다 본다. */
+  const ask = b.slot === "a"
+    ? "이 그림은 «답» 자리에 들어간 것이다. 위쪽에 문제가 섞여 들어왔으면 답이 시작되는 높이를 표시해 줘. 처음부터 답만 있으면 found 를 false 로 해라."
+    : "이 그림에서 답이 시작되는 높이를 표시해 줘.";
   const res = await call(env, {
     model: b.model || tiers(env).best,
     max_tokens: 700,
@@ -451,7 +456,7 @@ async function splitHint(req, env, H){
     tools: [CUT_TOOL],
     tool_choice: { type: "tool", name: "mark_cut" },
     messages: [{ role: "user", content: [
-      { type: "text", text: "이 그림에서 답이 시작되는 높이를 표시해 줘." },
+      { type: "text", text: ask },
       img
     ]}]
   });
