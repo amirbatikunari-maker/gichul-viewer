@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>검수 · 기출 해설 노트</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.css">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f8fb; --card:#fff; --ink:#0e1726; --mut:#5c6b84; --faint:#8494ac;
+  --line:#dce3ed; --line2:#c2cddd; --ac:#1f6feb; --acs:#e7f0fe; --sunk:#eef2f8;
+  --ok:#12946b; --draft:#c6851b; --raw:#7c8aa0; --empty:#b8c3d2; --bad:#d2453c;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#0b1220; --card:#131d2e; --ink:#e4eaf3; --mut:#8798b2; --faint:#687893;
+  --line:#22304a; --line2:#33445f; --ac:#55a0ff; --acs:#152741; --sunk:#0f1827;
+  --ok:#35be8d; --draft:#e5ac45; --raw:#75849b; --empty:#3b4a63; --bad:#ff6b61;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:Pretendard,system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.6}
+.mono,.stat{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.wrap{max-width:1100px;margin:0 auto;padding:18px 14px 90px}
+h1{font-size:19px;margin:0 0 3px;font-weight:700}
+.sub{color:var(--mut);font-size:13px;margin:0 0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:15px;margin-bottom:11px}
+.card h2{font-size:14px;margin:0 0 11px;font-weight:700}
+label{display:block;font-size:11.5px;color:var(--mut);margin:0 0 4px}
+select,input,button,textarea{font:inherit;color:inherit}
+select,input[type=email],input[type=password],input[type=text]{
+  width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;
+  background:var(--sunk);color:var(--ink)}
+.row{display:flex;gap:9px;flex-wrap:wrap}.row>*{flex:1;min-width:120px}
+button{padding:8px 13px;border-radius:7px;border:1px solid var(--line);
+  background:var(--sunk);cursor:pointer;font-weight:600;font-size:13.5px}
+button.pri{background:var(--ac);border-color:var(--ac);color:#fff}
+button.danger{color:var(--bad)}
+button.sm{padding:5px 9px;font-size:12px}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.btns{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}.btns>button{flex:none}
+.hide{display:none!important}
+.stat{display:flex;gap:5px 20px;flex-wrap:wrap;font-size:12px;color:var(--mut)}
+.stat b{color:var(--ink)}
+
+/* 격자 */
+.cov{display:grid;grid-template-columns:repeat(auto-fill,minmax(62px,1fr));gap:7px}
+.cell{border:1px solid var(--line);border-radius:5px;padding:5px 5px 4px;background:var(--sunk);
+  cursor:pointer;text-align:left}
+.cell:hover{border-color:var(--ac)}
+.cell.on{border-color:var(--ac);box-shadow:0 0 0 2px var(--acs)}
+.cell.hascand{border-style:dashed;border-color:var(--draft)}
+.cell .no{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--mut);
+  display:flex;justify-content:space-between;margin-bottom:4px}
+.cell .no i{font-style:normal;color:var(--faint);font-size:9.5px}
+.stripes{display:flex;flex-direction:column;gap:2px}
+.st{height:5px;border-radius:1.5px}
+.st.ok{background:var(--ok)}.st.draft{background:var(--draft)}
+.st.raw{background:var(--raw)}.st.empty{background:transparent;border:1px dashed var(--empty)}
+.legend{display:flex;flex-wrap:wrap;gap:5px 16px;margin-top:12px;padding-top:10px;
+  border-top:1px solid var(--line);font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--mut)}
+.legend span{display:flex;align-items:center;gap:6px}
+.sw{width:12px;height:12px;border-radius:2px;flex:none}
+.sw.ok{background:var(--ok)}.sw.draft{background:var(--draft)}
+.sw.raw{background:var(--raw)}.sw.empty{background:transparent;border:1.5px dashed var(--empty)}
+
+/* 상세 */
+.slots{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:11px;margin-top:4px}
+.slot{border:1px solid var(--line);border-radius:8px;padding:11px;background:var(--sunk)}
+.slot.ok{border-top:3px solid var(--ok)}
+.slot.draft{border-top:3px solid var(--draft)}
+.slot.raw{border-top:3px solid var(--raw)}
+.slot.empty{border-top:3px dashed var(--empty)}
+.slot h4{margin:0 0 8px;font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.slot h4 em{font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--mut)}
+.shot{width:100%;height:150px;object-fit:contain;background:var(--card);
+  border:1px solid var(--line);border-radius:5px;display:block}
+.noshot{height:150px;display:grid;place-items:center;background:var(--card);
+  border:1px dashed var(--line2);border-radius:5px;
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--faint)}
+.txt{max-height:150px;overflow:auto;background:var(--card);border:1px solid var(--line);
+  border-radius:5px;padding:8px;font-size:12px;white-space:pre-wrap;word-break:break-word}
+.mini{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.mini select{width:auto;flex:none;padding:4px 7px;font-size:12px}
+
+/* 후보 */
+.cands{margin-top:9px;border-top:1px dashed var(--line2);padding-top:8px}
+.cands .c{display:flex;gap:8px;align-items:center;font-family:"IBM Plex Mono",monospace;font-size:11px;
+  padding:4px 0;color:var(--mut)}
+.cands img{width:52px;height:38px;object-fit:cover;border:1px solid var(--line);border-radius:3px}
+
+/* 절단선 편집기 */
+.modal{position:fixed;inset:0;background:rgba(8,14,24,.72);z-index:900;
+  display:grid;place-items:center;padding:14px}
+.sheet{background:var(--card);border-radius:12px;width:min(1000px,100%);max-height:92vh;
+  display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--line2)}
+.sheet header{padding:12px 15px;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:10px}
+.sheet header h3{margin:0;font-size:15px;font-weight:700;flex:1}
+.sheet .body{padding:14px;overflow:auto}
+.sheet footer{padding:11px 15px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap}
+.cutwrap{position:relative;background:var(--sunk);border:1px solid var(--line);
+  border-radius:7px;overflow:auto;max-height:52vh}
+.cutwrap canvas{display:block;width:100%;cursor:crosshair}
+.cutline{position:absolute;left:0;right:0;height:0;border-top:2px dashed var(--ac);cursor:ns-resize}
+.cutline b{position:absolute;right:4px;top:-9px;background:var(--ac);color:#fff;
+  font:600 10px/1 "IBM Plex Mono",monospace;padding:3px 5px;border-radius:3px}
+.segs{margin-top:11px;display:flex;flex-direction:column;gap:6px}
+.seg{display:grid;grid-template-columns:1fr 92px 96px 62px;gap:7px;align-items:center;
+  border:1px solid var(--line);border-radius:6px;padding:7px 9px;background:var(--sunk);font-size:12.5px}
+.seg .rng{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--mut)}
+.seg select{padding:4px 6px;font-size:12px}
+@media(max-width:640px){.seg{grid-template-columns:1fr 1fr;gap:6px}}
+
+.note{font-size:12px;color:var(--mut);margin-top:9px}
+.warn{border:1px solid var(--draft);border-left:3px solid var(--draft);border-radius:0 7px 7px 0;
+  background:var(--sunk);padding:10px 12px;font-size:12.5px;margin-top:10px}
+.log{max-height:150px;overflow:auto;background:var(--sunk);border:1px solid var(--line);
+  border-radius:6px;padding:8px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;line-height:1.65;margin-top:10px}
+.log .ok{color:var(--ok)}.log .bad{color:var(--bad)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>검수</h1>
+  <p class="sub">빈칸을 찾아 채우고, 잘못 잘린 것을 다시 자름. 문제·답·해설 세 칸을 문항마다 따로 관리함.</p>
+
+  <div class="card" id="loginCard">
+    <h2>로그인</h2>
+    <div class="row">
+      <div><label for="em">이메일</label><input id="em" type="email" autocomplete="username"></div>
+      <div><label for="pw">비밀번호</label><input id="pw" type="password" autocomplete="current-password"></div>
+    </div>
+    <div class="btns"><button class="pri" id="btnLogin">들어가기</button></div>
+    <p class="note" id="loginMsg"></p>
+  </div>
+
+  <div id="main" class="hide">
+    <div class="card">
+      <div class="row">
+        <div><label for="fSub">과목</label><select id="fSub"></select></div>
+        <div><label for="fYear">연도</label><select id="fYear"></select></div>
+        <div><label for="fSess">회차</label><select id="fSess"></select></div>
+        <div style="flex:0 0 auto;min-width:0;display:flex;align-items:flex-end">
+          <button class="pri" id="btnLoad">불러오기</button>
+        </div>
+      </div>
+      <div class="btns">
+        <button id="btnFill">빈 번호 채우기</button>
+        <button id="btnFillAll">이 과목 전 회차 채우기</button>
+        <button id="btnCut">페이지 잘라 넣기</button>
+        <button id="btnOnlyEmpty">빈칸만 보기</button>
+        <button id="btnRenum" class="danger">번호 다시 매기기</button>
+      </div>
+      <p class="note" id="msg">과목·연도·회차를 고르고 «불러오기»를 누르세요.</p>
+    </div>
+
+    <div class="card hide" id="gridCard">
+      <h2 id="gridTitle">문항</h2>
+      <div class="stat" style="margin-bottom:10px">
+        <span>문제 <b id="sQ">0</b></span><span>답 <b id="sA">0</b></span>
+        <span>해설 <b id="sS">0</b></span><span>빈칸 <b id="sE">0</b></span>
+        <span>후보있음 <b id="sC">0</b></span>
+      </div>
+      <div class="cov" id="cov"></div>
+      <div class="legend">
+        <span><i class="sw ok"></i>ok 확정</span>
+        <span><i class="sw draft"></i>draft 검수함</span>
+        <span><i class="sw raw"></i>raw 검수 전</span>
+        <span><i class="sw empty"></i>empty 미등록</span>
+        <span>점선 테두리 = 새 후보 있음</span>
+      </div>
+    </div>
+
+    <div class="card hide" id="detCard">
+      <h2 id="detTitle">문항</h2>
+      <div class="slots" id="slots"></div>
+      <div class="btns">
+        <button id="btnSplit">이 자리에서 쪼개기</button>
+        <button id="btnPrevEmpty">← 이전 빈칸</button>
+        <button id="btnNextEmpty">다음 빈칸 →</button>
+        <button id="btnDrop" class="danger">이 문항 지우기</button>
+      </div>
+      <div class="log hide" id="log"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 절단선 편집기 -->
+<div class="modal hide" id="cutModal">
+  <div class="sheet">
+    <header>
+      <h3>페이지 잘라 넣기</h3>
+      <button class="sm" id="cutAdd">＋ 절단선</button>
+      <button class="sm" id="cutClear">선 지우기</button>
+      <button class="sm" id="cutClose">닫기</button>
+    </header>
+    <div class="body">
+      <div class="row" style="margin-bottom:10px">
+        <div style="flex:2"><label for="cutFile">페이지 사진·스캔 고르기</label>
+          <input id="cutFile" type="file" accept="image/*"></div>
+      </div>
+      <p class="note" style="margin-top:0">
+        그림 위를 <b>클릭</b>하면 그 자리에 절단선이 생김. 선을 <b>끌어서</b> 옮기고,
+        선 오른쪽 <b>×</b>로 지움. 선으로 나뉜 칸마다 몇 번 문항의 어느 슬롯인지 고르면 됨.
+      </p>
+      <div class="cutwrap" id="cutWrap">
+        <canvas id="cutCv"></canvas>
+      </div>
+      <div class="segs" id="segs"></div>
+      <div class="warn">
+        번호를 <b>«앞에 이어붙이기»</b>로 두면 바로 위 칸과 한 문항으로 합쳐짐 —
+        페이지를 넘어간 문항은 이걸로 처리하면 됨.
+      </div>
+    </div>
+    <footer>
+      <button class="pri" id="cutSave">잘라서 넣기</button>
+      <span class="note" id="cutMsg" style="margin:0;align-self:center"></span>
+    </footer>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="./config.js"></script>
+<script>
+(function(){
+"use strict";
+const CFG = window.APP_CONFIG || {};
+const $ = s => document.querySelector(s);
+const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+const BUCKET = "qfig";
+const STATES = ["empty","raw","draft","ok"];
+const RANK = { empty:0, raw:1, draft:2, ok:3 };
+
+let ROWS = [], CUR = null, ONLY_EMPTY = false;
+let SID = 0, YEAR = 0, SESS = 0;
+
+const esc = s => String(s??"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function log(m, cls){
+  const b = $("#log"); b.classList.remove("hide");
+  const d = document.createElement("div"); if(cls) d.className = cls;
+  d.textContent = m; b.appendChild(d); b.scrollTop = b.scrollHeight;
+}
+const say = (m) => { $("#msg").innerHTML = m; };
+
+/* ── 로그인 ─────────────────────────────────────── */
+async function gate(){
+  const { data } = await sb.auth.getSession();
+  if(data?.session){ $("#loginCard").classList.add("hide"); $("#main").classList.remove("hide"); return true; }
+  return false;
+}
+$("#btnLogin").addEventListener("click", async () => {
+  const email = $("#em").value.trim(), password = $("#pw").value;
+  if(!email || !password) return void ($("#loginMsg").textContent = "이메일과 비밀번호를 넣으세요.");
+  $("#btnLogin").disabled = true; $("#loginMsg").textContent = "확인 중…";
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  $("#btnLogin").disabled = false;
+  if(error) return void ($("#loginMsg").textContent = "들어가지 못했습니다 — " + error.message);
+  $("#loginMsg").textContent = ""; await gate(); await loadSubjects();
+});
+
+/* ── 과목·회차 ──────────────────────────────────── */
+async function loadSubjects(){
+  const { data, error } = await sb.from("practical_subjects").select("*").order("sort_order").order("id");
+  if(error) return void say("과목을 불러오지 못했습니다 — " + esc(error.message));
+  $("#fSub").innerHTML = (data||[]).map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join("")
+    || `<option value="">과목이 없습니다</option>`;
+  const keep = localStorage.getItem("prac:sub");
+  if(keep && (data||[]).some(s => String(s.id) === keep)) $("#fSub").value = keep;
+  await loadSheets();
+}
+$("#fSub").addEventListener("change", loadSheets);
+
+async function loadSheets(){
+  const sid = +$("#fSub").value; if(!sid) return;
+  localStorage.setItem("prac:sub", String(sid));
+  const { data, error } = await sb.from("practicals").select("year,session")
+    .eq("subject_id", sid).order("year",{ascending:false}).order("session",{ascending:false});
+  if(error) return void say("회차를 불러오지 못했습니다 — " + esc(error.message));
+  const years = [...new Set((data||[]).map(r => r.year))].sort((a,b)=>b-a);
+  $("#fYear").innerHTML = years.map(y => `<option>${y}</option>`).join("") || `<option value="">없음</option>`;
+  fillSess(data||[]);
+  $("#fYear").onchange = () => fillSess(data||[]);
+}
+function fillSess(rows){
+  const y = +$("#fYear").value;
+  const ss = [...new Set(rows.filter(r => r.year === y).map(r => r.session))].sort((a,b)=>a-b);
+  $("#fSess").innerHTML = ss.map(s => `<option value="${s}">제${s}회</option>`).join("") || `<option value="">없음</option>`;
+}
+
+/* ── 불러오기 ───────────────────────────────────── */
+async function load(){
+  SID = +$("#fSub").value; YEAR = +$("#fYear").value; SESS = +$("#fSess").value;
+  if(!SID || !YEAR || !SESS) return void say("과목·연도·회차를 모두 고르세요.");
+  say("불러오는 중…");
+  const { data, error } = await sb.from("practicals").select("*")
+    .eq("subject_id", SID).eq("year", YEAR).eq("session", SESS).order("no");
+  if(error){
+    return void say(/st_q|column|schema cache/i.test(error.message)
+      ? "칸이 아직 없습니다 — <b>supabase-검수.sql</b> 을 먼저 한 번 돌려 주세요."
+      : "불러오지 못했습니다 — " + esc(error.message));
+  }
+  ROWS = data || [];
+  say(`${YEAR}년 ${SESS}회 · ${ROWS.length}문항`);
+  $("#gridCard").classList.remove("hide");
+  $("#gridTitle").textContent = `${YEAR}년 제${SESS}회`;
+  draw();
+  if(CUR){ const f = ROWS.find(r => r.no === CUR.no); CUR = f || null; }
+  if(CUR) detail(CUR.no); else $("#detCard").classList.add("hide");
+}
+$("#btnLoad").addEventListener("click", load);
+
+/* 상태 읽기 — SQL 을 아직 안 돌린 자료도 보이게 추정값을 씀 */
+function st(r, k){
+  const v = r["st_" + k];
+  if(v && RANK[v] !== undefined) return v;
+  if(k === "q")   return (r.q_url || r.q_text || r.q_md) ? "draft" : "empty";
+  if(k === "a")   return (r.a_url || r.a_text || r.a_md) ? "draft" : "empty";
+  return r.easy_md ? "draft" : "empty";
+}
+const candOf = r => Array.isArray(r.cand) ? r.cand : [];
+
+/* ── 격자 ───────────────────────────────────────── */
+function draw(){
+  const box = $("#cov");
+  const list = ONLY_EMPTY
+    ? ROWS.filter(r => ["q","a","sol"].some(k => st(r,k) === "empty"))
+    : ROWS;
+  box.innerHTML = list.map(r => {
+    const S = ["q","a","sol"].map(k => st(r,k));
+    const cand = candOf(r).length ? " hascand" : "";
+    const on = CUR && CUR.no === r.no ? " on" : "";
+    return `<button class="cell${cand}${on}" data-no="${r.no}">
+      <div class="no"><span>${String(r.no).padStart(2,"0")}</span><i>${r.points ? r.points+"점" : ""}</i></div>
+      <div class="stripes">${S.map(s => `<div class="st ${s}"></div>`).join("")}</div>
+    </button>`;
+  }).join("") || `<p class="note">보여 줄 문항이 없습니다.</p>`;
+  box.querySelectorAll(".cell").forEach(b =>
+    b.addEventListener("click", () => detail(+b.dataset.no)));
+
+  let q=0,a=0,s=0,e=0,c=0;
+  ROWS.forEach(r => {
+    if(st(r,"q")!=="empty") q++; else e++;
+    if(st(r,"a")!=="empty") a++; else e++;
+    if(st(r,"sol")!=="empty") s++; else e++;
+    if(candOf(r).length) c++;
+  });
+  const n = ROWS.length;
+  $("#sQ").textContent = q+"/"+n; $("#sA").textContent = a+"/"+n;
+  $("#sS").textContent = s+"/"+n; $("#sE").textContent = e; $("#sC").textContent = c;
+}
+$("#btnOnlyEmpty").addEventListener("click", e => {
+  ONLY_EMPTY = !ONLY_EMPTY;
+  e.target.textContent = ONLY_EMPTY ? "전체 보기" : "빈칸만 보기";
+  e.target.classList.toggle("pri", ONLY_EMPTY);
+  draw();
+});
+
+/* ── 상세 ───────────────────────────────────────── */
+const SLOT = { q:{name:"문제", url:"q_url", text:"q_text"},
+               a:{name:"답",   url:"a_url", text:"a_text"},
+               sol:{name:"해설", url:null,  text:"easy_md"} };
+
+function detail(no){
+  CUR = ROWS.find(r => r.no === no); if(!CUR) return;
+  $("#detCard").classList.remove("hide");
+  $("#detTitle").textContent = `${YEAR}년 제${SESS}회 · ${no}번`;
+  draw();
+
+  $("#slots").innerHTML = ["q","a","sol"].map(k => {
+    const S = SLOT[k], s = st(CUR,k);
+    const url = S.url ? CUR[S.url] : null;
+    const txt = CUR[S.text];
+    const body = url
+      ? `<img class="shot" src="${esc(url)}" alt="${S.name}" loading="lazy">`
+      : (txt ? `<div class="txt">${esc(String(txt).slice(0,1200))}</div>`
+             : `<div class="noshot">비어 있음</div>`);
+    const cands = candOf(CUR).filter(c => c.slot === k);
+    return `<div class="slot ${s}">
+      <h4>${S.name} <em>${s}</em></h4>
+      ${body}
+      <div class="mini">
+        <select data-st="${k}">${STATES.map(v =>
+          `<option value="${v}"${v===s?" selected":""}>${v}</option>`).join("")}</select>
+        ${S.url ? `<button class="sm" data-up="${k}">그림 올리기</button>` : ""}
+        ${k === "sol" ? `<button class="sm" data-gen="1">해설 뽑기</button>` : ""}
+        ${url||txt ? `<button class="sm danger" data-clr="${k}">비우기</button>` : ""}
+        ${url ? `<button class="sm" data-open="${esc(url)}">원본</button>` : ""}
+      </div>
+      ${cands.length ? `<div class="cands">
+        <div class="rng mono" style="font-size:11px;color:var(--draft);margin-bottom:4px">새 후보 ${cands.length}</div>
+        ${cands.map((c,i) => `<div class="c">
+          ${c.url ? `<img src="${esc(c.url)}" alt="">` : "<span>글</span>"}
+          <span style="flex:1">${esc((c.at||"").slice(0,10))}</span>
+          <button class="sm" data-usecand="${k}|${i}">이걸로</button>
+          <button class="sm danger" data-delcand="${k}|${i}">버림</button>
+        </div>`).join("")}
+      </div>` : ""}
+    </div>`;
+  }).join("");
+
+  $("#slots").querySelectorAll("[data-st]").forEach(sel =>
+    sel.addEventListener("change", () => setState(sel.dataset.st, sel.value)));
+  $("#slots").querySelectorAll("[data-up]").forEach(b =>
+    b.addEventListener("click", () => pickImage(b.dataset.up)));
+  $("#slots").querySelectorAll("[data-gen]").forEach(b =>
+    b.addEventListener("click", () => genSol(b)));
+  $("#slots").querySelectorAll("[data-clr]").forEach(b =>
+    b.addEventListener("click", () => clearSlot(b.dataset.clr)));
+  $("#slots").querySelectorAll("[data-open]").forEach(b =>
+    b.addEventListener("click", () => window.open(b.dataset.open, "_blank", "noopener")));
+  $("#slots").querySelectorAll("[data-usecand]").forEach(b =>
+    b.addEventListener("click", () => useCand(...b.dataset.usecand.split("|"))));
+  $("#slots").querySelectorAll("[data-delcand]").forEach(b =>
+    b.addEventListener("click", () => delCand(...b.dataset.delcand.split("|"))));
+}
+
+async function patch(obj, tag){
+  const { error } = await sb.from("practicals").update(obj).eq("id", CUR.id);
+  if(error){ log(`${tag} 실패 — ${error.message}`, "bad"); return false; }
+  Object.assign(CUR, obj);
+  log(`${tag} 완료`, "ok");
+  draw(); detail(CUR.no);
+  return true;
+}
+const setState = (k, v) => patch({ ["st_"+k]: v }, `${SLOT[k].name} 상태 → ${v}`);
+
+async function clearSlot(k){
+  if(!confirm(`${SLOT[k].name} 슬롯을 비웁니다. 계속할까요?`)) return;
+  const o = { ["st_"+k]: "empty" };
+  if(SLOT[k].url) o[SLOT[k].url] = null;
+  o[SLOT[k].text] = null;
+  await patch(o, `${SLOT[k].name} 비우기`);
+}
+
+/* ── 그림 올리기 ────────────────────────────────── */
+function pickImage(k){
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "image/*";
+  inp.onchange = async () => {
+    const f = inp.files?.[0]; if(!f) return;
+    log(`${SLOT[k].name} 그림 올리는 중…`);
+    try{
+      const blob = await shrink(f, 1600, 0.82);
+      const url = await put(pathOf(CUR.no, k), blob);
+      await assign(k, url);
+    }catch(e){ log("실패 — " + (e.message||e), "bad"); }
+  };
+  inp.click();
+}
+
+/* 경로에 _v스탬프를 안 붙임 — 다시 올려도 옛 판이 안 쌓이게 */
+const pathOf = (no, k) =>
+  `prac/${SID}/${YEAR}_${SESS}_${String(no).padStart(2,"0")}_${k}.jpg`;
+
+async function put(path, blob){
+  const up = await sb.storage.from(BUCKET).upload(path, blob,
+    { contentType:"image/jpeg", upsert:true });
+  if(up.error) throw up.error;
+  return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl + "?t=" + Date.now();
+}
+
+/* 이미 검수한 슬롯은 덮지 않고 후보로 쌓음 */
+async function assign(k, url, row){
+  const R = row || CUR;
+  const cur = st(R, k), col = SLOT[k].url;
+  const old = R[col];
+  const o = {};
+  if(RANK[cur] >= RANK.draft && old){
+    const cand = (Array.isArray(R.cand) ? R.cand : []).concat([{
+      slot:k, url, at:new Date().toISOString()
+    }]);
+    o.cand = cand;
+    if(R === CUR){ await patch(o, `${SLOT[k].name} — 검수된 칸이라 후보로 쌓음`); return; }
+    await sb.from("practicals").update(o).eq("id", R.id);
+    return;
+  }
+  o[col] = url; o["st_"+k] = "draft";
+  if(R === CUR) await patch(o, `${SLOT[k].name} 넣음`);
+  else await sb.from("practicals").update(o).eq("id", R.id);
+}
+
+async function useCand(k, i){
+  const cands = candOf(CUR); const c = cands[+i]; if(!c) return;
+  const rest = cands.filter((_, j) => j !== +i);
+  await patch({ [SLOT[k].url]: c.url, ["st_"+k]: "draft", cand: rest }, `${SLOT[k].name} 후보로 교체`);
+}
+async function delCand(k, i){
+  const rest = candOf(CUR).filter((_, j) => j !== +i);
+  await patch({ cand: rest }, "후보 버림");
+}
+
+/* ── 해설 한 문항만 뽑기 ──────────────────────────
+   배치(explain-batch)를 통째로 돌리지 않고 이 문항만.
+   답이 없는 문항은 워커가 되돌려 보낸다 — 근거 없는 해설이 제일 위험함. */
+const WORKER = (CFG.CLAUDE_WORKER_URL || CFG.WORKER_URL || "").replace(/\/$/,"");
+async function genSol(btn){
+  if(!CUR) return;
+  if(!WORKER) return void log("config.js 에 CLAUDE_WORKER_URL 이 없습니다", "bad");
+  if(st(CUR,"a") === "empty" && !CUR.a_url && !CUR.a_text)
+    return void log("답이 없는 문항입니다. 답 슬롯을 먼저 채우세요.", "bad");
+  const old = btn.textContent;
+  btn.disabled = true; btn.textContent = "뽑는 중…";
+  try{
+    const res = await fetch(WORKER + "/explain", {
+      method:"POST",
+      headers:Object.assign({"Content-Type":"application/json"},
+        CFG.CLAUDE_APP_KEY ? {"x-app-key":CFG.CLAUDE_APP_KEY} : {}),
+      body:JSON.stringify({
+        q_url:CUR.q_url, q_text:CUR.q_text, a_url:CUR.a_url, a_text:CUR.a_text,
+        year:YEAR, session:SESS, no:CUR.no, points:CUR.points, effort:"low"
+      })
+    });
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(d.error || ("HTTP " + res.status));
+    const md = solToMd(d.sol || {});
+    if(!md || md.length < 20) throw new Error("해설이 비어서 왔습니다");
+    await patch({ easy_md:md, st_sol:"raw", sol_by:d.model || null,
+                  sol_ver:(CUR.sol_ver || 0) + 1 }, "해설 뽑기");
+  }catch(e){
+    log("해설 실패 — " + (e.message||e), "bad");
+    btn.disabled = false; btn.textContent = old;
+  }
+}
+function solToMd(sol){
+  const L = [];
+  if(sol.gist) L.push(`**${sol.gist}**`, "");
+  if(sol.given?.length){ L.push("**주어진 값**",""); sol.given.forEach(g => L.push(`- ${g}`)); L.push(""); }
+  if(sol.formula?.length){ L.push("**쓰는 식**",""); sol.formula.forEach(f => L.push(`$$${f}$$`,"")); }
+  if(sol.steps?.length){
+    L.push("**풀이**","");
+    sol.steps.forEach((s,i) => { L.push(`${i+1}. ${s.say||""}`); if(s.math) L.push("",`$$${s.math}$$`,""); });
+    L.push("");
+  }
+  L.push("**답**","",`> ${sol.answer||""}${sol.unit ? " "+sol.unit : ""}`,"");
+  if(sol.trap) L.push("**흔한 실수**","",sol.trap,"");
+  return L.join("\n").replace(/\n{3,}/g,"\n\n").trim();
+}
+
+/* 그림 줄이기 — 폭 상한 + jpeg. 저장소가 덜 참 */
+function shrink(file, maxW, q){
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      const sc = Math.min(1, maxW / img.naturalWidth);
+      const cv = document.createElement("canvas");
+      cv.width = Math.round(img.naturalWidth * sc);
+      cv.height = Math.round(img.naturalHeight * sc);
+      const g = cv.getContext("2d");
+      g.fillStyle = "#fff"; g.fillRect(0,0,cv.width,cv.height);
+      g.drawImage(img, 0, 0, cv.width, cv.height);
+      cv.toBlob(b => b ? res(b) : rej(new Error("그림을 만들지 못했습니다")), "image/jpeg", q);
+    };
+    img.onerror = () => rej(new Error("그림을 읽지 못했습니다"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+/* ── 빈 번호 채우기 · 쪼개기 · 번호 다시 ─────────── */
+async function rpc(fn, args, tag){
+  const { data, error } = await sb.rpc(fn, args);
+  if(error){
+    say(/function|does not exist|schema cache/i.test(error.message)
+      ? "함수가 없습니다 — <b>supabase-검수.sql</b> 을 먼저 돌려 주세요."
+      : `${tag} 실패 — ${esc(error.message)}`);
+    return null;
+  }
+  return data;
+}
+$("#btnFill").addEventListener("click", async () => {
+  if(!SID||!YEAR||!SESS) return void say("회차를 먼저 고르세요.");
+  const n = await rpc("fill_missing_items",
+    { p_subject:SID, p_year:YEAR, p_session:SESS }, "빈 번호 채우기");
+  if(n === null) return;
+  say(n ? `빈 번호 <b>${n}개</b>를 만들었습니다.` : "빠진 번호가 없습니다.");
+  if(n) load();
+});
+$("#btnFillAll").addEventListener("click", async () => {
+  if(!SID) return void say("과목을 먼저 고르세요.");
+  if(!confirm("이 과목의 모든 회차에서 빠진 번호를 빈 행으로 만듭니다. 계속할까요?")) return;
+  const n = await rpc("fill_missing_all", { p_subject:SID }, "전 회차 채우기");
+  if(n === null) return;
+  say(`전 회차에서 <b>${n}개</b>를 만들었습니다.`);
+  load();
+});
+$("#btnSplit").addEventListener("click", async () => {
+  if(!CUR) return;
+  if(!confirm(`${CUR.no}번 뒤에 빈 문항을 끼워 넣고, 뒤 번호를 한 칸씩 밉니다.\n계속할까요?`)) return;
+  const n = await rpc("split_item",
+    { p_subject:SID, p_year:YEAR, p_session:SESS, p_no:CUR.no }, "쪼개기");
+  if(n === null) return;
+  log(`${n}번 자리를 만들었습니다`, "ok");
+  await load(); detail(n);
+});
+$("#btnDrop").addEventListener("click", async () => {
+  if(!CUR) return;
+  const filled = ["q","a","sol"].filter(k => st(CUR,k) !== "empty");
+  if(filled.length && !confirm(`${CUR.no}번에는 아직 자료가 있습니다 (${filled.join("·")}).\n정말 지울까요?`)) return;
+  if(!filled.length && !confirm(`${CUR.no}번을 지웁니다.`)) return;
+  const n = await rpc("drop_item",
+    { p_subject:SID, p_year:YEAR, p_session:SESS, p_no:CUR.no }, "문항 지우기");
+  if(n === null) return;
+  CUR = null; $("#detCard").classList.add("hide"); load();
+});
+$("#btnRenum").addEventListener("click", async () => {
+  if(!SID||!YEAR||!SESS) return;
+  if(!confirm("번호가 띄엄띄엄해진 것을 1,2,3… 으로 다시 붙입니다.\n지금 순서는 그대로 지킵니다. 계속할까요?")) return;
+  const n = await rpc("renumber_items",
+    { p_subject:SID, p_year:YEAR, p_session:SESS }, "번호 다시 매기기");
+  if(n === null) return;
+  say(`<b>${n}개</b> 문항의 번호를 다시 매겼습니다.`);
+  load();
+});
+
+/* 빈칸으로만 건너뛰기 */
+function jumpEmpty(dir){
+  if(!ROWS.length) return;
+  const idx = CUR ? ROWS.findIndex(r => r.no === CUR.no) : -1;
+  const isEmpty = r => ["q","a","sol"].some(k => st(r,k) === "empty");
+  for(let i = 1; i <= ROWS.length; i++){
+    const j = ((idx + dir*i) % ROWS.length + ROWS.length) % ROWS.length;
+    if(isEmpty(ROWS[j])) return void detail(ROWS[j].no);
+  }
+  log("빈칸이 없습니다");
+}
+$("#btnNextEmpty").addEventListener("click", () => jumpEmpty(1));
+$("#btnPrevEmpty").addEventListener("click", () => jumpEmpty(-1));
+
+addEventListener("keydown", e => {
+  if(/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+  if(!$("#cutModal").classList.contains("hide")) return;
+  if(e.key === "n" || e.key === "N") jumpEmpty(1);
+  if(e.key === "c" || e.key === "C") openCut();
+});
+
+/* ═══════════════════════════════════════════════════
+   절단선 편집기
+   원본 페이지 그림을 캔버스에 띄우고 가로선으로 나눔.
+   나뉜 칸마다 «몇 번 문항의 어느 슬롯인지» 를 고르면
+   그 부분만 잘라 올린다.
+   ═══════════════════════════════════════════════════ */
+let IMG = null, LINES = [], SCALE = 1;
+
+function openCut(){
+  if(!ROWS.length) return void say("회차를 먼저 불러오세요.");
+  $("#cutModal").classList.remove("hide");
+  $("#cutMsg").textContent = "";
+}
+function closeCut(){ $("#cutModal").classList.add("hide"); }
+$("#btnCut").addEventListener("click", openCut);
+$("#cutClose").addEventListener("click", closeCut);
+$("#cutModal").addEventListener("click", e => { if(e.target.id === "cutModal") closeCut(); });
+
+$("#cutFile").addEventListener("change", () => {
+  const f = $("#cutFile").files?.[0]; if(!f) return;
+  const img = new Image();
+  img.onload = () => { IMG = img; LINES = []; paintCut(); };
+  img.onerror = () => { $("#cutMsg").textContent = "그림을 읽지 못했습니다."; };
+  img.src = URL.createObjectURL(f);
+});
+
+function paintCut(){
+  if(!IMG) return;
+  const cv = $("#cutCv"), wrap = $("#cutWrap");
+  const w = Math.min(IMG.naturalWidth, 1400);
+  SCALE = w / IMG.naturalWidth;
+  cv.width = w; cv.height = Math.round(IMG.naturalHeight * SCALE);
+  const g = cv.getContext("2d");
+  g.fillStyle = "#fff"; g.fillRect(0,0,cv.width,cv.height);
+  g.drawImage(IMG, 0, 0, cv.width, cv.height);
+
+  wrap.querySelectorAll(".cutline").forEach(el => el.remove());
+  const shown = cv.getBoundingClientRect().height || cv.height;
+  LINES.sort((a,b)=>a-b).forEach((y, i) => {
+    const d = document.createElement("div");
+    d.className = "cutline";
+    d.style.top = (y / cv.height * shown) + "px";
+    d.innerHTML = `<b data-del="${i}">×</b>`;
+    d.addEventListener("pointerdown", ev => {
+      if(ev.target.dataset.del !== undefined){
+        LINES.splice(+ev.target.dataset.del, 1); paintCut(); return;
+      }
+      ev.preventDefault();
+      const rect = cv.getBoundingClientRect();
+      const move = m => {
+        const ny = Math.max(4, Math.min(cv.height - 4,
+          (m.clientY - rect.top) / rect.height * cv.height));
+        LINES[i] = ny; paintCut();
+      };
+      const up = () => { removeEventListener("pointermove", move); removeEventListener("pointerup", up); };
+      addEventListener("pointermove", move); addEventListener("pointerup", up);
+    });
+    wrap.appendChild(d);
+  });
+  drawSegs();
+}
+
+$("#cutCv").addEventListener("click", e => {
+  if(!IMG) return;
+  const cv = $("#cutCv"), rect = cv.getBoundingClientRect();
+  const y = (e.clientY - rect.top) / rect.height * cv.height;
+  if(LINES.some(v => Math.abs(v - y) < 8)) return;
+  LINES.push(y); paintCut();
+});
+$("#cutAdd").addEventListener("click", () => {
+  if(!IMG) return;
+  const cv = $("#cutCv");
+  LINES.push(cv.height * (LINES.length + 1) / (LINES.length + 2));
+  paintCut();
+});
+$("#cutClear").addEventListener("click", () => { LINES = []; paintCut(); });
+
+/* 선으로 나뉜 칸 목록 */
+function segments(){
+  const cv = $("#cutCv");
+  const ys = [0, ...LINES.slice().sort((a,b)=>a-b), cv.height];
+  const out = [];
+  for(let i = 0; i < ys.length - 1; i++)
+    if(ys[i+1] - ys[i] > 12) out.push([ys[i], ys[i+1]]);
+  return out;
+}
+function drawSegs(){
+  const segs = segments();
+  const opts = ROWS.map(r => `<option value="${r.no}">${r.no}번</option>`).join("");
+  $("#segs").innerHTML = segs.map(([a,b], i) => `
+    <div class="seg" data-i="${i}">
+      <span class="rng">칸 ${i+1} · 세로 ${Math.round(a)}~${Math.round(b)}px</span>
+      <select data-no="${i}">
+        <option value="">— 안 씀 —</option>
+        ${i > 0 ? `<option value="join">앞에 이어붙이기</option>` : ""}
+        ${opts}
+      </select>
+      <select data-slot="${i}">
+        <option value="q">문제</option>
+        <option value="a">답</option>
+      </select>
+      <span class="rng" data-hint="${i}"></span>
+    </div>`).join("") || `<p class="note">그림을 먼저 고르세요.</p>`;
+
+  $("#segs").querySelectorAll("select").forEach(s =>
+    s.addEventListener("change", hints));
+  hints();
+}
+function hints(){
+  segments().forEach((_, i) => {
+    const no = $(`#segs [data-no="${i}"]`)?.value;
+    const slot = $(`#segs [data-slot="${i}"]`)?.value;
+    const h = $(`#segs [data-hint="${i}"]`); if(!h) return;
+    if(!no){ h.textContent = ""; return; }
+    if(no === "join"){ h.textContent = "↑ 합침"; h.style.color = "var(--ac)"; return; }
+    const r = ROWS.find(x => x.no === +no);
+    const cur = r ? st(r, slot) : "empty";
+    h.textContent = cur === "empty" ? "빈칸 →" : `${cur} · 후보로`;
+    h.style.color = cur === "empty" ? "var(--ok)" : "var(--draft)";
+  });
+}
+
+/* 자른 조각을 잘라 올림 */
+$("#cutSave").addEventListener("click", async () => {
+  if(!IMG) return void ($("#cutMsg").textContent = "그림을 먼저 고르세요.");
+  const segs = segments();
+  const plan = [];
+  segs.forEach(([a,b], i) => {
+    const v = $(`#segs [data-no="${i}"]`)?.value;
+    const slot = $(`#segs [data-slot="${i}"]`)?.value || "q";
+    if(!v) return;
+    if(v === "join"){
+      const prev = plan[plan.length - 1];
+      if(prev){ prev.parts.push([a,b]); return; }
+      return;
+    }
+    plan.push({ no:+v, slot, parts:[[a,b]] });
+  });
+  if(!plan.length) return void ($("#cutMsg").textContent = "넣을 칸을 하나도 안 골랐습니다.");
+
+  $("#cutSave").disabled = true;
+  let ok = 0, bad = 0;
+  for(const p of plan){
+    try{
+      const blob = await cropParts(p.parts);
+      const url = await put(pathOf(p.no, p.slot), blob);
+      const row = ROWS.find(r => r.no === p.no);
+      if(!row) throw new Error(p.no + "번 문항이 없습니다");
+      /* frags 에 어디서 잘랐는지 남겨 둠 — 나중에 다시 자를 때 참고 */
+      const frags = (Array.isArray(row.frags) ? row.frags : []).concat(
+        p.parts.map((pt, i) => ({ slot:p.slot, y0:Math.round(pt[0]), y1:Math.round(pt[1]), ord:i+1 })));
+      await sb.from("practicals").update({ frags }).eq("id", row.id);
+      row.frags = frags;
+      await assign(p.slot, url, row);
+      ok++;
+      $("#cutMsg").textContent = `${ok}/${plan.length} 넣는 중…`;
+    }catch(e){ bad++; $("#cutMsg").textContent = "실패 — " + (e.message||e); }
+  }
+  $("#cutSave").disabled = false;
+  $("#cutMsg").textContent = `끝 — ${ok}개 넣음${bad ? ` · ${bad}개 실패` : ""}`;
+  await load();
+});
+
+/* 여러 조각을 세로로 이어 붙여 한 장으로 만듦 (페이지 넘김 처리) */
+function cropParts(parts){
+  return new Promise((res, rej) => {
+    const cv = $("#cutCv");
+    const sx = IMG.naturalWidth / cv.width;
+    const W = IMG.naturalWidth;
+    const H = parts.reduce((s,[a,b]) => s + Math.round((b-a) * sx), 0);
+    const out = document.createElement("canvas");
+    const maxW = 1600, sc = Math.min(1, maxW / W);
+    out.width = Math.round(W * sc); out.height = Math.round(H * sc);
+    const g = out.getContext("2d");
+    g.fillStyle = "#fff"; g.fillRect(0,0,out.width,out.height);
+    let y = 0;
+    parts.forEach(([a,b]) => {
+      const sy = Math.round(a * sx), sh = Math.round((b-a) * sx);
+      g.drawImage(IMG, 0, sy, W, sh, 0, Math.round(y*sc), out.width, Math.round(sh*sc));
+      y += sh;
+    });
+    out.toBlob(b => b ? res(b) : rej(new Error("자르지 못했습니다")), "image/jpeg", 0.82);
+  });
+}
+
+/* ── 시작 ───────────────────────────────────────── */
+(async function boot(){
+  if(!CFG.SUPABASE_URL){ $("#loginMsg").textContent = "config.js 를 찾지 못했습니다."; return; }
+  if(await gate()) await loadSubjects();
+})();
+})();
+</script>
+</body>
+</html>

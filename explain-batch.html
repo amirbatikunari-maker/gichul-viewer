@@ -196,7 +196,7 @@ async function fetchRows(sid){
   const out = [];
   for(let from = 0; from < 20000; from += 1000){
     const { data, error } = await sb.from("practicals")
-      .select("id,year,session,no,points,q_url,q_text,a_url,a_text,easy_md,subject_id")
+      .select("*")
       .eq("subject_id", sid)
       .order("year",{ascending:false}).order("session",{ascending:false}).order("no")
       .range(from, from + 999);
@@ -303,7 +303,16 @@ async function one(r){
   const md = toMd(d.sol || {});
   if(!md || md.length < 20) throw new Error("해설이 비어서 왔습니다");
 
-  const up = await sb.from("practicals").update({ easy_md: md }).eq("id", r.id);
+  /* v204 — 해설 칸이 생겼으므로 상태·판번호도 같이 남긴다.
+     st_sol 은 raw — 기계가 만든 것이라 사람이 검수 화면에서 한 번 봐야 draft 가 된다.
+     sol_ver 를 올려 두면 나중에 «몇 판째인지» 를 알 수 있다.
+     옛 표(칸이 없는 상태)에서도 돌아가게, 실패하면 easy_md 만 다시 넣는다. */
+  const patch = { easy_md: md, st_sol: "raw", sol_by: d.model || null,
+                  sol_ver: (r.sol_ver || 0) + 1 };
+  let up = await sb.from("practicals").update(patch).eq("id", r.id);
+  if(up.error && /st_sol|sol_ver|sol_by|column|schema cache/i.test(up.error.message)){
+    up = await sb.from("practicals").update({ easy_md: md }).eq("id", r.id);
+  }
   if(up.error) throw new Error("저장 실패 — " + up.error.message);
 
   N.done++;

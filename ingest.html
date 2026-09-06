@@ -133,7 +133,7 @@ body.unlocked #app{display:block}
 .nav3 a.on::before,.nav3 a.on + a::before{background:transparent}
 .nav3 a:not(.on):hover{color:var(--paper)}
 </style>
-<link rel="stylesheet" href="./app-enhance.css?v=201">
+<link rel="stylesheet" href="./app-enhance.css?v=203">
 </head>
 <body>
 <nav class="nav3">
@@ -143,6 +143,9 @@ body.unlocked #app{display:block}
   <a href="./ingest.html" class="on">자동 변환</a>
   <a href="./interview.html">면접</a>
   <a href="./portfolio.html">포트폴리오</a>
+  <a href="./review.html">검수</a>
+  <a href="./explain-batch.html">해설 배치</a>
+  <a href="./storage-clean.html">저장소</a>
 </nav>
 
 <div class="wrap">
@@ -1627,6 +1630,7 @@ refresh().then(load).catch(err => showFatal("초기화 중 오류가 났습니�
 <!-- ══ AI 대화 상자 ══ config.js 의 AI_WORKER_URL 을 채워야 작동합니다 -->
 <script src="./ai-chat.js" defer></script>
 <script src="./ai-viewer.js" defer></script>
-<script src="./app-enhance.js?v=201" defer></script>
+<script src="./app-enhance.js?v=203" defer></script>
+<script src="./simple.js?v=205"></script>
 </body>
 </html>
