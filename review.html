@@ -520,9 +520,11 @@ const isShell = r => ["q","a","sol"].every(k => st(r,k) === "empty");
 const isBare = r => !r.q_url && !r.q_text && !r.q_md
                  && !r.a_url && !r.a_text && !r.a_md && !r.easy_md;
 
-function stats(rows0, label){
-  /* 사본은 세지 않는다 — 원본에서 한 번만 센다 */
-  const rows = rows0.filter(r => !r.dup_of);
+function stats(rows0, label, whole){
+  /* 사본은 세지 않는다 — 원본에서 한 번만 센다.
+     ★ v221 — 전체 모드에서는 «기출만» 단추도 함께 따른다. 안 그러면
+     기출만 보고 있는데 통계에는 문제집 715문항이 섞여 숫자가 안 맞았다. */
+  const rows = rows0.filter(r => !r.dup_of && (!whole || !ONLY_REAL || isReal(r.year)));
   let q=0,a=0,so=0,c=0,shell=0,pt=0;
   rows.forEach(r => {
     if(st(r,"q")!=="empty") q++;
@@ -536,12 +538,41 @@ function stats(rows0, label){
   $("#sQ").textContent=q+"/"+n; $("#sA").textContent=a+"/"+n;
   $("#sS").textContent=so+"/"+n; $("#sShell").textContent=shell;
   $("#sPt").textContent=pt; $("#sC").textContent=c;
-  $("#diag").innerHTML = diagnose(n, shell, pt);
+  $("#diag").innerHTML = whole ? diagnoseAll(rows) : diagnose(n, shell, pt);
   return { n, q, a, so, c, shell, pt };
 }
 
 /* 배점 합이 100 이면 그 회차는 «다 있는데 번호만 밀린» 것이다.
    실기는 회차당 배점 총합이 100 점이므로 이게 가장 확실한 잣대다. */
+/* ★ v221 — 전체 모드에서 100점 잣대를 쓰면 안 된다.
+   57회차 배점을 다 더하면 5265점이 나오는데, 여기에 «100점이어야 함» 을 대면
+   «-5165점어치가 없다» 는 말이 안 되는 경고가 뜬다. 실제로 그렇게 떴다.
+   100점은 «한 회차» 의 잣대다. 전체를 볼 때는 회차 단위로 세어 준다. */
+function diagnoseAll(rows){
+  const by = new Map();
+  rows.forEach(r => {
+    if(!isReal(r.year)) return;
+    const k = r.year + "-" + r.session;
+    const o = by.get(k) || { pt:0, shell:0 };
+    o.pt += Number(r.points) || 0;
+    if(isShell(r) && isBare(r)) o.shell++;
+    by.set(k, o);
+  });
+  if(!by.size)
+    return "책에서 뽑은 덩어리만 보고 있습니다 — 배점 잣대를 쓰지 않습니다.";
+  let ok = 0, short = 0, lack = 0, shells = 0;
+  by.forEach(o => {
+    shells += o.shell;
+    if(o.pt >= 96 && o.pt <= 104) ok++;
+    else if(o.pt > 0){ short++; lack += 100 - o.pt; }
+  });
+  return `기출 <b>${by.size}회차</b> · 배점 100점에 맞는 회차 <b style="color:var(--ok)">${ok}개</b>`
+    + (short ? ` · 모자란 회차 <b>${short}개</b> (다 합쳐 ${lack}점어치)` : "")
+    + (shells ? ` · 지울 빈 자리 <b>${shells}문항</b>` : "")
+    + `<br><span class="note" style="margin:0">위 «배점 합»은 회차별 합계를 다 더한 값입니다 — `
+    + `100점 잣대는 회차를 하나 골랐을 때만 씁니다.</span>`;
+}
+
 function diagnose(n, shell, pt){
   if(!n) return "";
   /* 배점 100점 잣대는 진짜 기출 회차에만 해당한다.
@@ -644,7 +675,7 @@ function drawAll(){
   });
 
   $("#gridTitle").textContent = `${SUBNAME()} · 전 회차 빈칸`;
-  stats(ALL, "전 회차");
+  stats(ALL, "전 회차", true);
   const n = ALL.length;
 
   /* ★ 세로로 길게 늘어지던 자리.
