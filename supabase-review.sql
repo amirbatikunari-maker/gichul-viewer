@@ -301,3 +301,58 @@ create index if not exists practicals_dup_idx
 
 comment on column public.practicals.dup_of is
   '이 행이 사본일 때, 원본 practicals.id. 비어 있으면 원본이거나 중복이 아님.';
+
+
+/* ═══════════════════════════════════════════════════════════════
+   추가분 (v217) — 상태 칸 다시 맞추기.  ★ 이번에 꼭 돌려야 함.
+   ═══════════════════════════════════════════════════════════════
+
+   ── 무슨 일이 있었나 ──────────────────────────────────────────
+   st_q · st_a · st_sol 은 칸의 기본값이 'empty' 다.
+   그런데 PDF 자동변환이 문항을 올릴 때 이 세 칸을 안 적었다.
+   그래서 그림(q_url)과 글(q_text)이 멀쩡히 들어간 문항도
+   상태는 'empty' 인 채로 남았다.
+
+   검수 화면은 상태 칸을 보고 세므로, 자료가 다 있는 1000문항 넘게가
+   «세 칸 다 빈 껍데기» 로 잡혔다. 자료가 사라진 게 아니라
+   꼬리표만 안 붙은 것이다.
+
+   아래 함수가 실제 자료를 보고 꼬리표를 다시 붙인다.
+   · 사람이 이미 'draft'/'ok' 로 올려 둔 것은 건드리지 않는다
+   · 자료가 있는데 'empty' 인 것만 'raw'(검수 전) 로 올린다
+   · 자료가 없는데 'raw' 이상인 것은 'empty' 로 내린다
+   여러 번 돌려도 결과가 같다.                                     */
+create or replace function public.resync_status(p_subject bigint default null)
+returns int
+language plpgsql security invoker as $$
+declare n int;
+begin
+  with fixed as (
+    update public.practicals p set
+      st_q = case
+               when (q_url is not null or coalesce(q_text,'') <> '' or coalesce(q_md,'') <> '')
+                 then case when coalesce(st_q,'empty') = 'empty' then 'raw' else st_q end
+               else 'empty' end,
+      st_a = case
+               when (a_url is not null or coalesce(a_text,'') <> '' or coalesce(a_md,'') <> '')
+                 then case when coalesce(st_a,'empty') = 'empty' then 'raw' else st_a end
+               else 'empty' end,
+      st_sol = case
+               when coalesce(easy_md,'') <> ''
+                 then case when coalesce(st_sol,'empty') = 'empty' then 'raw' else st_sol end
+               else 'empty' end
+     where (p_subject is null or p.subject_id = p_subject)
+    returning 1)
+  select count(*) into n from fixed;
+  return n;
+end $$;
+
+grant execute on function public.resync_status(bigint) to authenticated;
+
+/* 돌린 뒤 확인 — «빈 껍데기» 가 확 줄어야 정상.
+
+   select count(*) filter (where st_q = 'empty') as 문제없음,
+          count(*) filter (where st_a = 'empty') as 답없음,
+          count(*) filter (where st_sol = 'empty') as 해설없음,
+          count(*) as 전체
+     from public.practicals;                                        */
