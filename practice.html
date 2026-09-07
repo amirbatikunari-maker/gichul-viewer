@@ -738,7 +738,7 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
 @media(max-width:560px){.studyhud{grid-template-columns:1fr 1fr;gap:6px;padding:8px}.study-title{font-size:13px}.study-actions button{flex:1;padding:0 6px}.quickbar{top:48px;padding:6px;gap:5px}.quickbar button{height:30px;padding:0 8px;font-size:10.5px}.filters-shell .filter-top{margin-bottom:6px}.study-stat b{font-size:14px}}
 
 </style>
-<link rel="stylesheet" href="./app-enhance.css?v=216">
+<link rel="stylesheet" href="./app-enhance.css?v=218">
 </head>
 <body data-data-domain="study">
 <nav class="nav3">
@@ -1079,6 +1079,7 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
       <div class="bar">
         <button id="run" type="button" disabled>훑어보기</button>
         <button class="ghost" id="peek" type="button" disabled>잘린 모습 보기</button>
+        <button class="ghost" id="probe" type="button" disabled>이 PDF 스스로 살펴보기</button>
         <button class="ghost" id="save" type="button" disabled>Supabase 에 올리기</button>
         <button class="ghost" id="fillGap" type="button" disabled>빠진 문제만 채우기</button>
         <button class="ghost" id="stop" type="button" disabled>중지</button>
@@ -2516,6 +2517,7 @@ function take(files){
   if(!PICKED.length) return say($("#im"), "PDF 만 넣을 수 있습니다.", "err");
   drop.innerHTML = `<b>${PICKED.length}개 파일</b>${PICKED.map(f => f.name).join(" · ")}`;
   $("#run").disabled = false;
+  { const b = document.getElementById("probe"); if(b) b.disabled = false; }
 
   /* 파일 이름에 과목 이름이 들어 있으면 과목을 미리 맞춰 둔다.
      "전기기사실기_기출25_20.pdf" 처럼 띄어쓰기가 제각각이라 공백을 지우고 견준다.
@@ -2539,6 +2541,7 @@ $("#run").onclick = async () => {
   if(!PICKED.length) return;
   STOP = false; PARSED = []; DUPES = [];
   $("#run").disabled = true; $("#stop").disabled = false; $("#save").disabled = true;
+  { const b = document.getElementById("probe"); if(b) b.disabled = true; }
   logEl.textContent = "";
   HDR = hdrRe(); HDRK = hdrKey();
   const MODE = IMPORT_MODE = $("#impMode")?.value || "qa";
@@ -2646,7 +2649,166 @@ $("#run").onclick = async () => {
     say($("#im"), "읽지 못했습니다 — " + e.message, "err");
   }finally{
     $("#run").disabled = false; $("#stop").disabled = true;
+    { const b = document.getElementById("probe"); if(b) b.disabled = !PICKED.length; }
   }
+};
+
+/* ═══════════════════════════════════════════════════════════
+   이 PDF 스스로 살펴보기 — 책이 자기 구조를 말하게 한다
+   ───────────────────────────────────────────────────────────
+   «핵심 빈출»·«오고초려» 같은 글자를 하나도 박지 않는다.
+   줄의 «생김새»(앞머리 글자 + 숫자 + 뒤 기호)와 «왼쪽 자리»만 세어서
+   어디가 한 덩어리이고 그 덩어리의 머리글이 무엇인지 스스로 찾는다.
+
+   가르는 잣대 셋
+     ① 길게 이어 세는가   — 머리글은 1→20 까지 죽 올라간다.
+                             보기 «(1)(2)(3)» 은 서너 개마다 다시 1이다.
+     ② 한 쪽에 몇 개인가   — 머리글은 한 쪽에 한둘, 보기는 대여섯.
+     ③ 왼쪽 끝에 붙는가   — 머리글은 마진에 붙고 보기는 들여쓴다.
+
+   창(24쪽)을 밀며 대목마다 우승 열쇠를 뽑는다. 통째로 세면
+   본문 속 «1. 2. 3.» 이 다 섞여서 아무것도 안 보이기 때문이다.
+   ═══════════════════════════════════════════════════════════ */
+const LEADRE = /^([^\d\n]{0,8}?)\s*(\d{1,3})\s*(\D?)/;
+function keyOf(t){
+  const m = String(t || "").replace(/\s+/g, " ").trim().match(LEADRE);
+  if(!m) return null;
+  const head = m[1].replace(/[\s.·]/g, "");
+  if(head.length > 6) return null;
+  const tail = ".)►▶‣>번:".includes(m[3]) ? m[3] : "";
+  if(!head && !tail) return null;
+  return { key:`${head}#${tail}`, no:+m[2] };
+}
+/* 이 열쇠가 «이 대목» 에서 머리글다운가 */
+function headerScore(v, pageLeft){
+  if(v.length < 4) return 0;
+  const runs = []; let cur = 1;
+  for(let i = 1; i < v.length; i++){
+    if(v[i].no === v[i-1].no + 1) cur++; else { runs.push(cur); cur = 1; }
+  }
+  runs.push(cur); runs.sort((a,b) => a-b);
+  const run = runs[runs.length >> 1];
+  const pgs = new Set(v.map(z => z.p)).size;
+  if(run < 4 || v.length / Math.max(1, pgs) > 5) return 0;
+  const xs = v.map(z => z.x).sort((a,b) => a-b);
+  const indent = Math.max(0, xs[xs.length >> 1] - pageLeft);
+  return run * (1 + Math.sqrt(v.length)) / (1 + indent / 12);
+}
+async function probeDoc(doc, name){
+  log(`${name} · 구조를 스스로 살펴봅니다…`);
+  const hits = new Map(), leftOf = new Map();
+  const N = doc.numPages;
+  for(let p = 1; p <= N; p++){
+    if(STOP) break;
+    if(p % 30 === 0){ $("#bar").style.width = (p / N * 100) + "%"; await new Promise(r => setTimeout(r)); }
+    const page = await doc.getPage(p);
+    const vp = page.getViewport({ scale:1 });
+    const tc = await page.getTextContent();
+    const keys = [], map = new Map();
+    for(const it of tc.items){
+      if(!it.str.trim()) continue;
+      const pt = vp.convertToViewportPoint(it.transform[4], it.transform[5]);
+      let k = keys.find(v => Math.abs(v - pt[1]) < 4);
+      if(k === undefined){ keys.push(pt[1]); k = pt[1]; }
+      if(!map.has(k)) map.set(k, []);
+      map.get(k).push({ x:pt[0], s:it.str });
+    }
+    const xsAll = [];
+    for(const [, frags] of map){
+      frags.sort((a,b) => a.x - b.x);
+      xsAll.push(frags[0].x);
+      /* 머리글은 줄의 «맨 왼쪽 조각» 이다. 줄을 통째로 이으면
+         오른쪽 끝의 «►점수 : 6점» 이 앞에 붙는 쪽이 섞여 열쇠가 쪼개진다. */
+      const head = frags.slice(0, 2).map(f => f.s).join(" ").slice(0, 24);
+      const k = keyOf(head);
+      if(!k) continue;
+      if(!hits.has(k.key)) hits.set(k.key, []);
+      hits.get(k.key).push({ p, x:frags[0].x, no:k.no });
+    }
+    xsAll.sort((a,b) => a-b);
+    leftOf.set(p, xsAll.length >= 10 ? xsAll[Math.floor(xsAll.length/10)] : (xsAll[0] || 0));
+  }
+
+  /* 창을 밀며 대목마다 우승 열쇠를 뽑는다 */
+  const WIN = 24, STEP = 6, vote = new Map();
+  for(let i = 1; i <= N; i += STEP){
+    const lo = i, hi = Math.min(N, i + WIN - 1);
+    const pl = []; for(let p = lo; p <= hi; p++) if(leftOf.has(p)) pl.push(leftOf.get(p));
+    pl.sort((a,b) => a-b);
+    const pageLeft = pl.length ? pl[pl.length >> 2] : 0;
+    let best = 0, bk = null;
+    for(const [k, v] of hits){
+      const w = v.filter(z => z.p >= lo && z.p <= hi);
+      const sc = headerScore(w, pageLeft);
+      if(sc > best){ best = sc; bk = k; }
+    }
+    if(bk) for(let p = lo; p <= hi; p++){
+      if(!vote.has(p)) vote.set(p, new Map());
+      vote.get(p).set(bk, (vote.get(p).get(bk) || 0) + 1);
+    }
+  }
+  const pick = []; let prev = null;
+  for(let p = 1; p <= N; p++){
+    const c = vote.get(p);
+    prev = c ? [...c.entries()].sort((a,b) => b[1]-a[1])[0][0] : prev;
+    pick[p] = prev;
+  }
+  let secs = [], cur = Symbol();
+  for(let p = 1; p <= N; p++){
+    if(pick[p] !== cur){ secs.push({ from:p, to:p, key:pick[p] }); cur = pick[p]; }
+    else secs[secs.length-1].to = p;
+  }
+  const keep = [];
+  secs.forEach(s => {
+    if(keep.length && (s.to - s.from + 1) < 12) keep[keep.length-1].to = s.to;
+    else keep.push(s);
+  });
+  secs = [];
+  keep.forEach(s => {
+    if(secs.length && secs[secs.length-1].key === s.key) secs[secs.length-1].to = s.to;
+    else secs.push(s);
+  });
+  /* 경계를 «그 열쇠가 실제로 나온 자리» 로 바짝 당긴다 */
+  secs = secs.filter(s => s.key);
+  secs.forEach(s => {
+    const v = (hits.get(s.key) || []).filter(z => z.p >= s.from && z.p <= s.to);
+    if(v.length){ s.from = Math.min(...v.map(z => z.p)); s.to = Math.max(...v.map(z => z.p)); }
+    const xs = v.map(z => z.x).sort((a,b) => a-b);
+    s.margin = xs.length >= 10 ? xs[Math.floor(xs.length/10)] : (xs[0] || 0);
+    s.count = v.length;
+  });
+  secs = secs.filter(s => s.count >= 8);
+
+  log("");
+  log("── 이 PDF 는 이렇게 생겼습니다 ──");
+  log("쪽 범위        머리글 생김새        문항   왼쪽자리");
+  secs.forEach(s => log(
+    `${String(s.from).padStart(5)}~${String(s.to).padEnd(6)} «${s.key}»`.padEnd(32)
+    + `${String(s.count).padStart(5)}   ${s.margin.toFixed(0)}pt`));
+  log("");
+  log("«#» 은 번호 자리입니다. «문제#» 은 «문제 01», «#.» 은 «1.», «#►» 는 «01 ►» 꼴입니다.");
+  log("여기 안 잡힌 짧은 대목이 있으면 그 쪽 범위를 적어 따로 넣으세요.");
+  return secs;
+}
+
+$("#probe").onclick = async () => {
+  if(!PICKED.length) return;
+  STOP = false; logEl.textContent = "";
+  $("#probe").disabled = true; $("#stop").disabled = false;
+  try{
+    for(const f of PICKED){
+      if(STOP) break;
+      const doc = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise;
+      const secs = await probeDoc(doc, f.name);
+      say($("#im"),
+        `${f.name} · ${doc.numPages}쪽 — 덩어리 ${secs.length}개를 찾았습니다.\n\n`
+        + "쪽 범위        머리글          문항   왼쪽자리\n"
+        + secs.map(s => `${String(s.from).padStart(5)}~${String(s.to).padEnd(6)} «${s.key}»`.padEnd(28)
+            + `${String(s.count).padStart(5)}   ${s.margin.toFixed(0)}pt`).join("\n")
+        + "\n\n이건 살펴보기만 한 것입니다. 넣으려면 «훑어보기» 를 누르세요.", "info");
+    }
+  }catch(e){ say($("#im"), "살펴보다 멈췄습니다 — " + e.message, "err"); }
+  finally{ $("#probe").disabled = false; $("#stop").disabled = true; $("#bar").style.width = "0%"; }
 };
 
 /* 한 파일을 훑어 문제 경계를 잡는다.
@@ -6129,7 +6291,7 @@ body.exam-mode .pcard{box-shadow:0 0 0 2px rgba(29,78,216,.08),var(--shadow)}
 
 <script src="./music.js" defer></script>
 <!-- DATA ISOLATION CONTRACT: practice/written mistakes stay in study domain; never write into iv-/iv: interview data. -->
-<script src="./app-enhance.js?v=216" defer></script>
+<script src="./app-enhance.js?v=218" defer></script>
 
 <!-- ══════════════════════════════════════════════════════════════
      v89 · 상단 도구 3칸 재배치 · 문항 레일 · 진도율
@@ -17876,6 +18038,6 @@ setTimeout(()=>clearInterval(boot), 20000);
 })();
 </script>
 
-<script src="./simple.js?v=216"></script>
+<script src="./simple.js?v=218"></script>
 </body>
 </html>
