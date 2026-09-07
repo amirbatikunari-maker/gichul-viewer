@@ -62,6 +62,11 @@ const ADV = {
   ]
 };
 
+/* v214 — 자동변환 탭은 practice.html?only=import 를 창 안에 끼워 넣는다.
+   그 창이 보여 주려는 것이 바로 #boxFiles · #boxImport 인데, 여기서 그 둘을
+   감춰 버려 «실기 변환» 칸이 통째로 비어 보였다. 그 창은 건드리지 않는다. */
+if (location.search.includes("only=import")) return;
+
 const LIST = ADV[page];
 if (!LIST) return;                       /* 다른 화면은 건드리지 않음 */
 
