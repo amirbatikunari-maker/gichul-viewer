@@ -188,10 +188,31 @@ const FREE_LIMIT = 1024 * 1024 * 1024;              /* 무료 1 GB */
 /* qfig 를 부르는 표와 칸. 하나라도 빠뜨리면 쓰는 그림을 지우게 되므로
    새 기능을 만들 때 여기에 같이 적어 둘 것. */
 const REFS = [
-  { table:"practicals",    cols:["q_url","a_url"] },
+  { table:"practicals",    cols:["q_url","a_url"], json:["cand"] },
   { table:"questions",     cols:["figure_url"] },
   { table:"subject_notes", cols:["url","flat_url","path"] }
 ];
+/* ★ v220 — json 칸을 빼먹고 있었다.
+   검수 화면에서 «이미 검수한 칸» 에 새 그림을 올리면, 덮어쓰지 않고
+   practicals.cand 에 [{slot,url,at}] 로 쌓아 둔다. 사람이 «이걸로» 를
+   누르기 전까지는 q_url·a_url 어디에도 안 들어간다.
+
+   그런데 여기서는 q_url·a_url 만 봤다. 그래서 후보로 쌓인 그림이
+   «아무 데서도 안 쓰는 것» 으로 잡혀, 청소 한 번에 통째로 날아갔다.
+   다시 자른 그림이 사라지는 셈이라 되돌릴 방법도 없다.
+
+   ★ 그림을 쓰는 칸을 새로 만들면 여기에 반드시 같이 적을 것.
+     하나라도 빠지면 «쓰는 그림» 을 지우게 된다. */
+function urlsInJson(v){
+  const out = [];
+  (function walk(x){
+    if(!x) return;
+    if(typeof x === "string"){ out.push(x); return; }
+    if(Array.isArray(x)) return void x.forEach(walk);
+    if(typeof x === "object") return void Object.values(x).forEach(walk);
+  })(v);
+  return out;
+}
 
 let FILES = [], ORPHAN = [], SEL = new Set();
 
@@ -262,18 +283,23 @@ async function collectRefs(){
   for(const R of REFS){
     let got = 0;
     for(let from = 0; from < 100000; from += 1000){
-      const { data, error } = await sb.from(R.table).select(R.cols.join(",")).range(from, from + 999);
+      const sel = R.cols.concat(R.json || []).join(",");
+      const { data, error } = await sb.from(R.table).select(sel).range(from, from + 999);
       if(error){
         log(`  ${R.table} 건너뜀 — ${error.message}`, "warn");
         break;                                    /* 표가 없으면 넘어감 */
       }
-      (data || []).forEach(row => R.cols.forEach(c => {
-        const p = toPath(row[c]); if(p) used.add(p);
-      }));
+      (data || []).forEach(row => {
+        R.cols.forEach(c => { const p = toPath(row[c]); if(p) used.add(p); });
+        (R.json || []).forEach(c => urlsInJson(row[c]).forEach(v => {
+          const p = toPath(v); if(p) used.add(p);
+        }));
+      });
       got += (data || []).length;
       if(!data || data.length < 1000) break;
     }
-    log(`  ${R.table} — ${got}줄 확인 (누적 참조 ${used.size})`);
+    log(`  ${R.table} — ${got}줄 확인${(R.json||[]).length ? ` (${R.json.join("·")} 칸 포함)` : ""}`
+      + ` (누적 참조 ${used.size})`);
   }
   return used;
 }
