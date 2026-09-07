@@ -1013,7 +1013,8 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
         <div>
           <label>문제 머리글 모양</label>
           <select id="impHdr">
-            <option value="자동" selected>자동으로 알아서 (권장)</option>
+            <option value="전체" selected>전체 — 한 권을 알아서 나눠 넣기 (권장)</option>
+            <option value="자동">자동으로 알아서 (한 덩어리짜리 PDF)</option>
             <option value="문제">문제 01 · 문제 1</option>
             <option value="번호">1. · 01. · 1)</option>
             <option value="Q">Q1 · Q 1 · [1]</option>
@@ -1045,9 +1046,9 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
         </div>
       </div>
       <div class="hint" style="margin-top:6px">
-        ★ <b>쪽수가 많은 PDF 는 반드시 나눠서 넣으세요.</b> 1000쪽짜리를 통째로 돌리면
-        브라우저가 그림을 만들다 멎습니다. 200쪽씩 네 번에 나눠 넣으면 같은 결과가 나오고
-        중간에 끊겨도 그 범위만 다시 돌리면 됩니다.
+        <b>보통은 둘 다 비워 두세요.</b> 머리글 모양을 «전체» 로 두면 한 권을 통째로 넣어도
+        기출 · 오고초려 · 핵심빈출 · 단답 · 소방설비를 알아서 갈라 담습니다.<br>
+        중간에 끊겼거나 한 덩어리만 다시 넣고 싶을 때만 쪽수를 적으세요.
       </div>
 
       <div class="grid" style="margin-top:10px">
@@ -2351,6 +2352,8 @@ const HDR_SET = {
   /* 스캔본은 «문 제 0 1» 처럼 사이가 벌어져 읽히기도 한다. 「년」이 뒤따르면 본문이다. */
   "문제": /^\s*문\s*제\s*(\d{1,3})(?![\d년])/,
   "번호": /^(\d{1,3})\s*[.)]\s*(?!\d)/,        /* 1. · 01) — 뒤에 숫자가 또 오면 소수점이니 제외 */
+  /* 소방설비기사 기출은 «09 번.» 처럼 «번» 이 끼어 있다 */
+  "번문": /^(\d{1,3})\s*번\s*[.)]?/,
   "Q":    /^(?:Q\s*|\[\s*)(\d{1,3})\s*\]?/i,
   /* 단답 정리본은 번호가 없다. «∎ 콘덴서의 시설 방법» 처럼 글머리표로만 나뉜다.
      그래서 번호를 못 뽑으면 나온 순서대로 1, 2, 3 … 을 붙인다. */
@@ -2371,11 +2374,69 @@ function hdrRe(){
      ② 핵심빈출   : «핵심 빈출 3 ▶ 출제년도 : 기사 04, 10, 19, 25» 한 줄
      ③ 단답       : «2025년 1회 전기기사 실기» 아래로 «1.» «2.» … (기존 «번호» 로 처리)
    ①②는 회차가 아니라 «장(章)» 으로 묶인다. 그래서 장 번호를 회차 자리에 넣는다. */
-const HDR_BOOK  = /^(?:핵심\s*빈출\s*)?(\d{1,3})?\s*[‣▶]\s*출제\s*년?도/;
+/* ★ 이 책이 쓰는 화살표는 «►» 다. ‣ 와 ▶ 만 받고 있어서
+   오고초려·핵심빈출이 통째로 0개로 나왔다. 셋 다 받는다. */
+const HDR_BOOK  = /^(?:핵심\s*빈[출줄]\s*)?([\d\s]{0,5})?[‣▶►>]\s*•?\s*출제\s*[년연]?도/;
 const HDR_NUMLN = /^(\d{1,3})$/;                  /* 번호만 덩그러니 있는 줄 */
 /* «1장. 송･배전선로» 또는 «01. 송･배전선로» — 두 자리로 못 박아
    본문 속 «3. 변류기의 부담» 같은 목록 줄에 속지 않게 한다. */
 const CHAP = /^(?:제\s*)?(\d{1,2})\s*장[.\s]|^(0[1-9])\.\s*[가-힣A-Za-z]/;
+
+/* ═══════════════════════════════════════════════════════════
+   구간 자동 나누기 — «파일 하나 주면 알아서»
+   ───────────────────────────────────────────────────────────
+   다산 기출문제집 한 권(1204쪽)에는 성격이 다른 다섯 덩어리가 들어 있다.
+   덩어리마다 머리글 생김새가 달라서, 하나로 맞춰 놓으면 나머지는 반드시 0개가 나온다.
+   그래서 쪽마다 «지금 어느 덩어리인가» 를 보고 규칙을 갈아 끼운다.
+
+     기출      2~852     문제 01 · 회차 표지에서 연도·회차를 읽음
+     오고초려  854~897   01 ‣ 출제년도 …          (장으로 묶임)
+     핵심빈출  899~1050  핵심 빈출 3 ▶ 출제년도 …  (장으로 묶임)
+     단답      1051~1186 2019년 3회 전기기사 실기 / 1. 2. 3. …
+     소방설비  1187~1204 09 번.
+
+   회차가 없는 덩어리는 «없는 연도» 를 이름표로 쓴다. 기출과 절대 안 겹치고,
+   숫자만 보고도 무엇인지 되짚을 수 있게 규칙을 뒀다.
+
+     9301년  오고초려 (회차 = 장)
+     9302년  핵심빈출 (회차 = 장)
+     94NN년  단답     — 9419년 3회 = 2019년 3회 단답
+     95NN년  소방설비 — 9521년 1회 = 소방설비기사 21년 1회
+
+   ※ 예전에 쓰던 9001·9002·9003 과 일부러 다른 번호를 골랐다. 섞이면 못 가른다.
+   ═══════════════════════════════════════════════════════════ */
+const SECT_NAME = {
+  "기출":"기출문제", "오고초려":"오고초려", "핵심빈출":"핵심 빈출 146제",
+  "단답":"연도별 단답", "소방":"소방설비기사"
+};
+/* 덩어리마다 어느 머리글 규칙을 쓸지 */
+const SECT_HDR = {
+  "기출":"문제", "오고초려":"출제", "핵심빈출":"출제", "단답":"번호", "소방":"번문"
+};
+/* 쪽 글자를 보고 어느 덩어리인지 고른다. 못 고르면 앞 쪽을 그대로 이어받는다.
+   («핵심 빈출 146제» 같은 되풀이 머리글이 쪽마다 찍혀 있어서 이어받기가 잘 먹는다) */
+function sectionOf(pageText, prev){
+  if(/소방설비기사/.test(pageText))                       return "소방";
+  if(/단\s*답\s*[（(]\s*\d{2}/.test(pageText))             return "단답";
+  if(/핵심\s*빈출/.test(pageText))                        return "핵심빈출";
+  if(/오고초려/.test(pageText))                            return "오고초려";
+  /* 단답 구간 안쪽 쪽에는 «2019년 3회 전기기사 실기» 만 있고 표시가 없다.
+     기출 구간에는 «문제 NN» 이 반드시 함께 있으므로 그것으로 가른다. */
+  if(prev === "단답" && !/문\s*제\s*\d{1,2}/.test(pageText)) return "단답";
+  for(const re of ROUND_SET) if(re.test(pageText))         return "기출";
+  return prev || "기출";
+}
+/* 덩어리별 이름표(연도·회차) */
+function sectLabel(sect, read, chap){
+  if(sect === "기출")     return read;                       /* 읽은 그대로 */
+  if(sect === "오고초려") return { year:9301, session:Math.max(1, chap || 1) };
+  if(sect === "핵심빈출") return { year:9302, session:Math.max(1, chap || 1) };
+  if(sect === "단답")     return read ? { year:9400 + (read.year % 100), session:read.session } : null;
+  if(sect === "소방")     return read ? { year:9500 + (read.year % 100), session:read.session } : null;
+  return read;
+}
+/* 소방설비 쪽에 붙은 «21년 1회» 를 읽는다 */
+const SOBANG_RND = /소방설비기사[^\n]{0,14}?(\d{2})\s*년\s*(\d)\s*회/;
 
 /* PDF 안에 «2025년 제1회» 가 없을 때 쓸 회차. 위 입력칸에서 읽는다. */
 function manualRound(){
@@ -2518,6 +2579,27 @@ $("#run").onclick = async () => {
     if(spans.length) log("  쪽 넘김 예: " + spans.slice(0, 8).map(i => `${i.year}-${i.session} ${i.no}번(${i.start.page}→${i.end.page}쪽)`).join(", "));
     if(noAns.length) log("  답안 없음 예: " + noAns.slice(0, 8).map(i => `${i.year}-${i.session} ${i.no}번`).join(", "));
     if(odd.length) log("\u26a0 문항 수가 다른 회차와 크게 다릅니다: " + odd.map(([k, n]) => `${k}(${n})`).join(", "));
+    /* ── 한 권을 통째로 넣었을 때: 어느 덩어리가 얼마나 나왔는지 ── */
+    const secs = new Map();
+    all.forEach(i => { if(i.sect) secs.set(i.sect, (secs.get(i.sect) || 0) + 1); });
+    if(secs.size > 1){
+      log("");
+      log("── 책을 이렇게 나눴습니다 ──");
+      log("덩어리            문항   들어갈 자리");
+      const 자리 = {
+        "기출":"실제 연도·회차 그대로",
+        "오고초려":"9301년 1회~ (20문항씩)",
+        "핵심빈출":"9302년 1회~ (20문항씩)",
+        "단답":"94NN년 — 9419년 3회 = 2019년 3회 단답",
+        "소방":"95NN년 — 소방설비기사"
+      };
+      [...secs.entries()].forEach(([k, n]) =>
+        log(`${(SECT_NAME[k] || k).padEnd(16)}${String(n).padStart(5)}   ${자리[k] || ""}`));
+      log("");
+      log("※ 9301·9302·94··· 는 «회차가 없는 자료» 에 붙인 이름표입니다.");
+      log("   기출(2008~2026)과 절대 안 겹치고, 검수 화면에서 따로 골라 볼 수 있습니다.");
+    }
+
     const 진단 = roundReport(all);
     log("");
     log("── 회차별 상태 ── (실기는 회차 총점이 100점이다. 그게 제일 확실한 잣대다)");
@@ -2564,7 +2646,7 @@ $("#run").onclick = async () => {
    ═══════════════════════════════════════════════ */
 function repairPoints(all){
   const byRound = new Map();
-  all.forEach(i => {
+  all.filter(i => !i.sect || i.sect === "기출").forEach(i => {
     const k = `${i.year}-${i.session}`;
     if(!byRound.has(k)) byRound.set(k, []);
     byRound.get(k).push(i);
@@ -2613,7 +2695,8 @@ function repairPoints(all){
 /* 회차마다 «뭐가 없는지» 를 한 줄로 판정한다 */
 function roundReport(all){
   const m = new Map();
-  all.forEach(i => {
+  /* 총점 100 규칙은 실기 «기출» 에만 있다. 문제집·단답은 배점 자체가 없다. */
+  all.filter(i => !i.sect || i.sect === "기출").forEach(i => {
     const k = `${i.year}년 ${i.session}회`;
     if(!m.has(k)) m.set(k, []);
     m.get(k).push(i);
@@ -2637,11 +2720,20 @@ async function scanDoc(doc, name, MODE = 'qa'){
   const MAN = manualRound();
   /* 문제집형에서 쓰는 «장» 상태. 장이 바뀌면 문제 번호를 1부터 다시 센다. */
   let chap = 0, bookYear = MAN?.year || 0;
+  /* 오고초려·핵심빈출은 장 표시가 «[1] [2] [3] [1] [2]…» 처럼 단원마다 다시 1로 돌아간다.
+     그걸 회차로 삼으면 번호가 뒤엉킨다. 그래서 나온 순서대로 20문항씩 끊어
+     1회·2회·3회 … 로 만든다. 뷰어 한 화면에 들어가는 양과도 맞다. */
+  let bookSeq = 0;
+  const PER_ROUND = 20;
 
   /* ── 머리글 모양은 «파일마다» 정한다 ──
      한 번에 여러 PDF 를 올리는데 오고초려·핵심빈출·단답은 생김새가 전부 다르다.
      하나로 맞춰 두면 나머지는 반드시 0개가 나온다. */
   let HK = HDRK, RE = HDR;
+  /* «전체» 는 쪽마다 어느 덩어리인지 보고 규칙을 갈아 끼운다. 미리 정할 게 없다. */
+  const AUTOSECT = (HK === "전체");
+  let SECT = null, SECTPAGES = {};
+  if(AUTOSECT){ HK = "문제"; RE = HDR_SET["문제"]; }
   if(HK === "자동"){
     const probe = [];
     const q0 = Math.max(1, parseInt($("#impFrom")?.value, 10) || 1);
@@ -2709,8 +2801,26 @@ async function scanDoc(doc, name, MODE = 'qa'){
     const sorted = [...lines.entries()].map(([y, txt]) => ({ y, txt })).sort((a,b) => a.y - b.y);
     const pageText = sorted.map(l => l.txt).join("\n");
 
+    /* ── 지금 어느 덩어리인가 (전체 모드일 때만) ── */
+    if(AUTOSECT){
+      const ns = sectionOf(pageText, SECT);
+      if(ns !== SECT){
+        SECT = ns;
+        HK = SECT_HDR[SECT] || "문제";
+        RE = (HK === "출제") ? null : HDR_SET[HK];
+        chap = 0; autoNo = 0; lastNo = 0; bookSeq = 0; seen = null; cur = null;
+        log(`   ${p}쪽 — «${SECT_NAME[SECT]}» 구간으로 들어갑니다`);
+      }
+      (SECTPAGES[SECT] = SECTPAGES[SECT] || []).push(p);
+    }
+
     const rm = findRound(sorted);
     if(rm){ seen = rm; roundHits++; }
+    /* 소방설비는 «(기출) 소방설비기사 전기분야 21년 1회» 가 문항마다 붙는다 */
+    if(AUTOSECT && SECT === "소방"){
+      const sm = pageText.replace(/\s+/g, " ").match(SOBANG_RND);
+      if(sm){ seen = { year:2000 + (+sm[1]), session:+sm[2] }; roundHits++; }
+    }
 
     /* ── 문제집형 : 장(章) 을 회차 자리에 넣는다 ── */
     if(HK === "출제"){
@@ -2731,6 +2841,11 @@ async function scanDoc(doc, name, MODE = 'qa'){
       }
       seen = { year: bookYear || new Date().getFullYear(), session: chap || 1 };
       roundHits++;
+    }
+    /* 덩어리별 이름표로 바꿔 단다 (기출은 읽은 그대로) */
+    if(AUTOSECT && SECT && SECT !== "기출"){
+      const lab = sectLabel(SECT, seen, chap);
+      if(lab) seen = lab;
     }
 
     /* «머리글 없음 — 쪽마다 한 장» — 단답 정리본처럼 문제 번호가 아예 없는 자료용.
@@ -2754,7 +2869,9 @@ async function scanDoc(doc, name, MODE = 'qa'){
            이 교재는 앞 문제가 앞쪽에서 끝나면 다음 쪽 «맨 위» 에서 새 문제가 시작한다.
            실제로 세어 보니 «문제 NN» 머리글 1005개 중 449개(45%)가 60pt 위에 있었다.
            절반 가까이가 통째로 사라지고 있었다. 높이로 자르지 말고 «생김새» 로 거른다. */
-      if(top < 60 && RUNNING_HEAD.test(t)) continue;
+      /* 되풀이 머리글은 «전기기사 실기 완벽 대비 - 핵심 빈출 146제» 처럼 글자만 있다.
+         «핵심 빈출 2 ► 출제년도 : …» 은 진짜 머리글이므로 살려 둔다. */
+      if(top < 60 && RUNNING_HEAD.test(t) && !/출제\s*[년연]?도/.test(t)) continue;
 
       let h = RE ? t.match(RE) : null;
       let bookNo = 0;
@@ -2794,19 +2911,26 @@ async function scanDoc(doc, name, MODE = 'qa'){
                   : (h[1] && /^\d{1,3}$/.test(h[1])) ? +h[1] : ++autoNo;
         lastNo = num;
         cur = {
-          no:num, seen, ghost,
+          no:num, seen, ghost, sect:SECT,
           asked:(t.match(ASKED)?.[1] || "").trim().replace(/\s+/g," "),
           points:+(t.match(POINT)?.[1] || 0) || null,
           source:name,
           start:{ page:p, top:Math.max(0, top - 8) }, end:null, ansAt:null, text:""
         };
+        /* 오고초려·핵심빈출 — 20문항마다 회차를 하나 올린다 */
+        if(AUTOSECT && (SECT === "오고초려" || SECT === "핵심빈출")){
+          const seq = ++bookSeq;
+          cur.no = ((seq - 1) % PER_ROUND) + 1;
+          cur.seen = { year: SECT === "오고초려" ? 9301 : 9302,
+                       session: Math.floor((seq - 1) / PER_ROUND) + 1 };
+        }
         items.push(cur);
         continue;
       }
       /* «답안만» / «문제만» PDF 는 답안 경계가 없다. 그럴 땐 통째로 한 장으로 둔다. */
       /* 스캔본은 «답안작성» 사이가 벌어져 «답 안 작 성» 으로 읽히기도 한다 */
       if(MODE === "qa" && cur && !cur.ansAt && /답\s*안\s*작\s*성/.test(t)) cur.ansAt = { page:p, top:top - 8 };
-      if(cur && !RUNNING_HEAD.test(t)) cur.text += t + "\n";
+      if(cur && !(RUNNING_HEAD.test(t) && !/출제\s*[년연]?도/.test(t))) cur.text += t + "\n";
     }
     if(cur && !cur.end) cur.lastPage = p;
   }

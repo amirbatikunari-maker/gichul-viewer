@@ -46,6 +46,9 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 
 /* 격자 */
 .cov{display:grid;grid-template-columns:repeat(auto-fill,minmax(62px,1fr));gap:7px}
+/* 전 회차 모아보기 — 회차 묶음을 세로로 쌓는 바깥 상자. 격자가 아니다. */
+.covwrap{display:block;width:100%}
+.covwrap > div{width:100%}
 .cell{border:1px solid var(--line);border-radius:5px;padding:5px 5px 4px;background:var(--sunk);
   cursor:pointer;text-align:left}
 .cell:hover{border-color:var(--ac)}
@@ -385,6 +388,8 @@ const candOf = r => Array.isArray(r.cand) ? r.cand : [];
 function draw(){
   if(MODE === "all") return void drawAll();
   const box = $("#cov");
+  box.classList.add("cov");            /* 한 회차 = #cov 가 곧 격자 */
+  box.classList.remove("covwrap");
   const list = ONLY_EMPTY
     ? ROWS.filter(r => ["q","a","sol"].some(k => st(r,k) === "empty"))
     : ROWS;
@@ -495,6 +500,12 @@ function drawAll(){
   stats(ALL, "전 회차");
   const n = ALL.length;
 
+  /* ★ 세로로 길게 늘어지던 자리.
+       #cov 는 62px 짜리 칸으로 나뉜 격자다. 거기에 «회차 제목 + 격자» 묶음을
+       통째로 집어넣으니, 그 묶음이 62px 칸 하나에 끼여 글자까지 한 자씩 꺾였다.
+       모아보기일 때는 #cov 를 격자에서 풀어 그냥 세로로 쌓는 상자로 쓴다. */
+  $("#cov").classList.remove("cov");
+  $("#cov").classList.add("covwrap");
   $("#cov").innerHTML = "";
   if(!keys.length){
     $("#cov").innerHTML = `<p class="note">빈칸이 하나도 없습니다. 다 채우셨습니다.</p>`;
@@ -506,7 +517,8 @@ function drawAll(){
     const [y,ss] = k.split("-");
     const head = document.createElement("div");
     head.className = "mono";
-    head.style.cssText = "font-size:12px;color:var(--mut);margin:14px 0 6px;font-weight:600";
+    head.style.cssText = "font-size:12px;color:var(--mut);margin:16px 0 7px;font-weight:600;"
+      + "white-space:nowrap;position:sticky;top:0;background:var(--card);padding:4px 0;z-index:1";
     head.textContent = `${y}년 제${ss}회 — 빈칸 ${by[k].length}문항`;
     wrap.appendChild(head);
     const g = document.createElement("div");
