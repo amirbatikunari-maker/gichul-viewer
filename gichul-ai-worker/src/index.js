@@ -336,21 +336,41 @@ const SYS_SOL = [
   "반드시 write_solution 도구로 답한다."
 ].join("\n");
 
+/* ★ v224 — 그림을 «주소만» 넘기지 않는다. 워커가 직접 받아 base64 로 보낸다.
+   ── 무슨 일이 있었나 ──
+   여태는 주소에 token 이 붙은 «서명된» 것만 받아서 보내고, 공개 주소는
+   { type:"image", source:{ type:"url", url } } 로 넘겨 Anthropic 더러
+   직접 받아가라고 했다. 그런데 Supabase 공개 주소는 그렇게 넘기면
+   Anthropic 이 통째로 거절한다 — 403 «Request not allowed».
+
+   그래서 그림이 든 요청(해설 만들기·답 경계 찾기)만 전부 실패하고,
+   글자만 보내는 /selftest 는 멀쩡했다. 키도 계정도 모델도 아무 문제 없었다.
+
+   이제 서명 여부를 안 따지고 «항상» 받아서 실어 보낸다.
+   받다 실패했을 때만 옛 방식(주소 넘기기)으로 물러선다.               */
 async function imageBlock(url){
   if (!url) return null;
+  const asUrl = () => ({ type: "image", source: { type: "url", url } });
   try{
-    const u = new URL(url);
-    const signed = u.searchParams.has("token") || /\/sign\//.test(u.pathname);
-    if (!signed) return { type: "image", source: { type: "url", url } };
     const res = await fetch(url);
-    if (!res.ok) return null;
+    if (!res.ok) return asUrl();
     const buf = await res.arrayBuffer();
-    if (buf.byteLength > IMG_MAX) return null;
+    if (!buf.byteLength) return asUrl();
+    if (buf.byteLength > IMG_MAX) return null;      /* 너무 크면 아예 뺀다 */
     let bin = ""; const by = new Uint8Array(buf);
     for (let i = 0; i < by.length; i += 0x8000) bin += String.fromCharCode.apply(null, by.subarray(i, i + 0x8000));
-    const mt = (res.headers.get("Content-Type") || "image/jpeg").split(";")[0];
+    let mt = (res.headers.get("Content-Type") || "").split(";")[0].trim();
+    /* Supabase 가 가끔 application/octet-stream 으로 준다. 그러면 Anthropic 이 안 받는다.
+       주소 끝을 보고 고쳐 준다. */
+    if (!/^image\/(jpeg|png|gif|webp)$/.test(mt)){
+      const ext = (url.split("?")[0].match(/\.(\w+)$/) || [])[1];
+      mt = ext === "png" ? "image/png"
+         : ext === "gif" ? "image/gif"
+         : ext === "webp" ? "image/webp"
+         : "image/jpeg";
+    }
     return { type: "image", source: { type: "base64", media_type: mt, data: btoa(bin) } };
-  }catch(e){ return null; }
+  }catch(e){ return asUrl(); }
 }
 
 async function explain(req, env, H){
