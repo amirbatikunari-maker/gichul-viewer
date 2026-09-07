@@ -185,6 +185,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
         <button id="btnOnlyEmpty">빈칸만 보기</button>
         <button id="btnAllEmpty">전 회차 빈칸 모아보기</button>
         <button id="btnRealOnly">기출만</button>
+        <button class="pri" id="btnTidy">이 회차 정리 (한 번에)</button>
         <button id="btnShellDel" class="danger">빈 껍데기 지우기</button>
         <button id="btnRenum" class="danger">번호 다시 매기기</button>
       </div>
@@ -1231,8 +1232,8 @@ $("#btnShellDel").addEventListener("click", async () => {
      «지울 빈 껍데기가 없습니다» 가 먼저 떠서, 회차를 안 골랐다는 사실이 안 보였다.
      모드 확인이 먼저다. 그리고 무엇을 누르면 되는지까지 적는다. */
   if(MODE === "all")
-    return void say("이건 회차 하나씩만 지웁니다 — 위에서 <b>연도·회차</b>를 고르고 "
-      + "<b>«불러오기»</b> 를 누른 다음에 다시 눌러 주세요.<br>"
+    return void say("이건 회차 하나씩만 지웁니다 — 위에서 <b>연도·회차</b>를 고른 다음 "
+      + "<b>«이 회차 정리 (한 번에)»</b> 를 누르면 불러오기·지우기·번호 붙이기가 한 번에 됩니다.<br>"
       + "«회차 미상»(9000번대) 쪽 껍데기는 <b>«회차 미상 정리»</b> 를 누르면 "
       + "그 아래에 전용 단추가 나옵니다.");
   const rows = ROWS.filter(r => isShell(r) && isBare(r));
@@ -1300,6 +1301,50 @@ $("#btnDrop").addEventListener("click", async () => {
   if(n === null) return;
   CUR = null; $("#detCard").classList.add("hide"); load();
 });
+/* ★ v222 — 회차 하나를 치우는 데 네 번을 눌러야 했다.
+   «연도·회차 고르기 → 불러오기 → 빈 껍데기 지우기 → 번호 다시 매기기».
+   그런데 지울 회차가 24개다. 96번을 누르게 둘 일이 아니다.
+   게다가 «불러오기» 를 빠뜨리면 전체 모드라 아무 일도 안 일어나서,
+   눌렀는데 안 된다고 느끼기 딱 좋았다. 그래서 한 단추로 묶는다.
+
+   지우는 잣대는 그대로다 — 꼬리표와 실제 칸이 «둘 다» 빈 것만 지운다. */
+$("#btnTidy").addEventListener("click", async () => {
+  const sid = +$("#fSub").value, y = +$("#fYear").value, ss = +$("#fSess").value;
+  if(!sid || !y || !ss) return void say("과목·연도·회차를 모두 고르세요.");
+
+  const b = $("#btnTidy"); const old = b.textContent; b.disabled = true;
+  try{
+    b.textContent = "불러오는 중…";
+    await load();                                  /* 늘 최신을 보고 판단한다 */
+    const gone = ROWS.filter(r => isShell(r) && isBare(r));
+    if(!gone.length)
+      return void say(`<b>${sheetLabel(y, ss)}</b> — 지울 빈 자리가 없습니다. `
+        + `이 회차는 이미 정리됐습니다.`);
+
+    if(!confirm(`${sheetLabel(y, ss)}\n\n`
+      + `지울 빈 자리 ${gone.length}문항 — ${gone.map(r => r.no).join("·")}번\n`
+      + `자료가 한 줄이라도 있는 문항은 건드리지 않습니다.\n\n`
+      + `지운 뒤 번호를 1번부터 다시 붙입니다. 계속할까요?`)) return;
+
+    b.textContent = "지우는 중…";
+    let ok = 0;
+    for(const r of gone){
+      const { error } = await sb.from("practicals").delete().eq("id", r.id);
+      if(error) log(`${r.no}번 지우기 실패 — ${error.message}`, "bad");
+      else ok++;
+    }
+    b.textContent = "번호 붙이는 중…";
+    const moved = await rpc("renumber_items",
+      { p_subject:sid, p_year:y, p_session:ss }, "번호 다시 매기기");
+
+    CUR = null; $("#detCard").classList.add("hide");
+    await load();
+    say(`<b>${sheetLabel(y, ss)}</b> 정리 끝 — 빈 자리 <b>${ok}문항</b>을 지우고 `
+      + (moved === null ? "" : `<b>${moved}문항</b>의 `) + `번호를 1번부터 다시 붙였습니다. `
+      + `지금 <b>${ROWS.length}문항</b>입니다.`);
+  }finally{ b.disabled = false; b.textContent = old; }
+});
+
 $("#btnRenum").addEventListener("click", async () => {
   if(!SID||!YEAR||!SESS) return;
   if(!confirm("번호가 띄엄띄엄해진 것을 1,2,3… 으로 다시 붙입니다.\n지금 순서는 그대로 지킵니다. 계속할까요?")) return;
@@ -1641,21 +1686,35 @@ async function showOrphans(){
   });
   const shellTotal = rows.filter(r => !r.q_url && !r.q_text && !r.a_url && !r.easy_md).length;
   L.push(``);
+  /* ★ v222 — 지울 게 0개일 때도 «지우세요» 라고 시켜서, 없는 단추를 찾아 헤매게 만들었다.
+     그리고 오고초려·핵심빈출·단답은 원래 회차가 없는 자료라 «제자리로 보낸다» 는 말도
+     맞지 않는다. 갈 제자리가 없다. 상태에 따라 할 말을 다르게 한다. */
   L.push(`### 무엇을 해야 하나\n`);
-  L.push(`- **세 칸 다 빈 껍데기 ${shellTotal}문항** — 자리만 잡아 둔 것이라 지워도 잃을 게 없습니다.`);
-  L.push(`  아래 «회차 미상 빈 껍데기 지우기» 를 누르세요.`);
-  L.push(`- **자료가 든 ${rows.length - shellTotal}문항** — 원본 PDF 가 있으면`);
-  L.push(`  자동 변환(v213)으로 다시 넣는 편이 낫습니다. 회차를 제대로 읽으므로 제자리로 갑니다.`);
-  L.push(`  그러고 나서 여기 남은 것을 지우세요.`);
-  L.push(`- 단답 정리본처럼 **원래 회차가 없는 자료**라면 그대로 두는 게 맞습니다.`);
+  const noAns = rows.filter(r => st(r,"a") === "empty").length;
+  if(shellTotal){
+    L.push(`- **세 칸 다 빈 껍데기 ${shellTotal}문항** — 자리만 잡아 둔 것이라 지워도 잃을 게 없습니다.`);
+    L.push(`  아래 «회차 미상 빈 껍데기 ${shellTotal}개 지우기» 를 누르세요.`);
+  }else{
+    L.push(`- **지울 빈 껍데기가 없습니다.** 여기서 손댈 것은 없습니다.`);
+  }
+  L.push(`- 오고초려·핵심빈출·단답·소방은 **원래 회차가 없는 자료**입니다.`);
+  L.push(`  갈 제자리가 없으므로 **옮기지도, 지우지도 마세요.** 지금 상태가 맞습니다.`);
+  if(noAns){
+    L.push(`- 답이 없는 문항이 **${noAns}개** 있습니다 — 회차를 하나 골라 «불러오기» 한 뒤`);
+    L.push(`  «답 빈 문항 자동으로 나누기» 로 채웁니다. 기출 정리가 끝난 뒤에 해도 됩니다.`);
+  }
+  L.push(`- 해설은 **한 건도 없습니다.** 문항마다 손보는 게 아니라 «해설 배치» 로 한 번에 만듭니다.`);
   setDumpVisible();
   setDump(head() + L.join("\n") + "\n");
   say(`회차 미상 <b>${rows.length}문항</b> — 아래 «텍스트로 뽑기» 칸에 정리했습니다.`
-    + (shellTotal ? ` 빈 껍데기 ${shellTotal}문항은 바로 지울 수 있습니다.` : ""));
+    + (shellTotal
+       ? ` 빈 껍데기 ${shellTotal}문항은 바로 지울 수 있습니다.`
+       : ` <b>지울 껍데기는 없습니다</b> — 여기는 손댈 것이 없습니다.`));
 
-  /* 빈 껍데기만 골라 지우는 단추를 그때그때 붙인다 */
+  /* 빈 껍데기만 골라 지우는 단추를 그때그때 붙인다 — 지울 게 있을 때만 */
   const bar = $("#dumpCard").querySelector(".btns");
   let del = $("#btnOrphanDel");
+  if(!shellTotal){ if(del) del.remove(); return; }
   if(!del){
     del = document.createElement("button");
     del.id = "btnOrphanDel"; del.className = "danger";
