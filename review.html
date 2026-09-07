@@ -402,14 +402,26 @@ $("#btnRealOnly").addEventListener("click", () => {
 async function loadSheets(){
   const sid = +$("#fSub").value; if(!sid) return;
   localStorage.setItem("prac:sub", String(sid));
-  const { data, error } = await sb.from("practicals").select("year,session")
-    .eq("subject_id", sid).order("year",{ascending:false}).order("session",{ascending:false});
-  if(error) return void say("회차를 불러오지 못했습니다 — " + esc(error.message));
-  const years = [...new Set((data||[]).map(r => r.year))].sort((a,b)=>b-a);
+  /* ★ v223 — Supabase 는 한 번에 1000줄만 준다. 그런데 지금 1748문항이다.
+     연도 내림차순이라 앞쪽 1000줄이 9523·94xx·9302·9301(문제집 715) 과
+     2026~2021 로 다 차 버렸고, 2020년 이하는 아예 안 실려 왔다.
+     그래서 연도 칸에 2021년까지만 뜨고 그 아래가 통째로 사라졌다.
+     끝까지 나눠 받는다. */
+  const data = [];
+  for(let from = 0; from < 40000; from += 1000){
+    const r = await sb.from("practicals").select("year,session")
+      .eq("subject_id", sid)
+      .order("year",{ascending:false}).order("session",{ascending:false})
+      .range(from, from + 999);
+    if(r.error) return void say("회차를 불러오지 못했습니다 — " + esc(r.error.message));
+    data.push(...(r.data || []));
+    if(!r.data || r.data.length < 1000) break;
+  }
+  const years = [...new Set(data.map(r => r.year))].sort((a,b)=>b-a);
   ALLYEARS = years;
   paintYears();
-  fillSess(data||[]);
-  $("#fYear").onchange = () => fillSess(data||[]);
+  fillSess(data);
+  $("#fYear").onchange = () => fillSess(data);
 }
 let ALLYEARS = [], ONLY_REAL = true;
 
