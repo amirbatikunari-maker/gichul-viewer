@@ -738,7 +738,7 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
 @media(max-width:560px){.studyhud{grid-template-columns:1fr 1fr;gap:6px;padding:8px}.study-title{font-size:13px}.study-actions button{flex:1;padding:0 6px}.quickbar{top:48px;padding:6px;gap:5px}.quickbar button{height:30px;padding:0 8px;font-size:10.5px}.filters-shell .filter-top{margin-bottom:6px}.study-stat b{font-size:14px}}
 
 </style>
-<link rel="stylesheet" href="./app-enhance.css?v=219">
+<link rel="stylesheet" href="./app-enhance.css?v=222">
 </head>
 <body data-data-domain="study">
 <nav class="nav3">
@@ -1082,6 +1082,7 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
         <button class="ghost" id="probe" type="button" disabled>이 PDF 스스로 살펴보기</button>
         <button class="ghost" id="save" type="button" disabled>Supabase 에 올리기</button>
         <button class="ghost" id="fillGap" type="button" disabled>빠진 문제만 채우기</button>
+        <button class="ghost" id="reCut" type="button" disabled>글자 잘린 문항만 다시 올리기</button>
         <button class="ghost" id="stop" type="button" disabled>중지</button>
       </div>
       <div class="msg" id="im"></div>
@@ -2556,6 +2557,8 @@ $("#run").onclick = async () => {
       log(`${f.name} 여는 중…`);
       const buf = await f.arrayBuffer();
       const doc = await pdfjsLib.getDocument({ data: buf }).promise;
+      doc.__id = f.name + "|" + f.size;      /* 여백 잰 값을 파일별로 담아 두려고 */
+      try{ LEFTPAD.clear(); LEFTMIN.clear(); }catch(e){}
       log(`${f.name} · ${doc.numPages}쪽`);
       const found = await scanDoc(doc, f.name, MODE);
       PARSED.push({ file:f, doc, items:found });
@@ -2645,6 +2648,7 @@ $("#run").onclick = async () => {
     $("#save").disabled = !total;
     $("#peek").disabled = !total;
     $("#fillGap").disabled = !total;
+    $("#reCut").disabled = !total;
   }catch(e){
     say($("#im"), "읽지 못했습니다 — " + e.message, "err");
   }finally{
@@ -4921,6 +4925,7 @@ async function uploadItems(list, sid, scale, MODE, label){
   /* 다시 올릴 때 옛 글자(q_md·a_md)·옛 답안을 지울지 */
   const WIPE = !!document.getElementById("impWipe")?.checked;
   $("#save").disabled = $("#fillGap").disabled = true; $("#stop").disabled = false;
+  { const b = document.getElementById("reCut"); if(b) b.disabled = true; }
 
   try{
     for(const { P, it } of list){
@@ -5010,6 +5015,81 @@ $("#save").onclick = async () => {
    실패 목록은 새로고침하면 사라진다. 그래서 기억에 기대지 않고
    Supabase 에 실제로 뭐가 들어 있는지 물어본 뒤, 없는 것만 올린다.
    지난번에 실패한 것도, 중간에 중지한 것도 이 한 번으로 다 메워진다. */
+/* ═══════════════════════════════════════════════════════════
+   글자 잘린 문항만 다시 올리기
+   ───────────────────────────────────────────────────────────
+   v221 이전에는 어떤 쪽이든 좌우 22pt 를 무조건 깎았다.
+   글자가 x=22 안쪽에서 시작하는 쪽은 앞머리가 잘려 나갔다
+   (오고초려 x≈14 · 소방 x≈16 · 본문에서 표가 왼쪽으로 튀어나온 쪽).
+
+   이미 올라간 그림에서는 잘린 글자를 되살릴 수 없다. 원본에서 다시 떠야 한다.
+   그래서 쪽마다 글자 시작점을 재서 «예전 규칙이었다면 잘렸을 쪽» 을 골라
+   그 문항만 다시 올린다. 쪽수를 손으로 셀 필요가 없다.
+   ═══════════════════════════════════════════════════════════ */
+const OLD_MARGIN = 22;
+$("#reCut").onclick = async () => {
+  const sid = +$("#impSub").value;
+  if(!sid) return void say($("#im"), "과목을 먼저 고르세요.", "err");
+  if(!PARSED.length) return void say($("#im"), "먼저 «훑어보기» 를 누르세요.", "err");
+
+  $("#reCut").disabled = true;
+  logEl.textContent = "";
+  log("잘린 쪽을 찾는 중… (쪽마다 글자가 어디서 시작하는지 잽니다)");
+  const 잘림 = [];
+  const 쪽 = new Set();
+  try{
+    for(const P of PARSED){
+      /* 그 파일이 쓰는 쪽만 잰다 — 문항이 걸친 쪽 전부 */
+      const need = new Set();
+      P.items.forEach(it => {
+        for(let p = it.start.page; p <= (it.end?.page || it.start.page); p++) need.add(p);
+      });
+      let n = 0;
+      const cut = new Set();
+      for(const p of [...need].sort((a,b) => a-b)){
+        if(STOP) break;
+        const minx = await leftMinOf(P.doc, p);
+        /* 글자가 22pt 안쪽에서 시작한다 = 예전 규칙이 글자를 파고들었다.
+           표·회로도 선까지 생각해 2pt 여유를 둔다. */
+        if(minx < OLD_MARGIN + 2) cut.add(p);
+        if(++n % 40 === 0){ $("#bar").style.width = (n / need.size * 100) + "%"; await new Promise(r => setTimeout(r)); }
+      }
+      P.items.forEach(it => {
+        for(let p = it.start.page; p <= (it.end?.page || it.start.page); p++){
+          if(cut.has(p)){ 잘림.push({ P, it }); 쪽.add(p); break; }
+        }
+      });
+    }
+  }catch(e){
+    $("#reCut").disabled = false;
+    return void say($("#im"), "재다가 멈췄습니다 — " + e.message, "err");
+  }
+  $("#bar").style.width = "0%";
+
+  if(!잘림.length){
+    $("#reCut").disabled = false;
+    return void say($("#im"), "글자가 잘린 문항이 없습니다. 다시 올릴 것이 없습니다.", "ok");
+  }
+
+  const 회차 = new Map();
+  잘림.forEach(({it}) => {
+    const k = `${it.year}년 ${it.session}회`;
+    회차.set(k, (회차.get(k) || 0) + 1);
+  });
+  log(`잘린 쪽 ${쪽.size}개 · 그 위의 문항 ${잘림.length}개`);
+  [...회차.entries()].forEach(([k, n]) => log(`   ${k} — ${n}문항`));
+
+  if(!confirm(`예전 규칙(좌우 22pt 고정)이었다면 글자가 잘렸을 문항 ${잘림.length}개를 찾았습니다.\n`
+    + [...회차.entries()].slice(0, 10).map(([k, n]) => `  ${k} ${n}문항`).join("\n")
+    + (회차.size > 10 ? `\n  … 그 밖 ${회차.size - 10}회차` : "")
+    + `\n\n이 문항들만 원본에서 다시 떠 올립니다. 나머지는 건드리지 않습니다.\n계속할까요?`)){
+    $("#reCut").disabled = false;
+    return;
+  }
+  await uploadItems(잘림, sid, +$("#impScale").value, IMPORT_MODE, `잘린 ${잘림.length}개 다시`);
+  $("#reCut").disabled = false;
+};
+
 $("#fillGap").onclick = async () => {
   const sid = +$("#impSub").value;
   if(!sid) return say($("#im"), "넣을 과목을 고르세요.", "err");
@@ -5045,8 +5125,50 @@ $("#fillGap").onclick = async () => {
 
 
 /* 시작 지점부터 끝 지점까지를 하나의 그림으로 잘라 붙인다. 쪽을 넘어가도 이어 붙인다. */
+/* 쪽마다 «글자가 실제로 어디서 시작하는지» 를 재 둔다 (한 번만 재고 담아 둔다) */
+const LEFTPAD = new Map();
+const LEFTMIN = new Map();          /* 그 쪽 글자가 실제로 시작하는 x (판정용 원본값) */
+async function leftPadOf(doc, p){
+  const k = `${doc.__id || ""}#${p}`;
+  if(LEFTPAD.has(k)) return LEFTPAD.get(k);
+  let pad = 22, minx = 999;
+  try{
+    const page = await doc.getPage(p);
+    const vp = page.getViewport({ scale:1 });
+    const tc = await page.getTextContent();
+    const xs = [];
+    for(const it of tc.items){
+      if(!it.str.trim()) continue;
+      xs.push(vp.convertToViewportPoint(it.transform[4], it.transform[5])[0]);
+    }
+    if(xs.length){
+      xs.sort((a,b) => a-b);
+      /* ★ 글자가 있으면 절대 안 자른다.
+           제일 왼쪽 글자보다 «14pt 더 바깥» 까지 남기고, 그래도 최대 14pt 만 깎는다.
+           표·회로도 선은 글자보다 조금 더 왼쪽으로 튀어나오기 때문에 여유가 필요하다.
+           덜 깎아서 흰 여백이 조금 남는 것은 아무 손해가 없지만,
+           한 글자라도 잘리면 문제를 못 읽는다. */
+      minx = xs[0];
+      pad = Math.max(0, Math.min(14, xs[0] - 14));
+    }
+  }catch(e){}
+  LEFTPAD.set(k, pad);
+  LEFTMIN.set(k, minx);
+  return pad;
+}
+/* 그 쪽 글자가 시작하는 x. 예전 규칙(22pt 고정)이 파고들었는지 판정할 때 쓴다. */
+async function leftMinOf(doc, p){
+  const k = `${doc.__id || ""}#${p}`;
+  if(!LEFTMIN.has(k)) await leftPadOf(doc, p);
+  return LEFTMIN.get(k) ?? 999;
+}
+
 async function crop(doc, from, to, scale, minH){
-  const M = 22;                                   /* 좌우 여백 */
+  /* ★ 왼쪽이 잘리던 자리.
+       예전에는 «좌우 22pt» 를 무조건 깎았다. 기출은 본문이 x=24 라 아슬아슬하게
+       살았지만, 소방(x≈16)·오고초려(x≈14)는 본문이 그 안쪽이라 «(1)» 같은
+       앞머리가 통째로 날아갔다. 쪽마다 실제 글자 시작점을 재서 그만큼만 깎는다. */
+  const M = await leftPadOf(doc, from.page);
   const parts = [];
   const last = to?.page ?? from.page;
   /* ★ 얇은 조각은 «건너뛰기» 가 아니라 «넓혀서» 잡는다.
@@ -5087,6 +5209,7 @@ async function crop(doc, from, to, scale, minH){
     const page = await doc.getPage(from.page);
     const vp = page.getViewport({ scale });
     const top = Math.max(0, Math.min(vp.height - 40 * scale, (from.top || 0) * scale));
+    /* 아래에서 M 을 그대로 쓴다 — 위에서 잰 값이다 */
     const bot = Math.min(vp.height, top + 110 * scale);
     const c = document.createElement("canvas");
     c.width = Math.round(vp.width - M * 2 * scale);
@@ -6324,7 +6447,7 @@ body.exam-mode .pcard{box-shadow:0 0 0 2px rgba(29,78,216,.08),var(--shadow)}
 
 <script src="./music.js" defer></script>
 <!-- DATA ISOLATION CONTRACT: practice/written mistakes stay in study domain; never write into iv-/iv: interview data. -->
-<script src="./app-enhance.js?v=219" defer></script>
+<script src="./app-enhance.js?v=222" defer></script>
 
 <!-- ══════════════════════════════════════════════════════════════
      v89 · 상단 도구 3칸 재배치 · 문항 레일 · 진도율
@@ -18071,6 +18194,6 @@ setTimeout(()=>clearInterval(boot), 20000);
 })();
 </script>
 
-<script src="./simple.js?v=219"></script>
+<script src="./simple.js?v=222"></script>
 </body>
 </html>
