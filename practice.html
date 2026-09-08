@@ -16338,13 +16338,34 @@ const rowsAll=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return []
 const KEY='prac:ylabel:v1';
 let L=(()=>{ try{ return JSON.parse(localStorage.getItem(KEY)||'{}') }catch(e){ return {} } })();
 const save=()=>{ try{ localStorage.setItem(KEY,JSON.stringify(L)) }catch(e){} };
-const nameOf=y=>L[String(y)]||'';
+/* ★ v233 — 가짜 연도에 «자동으로» 한글 이름을 붙인다.
+   여태는 사람이 이름표 창에서 하나하나 적어 넣어야 이름이 보였다.
+   그런데 규칙은 이미 정해져 있다(9301 오고초려 · 94NN 단답 · 95NN 소방).
+   손으로 적을 이유가 없어서 규칙을 코드에 넣는다.
+   이름표 창에서 적은 것이 있으면 그것이 언제나 이긴다. */
+const AUTO=y=>{
+  y=+y;
+  if(!(y>3000)) return '';                                  /* 진짜 연도는 그대로 */
+  if(y===9301) return '오고초려';
+  if(y===9302) return '핵심빈출';
+  if(y>=9400&&y<9500) return `단답 20${String(y).slice(2)}`;
+  if(y>=9500&&y<9600) return `소방 20${String(y).slice(2)}`;
+  if(y>=9000&&y<9300) return `회차미상 ${y-9000}`;
+  return '';
+};
+const nameOf=y=>L[String(y)] || AUTO(y);
+/* ★ v234 — «회» 가 안 어울리는 자료가 있다.
+   오고초려·핵심빈출은 시험 회차가 아니라 20문항씩 끊어 놓은 «묶음» 이다.
+   단답·소방은 진짜 회차라 «회» 가 맞다. 자료마다 단위를 갈라 준다. */
+const UNIT=y=>{ y=+y; return (y===9301||y===9302) ? '묶음' : '회'; };
+const sessLabel=(y,s)=>{ const u=UNIT(y); return u==='회' ? `제${s}회` : `${s}묶음`; };
+window.__pracSessLabel=sessLabel;
 window.__pracYLabel=()=>L;
+window.__pracYAuto=AUTO;
 
 /* ══ ① 보이는 곳에서 바꿔 끼운다 ══
    표에 든 값(9001)은 그대로 두고 글자만 갈아 끼운다. */
 function relabel(){
-  if(!Object.keys(L).length) return;
 
   /* 연도 거르개 */
   /* ★★ 여기가 «연도를 고르면 문제가 하나도 안 나오던» 자리다.
@@ -16367,19 +16388,36 @@ function relabel(){
     const t=el.textContent;
     if(!/\d{4}년\s*제\d+회/.test(t)) return;
     const out=t.replace(/(\d{4})년\s*제(\d+)회/g,(m,y,s)=>{
-      const n=nameOf(y); return n ? `${n} · ${s}장` : m;
+      const n=nameOf(y); return n ? `${n} · ${sessLabel(y,s)}` : m;
     });
     if(out!==t) el.textContent=out;
   };
   $$('#list .pmeta').forEach(swap);
   $$('#ovl .pmeta, .ovhead .pmeta').forEach(swap);
   const at=$('#pnavAt'); if(at) swap(at);
+  const ot=$('#ovTitle'); if(ot) swap(ot);
+
+  /* 회차 거르개 — 고른 연도에 맞는 단위로 */
+  const yv=$('#fYear')?.value||'';
+  if(yv){
+    $$('#fSess option').forEach(o=>{
+      const v=o.getAttribute('value'); if(!v) return;
+      const want=sessLabel(yv,v);
+      if(o.textContent!==want) o.textContent=want;
+    });
+  }else{
+    $$('#fSess option').forEach(o=>{
+      const v=o.getAttribute('value'); if(!v) return;
+      if(o.textContent!==`제${v}회`) o.textContent=`제${v}회`;
+    });
+  }
 
   /* 레일 단추 — «25-3 8» 처럼 두 자리로 줄여 놓았다 */
   $$('#prail .pb').forEach(b=>{
     const t=b.textContent.trim();
     const m=t.match(/^(\d{1,2})-(\d+)\s+(\d+)$/); if(!m) return;
-    const full=Object.keys(L).find(y=>String(+y%100).padStart(2,'0')===m[1].padStart(2,'0'));
+    const pool=[...new Set([...Object.keys(L), ...rowsAll().map(r=>String(r.year))])];
+    const full=pool.find(y=>String(+y%100).padStart(2,'0')===m[1].padStart(2,'0'));
     if(!full) return;
     const n=nameOf(full); if(!n) return;
     const short=n.length>4?n.slice(0,4):n;
@@ -16431,7 +16469,7 @@ function paint(){
       <span class="y">${y}</span>
       <span class="n">${cnt.get(y)||0}문항</span>
       <input type="text" maxlength="14" value="${(L[y]||'').replace(/"/g,'&quot;')}"
-        placeholder="${+y>2100?'예: 단답 콜렉터':'(진짜 연도 — 비워 두세요)'}">
+        placeholder="${+y>2100?(AUTO(y)||'예: 단답 콜렉터'):'(진짜 연도 — 비워 두세요)'}">
     </div>`).join('');
   $$('.ylr input',box).forEach(inp=>{
     const y=inp.closest('.ylr').dataset.y;
