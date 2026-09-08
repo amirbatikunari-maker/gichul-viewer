@@ -44,42 +44,6 @@ const tiers = env => ({
   fast: env.MODEL_FAST || env.MODEL || "claude-opus-5"
 });
 
-/* ═══════════════════════════════════════════════════════════
-   ★ v230 — 문항을 보고 모델을 고른다
-   ───────────────────────────────────────────────────────────
-   해설 만들기는 «답을 이미 주고» 하는 일이라 대개 Sonnet 으로 충분하다.
-   생각(thinking)도 꺼 놓았으니 Opus 의 힘을 애초에 안 쓴다.
-
-   그런데 전기기사 실기에는 회로도·결선도·시퀀스도가 많다.
-   그림에서 계산식과 기호(√3 · [Ω] · 아래첨자)를 정확히 읽어내야 하는 문항은
-   눈이 좋은 쪽이 낫다. 그런 것만 Opus 로 보낸다.
-
-   가르는 잣대 둘
-     ① 도면을 말로 가리키는가 — 「도면을 보고」 「결선도를 그리시오」
-     ② 글이 거의 없는가 — 본문이 통째로 그림이면 읽을 게 그림뿐이다
-
-   변수
-     MODEL_HEAVY  도면·그림 문항용 (기본 claude-opus-5)
-     MODEL_LIGHT  나머지         (기본 MODEL_BEST 를 따라감)
-   MODEL_LIGHT 를 안 넣으면 예전과 똑같이 다 Opus 로 간다.
-   ═══════════════════════════════════════════════════════════ */
-const FIG_WORDS = /(도\s*면|회\s*로\s*도|결\s*선\s*도|단\s*선\s*도|시\s*퀀\s*스|계\s*통\s*도|배\s*치\s*도|평\s*면\s*도|미완성도|타임\s*차트|논리\s*회로|무접점|유접점|그리시오|작성하시오|완성하시오|도시하시오)/;
-const 알맹이 = t => String(t || "").replace(/[\s\W_]/g, "").length;
-
-function pickModel(env, b){
-  const T = tiers(env);
-  if (b.model) return { model: b.model, why: "부른 쪽이 정함" };
-  const heavy = env.MODEL_HEAVY || T.best;
-  const light = env.MODEL_LIGHT || T.best;
-  if (heavy === light) return { model: heavy, why: "한 가지만 씀" };
-
-  const txt = `${b.q_text || ""}\n${b.a_text || ""}`;
-  if (FIG_WORDS.test(txt))       return { model: heavy, why: "도면 문항" };
-  /* 글이 거의 없다 = 본문이 통째로 그림이다 */
-  if (알맹이(b.q_text) < 60)      return { model: heavy, why: "글이 거의 없음(그림 위주)" };
-  return { model: light, why: "글 위주" };
-}
-
 /* ─── 공통 ─────────────────────────────────────────────── */
 function cors(env, req){
   const origin = req.headers.get("Origin") || "";
@@ -451,8 +415,7 @@ async function explain(req, env, H){
   if (a_text) parts.push({ type: "text", text: a_text });
 
   const T = tiers(env);
-  const 고름 = pickModel(env, b);
-  const model = 고름.model;
+  const model = b.model || T.best;
   const budget = EFFORT[b.effort] ?? EFFORT.low;
 
   /* v209 — «생각(thinking)» 과 «이 도구를 반드시 써라(tool_choice: tool)» 는
@@ -468,8 +431,7 @@ async function explain(req, env, H){
   const call_ = (out.content || []).find(c => c.type === "tool_use" && c.name === "write_solution");
   if (!call_) return json({ error: "정해진 틀로 답하지 않았습니다", said: textOf(out).slice(0, 400) }, 502, H);
 
-  return json({ ok: true, sol: call_.input, model, pickedWhy: 고름.why,
-                effort: b.effort || "low", usage: out.usage || null }, 200, H);
+  return json({ ok: true, sol: call_.input, model, effort: b.effort || "low", usage: out.usage || null }, 200, H);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -609,7 +571,7 @@ export default {
         keyHead: String(env.ANTHROPIC_API_KEY).slice(0,14) + "…",
         keyLen: String(env.ANTHROPIC_API_KEY).length,
         keyTrimmed: String(env.ANTHROPIC_API_KEY) === String(env.ANTHROPIC_API_KEY).trim(),
-        빌드: "v230",
+        빌드: "v229",
         upstream: parsed || body.slice(0,600),
         vision
       }, 200, H);
