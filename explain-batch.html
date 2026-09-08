@@ -130,6 +130,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
         <span>건너뜀 <b id="sSkip">0</b></span>
         <span>입력토큰 <b id="sIn">0</b></span>
         <span>출력토큰 <b id="sOut">0</b></span>
+      <span id="sModels" style="color:var(--mut)"></span>
       </div>
       <div class="btns">
         <button class="pri" id="btnRun" disabled>돌리기</button>
@@ -201,7 +202,15 @@ function hint(why){
   box.innerHTML = `<span style="color:var(--bad)">멈췄습니다.</span> ${tip}`;
 }
 
+const MODELS = new Map();
 function paint(){
+  /* 모델별로 몇 개씩 갔는지 진행 줄 옆에 붙인다 */
+  try{
+    const el = document.getElementById("sModels");
+    if(el) el.textContent = MODELS.size
+      ? [...MODELS.entries()].map(([m, n]) => `${m.replace("claude-", "")} ${n}`).join(" · ")
+      : "";
+  }catch(e){}
   $("#sTotal").textContent = N.total;
   $("#sDone").textContent  = N.done;
   $("#sBad").textContent   = N.bad;
@@ -302,23 +311,40 @@ $("#btnScan").addEventListener("click", async () => {
 }));
 
 /* ── 해설 JSON → 마크다운 ─────────────────────────── */
+/* ★ v230 — «틀이 조금 어긋나도» 죽지 않게.
+     AI 가 given 을 배열이 아니라 글자 하나로 돌려주는 일이 있다.
+     그러면 `sol.given.forEach is not a function` 으로 그 문항이 통째로 실패했다.
+     여기서 죽는 건 아깝다 — 해설 내용은 멀쩡히 와 있는데 그리다 넘어진 것이다.
+     무엇이 오든 «줄 목록» 으로 펴서 받는다. */
+const 줄목록 = v =>
+  v == null ? []
+  : Array.isArray(v) ? v.filter(x => x != null && String(x).trim() !== "")
+  : typeof v === "object" ? Object.values(v).filter(x => x != null && String(x).trim() !== "")
+  : String(v).split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+
 function toMd(sol){
+  sol = sol || {};
   const L = [];
   if(sol.gist) L.push(`**${sol.gist}**`, "");
-  if(sol.given?.length){
+  const given = 줄목록(sol.given);
+  if(given.length){
     L.push("**주어진 값**", "");
-    sol.given.forEach(g => L.push(`- ${g}`));
+    given.forEach(g => L.push(`- ${typeof g === "object" ? JSON.stringify(g) : g}`));
     L.push("");
   }
-  if(sol.formula?.length){
+  const formula = 줄목록(sol.formula);
+  if(formula.length){
     L.push("**쓰는 식**", "");
-    sol.formula.forEach(f => L.push(`$$${f}$$`, ""));
+    formula.forEach(f => L.push(`$$${f}$$`, ""));
   }
-  if(sol.steps?.length){
+  /* steps 는 {say, math} 짝이 정석이지만 글자만 오기도 한다 */
+  const steps = Array.isArray(sol.steps) ? sol.steps : 줄목록(sol.steps).map(t => ({ say:t }));
+  if(steps.length){
     L.push("**풀이**", "");
-    sol.steps.forEach((s, i) => {
-      L.push(`${i+1}. ${s.say || ""}`);
-      if(s.math) L.push("", `$$${s.math}$$`, "");
+    steps.forEach((s, i) => {
+      const o = (s && typeof s === "object") ? s : { say:String(s) };
+      L.push(`${i+1}. ${o.say || ""}`);
+      if(o.math) L.push("", `$$${o.math}$$`, "");
     });
     L.push("");
   }
@@ -346,9 +372,12 @@ async function one(r){
     throw new Error(d.error || ("HTTP " + res.status));
   }
   if(d.usage){ N.tin += d.usage.input_tokens || 0; N.tout += d.usage.output_tokens || 0; }
+  /* 어느 모델로 갔는지 세어 둔다 — 도면 문항만 Opus 로 보내는 설정이 도는지 눈으로 본다 */
+  if(d.model){ MODELS.set(d.model, (MODELS.get(d.model) || 0) + 1); }
 
   const md = toMd(d.sol || {});
   if(!md || md.length < 20) throw new Error("해설이 비어서 왔습니다");
+  if(d.pickedWhy && d.model) log(`${tag} · ${d.model.replace("claude-", "")} (${d.pickedWhy})`, "skip");
 
   /* v204 — 해설 칸이 생겼으므로 상태·판번호도 같이 남긴다.
      st_sol 은 raw — 기계가 만든 것이라 사람이 검수 화면에서 한 번 봐야 draft 가 된다.

@@ -44,6 +44,42 @@ const tiers = env => ({
   fast: env.MODEL_FAST || env.MODEL || "claude-opus-5"
 });
 
+/* ═══════════════════════════════════════════════════════════
+   ★ v230 — 문항을 보고 모델을 고른다
+   ───────────────────────────────────────────────────────────
+   해설 만들기는 «답을 이미 주고» 하는 일이라 대개 Sonnet 으로 충분하다.
+   생각(thinking)도 꺼 놓았으니 Opus 의 힘을 애초에 안 쓴다.
+
+   그런데 전기기사 실기에는 회로도·결선도·시퀀스도가 많다.
+   그림에서 계산식과 기호(√3 · [Ω] · 아래첨자)를 정확히 읽어내야 하는 문항은
+   눈이 좋은 쪽이 낫다. 그런 것만 Opus 로 보낸다.
+
+   가르는 잣대 둘
+     ① 도면을 말로 가리키는가 — 「도면을 보고」 「결선도를 그리시오」
+     ② 글이 거의 없는가 — 본문이 통째로 그림이면 읽을 게 그림뿐이다
+
+   변수
+     MODEL_HEAVY  도면·그림 문항용 (기본 claude-opus-5)
+     MODEL_LIGHT  나머지         (기본 MODEL_BEST 를 따라감)
+   MODEL_LIGHT 를 안 넣으면 예전과 똑같이 다 Opus 로 간다.
+   ═══════════════════════════════════════════════════════════ */
+const FIG_WORDS = /(도\s*면|회\s*로\s*도|결\s*선\s*도|단\s*선\s*도|시\s*퀀\s*스|계\s*통\s*도|배\s*치\s*도|평\s*면\s*도|미완성도|타임\s*차트|논리\s*회로|무접점|유접점|그리시오|작성하시오|완성하시오|도시하시오)/;
+const 알맹이 = t => String(t || "").replace(/[\s\W_]/g, "").length;
+
+function pickModel(env, b){
+  const T = tiers(env);
+  if (b.model) return { model: b.model, why: "부른 쪽이 정함" };
+  const heavy = env.MODEL_HEAVY || T.best;
+  const light = env.MODEL_LIGHT || T.best;
+  if (heavy === light) return { model: heavy, why: "한 가지만 씀" };
+
+  const txt = `${b.q_text || ""}\n${b.a_text || ""}`;
+  if (FIG_WORDS.test(txt))       return { model: heavy, why: "도면 문항" };
+  /* 글이 거의 없다 = 본문이 통째로 그림이다 */
+  if (알맹이(b.q_text) < 60)      return { model: heavy, why: "글이 거의 없음(그림 위주)" };
+  return { model: light, why: "글 위주" };
+}
+
 /* ─── 공통 ─────────────────────────────────────────────── */
 function cors(env, req){
   const origin = req.headers.get("Origin") || "";
@@ -348,15 +384,19 @@ const SYS_SOL = [
 
    이제 서명 여부를 안 따지고 «항상» 받아서 실어 보낸다.
    받다 실패했을 때만 옛 방식(주소 넘기기)으로 물러선다.               */
+/* ★ v228 — «주소로 물러서기» 를 없앴다.
+     받다 실패하면 옛 방식(주소 넘기기)으로 물러섰는데, 그 길이 바로 403 을 부른다.
+     물러선 자리에서 또 403 이 나니 «왜 실패했는지» 가 영영 안 보였다.
+     이제 물러서지 않고 «못 받았다» 고 밝힌다. 까닭도 같이 적는다. */
 async function imageBlock(url){
   if (!url) return null;
-  const asUrl = () => ({ type: "image", source: { type: "url", url } });
   try{
     const res = await fetch(url);
-    if (!res.ok) return asUrl();
+    if (!res.ok) throw new Error(`그림 주소가 ${res.status} 를 돌려줬습니다`);
     const buf = await res.arrayBuffer();
-    if (!buf.byteLength) return asUrl();
-    if (buf.byteLength > IMG_MAX) return null;      /* 너무 크면 아예 뺀다 */
+    if (!buf.byteLength) throw new Error("그림이 비어 있습니다");
+    if (buf.byteLength > IMG_MAX)
+      throw new Error(`그림이 너무 큽니다 (${Math.round(buf.byteLength/1024)}KB)`);
     let bin = ""; const by = new Uint8Array(buf);
     for (let i = 0; i < by.length; i += 0x8000) bin += String.fromCharCode.apply(null, by.subarray(i, i + 0x8000));
     let mt = (res.headers.get("Content-Type") || "").split(";")[0].trim();
@@ -370,7 +410,11 @@ async function imageBlock(url){
          : "image/jpeg";
     }
     return { type: "image", source: { type: "base64", media_type: mt, data: btoa(bin) } };
-  }catch(e){ return asUrl(); }
+  }catch(e){
+    const err = new Error(`그림을 못 받았습니다 — ${e.message || e}`);
+    err.imgUrl = url;
+    throw err;
+  }
 }
 
 async function explain(req, env, H){
@@ -390,16 +434,25 @@ async function explain(req, env, H){
   if (head) parts.push({ type: "text", text: head });
 
   parts.push({ type: "text", text: "── 문제 ──" });
-  const qi = await imageBlock(q_url); if (qi) parts.push(qi);
+  let qi = null, ai = null;
+  try{
+    qi = await imageBlock(q_url);
+    ai = await imageBlock(a_url);
+  }catch(e){
+    /* 그림을 못 받은 것을 «Anthropic 이 막았다» 로 뭉뚱그리면 엉뚱한 데를 판다 */
+    return json({ error: e.message, code: "IMG_FETCH", url: e.imgUrl || null }, 502, H);
+  }
+  if (qi) parts.push(qi);
   if (q_text) parts.push({ type: "text", text: q_text });
   if (!qi && !q_text) return json({ error: "문제 이미지를 가져오지 못했습니다" }, 400, H);
 
   parts.push({ type: "text", text: "── 답안지 (이 값이 정답 기준임) ──" });
-  const ai = await imageBlock(a_url); if (ai) parts.push(ai);
+  if (ai) parts.push(ai);
   if (a_text) parts.push({ type: "text", text: a_text });
 
   const T = tiers(env);
-  const model = b.model || T.best;
+  const 고름 = pickModel(env, b);
+  const model = 고름.model;
   const budget = EFFORT[b.effort] ?? EFFORT.low;
 
   /* v209 — «생각(thinking)» 과 «이 도구를 반드시 써라(tool_choice: tool)» 는
@@ -415,7 +468,8 @@ async function explain(req, env, H){
   const call_ = (out.content || []).find(c => c.type === "tool_use" && c.name === "write_solution");
   if (!call_) return json({ error: "정해진 틀로 답하지 않았습니다", said: textOf(out).slice(0, 400) }, 502, H);
 
-  return json({ ok: true, sol: call_.input, model, effort: b.effort || "low", usage: out.usage || null }, 200, H);
+  return json({ ok: true, sol: call_.input, model, pickedWhy: 고름.why,
+                effort: b.effort || "low", usage: out.usage || null }, 200, H);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -461,7 +515,9 @@ const SYS_CUT = [
 
 async function splitHint(req, env, H){
   const b = await req.json();
-  const img = await imageBlock(b.url);
+  let img = null;
+  try{ img = await imageBlock(b.url); }
+  catch(e){ return json({ error: e.message, code: "IMG_FETCH", url: e.imgUrl || null }, 502, H); }
   if (!img) return json({ error: "그림을 가져오지 못했습니다" }, 400, H);
 
   /* 문제 그림이면 «답이 시작되는 자리», 답 그림이면 «문제가 끝나는 자리» 를 묻는다.
@@ -517,12 +573,45 @@ export default {
       });
       const body = await r.text();
       let parsed = null; try{ parsed = JSON.parse(body); }catch(e){}
+
+      /* ★ v228 — 그림도 한 장 보내 본다.
+           글자만 보내던 시절의 /selftest 는 «다 멀쩡함» 이라고 했다.
+           정작 실패하는 해설·경계찾기는 «그림» 을 보내는데 그 길을 안 봤으니,
+           키도 계정도 멀쩡한데 왜 403 인지 알 길이 없었다.
+           1×1 점 하나를 실어 보내 그림 길이 열려 있는지 같이 본다. */
+      const DOT = "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0a"
+        + "HBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAA"
+        + "AAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==";
+      let vision = null;
+      try{
+        const rv = await fetch(API, {
+          method:"POST",
+          headers:{ "content-type":"application/json",
+                    "x-api-key": env.ANTHROPIC_API_KEY,
+                    "anthropic-version": VER },
+          body: JSON.stringify({ model: T.best, max_tokens: 16, messages:[{ role:"user", content:[
+            { type:"image", source:{ type:"base64", media_type:"image/jpeg", data: DOT } },
+            { type:"text", text:"한 글자만 답해." }
+          ]}]})
+        });
+        const vb = await rv.text();
+        let vp = null; try{ vp = JSON.parse(vb); }catch(e){}
+        vision = { ok: rv.ok, status: rv.status, upstream: vp || vb.slice(0,400) };
+      }catch(e){ vision = { ok:false, why:String(e.message || e) }; }
+
       return json({
-        ok: r.ok, status: r.status, model: T.best,
+        ok: r.ok && vision.ok, status: r.status, model: T.best,
+        글자만: r.ok ? "통과" : `막힘 (${r.status})`,
+        그림까지: vision.ok ? "통과" : `막힘 (${vision.status || "?"})`,
+        판정: r.ok && !vision.ok
+          ? "키·계정은 멀쩡한데 그림이 막혔습니다. 워커가 옛 판일 수 있습니다 — index.js 를 다시 붙여넣고 Deploy 하세요."
+          : (!r.ok ? "키·계정 쪽 문제입니다." : "다 멀쩡합니다."),
         keyHead: String(env.ANTHROPIC_API_KEY).slice(0,14) + "…",
         keyLen: String(env.ANTHROPIC_API_KEY).length,
         keyTrimmed: String(env.ANTHROPIC_API_KEY) === String(env.ANTHROPIC_API_KEY).trim(),
-        upstream: parsed || body.slice(0,600)
+        빌드: "v230",
+        upstream: parsed || body.slice(0,600),
+        vision
       }, 200, H);
     }
 

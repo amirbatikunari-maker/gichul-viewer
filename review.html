@@ -188,6 +188,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
         <button id="btnRealOnly">기출만</button>
         <button class="pri" id="btnTidy">이 회차 정리 (한 번에)</button>
         <button id="btnShellDel" class="danger">빈 껍데기 지우기</button>
+        <button id="btnShellAll" class="danger">과목 전체 빈 껍데기 정리</button>
         <button id="btnRenum" class="danger">번호 다시 매기기</button>
       </div>
       <p class="note" id="msg">과목·연도·회차를 고르고 «불러오기»를 누르세요.</p>
@@ -1262,6 +1263,110 @@ $("#btnShellDel").addEventListener("click", async () => {
   say(`빈 껍데기 <b>${ok}문항</b>을 지웠습니다. 이어서 «번호 다시 매기기» 를 누르면 1번부터 붙습니다.`);
   CUR = null; $("#detCard").classList.add("hide");
   load();
+});
+
+/* ═══════════════════════════════════════════════════════════
+   과목 전체 빈 껍데기 정리
+   ───────────────────────────────────────────────────────────
+   실기는 회차마다 문항 수가 다르다. 14개짜리도 있고 20개짜리도 있다.
+   그런데 예전에 «문항수 채우기» 로 18까지 자리를 만들어 둬서,
+   그 회차에 «원래 없는» 문항이 빈칸으로 남아 있다.
+
+   지우기 전에 두 갈래로 가른다 — 이게 핵심이다.
+
+     꼬리 껍데기 : 그 회차 마지막 자료보다 «뒤» 번호
+                   → 원래 없는 문항이다. 지우면 된다.
+     가운데 껍데기 : 자료와 자료 «사이» 에 낀 빈칸
+                   → 진짜로 빠진 것일 수 있다. 지우지 않고 알려만 준다.
+
+   예: 2018년 1회는 책에 15문항인데 16·17·18 이 비어 있다 → 꼬리, 지운다.
+       2023년 3회는 18문항인데 2번이 비어 있다 → 가운데, 남긴다. 다시 넣어야 한다.
+   ═══════════════════════════════════════════════════════════ */
+$("#btnShellAll").addEventListener("click", async () => {
+  if(!SID) return void say("과목을 먼저 고르세요.");
+  say("과목 전체를 훑는 중…");
+  const { data, error } = await sb.from("practicals").select("*")
+    .eq("subject_id", SID).order("year").order("session").order("no");
+  if(error) return void say("불러오지 못했습니다 — " + esc(error.message));
+  const all = data || [];
+
+  const 회차 = new Map();
+  all.forEach(r => {
+    const k = `${r.year}-${r.session}`;
+    if(!회차.has(k)) 회차.set(k, []);
+    회차.get(k).push(r);
+  });
+
+  const 꼬리 = [], 가운데 = [];
+  회차.forEach((g, k) => {
+    g.sort((a,b) => a.no - b.no);
+    /* 자료가 든 마지막 번호 */
+    let lastReal = 0;
+    g.forEach(r => { if(!(isShell(r) && isBare(r))) lastReal = Math.max(lastReal, r.no); });
+    g.forEach(r => {
+      if(!(isShell(r) && isBare(r))) return;
+      (r.no > lastReal ? 꼬리 : 가운데).push({ k, r });
+    });
+  });
+
+  const 묶음 = list => {
+    const m = new Map();
+    list.forEach(({k, r}) => {
+      if(!m.has(k)) m.set(k, []);
+      m.get(k).push(r.no);
+    });
+    return [...m.entries()].map(([k, ns]) =>
+      `| ${k.replace("-", "년 ")}회 | ${ns.length} | ${ns.join(", ")} |`).join("\n");
+  };
+
+  const L = [`## 과목 전체 빈 껍데기 정리\n`];
+  L.push(`전체 ${all.length}문항 · 회차 ${회차.size}개\n`);
+  L.push(`### ① 꼬리 껍데기 — ${꼬리.length}문항\n`);
+  L.push(`그 회차 마지막 자료보다 뒤 번호입니다. **원래 없는 문항**이라 지우면 됩니다.`);
+  L.push(`실기는 회차마다 문항 수가 다릅니다 — 14개짜리도 20개짜리도 있습니다.\n`);
+  L.push(꼬리.length ? `| 회차 | 개수 | 번호 |\n|---|---|---|\n${묶음(꼬리)}` : `없습니다.`);
+  L.push(``);
+  L.push(`### ② 가운데 껍데기 — ${가운데.length}문항\n`);
+  L.push(`자료와 자료 **사이**에 낀 빈칸입니다. **진짜로 빠진 것일 수 있습니다.**`);
+  L.push(`지우지 않습니다. 원본 PDF 에서 그 회차만 다시 넣어 보세요.\n`);
+  L.push(가운데.length ? `| 회차 | 개수 | 번호 |\n|---|---|---|\n${묶음(가운데)}` : `없습니다. 다 채워져 있습니다.`);
+  setDumpVisible();
+  setDump(head() + L.join("\n") + "\n");
+
+  say(`꼬리 껍데기 <b>${꼬리.length}</b>문항 · 가운데 껍데기 <b>${가운데.length}</b>문항. `
+    + (꼬리.length ? "아래 표를 보고 지울지 정하세요." : "지울 것이 없습니다."));
+
+  const bar = $("#dumpCard").querySelector(".btns");
+  let del = $("#btnShellAllDel");
+  if(!del){
+    del = document.createElement("button");
+    del.id = "btnShellAllDel"; del.className = "danger";
+    bar.appendChild(del);
+    del.addEventListener("click", async () => {
+      const ids = 꼬리.map(x => x.r.id);
+      if(!ids.length) return void say("지울 꼬리 껍데기가 없습니다.");
+      if(!confirm(`회차 ${new Set(꼬리.map(x => x.k)).size}개에 걸친 꼬리 껍데기 ${ids.length}문항을 지웁니다.\n\n`
+        + `자료가 한 줄이라도 든 문항은 건드리지 않습니다.\n`
+        + `가운데 껍데기 ${가운데.length}문항도 건드리지 않습니다 — 진짜 빠진 것일 수 있어서입니다.\n\n`
+        + `계속할까요?`)) return;
+      del.disabled = true;
+      let done = 0;
+      for(let i = 0; i < ids.length; i += 100){
+        const 조각 = ids.slice(i, i + 100);
+        const { error } = await sb.from("practicals").delete().in("id", 조각);
+        if(error){ del.disabled = false; return void say("지우지 못했습니다 — " + esc(error.message)); }
+        done += 조각.length;
+        del.textContent = `지우는 중 ${done}/${ids.length}`;
+      }
+      del.disabled = false;
+      say(`꼬리 껍데기 <b>${done}문항</b>을 지웠습니다.`
+        + (가운데.length ? ` 가운데 껍데기 ${가운데.length}문항은 그대로 뒀습니다 — 표를 보고 다시 넣으세요.` : ""));
+      if(typeof ALL !== "undefined") ALL.length = 0;
+      $("#btnShellAll").click();
+    });
+  }
+  del.textContent = `꼬리 껍데기 ${꼬리.length}문항 지우기`;
+  del.classList.toggle("hide", !꼬리.length);
 });
 
 $("#btnFill").addEventListener("click", async () => {
