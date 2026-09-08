@@ -312,7 +312,20 @@ function toMd(sol){
   }
   if(sol.formula?.length){
     L.push("**쓰는 식**", "");
-    sol.formula.forEach(f => L.push(`$$${f}$$`, ""));
+    sol.formula.forEach(f => {
+      const tex = (typeof f === "string") ? f : (f.tex || "");
+      const read = (typeof f === "string") ? "" : (f.read || "");
+      if(tex) L.push(`$$${tex}$$`, "");
+      if(read) L.push(`- 읽기: ${read}`, "");
+    });
+  }
+  if(sol.symbols?.length){
+    L.push("**부호**", "");
+    sol.symbols.forEach(x => {
+      const v = x.val ? ` · 이 문제: ${x.val}` : "";
+      L.push(`- $${x.sym}$ — ${x.mean || ""}${v}`);
+    });
+    L.push("");
   }
   if(sol.steps?.length){
     L.push("**풀이**", "");

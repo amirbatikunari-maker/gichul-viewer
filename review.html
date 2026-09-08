@@ -1194,7 +1194,23 @@ function solToMd(sol){
   const L = [];
   if(sol.gist) L.push(`**${sol.gist}**`, "");
   if(sol.given?.length){ L.push("**주어진 값**",""); sol.given.forEach(g => L.push(`- ${g}`)); L.push(""); }
-  if(sol.formula?.length){ L.push("**쓰는 식**",""); sol.formula.forEach(f => L.push(`$$${f}$$`,"")); }
+  if(sol.formula?.length){
+    L.push("**쓰는 식**", "");
+    sol.formula.forEach(f => {
+      const tex = (typeof f === "string") ? f : (f.tex || "");
+      const read = (typeof f === "string") ? "" : (f.read || "");
+      if(tex) L.push(`$$${tex}$$`, "");
+      if(read) L.push(`- 읽기: ${read}`, "");
+    });
+  }
+  if(sol.symbols?.length){
+    L.push("**부호**", "");
+    sol.symbols.forEach(x => {
+      const v = x.val ? ` · 이 문제: ${x.val}` : "";
+      L.push(`- $${x.sym}$ — ${x.mean || ""}${v}`);
+    });
+    L.push("");
+  }
   if(sol.steps?.length){
     L.push("**풀이**","");
     sol.steps.forEach((s,i) => { L.push(`${i+1}. ${s.say||""}`); if(s.math) L.push("",`$$${s.math}$$`,""); });
