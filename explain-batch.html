@@ -323,6 +323,7 @@ function toMd(sol){
     L.push("");
   }
   L.push("**답**", "", `> ${sol.answer || ""}${sol.unit ? " " + sol.unit : ""}`, "");
+  if(sol.memo) L.push("**외우기**", "", sol.memo, "");
   if(sol.trap) L.push("**흔한 실수**", "", sol.trap, "");
   return L.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
