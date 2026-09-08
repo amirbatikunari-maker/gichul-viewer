@@ -181,6 +181,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
         <button id="btnCut">페이지 잘라 넣기</button>
         <button class="pri" id="btnAutoCut">답 빈 문항 자동으로 나누기</button>
         <button id="btnAutoStop" class="danger hide">중지</button>
+        <button id="btnPts">배점 없는 문항 채우기</button>
         <button id="btnOrphan">회차 미상 정리</button>
         <button id="btnOnlyEmpty">빈칸만 보기</button>
         <button id="btnAllEmpty">전 회차 빈칸 모아보기</button>
@@ -1406,6 +1407,7 @@ $("#btnCut").addEventListener("click", openCut);
 $("#btnAutoCut").addEventListener("click", autoCutRound);
 $("#btnAutoStop").addEventListener("click", () => { AUTOSTOP = true; });
 $("#btnOrphan").addEventListener("click", showOrphans);
+$("#btnPts").addEventListener("click", fillPoints);
 $("#cutClose").addEventListener("click", closeCut);
 $("#cutModal").addEventListener("click", e => { if(e.target.id === "cutModal") closeCut(); });
 
@@ -1654,6 +1656,114 @@ $("#cutSave").addEventListener("click", async () => {
    ① 다시 넣으면 제자리로 갈 것 이거나  ② 원래 회차가 없는 자료(단답 정리본)다.
    그 둘을 갈라 보여 준다. 지우는 것은 사람이 정한다.
    ═══════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════
+   배점 없는 문항 채우기
+   ───────────────────────────────────────────────────────────
+   원본 스캔에서 오른쪽 끝에 작게 찍힌 «►점수 : 5점» 은 OCR 이 곧잘 흘린다.
+   글자 층에 아예 없으니 코드로는 못 만든다 — 눈으로 보고 넣는 수밖에 없다.
+
+   그래서 «그림 + 숫자칸» 을 한 줄씩 세로로 늘어놓는다.
+   숫자를 치고 Enter 를 누르면 바로 저장되고 다음 칸으로 내려간다.
+   회차 총점이 100 이 되면 그 회차 줄이 초록으로 바뀐다 — 다 채웠다는 뜻이다.
+   ═══════════════════════════════════════════════════════════ */
+async function fillPoints(){
+  if(!SID) return void say("과목을 먼저 고르세요.");
+  say("배점 없는 문항을 찾는 중…");
+  const { data, error } = await sb.from("practicals")
+    .select("id,year,session,no,points,q_url,q_text")
+    .eq("subject_id", SID).lt("year", 9000)
+    .order("year", { ascending:false }).order("session").order("no");
+  if(error) return void say("불러오지 못했습니다 — " + esc(error.message));
+  const all = data || [];
+  const 빈칸 = all.filter(r => !Number(r.points));
+  const 합 = new Map();
+  all.forEach(r => {
+    const k = `${r.year}-${r.session}`;
+    합.set(k, (합.get(k) || 0) + (Number(r.points) || 0));
+  });
+
+  $("#detCard").classList.remove("hide");
+  const box = $("#slots");
+  const ttl = $("#detTitle"); if(ttl) ttl.textContent = `배점 없는 문항 ${빈칸.length}개`;
+  if(!빈칸.length){
+    box.innerHTML = `<p class="note">배점이 빈 문항이 없습니다. 다 채우셨습니다.</p>`;
+    return void say("배점 빈 곳 없음.");
+  }
+  box.innerHTML = `
+    <p class="note" style="margin-bottom:10px">
+      숫자를 치고 <b>Enter</b> 를 누르면 저장되고 다음 칸으로 내려갑니다.
+      배점은 그림 오른쪽 위에 «►점수 : N점» 으로 찍혀 있습니다.<br>
+      회차 총점이 100 이 되면 초록으로 바뀝니다 — 그 회차는 다 채운 것입니다.
+    </p>
+    <div id="ptList"></div>`;
+  const list = $("#ptList");
+  list.innerHTML = 빈칸.map((r, i) => {
+    const k = `${r.year}-${r.session}`;
+    return `<div class="ptrow" data-k="${k}" style="display:flex;gap:10px;align-items:flex-start;
+              padding:9px 0;border-bottom:1px solid var(--rule)">
+      <div style="flex:0 0 118px">
+        <b>${r.year}년 ${r.session}회</b><br>
+        <span style="color:var(--mut)">${r.no}번</span><br>
+        <span class="ptsum" style="font-size:12px;color:var(--mut)">합 ${합.get(k) || 0}</span>
+      </div>
+      <div style="flex:1;min-width:0">
+        ${r.q_url
+          ? `<img src="${esc(r.q_url)}" loading="lazy" style="max-width:100%;max-height:190px;
+               border:1px solid var(--rule);border-radius:6px;background:#fff">`
+          : `<span class="note">${esc((r.q_text || "").slice(0, 120)) || "그림 없음"}</span>`}
+      </div>
+      <div style="flex:0 0 90px">
+        <input class="ptin" type="number" inputmode="numeric" min="1" max="20"
+               data-id="${r.id}" data-i="${i}" data-no="${r.no}" placeholder="점수"
+               style="width:100%;padding:7px;text-align:center">
+      </div>
+    </div>`;
+  }).join("");
+
+  const ins = [...list.querySelectorAll(".ptin")];
+  const 저장 = async (el) => {
+    const v = parseInt(el.value, 10);
+    if(!(v >= 1 && v <= 20)) return;
+    el.disabled = true;
+    const { error } = await sb.from("practicals").update({ points:v }).eq("id", +el.dataset.id);
+    if(error){ el.disabled = false; return void say("저장 실패 — " + esc(error.message)); }
+    const row = el.closest(".ptrow"), k = row.dataset.k;
+    합.set(k, (합.get(k) || 0) + v);
+    /* 같은 회차 줄의 «합» 을 다 같이 고쳐 준다 */
+    list.querySelectorAll(`.ptrow[data-k="${k}"] .ptsum`).forEach(sp => {
+      const t = 합.get(k);
+      sp.textContent = `합 ${t}`;
+      const done = (t >= 98 && t <= 102);
+      sp.style.color = done ? "var(--ok)" : "var(--mut)";
+      sp.style.fontWeight = done ? "700" : "400";
+    });
+    row.style.opacity = ".45";
+    const left = ins.filter(x => !x.disabled).length;
+    say(`${k.replace("-", "년 ")}회 ${el.dataset.no}번 — ${v}점 저장. 남은 ${left}개`);
+    const nxt = ins.find(x => !x.disabled && +x.dataset.i > +el.dataset.i);
+    if(nxt){ nxt.focus(); nxt.scrollIntoView({ block:"center", behavior:"smooth" }); }
+  };
+  ins.forEach(el => {
+    el.addEventListener("keydown", e => { if(e.key === "Enter"){ e.preventDefault(); 저장(el); } });
+    el.addEventListener("blur", () => { if(el.value) 저장(el); });
+  });
+  if(ins[0]) ins[0].focus();
+  say(`배점 없는 문항 <b>${빈칸.length}개</b> — 숫자 치고 Enter.`);
+}
+
+/* 이름표 갈래
+     9001~9299  예전 판이 «회차를 못 찾아» 임시로 던져 둔 자리 — 이제 쓸모없다
+     9301·9302  오고초려 · 핵심빈출
+     9400~9599  단답 · 소방설비
+   앞엣것만 지우고 뒤엣것은 절대 안 건드린다. */
+const OLD_LO = 9000, OLD_HI = 9299;
+const 이름표 = y =>
+  y === 9301 ? "오고초려" :
+  y === 9302 ? "핵심 빈출" :
+  (y >= 9400 && y <= 9499) ? `${2000 + (y - 9400)}년 단답` :
+  (y >= 9500 && y <= 9599) ? `소방설비 ${2000 + (y - 9500)}년` :
+  (y >= OLD_LO && y <= OLD_HI) ? "옛 임시 자리" : "";
+
 async function showOrphans(){
   if(!SID) return void say("과목을 먼저 고르세요.");
   say("회차 미상 자료를 세는 중…");
@@ -1662,92 +1772,97 @@ async function showOrphans(){
     .eq("subject_id", SID).gte("year", 9000).order("year").order("session").order("no");
   if(error) return void say("불러오지 못했습니다 — " + esc(error.message));
   const rows = data || [];
-
   const { data: real } = await sb.from("practicals")
     .select("year,session").eq("subject_id", SID).lt("year", 9000);
   const realKeys = new Set((real || []).map(r => `${r.year}-${r.session}`));
 
-  if(!rows.length){
-    setDumpVisible();
-    setDump(head()
-      + `## 회차 미상 정리\n\n`
-      + `연도 9000 이상(회차 미상)으로 들어간 자료가 **하나도 없습니다.**\n`
-      + `이 과목은 전부 실제 회차에 들어가 있습니다.\n\n`
-      + `실제 회차 ${realKeys.size}개.\n`);
-    return void say("회차 미상 자료 없음 — 다 정리돼 있습니다.");
-  }
+  const 옛것 = rows.filter(r => r.year >= OLD_LO && r.year <= OLD_HI);
+  const 새것 = rows.filter(r => r.year > OLD_HI);
 
-  const by = {};
-  rows.forEach(r => {
-    const k = `${r.year}-${r.session}`;
-    (by[k] = by[k] || []).push(r);
-  });
-
-  const L = [];
-  L.push(`## 회차 미상 정리\n`);
-  L.push(`연도 9000 이상으로 들어간 자료 **${rows.length}문항 · ${Object.keys(by).length}묶음**`);
-  L.push(`실제 회차는 ${realKeys.size}개 들어와 있습니다.\n`);
-  L.push(`| 묶음 | 문항 | 문제있음 | 답있음 | 해설있음 | 세 칸 다 빈 것 |`);
-  L.push(`|---|---|---|---|---|---|`);
-  Object.entries(by).forEach(([k, g]) => {
-    const q = g.filter(r => r.q_url || r.q_text).length;
-    const a = g.filter(r => r.a_url).length;
-    const so = g.filter(r => r.easy_md).length;
-    const shell = g.filter(r => !r.q_url && !r.q_text && !r.a_url && !r.easy_md).length;
-    L.push(`| ${k.replace("-", "년 ")}회 | ${g.length} | ${q} | ${a} | ${so} | ${shell} |`);
-  });
-  const shellTotal = rows.filter(r => !r.q_url && !r.q_text && !r.a_url && !r.easy_md).length;
-  L.push(``);
-  /* ★ v222 — 지울 게 0개일 때도 «지우세요» 라고 시켜서, 없는 단추를 찾아 헤매게 만들었다.
-     그리고 오고초려·핵심빈출·단답은 원래 회차가 없는 자료라 «제자리로 보낸다» 는 말도
-     맞지 않는다. 갈 제자리가 없다. 상태에 따라 할 말을 다르게 한다. */
-  L.push(`### 무엇을 해야 하나\n`);
-  const noAns = rows.filter(r => st(r,"a") === "empty").length;
-  if(shellTotal){
-    L.push(`- **세 칸 다 빈 껍데기 ${shellTotal}문항** — 자리만 잡아 둔 것이라 지워도 잃을 게 없습니다.`);
-    L.push(`  아래 «회차 미상 빈 껍데기 ${shellTotal}개 지우기» 를 누르세요.`);
-  }else{
-    L.push(`- **지울 빈 껍데기가 없습니다.** 여기서 손댈 것은 없습니다.`);
-  }
-  L.push(`- 오고초려·핵심빈출·단답·소방은 **원래 회차가 없는 자료**입니다.`);
-  L.push(`  갈 제자리가 없으므로 **옮기지도, 지우지도 마세요.** 지금 상태가 맞습니다.`);
-  if(noAns){
-    L.push(`- 답이 없는 문항이 **${noAns}개** 있습니다 — 회차를 하나 골라 «불러오기» 한 뒤`);
-    L.push(`  «답 빈 문항 자동으로 나누기» 로 채웁니다. 기출 정리가 끝난 뒤에 해도 됩니다.`);
-  }
-  L.push(`- 해설은 **한 건도 없습니다.** 문항마다 손보는 게 아니라 «해설 배치» 로 한 번에 만듭니다.`);
-  setDumpVisible();
-  setDump(head() + L.join("\n") + "\n");
-  say(`회차 미상 <b>${rows.length}문항</b> — 아래 «텍스트로 뽑기» 칸에 정리했습니다.`
-    + (shellTotal
-       ? ` 빈 껍데기 ${shellTotal}문항은 바로 지울 수 있습니다.`
-       : ` <b>지울 껍데기는 없습니다</b> — 여기는 손댈 것이 없습니다.`));
-
-  /* 빈 껍데기만 골라 지우는 단추를 그때그때 붙인다 — 지울 게 있을 때만 */
   const bar = $("#dumpCard").querySelector(".btns");
   let del = $("#btnOrphanDel");
-  if(!shellTotal){ if(del) del.remove(); return; }
   if(!del){
     del = document.createElement("button");
     del.id = "btnOrphanDel"; del.className = "danger";
     bar.appendChild(del);
-    del.addEventListener("click", async () => {
-      const ids = rows.filter(r => !r.q_url && !r.q_text && !r.a_url && !r.easy_md).map(r => r.id);
-      if(!ids.length) return void say("지울 빈 껍데기가 없습니다.");
-      if(!confirm(`회차 미상 자료 가운데 세 칸이 모두 빈 ${ids.length}문항을 지웁니다.\n`
-        + `자료가 한 줄이라도 든 것은 건드리지 않습니다.\n\n계속할까요?`)) return;
-      let ok = 0;
-      for(let i = 0; i < ids.length; i += 100){
-        const { error } = await sb.from("practicals").delete().in("id", ids.slice(i, i+100));
-        if(error){ say("지우지 못했습니다 — " + esc(error.message)); return; }
-        ok += Math.min(100, ids.length - i);
-      }
-      say(`회차 미상 빈 껍데기 <b>${ok}문항</b>을 지웠습니다.`);
-      showOrphans();
-    });
+    del.addEventListener("click", () => wipeOld());
   }
-  del.textContent = `회차 미상 빈 껍데기 ${shellTotal}개 지우기`;
-  del.classList.toggle("hide", !shellTotal);
+
+  if(!rows.length){
+    setDumpVisible();
+    setDump(head() + `## 회차 미상 정리\n\n연도 9000 이상으로 들어간 자료가 **하나도 없습니다.**\n`
+      + `이 과목은 전부 실제 회차에 들어가 있습니다. (실제 회차 ${realKeys.size}개)\n`);
+    del.classList.add("hide");
+    return void say("회차 미상 자료 없음 — 다 정리돼 있습니다.");
+  }
+
+  const 표 = list => {
+    const by = {};
+    list.forEach(r => (by[`${r.year}-${r.session}`] ||= []).push(r));
+    const L = [`| 자리 | 무엇 | 문항 | 문제 | 답 | 해설 | 세 칸 다 빔 |`, `|---|---|---|---|---|---|---|`];
+    Object.entries(by).forEach(([k, g]) => {
+      const [y, ss] = k.split("-");
+      L.push(`| ${y}년 ${ss}회 | ${이름표(+y) || "—"} | ${g.length} `
+        + `| ${g.filter(r => r.q_url || r.q_text).length} `
+        + `| ${g.filter(r => r.a_url).length} `
+        + `| ${g.filter(r => r.easy_md).length} `
+        + `| ${g.filter(r => !r.q_url && !r.q_text && !r.a_url && !r.easy_md).length} |`);
+    });
+    return L.join("\n");
+  };
+
+  const L = [`## 회차 미상 정리\n`];
+  L.push(`실제 회차 ${realKeys.size}개 · 회차 없는 자료 ${rows.length}문항\n`);
+  if(옛것.length){
+    L.push(`### ① 옛 임시 자리 (9001~9299) — **${옛것.length}문항**\n`);
+    L.push(`예전 판이 회차를 못 읽어 임시로 던져 둔 것입니다.`);
+    L.push(`지금은 자동 변환이 회차를 제대로 읽으므로 **같은 자료가 제자리에 다시 들어가 있습니다.**`);
+    L.push(`여기 남은 건 옛 껍데기라 지워도 됩니다.\n`);
+    L.push(표(옛것));
+    L.push(``);
+  }
+  if(새것.length){
+    L.push(`### ② 이번 판이 붙인 이름표 — ${새것.length}문항\n`);
+    L.push(`**이건 지우면 안 됩니다.** 회차가 없는 자료(오고초려·핵심빈출·단답·소방)에`);
+    L.push(`제자리를 만들어 준 것입니다.\n`);
+    L.push(표(새것));
+    L.push(``);
+  }
+  L.push(`### 무엇을 하면 되나\n`);
+  L.push(옛것.length
+    ? `아래 «옛 임시 자리 ${옛것.length}문항 통째로 지우기» 를 누르세요. ②는 건드리지 않습니다.`
+    : `지울 옛 자료가 없습니다. 남은 건 전부 이번 판이 제자리를 만들어 준 것입니다.`);
+  setDumpVisible();
+  setDump(head() + L.join("\n") + "\n");
+  say(`회차 없는 자료 <b>${rows.length}문항</b> — 옛것 ${옛것.length} · 이번 판 이름표 ${새것.length}. `
+    + (옛것.length ? "아래 단추로 옛것만 지울 수 있습니다." : "지울 옛것이 없습니다."));
+
+  del.textContent = `옛 임시 자리 ${옛것.length}문항 통째로 지우기`;
+  del.classList.toggle("hide", !옛것.length);
+
+  async function wipeOld(){
+    const ids = 옛것.map(r => r.id);
+    if(!ids.length) return void say("지울 옛 자료가 없습니다.");
+    const 알맹이 = 옛것.filter(r => r.q_url || r.q_text || r.a_url || r.easy_md).length;
+    if(!confirm(`연도 9001~9299 의 ${ids.length}문항을 지웁니다.\n`
+      + `그중 ${알맹이}문항에는 자료(그림·글·해설)가 들어 있습니다.\n\n`
+      + `9301(오고초려) · 9302(핵심빈출) · 94NN(단답) · 95NN(소방)은 건드리지 않습니다.\n`
+      + `실제 회차(2008~2026)도 건드리지 않습니다.\n\n지울까요? 되돌릴 수 없습니다.`)) return;
+    del.disabled = true;
+    let done = 0;
+    for(let i = 0; i < ids.length; i += 100){
+      const 조각 = ids.slice(i, i + 100);
+      const { error } = await sb.from("practicals").delete().in("id", 조각);
+      if(error){ del.disabled = false; return void say("지우지 못했습니다 — " + esc(error.message)); }
+      done += 조각.length;
+      del.textContent = `지우는 중 ${done}/${ids.length}`;
+      say(`지우는 중… ${done}/${ids.length}`);
+    }
+    del.disabled = false;
+    say(`옛 임시 자리 <b>${done}문항</b>을 지웠습니다.`);
+    if(typeof ALL !== "undefined") ALL.length = 0;
+    showOrphans();
+  }
 }
 function setDumpVisible(){ $("#dumpCard").classList.remove("hide"); }
 
