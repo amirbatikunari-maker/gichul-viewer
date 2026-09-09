@@ -738,7 +738,7 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
 @media(max-width:560px){.studyhud{grid-template-columns:1fr 1fr;gap:6px;padding:8px}.study-title{font-size:13px}.study-actions button{flex:1;padding:0 6px}.quickbar{top:48px;padding:6px;gap:5px}.quickbar button{height:30px;padding:0 8px;font-size:10.5px}.filters-shell .filter-top{margin-bottom:6px}.study-stat b{font-size:14px}}
 
 </style>
-<link rel="stylesheet" href="./app-enhance.css?v=229">
+<link rel="stylesheet" href="./app-enhance.css?v=230">
 </head>
 <body data-data-domain="study">
 <nav class="nav3">
@@ -1380,7 +1380,7 @@ function drawRail(){
       const i = a + k;
       const has = (MARKS[r.id] || []).length;
       return `<button class="pb ${i === ONEAT ? "now" : ""} ${has ? "mark" : ""} ${r.easy_md ? "easy" : ""}"
-        type="button" data-go="${i}">${r.year % 100}-${r.session} ${r.no}</button>`;
+        type="button" data-go="${i}" data-y="${r.year}">${r.year % 100}-${r.session} ${r.no}</button>`;
     }).join("")
     + (b < SHOWN.length ? `<button class="pb" type="button" data-go="${SHOWN.length - 1}">끝 ↦</button>` : "");
   $$("#prail .pb").forEach(b => b.onclick = () => showAt(+b.dataset.go));
@@ -6511,7 +6511,7 @@ body.exam-mode .pcard{box-shadow:0 0 0 2px rgba(29,78,216,.08),var(--shadow)}
 
 <script src="./music.js" defer></script>
 <!-- DATA ISOLATION CONTRACT: practice/written mistakes stay in study domain; never write into iv-/iv: interview data. -->
-<script src="./app-enhance.js?v=229" defer></script>
+<script src="./app-enhance.js?v=230" defer></script>
 
 <!-- ══════════════════════════════════════════════════════════════
      v89 · 상단 도구 3칸 재배치 · 문항 레일 · 진도율
@@ -6899,7 +6899,7 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
     const W=45, a=Math.max(0,now-W), b=Math.min(rs.length,now+W+1);
     s.innerHTML=rs.slice(a,b).map((r,k)=>{
       const i=a+k, p=PROG[String(r.id)];
-      return `<button class="pb ${i===now?'now':''} ${p?'done':''}" type="button" data-ovgo="${i}">${r.year%100}-${r.session} ${r.no}</button>`;
+      return `<button class="pb ${i===now?'now':''} ${p?'done':''}" type="button" data-ovgo="${i}" data-y="${r.year}">${r.year%100}-${r.session} ${r.no}</button>`;
     }).join('');
     s.querySelectorAll('[data-ovgo]').forEach(b=>b.onclick=()=>{
       const i=+b.dataset.ovgo, r=rs[i]; if(!r)return;
@@ -13554,7 +13554,21 @@ function same(sa,sb,la,lb){
   return false;
 }
 /* 대표 고르기 — 쓸모가 많은 것을 남긴다 */
+/* 진짜 기출인가 — 9301(오고초려)·9302(핵심빈출)·94NN(단답)·95NN(소방) 같은
+   «가짜 연도» 는 회차가 없는 문제집 자료다. */
+const REALY=r=>{ const y=+r.year||0; return (y>0&&y<3000)?1:0 };
+
 function better(a,b){
+  /* ★★ v230 — 여기가 «2025년 1회를 봤는데 9번이 사라지던» 자리다.
+     대표를 «연도가 큰 것» 으로 골랐는데, 9425(단답 2025) 가 2025 보다 크다.
+     그래서 문제집 사본이 언제나 대표가 되고, 진짜 기출 문항은 접혀서
+     회차를 펼쳤을 때 그 번호가 통째로 비어 보였다.
+
+     문제집은 기출에서 뽑아 모은 것이므로 «원본» 은 언제나 기출 쪽이다.
+     해설이 사본에만 있어도 마찬가지다 — 접힌 목록에서 그 사본을 열면 되고,
+     회차가 구멍 나는 쪽이 훨씬 나쁘다. 그래서 이 잣대를 맨 앞에 둔다. */
+  const rr=REALY(b)-REALY(a); if(rr) return rr>0?b:a;
+
   const sc=r=>(r.easy_md?4:0)+(r.a_md||r.a_text?2:0)+(r.q_md?1:0);
   const d=sc(b)-sc(a); if(d) return d>0?b:a;
   const y=(+b.year||0)-(+a.year||0); if(y) return y>0?b:a;
@@ -13709,7 +13723,19 @@ window.__pracDup=()=>({groups:GROUPS,hide:HIDE,ready:READY});
 /* ══ ③ 목록에서 빼기 ══ */
 const KEY='prac:dupfold:v1';
 let FOLD=(()=>{ try{ return localStorage.getItem(KEY)!=='0' }catch(e){ return true } })();
-const ON=()=>FOLD&&READY&&HIDE.size>0;
+/* ★ v230 — 회차를 하나 골라 놓고 볼 때는 접지 않는다.
+   «2025년 1회» 를 펼친 사람은 그 회차 19문항을 처음부터 끝까지 보려는 것이다.
+   다른 회차와 겹친다는 이유로 9번을 감추면 그 회차가 구멍 난 것처럼 보인다.
+   접기는 «전체를 훑을 때 같은 문제를 두 번 풀지 않게» 하는 장치이므로,
+   한 회차만 볼 때는 끈다. */
+const oneSheet=()=>{
+  try{
+    const y=(document.querySelector('#fYear')?.value||'').trim();
+    const ss=(document.querySelector('#fSess')?.value||'').trim();
+    return !!(y && ss);
+  }catch(e){ return false }
+};
+const ON=()=>FOLD&&READY&&HIDE.size>0&&!oneSheet();
 
 function hook(){
   if(typeof drawList!=='function'||drawList.__dup) return false;
@@ -13808,8 +13834,15 @@ function mountChip(){
   const b=document.createElement('button');
   b.type='button'; b.dataset.dup=''; 
   b.title='묻는 글이 같은 문항을 한 덩어리로 접습니다 (그림이 조금 달라도)';
-  const paint=()=>{ b.textContent=`⧉ 중복 묶기${READY&&HIDE.size?' ('+HIDE.size+')':''}`;
-                    b.classList.toggle('on',FOLD); };
+  const paint=()=>{
+    const off=FOLD&&READY&&HIDE.size>0&&oneSheet();   /* 켜 뒀지만 지금은 안 접는 중 */
+    b.textContent=`⧉ 중복 묶기${READY&&HIDE.size?' ('+HIDE.size+')':''}`
+                + (off?' · 회차 볼 땐 끔':'');
+    b.classList.toggle('on',FOLD&&!off);
+    b.title = off
+      ? '회차를 하나 골라 놓아서 지금은 접지 않습니다 — 그 회차를 통째로 보여 줍니다'
+      : '묻는 글이 같은 문항을 한 덩어리로 접습니다 (그림이 조금 달라도)';
+  };
   b.addEventListener('click',()=>{
     FOLD=!FOLD; try{ localStorage.setItem(KEY,FOLD?'1':'0') }catch(e){}
     paint(); try{ drawList() }catch(e){}
@@ -16354,6 +16387,20 @@ const AUTO=y=>{
   return '';
 };
 const nameOf=y=>L[String(y)] || AUTO(y);
+/* ★ v230 — 레일 단추는 자리가 좁다. 이름을 자르지 않고 «짧은 판» 을 따로 둔다.
+   («단답 2025» 를 네 글자로 자르면 «단답 2» 가 되어 뜻이 사라진다) */
+const SHORT=y=>{
+  const hand=L[String(y)];                        /* 사람이 적은 것이 언제나 이긴다 */
+  if(hand) return hand.length>5?hand.slice(0,5):hand;
+  y=+y;
+  if(!(y>3000)) return '';
+  if(y===9301) return '오고초려';
+  if(y===9302) return '핵심빈출';
+  if(y>=9400&&y<9500) return `단답${String(y).slice(2)}`;
+  if(y>=9500&&y<9600) return `소방${String(y).slice(2)}`;
+  if(y>=9000&&y<9300) return `미상${y-9000}`;
+  return '';
+};
 /* ★ v234 — «회» 가 안 어울리는 자료가 있다.
    오고초려·핵심빈출은 시험 회차가 아니라 20문항씩 끊어 놓은 «묶음» 이다.
    단답·소방은 진짜 회차라 «회» 가 맞다. 자료마다 단위를 갈라 준다. */
@@ -16412,16 +16459,29 @@ function relabel(){
     });
   }
 
-  /* 레일 단추 — «25-3 8» 처럼 두 자리로 줄여 놓았다 */
-  $$('#prail .pb').forEach(b=>{
+  /* 레일 단추 — «25-3 8» 처럼 두 자리로 줄여 놓았다.
+
+     ★★ v230 — 여기가 «2025년 1회인데 레일에 단답 2 1-9 라고 뜨던» 자리다.
+     예전에는 화면 글자 «25-1 9» 에서 앞 두 자리(25)만 떼어 내
+     연도를 거꾸로 찾아냈다. 그런데 두 자리로 줄이면 짝이 겹친다.
+
+         2025 % 100 = 25        9425(단답 2025) % 100 = 25
+         2023 % 100 = 23        9523(소방 2023) % 100 = 23
+         2001 % 100 =  1        9301(오고초려)  % 100 =  1
+
+     먼저 걸리는 쪽이 이기는데, 문항이 연도 내림차순이라 «가짜 연도» 가
+     언제나 앞에 선다. 그래서 진짜 기출 레일에 문제집 이름이 덮어씌워졌다.
+     게다가 이름을 네 글자로 자르는 바람에 «단답 2025» 가 «단답 2» 가 됐다.
+
+     이제 되짚지 않는다. 레일을 만들 때 단추에 진짜 연도를 달아 두고(data-y)
+     그것만 읽는다. 진짜 기출이면 이름이 없으므로 손대지 않는다.        */
+  $$('#prail .pb, .ovrail .pb, .pjb').forEach(b=>{
+    const y=b.dataset.y; if(!y) return;
     const t=b.textContent.trim();
-    const m=t.match(/^(\d{1,2})-(\d+)\s+(\d+)$/); if(!m) return;
-    const pool=[...new Set([...Object.keys(L), ...rowsAll().map(r=>String(r.year))])];
-    const full=pool.find(y=>String(+y%100).padStart(2,'0')===m[1].padStart(2,'0'));
-    if(!full) return;
-    const n=nameOf(full); if(!n) return;
-    const short=n.length>4?n.slice(0,4):n;
-    b.textContent=`${short} ${m[2]}-${m[3]}`;
+    const m=t.match(/^(\S+)-(\d+)\s+(\d+)$/); if(!m) return;
+    const n=SHORT(y); if(!n) return;              /* 진짜 연도는 이름이 없다 */
+    const want=`${n}-${m[2]} ${m[3]}`;
+    if(t!==want) b.textContent=want;
   });
 }
 /* 목록을 다시 그릴 때마다 한 번 더 훑는다 */
@@ -18052,7 +18112,7 @@ function openOv(){
       + part.map((r,k)=>{
           const i=s0+k, p=P[String(r.id)];
           const cls=[i===now?'now':'', p?.r==='ok'?'ok':'', p?.r==='no'?'no':''].filter(Boolean).join(' ');
-          return `<button type="button" class="pjb ${cls}" data-i="${i}" title="${r.year}년 제${r.session}회 ${r.no}번 · ${i+1}번째">${r.year%100}-${r.session} ${r.no}</button>`;
+          return `<button type="button" class="pjb ${cls}" data-i="${i}" data-y="${r.year}" title="${r.year}년 제${r.session}회 ${r.no}번 · ${i+1}번째">${r.year%100}-${r.session} ${r.no}</button>`;
         }).join('')
       + `</div></div>`;
   }
@@ -18294,6 +18354,6 @@ setTimeout(()=>clearInterval(boot), 20000);
 })();
 </script>
 
-<script src="./simple.js?v=229"></script>
+<script src="./simple.js?v=230"></script>
 </body>
 </html>
