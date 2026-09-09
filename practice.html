@@ -738,7 +738,7 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
 @media(max-width:560px){.studyhud{grid-template-columns:1fr 1fr;gap:6px;padding:8px}.study-title{font-size:13px}.study-actions button{flex:1;padding:0 6px}.quickbar{top:48px;padding:6px;gap:5px}.quickbar button{height:30px;padding:0 8px;font-size:10.5px}.filters-shell .filter-top{margin-bottom:6px}.study-stat b{font-size:14px}}
 
 </style>
-<link rel="stylesheet" href="./app-enhance.css?v=230">
+<link rel="stylesheet" href="./app-enhance.css?v=231">
 </head>
 <body data-data-domain="study">
 <nav class="nav3">
@@ -1344,6 +1344,18 @@ async function loadList(){
     if(!data || data.length < 1000) break;
   }
   ROWS = out;
+
+  /* ★ v231 — 문제집(가짜 연도)을 목록 뒤로 보낸다.
+     표에서 «연도 내림차순» 으로 받아 오는데, 9523(소방)·9425(단답)·9302(핵심빈출)
+     같은 이름표가 2026 보다 크다. 그래서 아무 거르개 없이 열면 목록 맨 위가
+     언제나 소방 시퀀스 문제였다 — 정작 풀어야 할 최신 기출은 한참 아래에 있었다.
+     이름표는 «회차가 없는 자료» 에 붙인 번호일 뿐이므로 정렬에서 뒤로 뺀다. */
+  const realY = r => ((+r.year > 0 && +r.year < 3000) ? 0 : 1);
+  ROWS.sort((a,b) =>
+    realY(a) - realY(b) ||
+    ((+b.year||0) - (+a.year||0)) ||
+    ((+b.session||0) - (+a.session||0)) ||
+    ((+a.no||0) - (+b.no||0)));
 
   const years = [...new Set(ROWS.map(r => r.year))].sort((a,b) => b-a);
   $("#fYear").innerHTML = `<option value="">모든 연도</option>` + years.map(y => `<option>${y}</option>`).join("");
@@ -6511,7 +6523,7 @@ body.exam-mode .pcard{box-shadow:0 0 0 2px rgba(29,78,216,.08),var(--shadow)}
 
 <script src="./music.js" defer></script>
 <!-- DATA ISOLATION CONTRACT: practice/written mistakes stay in study domain; never write into iv-/iv: interview data. -->
-<script src="./app-enhance.js?v=230" defer></script>
+<script src="./app-enhance.js?v=231" defer></script>
 
 <!-- ══════════════════════════════════════════════════════════════
      v89 · 상단 도구 3칸 재배치 · 문항 레일 · 진도율
@@ -18354,6 +18366,110 @@ setTimeout(()=>clearInterval(boot), 20000);
 })();
 </script>
 
-<script src="./simple.js?v=230"></script>
+
+<!-- ══════════════════════════════════════════════════════════════
+     v231 · «보던 자리 그대로» — 잠들었다 돌아와도 안 튄다
+
+     무엇이 문제였나 ──
+       폰에서 다른 앱을 보다 돌아오거나 화면을 한참 꺼 두면, 브라우저가
+       그 탭을 통째로 내려놓았다가 «처음부터 다시» 켠다. 앱이 잘못한 게 아니라
+       브라우저가 자리를 아끼려고 하는 일이다.
+
+       그런데 이 화면은 «과목» 하나만 기억하고 있었다(prac:sub).
+       연도·회차·찾는 말·보던 문항은 아무것도 안 남겼다.
+       그래서 다시 켜지면 «모든 연도 · 모든 회차» 로 돌아가고,
+       목록 맨 첫 장이 열렸다 — 그게 소방 시퀀스 문제였다.
+
+     그래서 ──
+       보고 있던 자리를 계속 적어 두고, 다시 켜질 때 그대로 되돌린다.
+       되돌리기는 켜진 뒤 «딱 한 번» 만 한다. 사람이 그 뒤에 무엇을 고르든
+       다시는 끼어들지 않는다.
+     ══════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+'use strict';
+const $=s=>document.querySelector(s);
+const KEY='prac:where:v1';
+let restored=false, booted=Date.now();
+
+const subNow=()=>{ try{ return localStorage.getItem('prac:sub')||'' }catch(e){ return '' } };
+
+/* 지금 보고 있는 문항 — 한 문항씩 모드면 그 문항, 목록이면 화면에 걸친 첫 장 */
+function hereId(){
+  try{
+    if(window.ONEUP && Array.isArray(window.SHOWN) && SHOWN[window.ONEAT|0])
+      return String(SHOWN[window.ONEAT|0].id);
+    for(const c of document.querySelectorAll('#list > .pcard')){
+      const b=c.getBoundingClientRect();
+      if(b.bottom>72) return String(c.dataset.id||'');
+    }
+  }catch(e){}
+  return '';
+}
+
+function save(){
+  if(!restored) return;                     /* 되돌리기 전에는 덮어쓰지 않는다 */
+  try{
+    const v={ s:subNow(),
+              y:($('#fYear')?.value||''), ss:($('#fSess')?.value||''),
+              q:($('#fQ')?.value||''), id:hereId() };
+    if(!v.s) return;
+    localStorage.setItem(KEY, JSON.stringify(v));
+  }catch(e){}
+}
+let t=null;
+const saveSoon=()=>{ clearTimeout(t); t=setTimeout(save,400); };
+
+/* ── 되돌리기 — 문항이 다 실린 뒤 딱 한 번 ── */
+function tryRestore(){
+  if(restored) return true;
+  if(Date.now()-booted > 30000){ restored=true; return true; }   /* 너무 늦으면 포기 */
+  let v=null;
+  try{ v=JSON.parse(localStorage.getItem(KEY)||'null'); }catch(e){}
+  if(!v || !v.s){ restored=true; return true; }                  /* 적어 둔 게 없음 */
+  if(v.s!==subNow()){ restored=true; return true; }              /* 과목이 바뀌었으면 그냥 둔다 */
+
+  const rows=(()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } })();
+  if(!rows.length) return false;                                 /* 아직 안 실렸다 */
+  const yEl=$('#fYear'), sEl=$('#fSess');
+  if(!yEl||!sEl||yEl.options.length<2) return false;
+
+  /* 거르개를 되돌린다 — 없는 값이면 건너뛴다 */
+  const has=(el,val)=>[...el.options].some(o=>o.value===val);
+  if(v.y && has(yEl,v.y)) yEl.value=v.y;
+  if(v.ss && has(sEl,v.ss)) sEl.value=v.ss;
+  if(v.q && $('#fQ')) $('#fQ').value=v.q;
+
+  restored=true;
+  try{ if(typeof drawList==='function') drawList(); }catch(e){}
+
+  /* 보던 문항으로 — 목록을 다시 그린 뒤라야 자리를 찾을 수 있다 */
+  if(v.id) setTimeout(()=>{
+    try{
+      const sh=Array.isArray(window.SHOWN)?SHOWN:[];
+      const i=sh.findIndex(r=>String(r.id)===String(v.id));
+      if(i<0) return;
+      if(window.ONEUP && typeof window.showAt==='function') showAt(i);
+      else document.querySelector(`#list > .pcard[data-id="${v.id}"]`)
+                   ?.scrollIntoView({block:'start'});
+    }catch(e){}
+  }, 120);
+  return true;
+}
+
+const iv=setInterval(()=>{ if(tryRestore()) clearInterval(iv); }, 250);
+setTimeout(()=>clearInterval(iv), 31000);
+
+/* ── 적어 두기 ── */
+['#fYear','#fSess'].forEach(k=>$(k)?.addEventListener('change',saveSoon));
+$('#fQ')?.addEventListener('input',saveSoon);
+addEventListener('scroll',saveSoon,{passive:true});
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) save(); });
+addEventListener('pagehide',save);
+setInterval(saveSoon,3000);                 /* 넘기기·거르기 어디서 일어나든 놓치지 않게 */
+})();
+</script>
+
+<script src="./simple.js?v=231"></script>
 </body>
 </html>
