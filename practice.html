@@ -1247,7 +1247,12 @@ $("#loginBtn").onclick = async () => {
   if(!email || !password) return say($("#am"), "이메일과 비밀번호를 넣어 주세요.", "err");
   const { error } = await sb.auth.signInWithPassword({ email, password });
   if(error) return say($("#am"), "로그인하지 못했습니다 — " + error.message, "err");
-  if(await gate()) boot();
+  /* boot 은 bootFor 가 한 번만 돌린다 (로그인 알림과 겹쳐도 두 번 돌지 않게) */
+  if(await gate()){
+    let uid = null;
+    try{ uid = (await sb.auth.getSession())?.data?.session?.user?.id || null; }catch(e){}
+    bootFor(uid);
+  }
 };
 $("#logoutBtn").onclick = async () => { await sb.auth.signOut(); gate(); };
 
@@ -1314,7 +1319,7 @@ $("#subDel").onclick = async () => {
   const r = await sb.from("practical_subjects").delete().eq("id", id);
   if(r.error) return say($("#im"), "지우지 못했습니다 — " + r.error.message, "err");
   localStorage.removeItem("prac:sub");
-  await loadSubjects(); await loadList(); await loadFiles();
+  await loadSubjects(); await loadList({ force:true }); await loadFiles();
 };
 
 /* ═══════════════════════════════════════════════
@@ -1322,28 +1327,142 @@ $("#subDel").onclick = async () => {
    ═══════════════════════════════════════════════ */
 let ROWS = [], HIDE_ALL = true, EZ_HIDE = false, RAND = null;
 
-async function loadList(){
+/* ══════════════════════════════════════════════════════════════
+   v234 — 한 번 받은 문항은 이 기기에 두고 쓴다 (Supabase 전송량)
+
+   예전에는 이 화면이 열릴 때마다 practicals 표를 «통째로» 다시 받았다.
+   select("*") 는 문제·답안 글, 쉬운 풀이, 필기 자국까지 전부 딸려 오므로
+   한 번에 수 MB 다. 탭을 옮겼다 돌아오기만 해도 그만큼이 또 나갔다.
+
+   이제는
+     ① 받은 것을 브라우저 안(IndexedDB)에 넣어 둔다,
+     ② 다음에 열 때는 «줄 수만» 가볍게 물어본다 (head 요청 — 본문 0바이트),
+     ③ 줄 수가 같으면 캐시를 그대로 쓴다. 다르면 그때만 다시 받는다.
+   이 화면에서 고친 내용(해설·글자 변환 등)은 메모리에 그대로 남으므로
+   자리를 뜰 때 캐시에도 같이 적어 둔다.
+   손으로 다시 받고 싶으면 «↻ 새로 받기» 를 누른다.
+   ══════════════════════════════════════════════════════════════ */
+const RCACHE = (() => {
+  const DB = "gichul-cache", ST = "rows";
+  let p = null;
+  const open = () => p || (p = new Promise((res, rej) => {
+    const q = indexedDB.open(DB, 1);
+    q.onupgradeneeded = () => { try{ q.result.createObjectStore(ST); }catch(e){} };
+    q.onsuccess = () => res(q.result);
+    q.onerror   = () => rej(q.error);
+  }));
+  const run = async (mode, fn) => {
+    const db = await open();
+    return new Promise((res, rej) => {
+      const t = db.transaction(ST, mode), r = fn(t.objectStore(ST));
+      r.onsuccess = () => res(r.result);
+      r.onerror   = () => rej(r.error);
+    });
+  };
+  return {
+    get: k => run("readonly",  s => s.get(k)).catch(() => null),
+    put: (k, v) => run("readwrite", s => s.put(v, k)).catch(() => null),
+    del: k => run("readwrite", s => s.delete(k)).catch(() => null)
+  };
+})();
+
+let CACHE_SID = null;          /* 지금 메모리에 올라와 있는 과목 */
+function cacheSaveRows(){      /* 이 화면에서 고친 것을 캐시에도 반영 */
+  if(!CACHE_SID || !Array.isArray(ROWS) || !ROWS.length) return;
+  try{ RCACHE.put("rows:" + CACHE_SID, { at:Date.now(), rows:ROWS }); }catch(e){}
+}
+document.addEventListener("visibilitychange", () => { if(document.hidden) cacheSaveRows(); });
+addEventListener("pagehide", cacheSaveRows);
+window.__pracRefetch = () => { try{ RCACHE.del("rows:" + (+$("#fSub").value || 0)); }catch(e){} return loadList({ force:true }); };
+
+/* ── 받아 올 «칸 목록» — 필기 자국(ink)만 뺀다 (v235) ──
+   ink 는 획 좌표가 통째로 들어 있어 표에서 제일 무거운 칸이다.
+   그런데 목록에서는 한 번도 쓰지 않는다 — 문항을 열었을 때만 필요하다.
+   예전에는 select("*") 라 1700문항치 획을 매번 같이 받아 왔다.
+   칸 이름을 손으로 적어 두면 나중에 칸이 늘었을 때 빠지므로,
+   한 줄만 맛보기로 받아서 «있는 칸 - ink» 로 만든다. */
+let COLS = null;
+async function listCols(sid){
+  if(COLS) return COLS;
+  try{
+    const { data } = await sb.from("practicals").select("*").eq("subject_id", sid).limit(1);
+    const k = data && data[0] ? Object.keys(data[0]) : null;
+    if(k && k.length) return (COLS = k.filter(c => c !== "ink").join(","));
+  }catch(e){}
+  return "*";                                   /* 못 알아냈으면 예전처럼 전부 */
+}
+
+/* 필기 자국은 «있는 것만» 따로 받는다 — 대개 몇 문항뿐이라 아주 가볍다 */
+async function inkSync(sid){
+  if(!sb) return;
+  try{
+    const { data, error } = await sb.from("practicals").select("id,ink")
+      .eq("subject_id", sid).not("ink", "is", null);
+    if(error || !Array.isArray(data)) return;
+    let n = 0;
+    data.forEach(d => {
+      const row = ROWS.find(r => String(r.id) === String(d.id));
+      if(row) row.ink = d.ink;
+      ["q","a"].forEach(side => {
+        const srv = d.ink && d.ink[side];
+        if(!Array.isArray(srv) || !srv.length) return;
+        const k = `${d.id}:${side}`;
+        let mine = INK[k];
+        if(!mine){
+          try{ mine = JSON.parse(localStorage.getItem(`pink:${d.id}:${side}`) || "[]"); }catch(e){ mine = []; }
+        }
+        if(srv.length > (mine || []).length){ INK[k] = srv; n++; }
+      });
+    });
+    if(n) document.querySelectorAll(".inkc").forEach(c => c._redraw?.());
+  }catch(e){}
+}
+
+async function loadList(opt){
   const sid = +$("#fSub").value;
   if(!sid) return;
+  const force = !!(opt && opt.force);
   localStorage.setItem("prac:sub", String(sid));
   $("#list").innerHTML = `<div class="empty">불러오는 중…</div>`;
 
-  /* 한 요청에 1000줄까지만 오므로 끝까지 이어 받는다 */
-  const out = [];
-  for(let from = 0; from < 20000; from += 1000){
-    const { data, error } = await sb.from("practicals").select("*")
-      .eq("subject_id", sid).order("year", { ascending:false })
-      .order("session", { ascending:false }).order("no")
-      .range(from, from + 999);
-    if(error){
-      return void ($("#list").innerHTML = `<div class="empty">${/practicals|schema cache/i.test(error.message)
-        ? "실기 표가 아직 없습니다 — <b>supabase-실기.sql</b> 을 먼저 돌려 주세요."
-        : esc(error.message)}</div>`);
+  /* ── ① 캐시가 쓸 만한지 먼저 본다 ── */
+  let out = null;
+  if(!force){
+    const hit = await RCACHE.get("rows:" + sid);
+    if(hit && Array.isArray(hit.rows) && hit.rows.length){
+      let same = false;
+      try{
+        const { count, error } = await sb.from("practicals")
+          .select("id", { count:"exact", head:true }).eq("subject_id", sid);
+        /* 못 물어봤으면(오프라인 등) 여섯 시간까지는 캐시를 믿는다 */
+        same = error ? (Date.now() - (hit.at || 0) < 6 * 3600e3) : (count === hit.rows.length);
+      }catch(e){ same = true; }
+      if(same) out = hit.rows;
     }
-    out.push(...(data || []));
-    if(!data || data.length < 1000) break;
+  }
+
+  /* ── ② 캐시가 없거나 어긋나면 그때만 다시 받는다 ── */
+  if(!out){
+    out = [];
+    const cols = await listCols(sid);
+    /* 한 요청에 1000줄까지만 오므로 끝까지 이어 받는다 */
+    for(let from = 0; from < 20000; from += 1000){
+      const { data, error } = await sb.from("practicals").select(cols)
+        .eq("subject_id", sid).order("year", { ascending:false })
+        .order("session", { ascending:false }).order("no")
+        .range(from, from + 999);
+      if(error){
+        return void ($("#list").innerHTML = `<div class="empty">${/practicals|schema cache/i.test(error.message)
+          ? "실기 표가 아직 없습니다 — <b>supabase-실기.sql</b> 을 먼저 돌려 주세요."
+          : esc(error.message)}</div>`);
+      }
+      out.push(...(data || []));
+      if(!data || data.length < 1000) break;
+    }
+    try{ await RCACHE.put("rows:" + sid, { at:Date.now(), rows:out }); }catch(e){}
   }
   ROWS = out;
+  CACHE_SID = sid;
 
   /* ★ v231 — 문제집(가짜 연도)을 목록 뒤로 보낸다.
      표에서 «연도 내림차순» 으로 받아 오는데, 9523(소방)·9425(단답)·9302(핵심빈출)
@@ -1362,8 +1481,9 @@ async function loadList(){
   const sess = [...new Set(ROWS.map(r => r.session))].sort();
   $("#fSess").innerHTML = `<option value="">모든 회차</option>` + sess.map(s => `<option value="${s}">제${s}회</option>`).join("");
   /* 표시(막히는 곳)는 화면에 그리기 전에 같이 받아 둔다 — 없으면 넘어간다 */
-  try{ await loadMarks(ROWS.map(r => r.id)); }catch(e){ MARKS = {}; }
+  try{ await loadMarks(ROWS.map(r => r.id), sid); }catch(e){ MARKS = {}; }
   drawList();
+  setTimeout(() => inkSync(sid), 400);          /* 필기 자국은 화면을 그린 뒤 조용히 */
 }
 
 /* ── 한 문항씩 보기 ── */
@@ -1703,7 +1823,7 @@ function drawList(){
     if(!confirm("이 표시와 설명을 지웁니다.")) return;
     const { error } = await sb.from("practical_marks").delete().eq("id", b.dataset.mkdel);
     if(error) return log("지우지 못했습니다 — " + error.message);
-    await loadMarks(ROWS.map(r => r.id)); drawList();
+    await loadMarks(ROWS.map(r => r.id), CACHE_SID); drawList();
   });
 
   $$("#list [data-mkredo]").forEach(b => b.onclick = async () => {
@@ -4933,11 +5053,26 @@ ${EASY_RULE}
   return md;
 }
 
-async function loadMarks(ids){
-  if(!ids.length) return;
-  const { data } = await sb.from("practical_marks").select("*").in("practical_id", ids).order("id");
+/* ★ v235 — 예전에는 문항 번호 1700여 개를 주소줄에 그대로 실어 보냈다(12KB 넘음).
+   서버가 «주소가 너무 길다» 며 거절하면 표시(형광펜·주석)가 통째로 안 나왔다.
+   이제 과목으로 한 번에 걸러 받고, 그 방법이 막히면 400개씩 나눠 받는다. */
+async function loadMarks(ids, sid){
   MARKS = {};
-  (data || []).forEach(m => { (MARKS[m.practical_id] ||= []).push(m); });
+  if(!ids || !ids.length) return;
+  if(sid){
+    const { data, error } = await sb.from("practical_marks")
+      .select("*, practicals!inner(subject_id)")
+      .eq("practicals.subject_id", sid).order("id");
+    if(!error && Array.isArray(data)){
+      data.forEach(m => { delete m.practicals; (MARKS[m.practical_id] ||= []).push(m); });
+      return;
+    }
+  }
+  for(let i = 0; i < ids.length; i += 400){
+    const { data } = await sb.from("practical_marks").select("*")
+      .in("practical_id", ids.slice(i, i + 400)).order("id");
+    (data || []).forEach(m => { (MARKS[m.practical_id] ||= []).push(m); });
+  }
 }
 
 /* ═══════════════════════════════════════════════
@@ -5079,7 +5214,7 @@ async function uploadItems(list, sid, scale, MODE, label){
       (STOP ? `중지했습니다. ${ok}개 올렸습니다.` : `${label} 끝 — ${ok}개 올림, ${bad}개 실패.`)
       + (bad ? `\n\n[실패한 문제]\n${lines}\n\n"빠진 문제만 채우기" 를 누르면 이것들만 다시 시도합니다.` : ""),
       bad ? "err" : "ok");
-    await loadList();
+    await loadList({ force:true });
   }catch(e){
     say($("#im"), "올리다 멈췄습니다 — " + niceErr(e), "err");
   }finally{
@@ -5306,7 +5441,18 @@ async function crop(doc, from, to, scale, minH){
   g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
   let y = 0;
   for(const c of parts){ g.drawImage(c, 0, y); y += c.height; }
-  return await new Promise(r => out.toBlob(r, "image/jpeg", 0.82));
+  /* ★ v235 — 폭을 1200px 로 묶는다.
+     화면에서 제일 넓게 봐야 1080px 안쪽인데 배율을 올려 뜨면 2000px 짜리가
+     저장소로 올라갔다. 보이는 것은 그대로면서 파일만 두세 배로 컸다. */
+  let fin = out;
+  if(out.width > 1200){
+    fin = document.createElement("canvas");
+    fin.width = 1200; fin.height = Math.round(out.height * 1200 / out.width);
+    const fg = fin.getContext("2d");
+    fg.fillStyle = "#fff"; fg.fillRect(0, 0, fin.width, fin.height);
+    fg.drawImage(out, 0, 0, fin.width, fin.height);
+  }
+  return await new Promise(r => fin.toBlob(r, "image/jpeg", 0.82));
 }
 
 /* 그림을 폭 기준으로 줄인다 (실패한 것을 다시 올릴 때 씀) */
@@ -5952,8 +6098,44 @@ async function ezRunAll(){
   drawList(); cvCount();
 }
 $("#ezRun")?.addEventListener("click", ezRunAll);
-(async () => { if(await gate()) boot(); })();
-sb?.auth?.onAuthStateChange?.(() => setTimeout(() => gate().then(on => on && boot()), 0));
+/* ══════════════════════════════════════════════════════════════
+   v234 — «잠깐 딴 데 갔다 오면 처음 화면으로 돌아가던» 자리
+
+   supabase-js 는 로그인·로그아웃뿐 아니라 «토큰 자동 갱신(TOKEN_REFRESHED)»
+   «첫 세션 알림(INITIAL_SESSION)» 같은 것도 이 한 통로로 알려 준다.
+   탭을 다른 데 두었다가 돌아오면 그때 갱신이 일어나는데,
+   예전 코드는 그 알림마다 boot() 을 다시 돌렸다 — 목록을 처음부터 새로 받고
+   연도·회차 거르개와 보던 문항이 전부 초기화됐다. Supabase 전송량도 그만큼 더 나갔다.
+
+   이제 «사람이 바뀌었을 때(로그인 / 로그아웃)» 만 다시 세운다.
+   토큰만 새로 받은 것은 화면을 건드리지 않는다.
+   ══════════════════════════════════════════════════════════════ */
+let BOOTED = false, AUTH_UID = null;
+function bootFor(uid){                          /* 같은 사람이면 두 번 세우지 않는다 */
+  if(BOOTED && uid === AUTH_UID) return;
+  AUTH_UID = uid; BOOTED = true;
+  boot();
+}
+(async () => {
+  if(await gate()){
+    let uid = null;
+    try{ uid = (await sb.auth.getSession())?.data?.session?.user?.id || null; }catch(e){}
+    bootFor(uid);
+  }
+})();
+/* ★ 이 콜백 안에서 getSession()·sb.from() 을 부르면 인증 잠금이 서로를 기다려 굳는다.
+   그래서 잠금 밖(setTimeout 0)으로 나온 뒤, 세션도 콜백이 준 값을 그대로 쓴다. */
+sb?.auth?.onAuthStateChange?.((evt, session) => setTimeout(() => {
+  const uid = session?.user?.id || null;
+  if(evt === "SIGNED_OUT" || !uid){
+    BOOTED = false; AUTH_UID = null;
+    $("#gate").hidden = false; $("#main").hidden = true;
+    return;
+  }
+  if(BOOTED && uid === AUTH_UID) return;        /* 토큰만 갱신됨 — 보던 화면 그대로 둔다 */
+  $("#gate").hidden = true; $("#main").hidden = false;
+  bootFor(uid);
+}, 0));
 </script>
 <script>
 /* ══════════════════════════════════════════════════════════════
@@ -16031,7 +16213,7 @@ async function act(a, k, btn){
     say('멈췄습니다 — '+((e&&e.message)||e)+'  (한 것까지는 남아 있습니다)',true);
   }finally{
     lock(false);
-    try{ await loadList() }catch(e){ try{ drawList() }catch(e2){} }
+    try{ await loadList({ force:true }) }catch(e){ try{ drawList() }catch(e2){} }
     paint();
   }
 }
@@ -16988,7 +17170,7 @@ async function moveToLabel(k){
     say('멈췄습니다 — '+((e&&e.message)||e)+' (한 것까지는 남아 있습니다)',true);
   }finally{
     $$('.srcg .a button').forEach(b=>b.disabled=false);
-    try{ await loadList() }catch(e){ try{ drawList() }catch(e2){} }
+    try{ await loadList({ force:true }) }catch(e){ try{ drawList() }catch(e2){} }
     try{ window.__pracSrc && document.querySelector('.srcw.on') && paintAgain() }catch(e){}
   }
 }
@@ -18752,6 +18934,90 @@ body.rzdrag .pane,body.rzdrag .pcol{pointer-events:none}
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',watch);
   else watch();
   setTimeout(scan,700); setTimeout(scan,2000);
+})();
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   v234 · 자리 기억 — 어떤 이유로 화면이 다시 세워져도 보던 데로 돌아온다
+
+   브라우저(크롬)는 오래 안 보는 탭을 스스로 «버리고» 다시 켤 때가 있다
+   (메모리 절약 기능). 그러면 화면은 새로고침과 똑같이 처음 상태가 된다.
+   앱이 막을 수 있는 일이 아니므로, 대신 «어디를 보고 있었는지» 를 적어 두고
+   다시 켜질 때 그 자리로 데려다 놓는다.
+
+   적어 두는 것: 과목 · 연도 · 회차 · 찾는 말 · 보던 문항
+   ══════════════════════════════════════════════════════════════ */
+(function(){
+  const KEY = "prac:view:v1";
+  const $ = s => document.querySelector(s);
+  const rd = () => { try{ return JSON.parse(localStorage.getItem(KEY) || "null"); }catch(e){ return null; } };
+  const wr = o => { try{ localStorage.setItem(KEY, JSON.stringify(o)); }catch(e){} };
+  let ready = false;
+
+  function now(){
+    const rs = window.SHOWN || [];
+    const r  = rs[window.ONEAT | 0];
+    return { sid:String($("#fSub")?.value || ""),
+             y:String($("#fYear")?.value || ""), s:String($("#fSess")?.value || ""),
+             q:String($("#fQ")?.value || ""),
+             id:r ? String(r.id) : "", at:window.ONEAT | 0, ts:Date.now() };
+  }
+  const save = () => { if(ready && (window.SHOWN || []).length) wr(now()); };
+
+  setInterval(save, 4000);
+  document.addEventListener("visibilitychange", () => { if(document.hidden) save(); });
+  addEventListener("pagehide", save);
+
+  /* ── 다시 켜졌을 때 그 자리로 ── */
+  const want = rd();
+  const wait = setInterval(() => {
+    const rs = window.SHOWN;
+    if(!rs || !rs.length) return;
+    clearInterval(wait);
+    if(!want || want.sid !== String($("#fSub")?.value || "")){ ready = true; return; }
+
+    let changed = false;
+    const pick = (sel, v) => {
+      const el = $(sel);
+      if(el && v && el.value !== v && [...el.options].some(o => o.value === v)){ el.value = v; changed = true; }
+    };
+    pick("#fYear", want.y); pick("#fSess", want.s);
+    const q = $("#fQ");
+    if(q && want.q && q.value !== want.q){ q.value = want.q; changed = true; }
+    if(changed) $("#fYear")?.dispatchEvent(new Event("change"));
+
+    setTimeout(() => {
+      const list = window.SHOWN || [];
+      let i = list.findIndex(r => String(r.id) === String(want.id));
+      if(i < 0) i = Math.min(Math.max(0, want.at | 0), list.length - 1);
+      if(i >= 0 && typeof window.showAt === "function"){
+        window.showAt(i);
+        document.querySelector("#list > .pcard.show")?.scrollIntoView({ block:"start" });
+      }
+      ready = true;
+    }, changed ? 700 : 150);
+  }, 200);
+  setTimeout(() => { clearInterval(wait); ready = true; }, 20000);
+
+  /* ── «↻ 새로 받기» — 캐시를 버리고 표를 다시 받는다 ── */
+  const put = setInterval(() => {
+    const host = document.querySelector("#dFind1") || document.querySelector(".filters");
+    if(!host || document.querySelector("#pracRefetch")) return;
+    clearInterval(put);
+    const b = document.createElement("button");
+    b.type = "button"; b.id = "pracRefetch"; b.className = "chip";
+    b.textContent = "↻ 새로 받기";
+    b.title = "이 기기에 저장해 둔 문항을 버리고 Supabase 에서 다시 받습니다\n(다른 기기·다른 화면에서 고친 것을 가져올 때만 쓰세요)";
+    b.onclick = async () => {
+      if(!window.__pracRefetch) return;
+      b.disabled = true; const t = b.textContent; b.textContent = "받는 중…";
+      try{ await window.__pracRefetch(); }catch(e){}
+      b.disabled = false; b.textContent = t;
+    };
+    host.appendChild(b);
+  }, 300);
+  setTimeout(() => clearInterval(put), 20000);
 })();
 </script>
 

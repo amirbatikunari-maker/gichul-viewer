@@ -9,7 +9,7 @@
      그게 한 달 전송량 12GB 의 원인이었다.
      IMG 캐시는 앱 판번호를 올려도 지우지 않는다 — 파일명이 고정이라
      내용이 바뀔 일이 없기 때문. (그림을 갈아끼웠으면 아래 IMG 를 img-v2 로.) */
-const SHELL = "shell-v233", DATA = "data-v2", IMG = "img-v1";
+const SHELL = "shell-v235", DATA = "data-v3", IMG = "img-v1";
 const FILES = ["./","./index.html","./config.js","./ai-chat.js","./ai-viewer.js","./ai-explain.js","./ncs-gijun.js","./music.js","./manifest.json","./icon.svg","./practice.html","./calc.html","./upload.html","./ingest.html","./interview.html","./portfolio.html","./app-enhance.css","./app-enhance.js","./calc-engine.js","./explain-batch.html","./storage-clean.html","./review.html","./simple.js"];
 
 self.addEventListener("install", e => {
@@ -41,11 +41,20 @@ self.addEventListener("fetch", e => {
   }
 
   // Supabase 조회 결과: 온라인이면 새로 받고, 오프라인이면 마지막으로 본 것을 보여준다
+  //
+  // ★ v235 — 큰 답은 캐시에 넣지 않는다.
+  //   문항 표 전체(수 MB)까지 여기 쌓이면서 브라우저 저장공간을 갉아먹었다.
+  //   그 자료는 이제 앱이 IndexedDB 에 따로 들고 있으므로 여기 또 둘 이유가 없다.
+  //   작은 조회(과목·표시·자료함)만 오프라인 대비로 남긴다.
   if (url.pathname.includes("/rest/v1/")) {
+    const MAX = 512 * 1024;
     e.respondWith(
       fetch(e.request).then(r => {
-        const copy = r.clone();
-        caches.open(DATA).then(c => c.put(e.request, copy));
+        const len = +(r.headers.get("content-length") || 0);
+        if (r.ok && len && len <= MAX) {
+          const copy = r.clone();
+          caches.open(DATA).then(c => c.put(e.request, copy));
+        }
         return r;
       }).catch(() => caches.match(e.request))
     );

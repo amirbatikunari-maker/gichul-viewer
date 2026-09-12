@@ -2860,10 +2860,22 @@ try{ showPane(localStorage.getItem("iv-pane") || "prep"); }catch(e){ showPane("p
 
 /* 다른 탭에서 로그인·로그아웃하면 여기도 따라간다.
    supabase-js 는 처음 붙을 때도 한 번 알려 주므로, 그 한 번은 흘려보낸다. */
-let AUTH_READY = false;
-sb.auth.onAuthStateChange(() => { if(AUTH_READY) boot(); });
+/* ★ v234 — 토큰 자동 갱신(TOKEN_REFRESHED)까지 여기로 들어온다.
+   탭을 비웠다 돌아올 때마다 boot() 이 돌아 화면이 처음으로 돌아가던 원인이었다.
+   «사람이 바뀌었을 때» 만 다시 세운다. */
+let AUTH_READY = false, IV_UID = null;
+sb.auth.onAuthStateChange((evt, session) => {
+  if(!AUTH_READY) return;
+  const uid = session?.user?.id || null;
+  if(evt === "SIGNED_OUT"){ IV_UID = null; return void boot(); }
+  if(uid === IV_UID) return;                /* 토큰만 새로 받은 것 — 그대로 둔다 */
+  IV_UID = uid; boot();
+});
 
-boot().then(() => { AUTH_READY = true; }).catch(e => {
+boot().then(async () => {
+  AUTH_READY = true;
+  try{ IV_UID = (await sb.auth.getSession())?.data?.session?.user?.id || null; }catch(e){}
+}).catch(e => {
   /* 여기서 터지면 예전처럼 화면이 텅 빈다. 무슨 일인지 눈에 보이게 적어 둔다. */
   const g = $("#gate"); if(g) g.className = "gate";
   say("화면을 세우지 못했습니다 — " + (e.message || e), "err");
