@@ -9,7 +9,7 @@
      그게 한 달 전송량 12GB 의 원인이었다.
      IMG 캐시는 앱 판번호를 올려도 지우지 않는다 — 파일명이 고정이라
      내용이 바뀔 일이 없기 때문. (그림을 갈아끼웠으면 아래 IMG 를 img-v2 로.) */
-const SHELL = "shell-v235", DATA = "data-v3", IMG = "img-v1";
+const SHELL = "shell-v236", DATA = "data-v3", IMG = "img-v1";
 const FILES = ["./","./index.html","./config.js","./ai-chat.js","./ai-viewer.js","./ai-explain.js","./ncs-gijun.js","./music.js","./manifest.json","./icon.svg","./practice.html","./calc.html","./upload.html","./ingest.html","./interview.html","./portfolio.html","./app-enhance.css","./app-enhance.js","./calc-engine.js","./explain-batch.html","./storage-clean.html","./review.html","./simple.js"];
 
 /* ★ v235 — 한 파일이라도 못 받으면 addAll 은 통째로 실패하고,
@@ -22,10 +22,22 @@ self.addEventListener("install", e => {
       .then(() => self.skipWaiting())
   );
 });
+/* ★ v235 — 그림 캐시는 한 번도 줄어든 적이 없다.
+   문제를 다시 잘라 올리면 주소 뒤 ?t= 값이 바뀌어 «새 그림» 으로 또 담기므로,
+   쓰지 않는 옛 판이 기기 안에 계속 쌓인다. 오래된 것부터 잘라 낸다. */
+const IMG_MAX = 2500;
+async function trimImg(){
+  try{
+    const c = await caches.open(IMG);
+    const ks = await c.keys();
+    if(ks.length <= IMG_MAX) return;
+    await Promise.all(ks.slice(0, ks.length - IMG_MAX).map(k => c.delete(k)));
+  }catch(e){}
+}
 self.addEventListener("activate", e => {
   e.waitUntil(caches.keys().then(ks =>
     Promise.all(ks.filter(k => k !== SHELL && k !== DATA && k !== IMG).map(k => caches.delete(k)))
-  ).then(() => self.clients.claim()));
+  ).then(trimImg).then(() => self.clients.claim()));
 });
 self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);

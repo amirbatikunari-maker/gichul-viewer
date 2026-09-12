@@ -4994,6 +4994,16 @@ function ezEnqueue(id){
   EZQUEUE.push(String(id));
   ezPump();
 }
+/* ★ v235 — 문항을 «넘길 때마다» 해설을 만들게 두면 돈이 샌다.
+   한눈에 보기에서 좌우로 훑기만 해도 지나친 문항 수만큼 AI 를 부르고,
+   이미 다른 문항으로 넘어간 뒤에도 뒤에서 계속 돌았다.
+   2.5초쯤 머무른 문항만 «정말 보는 것» 으로 치고 만든다. */
+let EZWAIT = null;
+function ezEnqueueSoon(id){
+  clearTimeout(EZWAIT);
+  EZWAIT = setTimeout(() => ezEnqueue(id), 2500);
+}
+function ezCancelSoon(){ clearTimeout(EZWAIT); EZWAIT = null; }
 async function ezPump(){
   if(EZBUSY || !EZQUEUE.length) return;
   EZBUSY = true;
@@ -5709,10 +5719,12 @@ function ovOpen(id){
   document.body.classList.add("ovlopen");
   $("#ovl").classList.add("on");
   ovDraw();
-  /* 해설이 아직 없으면 여기서도 만들어 준다 — 보러 들어왔으니 필요한 것이다 */
-  if(!r.easy_md && r.q_url) ezEnqueue(r.id);
+  /* 해설이 아직 없으면 여기서도 만들어 준다 — 보러 들어왔으니 필요한 것이다
+     (넘기기만 한 문항까지 만들지 않게, 잠깐 머무른 뒤에) */
+  if(!r.easy_md && r.q_url) ezEnqueueSoon(r.id); else ezCancelSoon();
 }
 function ovClose(){
+  ezCancelSoon();
   $("#ovl").classList.remove("on");
   document.body.classList.remove("ovlopen");
   OVID = null;
@@ -5809,7 +5821,7 @@ function ovStep(d){
   OVID = String(nx.id);
   if(ONEUP) showAt(i + d);
   ovDraw();
-  if(!nx.easy_md && nx.q_url) ezEnqueue(nx.id);
+  if(!nx.easy_md && nx.q_url) ezEnqueueSoon(nx.id); else ezCancelSoon();
   $$("#ovl .pane").forEach(p => p.scrollTop = 0);
 }
 $("#ovText")?.addEventListener("click", () => {
@@ -6532,7 +6544,7 @@ sb?.auth?.onAuthStateChange?.((evt, session) => setTimeout(() => {
 </script>
 
 <!-- ══ AI 대화 상자 ══ config.js 의 AI_WORKER_URL 을 채워야 작동합니다 -->
-<script src="./ai-chat.js" defer></script>
+<script src="./ai-chat.js?v=236" defer></script>
 <script src="./ai-viewer.js" defer></script>
 <script>
 (function(){
@@ -19076,7 +19088,7 @@ body.rzdrag .pane,body.rzdrag .pcol{pointer-events:none}
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=235").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=236").catch(() => {}));
 </script>
 </body>
 </html>

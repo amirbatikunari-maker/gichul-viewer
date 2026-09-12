@@ -2884,7 +2884,7 @@ boot().then(async () => {
 </script>
 
 <!-- ══ AI 대화 상자 ══ config.js 의 AI_WORKER_URL 을 채워야 작동합니다 -->
-<script src="./ai-chat.js" defer></script>
+<script src="./ai-chat.js?v=236" defer></script>
 <script src="./ai-viewer.js" defer></script>
 <script src="./music.js" defer></script>
 <!-- DATA ISOLATION CONTRACT: interview data uses iv-/iv: namespace only. Never import practice/written mistakes. -->
@@ -2895,7 +2895,7 @@ boot().then(async () => {
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=235").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=236").catch(() => {}));
 </script>
 </body>
 </html>
