@@ -6544,7 +6544,7 @@ sb?.auth?.onAuthStateChange?.((evt, session) => setTimeout(() => {
 </script>
 
 <!-- ══ AI 대화 상자 ══ config.js 의 AI_WORKER_URL 을 채워야 작동합니다 -->
-<script src="./ai-chat.js?v=239" defer></script>
+<script src="./ai-chat.js?v=241" defer></script>
 <script src="./ai-viewer.js" defer></script>
 <script>
 (function(){
@@ -11234,12 +11234,17 @@ function ncsOf(r){
    ══════════════════════════════════════════════════════════════ */
 const NOWY = new Date().getFullYear();
 
-/* ── 저울 (v238) ──
-   ① 반감기 3.5년 — 출제기준이 3~4년마다 개정된다. 개정을 한 번 건너면 무게가 반이다.
-   ② 15년보다 오래된 이력은 «횟수만» 본다 — 그때 문제 꼴은 지금과 다르다.
+/* ── 저울 (v240) ──
+   ① 반감기 5년 — 처음에 3.5년(출제기준 개정 주기)으로 잡았는데 너무 짧았다.
+      실기 기출의 재출제 주기가 대체로 3~8년이라, 반감기가 그보다 짧으면
+      «주기 5년짜리 유형» 을 제 주기가 돌아오기도 전에 반쯤 잊어버린다.
+      주기를 재려면 저울이 주기보다 조금 길어야 한다.
+   ② 20년보다 오래된 이력은 «횟수만» 본다 — 그때 문제 꼴은 지금과 다르다.
       다만 아주 지우지는 않는다. 40년을 버틴 문항은 그 자체가 «핵심» 이라는 증거다(바닥값 0.04).
-   ③ 관측 폭(W)도 같은 저울로 잰다 — 안 나온 해도 세야 «확률» 이 된다. */
-const HALF = 3.5, BACK = 15, FAR = 45, FLOOR = 0.04;
+   ③ 관측 폭(W)도 같은 저울로 잰다 — 안 나온 해도 세야 «확률» 이 된다.
+   이 저울에서는 «한 번만 나온 문항» 은 아무리 최신이어도 금·은에 못 든다.
+   금·은은 «되풀이가 확인된 유형» 의 자리다. */
+const HALF = 5, BACK = 20, FAR = 45, FLOOR = 0.04;
 const WIN5 = 5;                                   /* 최근 몇 개년을 볼 것인가 */
 const Y0   = NOWY - (WIN5 - 1);
 
@@ -11311,12 +11316,16 @@ function probOf(l){
   return Math.max(1, Math.min(95, Math.round((1 - Math.exp(-l)) * 100)));
 }
 
-/* 등급 — 순위가 아니라 «주기» 로 끊는다. 자료가 늘어도 남의 등급이 안 흔들린다.
-      금  3년 이하 주기 — 최근 5~6년에 세 번 넘게 돈 유형
-      은  3~5년 주기   — 두 번 돌았거나, 고전이 최근에 돌아온 것
-      동  5~12년 주기  — 최근에 한 번 나온 것
-      똥  12년 초과    — 오래전 한 번 나오고 만 것 */
-function tierOf(l){ return l >= 1/3 ? 'g' : l >= 0.20 ? 's' : l >= 1/12 ? 'b' : 'r'; }
+/* 등급 — 뱃지에 적힌 «출제확률» 그 숫자로 끊는다 (v240).
+   주기로 끊었더니 뱃지 숫자와 색이 따로 놀았다. 눈에 보이는 값으로 끊는 것이 맞다.
+      금  25% 이상 — 다음 1년에 네 번 중 한 번꼴로 만날 유형
+      은  15~25%
+      동   7~15%
+      똥   7% 미만 — 오래전 한 번 나오고 만 것 */
+function tierOf(l){
+  const p = probOf(l);                              /* 뱃지에 적힌 바로 그 숫자로 끊는다 */
+  return p >= 25 ? 'g' : p >= 15 ? 's' : p >= 7 ? 'b' : 'r';
+}
 /* 출제 이력이 비어 있는 문항 — 예전에는 아주 다른 셈(닮은 정도)으로 등급을 매겨
    두 체계가 한 화면에 섞였다. 이제는 «한 핏줄 문항» 들이 실린 해를 빌려 와
    똑같은 저울에 올린다. 기준이 하나여야 견줄 수 있다. */
@@ -11416,14 +11425,28 @@ function buildNow(){
       /* ── 출제 이력을 모은다 (v238b) ──
          ① 이 줄에 적힌 «출제 연도»  ② 같은 문제로 묶인 다른 회차의 것까지 합쳐서
          ③ 그래도 한 번뿐이면 «한 핏줄» 문항들이 실린 해를 빌린다 */
-      const own = askedYears(r);
-      let ys  = groupYears().get(String(r.id)) || own;
-      let SRC = 'asked';
-      if(ys.length < 2 && !String(r.asked || '').trim()){
-        const k = kinYears(r);
-        if(k.length > ys.length){ ys = k; SRC = 'kin'; }
-        else SRC = 'thin';
-      }
+      const own  = askedYears(r);
+      const grp  = groupYears().get(String(r.id)) || own;
+      const hasA = !!String(r.asked || '').trim();
+
+      /* «같은 유형이 실제로 나온 해» 를 모두 모은다 (v240)
+         ① 문제집이 적어 준 출제 연도  ② 같은 문제로 묶인 다른 회차
+         ③ 표 안에서 닮은 문항(0.30 이상)이 실린 회차 — 이 표가 곧 26년치 기출이다 */
+      const set = new Set(grp);
+      let nearY = null;
+      try{ nearY = (window.__pracProb && window.__pracProb(r.id) || {}).years; }catch(e){}
+      (nearY || []).forEach(y => set.add(y));
+      if(!nearY) kinYears(r).forEach(y => set.add(y));       /* 닮은꼴 셈이 아직이면 연관으로 */
+      let ys = [...set].sort((a, b) => b - a);
+
+      const SRC = hasA ? 'asked'
+                : (nearY && nearY.length > grp.length) ? 'near'
+                : ys.length > grp.length ? 'kin' : 'thin';
+
+      /* «이 문제 그대로» 와 «같은 유형» 을 따로 들고 있는다 (v241)
+         — 직전 회차 문제가 그대로 또 나오는 일은 드물다. 그래서 확률은 «유형» 으로 센다.
+           다만 그 둘이 얼마나 다른지는 눈으로 볼 수 있어야 한다. */
+      const selfN = grp.length, selfLast = grp[0] || 0;
 
       const n5   = ys.filter(y => y >= Y0).length;
       const nAll = ys.length;
@@ -11433,6 +11456,7 @@ function buildNow(){
       const P    = probOf(LAM), TIER = tierOf(LAM);
 
       const o={ p:P, tier:TIER, n5, nAll, last, gap, years:ys, lam:LAM, cyc:CYC,
+                selfN, selfLast,
                 key:(blob?'':key), type:typeOf(r), exp:P/100, src:SRC,
                 ncs:(window.__ncsClassify ? window.__ncsClassify(r) : ncsOf(r)) };
       out.set(String(r.id),o); score.push([P,String(r.id)]);
@@ -11463,18 +11487,28 @@ function stamp_(root){
       s.className='fqb '+cls; s.textContent=txt; s.title=title; return s };
     const TL={g:'금',s:'은',b:'동',r:'똥'};
     const cycTxt = (t.cyc||0) < 20 ? (t.cyc||0).toFixed(1)+'년꼴' : '20년+';
-    const whereFrom = t.src==='kin'
-        ? `\n(이 줄에는 출제 연도 기록이 없어 «한 핏줄» 문항들이 실린 해를 빌렸습니다)`
+    const whereFrom = t.src==='near'
+        ? `\n(문제집 «출제 연도» 기록이 없어, 표 안에서 같은 유형이 실린 회차로 셌습니다)`
+      : t.src==='kin'
+        ? `\n(기록이 없어 «한 핏줄» 문항들이 실린 해를 빌렸습니다)`
       : t.src==='thin'
-        ? `\n(이력이 이 한 번뿐입니다 — 되풀이된 적이 아직 없습니다)`
+        ? `\n(이 표 안에서 되풀이된 적이 아직 없습니다 — 한 번뿐)`
         : '';
-    const histTip = `다음 1년 안에 이 유형이 나올 확률입니다`
+    const selfLine = (t.selfN||0) >= 1
+        ? `\n이 문제 그대로: ${t.selfN}번${t.selfLast?` (마지막 ${t.selfLast}년)`:''}`
+          + `   ·   같은 유형: ${t.nAll}번`
+        : '';
+    const histTip = `다음 1년 안에 이 «유형» 이 나올 확률입니다`
+        + `\n직전 회차 문제가 그대로 또 나오는 일은 드뭅니다.`
+        + `\n그래서 «그 문제» 가 아니라 «값만 바꿔 다시 나오는 것» 까지 세어 «유형» 으로 셉니다.`
+        + selfLine
         + `\n\n출제된 해: ${(t.years||[]).join(' · ')||'—'}`
         + `\n최근 ${WIN5}개년 안에 ${t.n5}해 · 통틀어 ${t.nAll}번`
         + `\n마지막 출제 ${t.last||'?'}년 (${t.gap>=99?'아주 오래전':t.gap+'년 전'})`
         + `\n평균 ${(t.cyc||0)<50?(t.cyc||0).toFixed(1)+'년':'수십 년'}마다 한 번 도는 유형`
         + whereFrom
-        + `\n\n저울 — 반감기 ${HALF}년(출제기준 개정 주기에 맞춤)`
+        + `\n\n등급 — 금 25% 이상 · 은 15% · 동 7% · 똥 그 아래`
+        + `\n저울 — 반감기 ${HALF}년(출제기준 개정 주기에 맞춤)`
         + `\n${BACK}년보다 오래된 이력은 «핵심이라는 증거» 로만 조금 셉니다`
         + `\n안 나온 해도 함께 세므로 «확률» 이 됩니다`;
     const frag=[
@@ -11487,11 +11521,11 @@ function stamp_(root){
           + (t.ncs.why?`\n«${t.ncs.why}»`:'')
           + `\n(${window.NCS_GIJUN?.period||''})`)] : []),
       mk(t.tier, TL[t.tier],
-         '등급 — 순위가 아니라 «재출제 주기» 로 끊습니다'
-         + '\n금  3년 이하 주기 — 최근 5~6년에 세 번 넘게 돈 유형'
-         + '\n은  3~5년 주기 — 두 번 돌았거나, 고전이 최근에 돌아온 것'
-         + '\n동  5~12년 주기 — 최근에 한 번 나온 것'
-         + '\n똥  12년 초과 — 오래전 한 번 나오고 만 것')
+         '등급 — 왼쪽에 적힌 «출제확률» 그 숫자로 끊습니다'
+         + '\n금  25% 이상 — 되풀이가 또렷한 유형 (주기 3.5년 안쪽)'
+         + '\n은  15~25% — 되풀이가 확인된 유형 (주기 3.5~6년)'
+         + '\n동  7~15% — 최근에 한 번, 아직 되풀이 없음'
+         + '\n똥  7% 미만 — 오래전 한 번 나오고 만 것')
     ];
     frag.forEach(el=>cv?head.insertBefore(el,cv):head.appendChild(el));
   });
@@ -11913,7 +11947,14 @@ function startClassify(){
         let hw=0; hit.forEach(k=>{ hw += EXW.get(k)||0 });
         /* 평활 — 몇 안 되는 표본이 곧장 100% 가 되지 않게 */
         const p=Math.max(3,Math.min(85,Math.round((hw+0.30)/(TOTW+2.30)*100)));
-        PROB.set(id,{ p, R:hit.size, C, NE:EXW.size });
+        /* ★ v240 — «어느 해에 나왔는가» 를 그대로 넘긴다.
+           문제집의 «출제 연도» 는 이 표에서 100문항 남짓에만 붙어 있다.
+           나머지 1900문항은 그 기록이 아예 없어서, 등급이 사실상
+           «이 줄이 몇 년도 회차냐» 만 재고 있었다 — 출제확률이 아니었다.
+           그런데 표 자체가 26년치 기출이다. 같은 유형이 어느 해에 나왔는지는
+           여기(닮은 문항 0.30 이상)에서 이미 세고 있었다. 그 해 목록을 넘긴다. */
+        const yrs=new Set(); hit.forEach(k=>{ const y=+String(k).split('-')[0]; if(y>1900) yrs.add(y) });
+        PROB.set(id,{ p, R:hit.size, C, NE:EXW.size, years:[...yrs].sort((a,b)=>b-a) });
       }
       if(i<ids.length) return idle(pass3);
       return idle(done);
@@ -19227,7 +19268,7 @@ body.rzdrag .pane,body.rzdrag .pcol{pointer-events:none}
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=239").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=241").catch(() => {}));
 </script>
 </body>
 </html>

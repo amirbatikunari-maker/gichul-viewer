@@ -5081,7 +5081,7 @@ route();
 
 /* 홈 화면 설치 + 오프라인 */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=239").catch(()=>{}));
+  addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=241").catch(()=>{}));
 </script>
 <script>
 /* ══════════════════════════════════════════════════════════════
@@ -5441,7 +5441,7 @@ if("serviceWorker" in navigator && location.protocol.startsWith("http"))
 </script>
 
 <!-- ══ AI 대화 상자 ══ config.js 의 AI_WORKER_URL 을 채워야 작동합니다 -->
-<script src="./ai-chat.js?v=239" defer></script>
+<script src="./ai-chat.js?v=241" defer></script>
 <script src="./ai-viewer.js" defer></script>
 <!-- 끌어서 고른 자리를 AI 가 풀어 준다 -->
 <script src="./ai-explain.js" defer></script>
