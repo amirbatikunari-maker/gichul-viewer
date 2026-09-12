@@ -1821,7 +1821,7 @@ function build() {
           <button data-exp="md"     title="이 대화를 .md 파일로 내려받습니다">Markdown</button>
           <button data-exp="txt"    title="이 대화를 .txt 파일로 내려받습니다">텍스트</button>
           <button data-exp="notion" class="notion"
-            title="마크다운을 복사하고 노션 페이지를 엽니다 — 붙여넣기(Ctrl+V) 하면 표·수식까지 그대로 들어갑니다&#10;Shift 를 누른 채 누르면 저장할 페이지 주소를 다시 정합니다">노션에 저장</button>
+            title="정해 둔 노션 페이지 밑에 이 대화를 새 페이지로 넣습니다&#10;(워커에 NOTION_TOKEN 이 아직 없으면 «복사 + 페이지 열기» 로 대신합니다)&#10;Shift 를 누른 채 누르면 저장할 페이지를 다시 정합니다">노션에 저장</button>
         </div>
 
       </div>
@@ -2156,8 +2156,9 @@ function build() {
 
 
     u = prompt(
-      "대화를 붙여 넣을 노션 페이지 주소를 한 번만 정해 주세요.\n"
-      + "노션에서 그 페이지를 열고 주소창을 그대로 붙여 넣으면 됩니다.",
+      "대화를 저장할 노션 페이지 주소를 한 번만 정해 주세요.\n"
+      + "노션에서 그 페이지를 열고 주소창을 그대로 붙여 넣으면 됩니다.\n"
+      + "(그 페이지 밑에 대화가 새 페이지로 들어갑니다)",
       u || "https://www.notion.so/"
     );
 
@@ -2228,17 +2229,81 @@ function build() {
         if (!url) return;
 
 
-        const ok = await expCopy(expMd());
+        const was = b.textContent;
+        b.disabled = true;
+        b.textContent = "보내는 중…";
 
 
-        window.open(url, "_blank", "noopener");
+        let done = false;
 
 
-        expSay(
-          ok
-            ? "마크다운을 복사했습니다 — 노션에서 붙여넣기(Ctrl+V) 하세요."
-            : "노션을 열었습니다. 복사가 막혀 있어 «복사» 를 한 번 눌러 주세요."
-        );
+        /* ① 진짜로 넣어 보기 — 워커에 NOTION_TOKEN 이 있으면 여기서 끝난다 */
+        if (BASE) {
+
+          try {
+
+            const res = await fetch(
+              BASE + "/notion",
+              {
+                method: "POST",
+                headers: Object.assign(
+                  { "Content-Type": "application/json" },
+                  KEY ? { "x-app-key": KEY } : {}
+                ),
+                body: JSON.stringify({
+                  parent: url,
+                  title:
+                    (String(
+                      (state.msgs.find(m => m.role === "user") || {}).content || "AI 대화"
+                    ).trim().split("\n")[0] || "AI 대화").slice(0, 60),
+                  markdown: expMd()
+                })
+              }
+            );
+
+            const d = await res.json().catch(() => ({}));
+
+
+            if (d && d.ok) {
+
+              done = true;
+
+              expSay("노션에 저장했습니다.");
+
+              if (d.url) window.open(d.url, "_blank", "noopener");
+
+            } else if (d && d.need !== "token" && d.error) {
+
+              expSay("노션이 거절했습니다 — " + d.error);
+
+              /* 설정은 돼 있는데 거절당한 것이므로 붙여넣기로 넘어가지 않는다 */
+              done = true;
+
+            }
+
+          } catch (e) {}
+
+        }
+
+
+        /* ② 아직 워커에 토큰이 없으면 예전 방식 — 복사하고 페이지를 열어 준다 */
+        if (!done) {
+
+          const ok = await expCopy(expMd());
+
+          window.open(url, "_blank", "noopener");
+
+          expSay(
+            ok
+              ? "마크다운을 복사했습니다 — 노션에서 붙여넣기(Ctrl+V) 하세요."
+              : "노션을 열었습니다. 복사가 막혀 있어 «복사» 를 한 번 눌러 주세요."
+          );
+
+        }
+
+
+        b.disabled = false;
+        b.textContent = was;
 
       }
 

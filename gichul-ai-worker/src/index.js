@@ -44,6 +44,194 @@ const tiers = env => ({
   fast: env.MODEL_FAST || env.MODEL || "claude-opus-5"
 });
 
+
+/* ═══════════════════════════════════════════════════════════════
+   /notion — 대화를 노션 페이지로 저장 (v236)
+
+   브라우저는 노션 API 를 직접 부를 수 없음(노션이 막아 둠).
+   그래서 워커가 대신 불러 줌. 크롬 확장(AI Exporter)이 되는 이유도 같음 —
+   확장은 브라우저 밖에서 부르기 때문.
+
+   ── 시크릿 ──────────────────────────────────────────────
+   NOTION_TOKEN   notion.so/my-integrations 에서 만든 내부 통합 토큰 (ntn_…)
+                  ※ 저장할 페이지를 그 통합과 «연결» 해 두어야 함
+                    (노션 페이지 우상단 ⋯ → 연결 → 통합 이름 고르기)
+
+   ── 받는 것 ────────────────────────────────────────────
+   { parent: "페이지ID 32자리", title: "제목", markdown: "…" }
+   ── 돌려주는 것 ────────────────────────────────────────
+   { ok:true, id, url }        또는  { ok:false, need:"token" | error }
+   ═══════════════════════════════════════════════════════════════ */
+const NOTION_VER = "2022-06-28";
+
+/* **굵게** · *기울임* · `코드` · [글](주소) 를 노션 리치텍스트로 */
+function nRich(text){
+  const out = [];
+  const src = String(text || "");
+  const re = /(\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`]+`|\[[^\]]+\]\([^)\s]+\))/g;
+  let i = 0, m;
+  const push = (t, ann, link) => {
+    if (!t) return;
+    /* 노션은 한 조각에 2000자까지만 받음 */
+    for (let k = 0; k < t.length; k += 1900){
+      out.push({
+        type: "text",
+        text: { content: t.slice(k, k + 1900), link: link ? { url: link } : null },
+        annotations: Object.assign({ bold:false, italic:false, code:false }, ann || {})
+      });
+    }
+  };
+  while ((m = re.exec(src))){
+    push(src.slice(i, m.index));
+    const t = m[0];
+    if (t.startsWith("**"))      push(t.slice(2, -2), { bold:true });
+    else if (t.startsWith("`"))  push(t.slice(1, -1), { code:true });
+    else if (t.startsWith("[")){
+      const g = t.match(/^\[([^\]]+)\]\(([^)\s]+)\)$/);
+      push(g[1], null, g[2]);
+    }
+    else                         push(t.slice(1, -1), { italic:true });
+    i = m.index + t.length;
+  }
+  push(src.slice(i));
+  return out.length ? out.slice(0, 90) : [{ type:"text", text:{ content:"" } }];
+}
+
+const nBlock = (type, extra) => ({ object:"block", type, [type]: extra });
+
+/* 마크다운 → 노션 블록. 제목·문단·목록·인용·코드·구분선·표까지 */
+function mdToBlocks(md){
+  const lines = String(md || "").replace(/\r/g, "").split("\n");
+  const out = [];
+  for (let i = 0; i < lines.length; i++){
+    let L = lines[i];
+
+    /* 코드 덩어리 */
+    if (/^\s*```/.test(L)){
+      const lang = L.replace(/^\s*```/, "").trim().toLowerCase() || "plain text";
+      const buf = [];
+      i++;
+      while (i < lines.length && !/^\s*```/.test(lines[i])) buf.push(lines[i++]);
+      out.push(nBlock("code", {
+        rich_text: [{ type:"text", text:{ content: buf.join("\n").slice(0, 1900) } }],
+        language: /^(js|javascript)$/.test(lang) ? "javascript"
+                : /^(py|python)$/.test(lang) ? "python"
+                : /^(html|css|sql|json|bash|shell|markdown)$/.test(lang) ? lang
+                : "plain text"
+      }));
+      continue;
+    }
+
+    /* 표 — |…|…| 가 이어지는 동안 */
+    if (/^\s*\|.*\|\s*$/.test(L)){
+      const rows = [];
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])){
+        const cells = lines[i].trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+        if (!cells.every(c => /^:?-{2,}:?$/.test(c))) rows.push(cells);
+        i++;
+      }
+      i--;
+      const w = Math.max(1, Math.min(20, ...rows.map(r => r.length).map(n => n || 1)));
+      out.push(nBlock("table", {
+        table_width: w,
+        has_column_header: true,
+        has_row_header: false,
+        children: rows.slice(0, 90).map(r => nBlock("table_row", {
+          cells: Array.from({ length: w }, (_, k) => nRich(r[k] || ""))
+        }))
+      }));
+      continue;
+    }
+
+    if (!L.trim()) continue;
+
+    if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(L)){ out.push(nBlock("divider", {})); continue; }
+
+    let m = L.match(/^(#{1,6})\s+(.*)$/);
+    if (m){
+      const lv = Math.min(3, m[1].length);
+      out.push(nBlock("heading_" + lv, { rich_text: nRich(m[2]) }));
+      continue;
+    }
+
+    m = L.match(/^\s*>\s?(.*)$/);
+    if (m){ out.push(nBlock("quote", { rich_text: nRich(m[1]) })); continue; }
+
+    m = L.match(/^\s*[-*+]\s+(.*)$/);
+    if (m){ out.push(nBlock("bulleted_list_item", { rich_text: nRich(m[1]) })); continue; }
+
+    m = L.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (m){ out.push(nBlock("numbered_list_item", { rich_text: nRich(m[1]) })); continue; }
+
+    out.push(nBlock("paragraph", { rich_text: nRich(L) }));
+  }
+  return out.length ? out : [nBlock("paragraph", { rich_text: nRich("(비어 있음)") })];
+}
+
+/* 주소에서 32자리 ID 만 뽑음.
+   «…/My-Page-1a2b…» 처럼 앞말에 a·e 같은 글자가 붙어 있으면
+   앞에서부터 세면 한 칸씩 밀린다. 그래서 «맨 뒤 덩어리의 마지막 32자» 를 쓴다. */
+const nId = v => {
+  const t = String(v || "").replace(/-/g, "").split(/[?#]/)[0];
+  const runs = t.match(/[0-9a-fA-F]{32,}/g);
+  if (!runs) return "";
+  const r = runs[runs.length - 1];
+  return r.slice(r.length - 32).toLowerCase();
+};
+
+async function notionSave(req, env, H){
+  if (!env.NOTION_TOKEN)
+    return json({ ok:false, need:"token",
+      error:"NOTION_TOKEN 이 없습니다 — 워커 시크릿에 넣어 주세요" }, 200, H);
+
+  const b = await req.json().catch(() => ({}));
+  const parent = nId(b.parent);
+  if (!parent)
+    return json({ ok:false, error:"노션 페이지 주소(ID)를 읽지 못했습니다" }, 400, H);
+
+  const blocks = mdToBlocks(b.markdown);
+  const head = {
+    "content-type": "application/json",
+    "authorization": "Bearer " + env.NOTION_TOKEN,
+    "Notion-Version": NOTION_VER
+  };
+  const title = String(b.title || "AI 대화").slice(0, 190);
+
+  /* 부모가 페이지인지 데이터베이스인지 모르므로 페이지로 먼저 시도하고,
+     아니라고 하면 데이터베이스로 한 번 더 시도함 */
+  async function create(kind){
+    const body = kind === "database_id"
+      ? { parent:{ database_id: parent },
+          properties:{ title:{ title:[{ text:{ content: title } }] } },
+          children: blocks.slice(0, 100) }
+      : { parent:{ page_id: parent },
+          properties:{ title:{ title:[{ text:{ content: title } }] } },
+          children: blocks.slice(0, 100) };
+    const r = await fetch("https://api.notion.com/v1/pages", {
+      method:"POST", headers: head, body: JSON.stringify(body)
+    });
+    return { r, d: await r.json().catch(() => ({})) };
+  }
+
+  let { r, d } = await create("page_id");
+  if (!r.ok && /database|is a database/i.test(JSON.stringify(d)))
+    ({ r, d } = await create("database_id"));
+
+  if (!r.ok)
+    return json({ ok:false, status:r.status,
+      error: (d && d.message) || ("노션이 거절했습니다 (" + r.status + ")") }, 200, H);
+
+  /* 100개가 넘으면 나눠 붙임 */
+  for (let i = 100; i < blocks.length; i += 100){
+    await fetch("https://api.notion.com/v1/blocks/" + d.id + "/children", {
+      method:"PATCH", headers: head,
+      body: JSON.stringify({ children: blocks.slice(i, i + 100) })
+    });
+  }
+
+  return json({ ok:true, id:d.id, url:d.url || "", blocks:blocks.length }, 200, H);
+}
+
 /* ─── 공통 ─────────────────────────────────────────────── */
 function cors(env, req){
   const origin = req.headers.get("Origin") || "";
@@ -585,6 +773,14 @@ export default {
 
     if (path === "/ai/models") return models(env, H);
 
+    /* 노션 저장은 Anthropic 키가 필요 없음 — 키 검사보다 앞에 둠 */
+    if (path === "/notion"){
+      if (req.method !== "POST")
+        return json({ ok:false, error:"POST 만 받습니다" }, 405, H);
+      try{ return await notionSave(req, env, H); }
+      catch(e){ return json({ ok:false, error:String(e.message || e) }, 200, H); }
+    }
+
     if (!env.ANTHROPIC_API_KEY)
       return json({ error: "ANTHROPIC_API_KEY 가 없습니다", detail: "ANTHROPIC_API_KEY 가 없습니다" }, 500, H);
     if (req.method !== "POST")
@@ -608,6 +804,6 @@ export default {
       return json({ error: e.message, detail: e.message, upstream: e.upstream || null }, 502, H);
     }
 
-    return json({ error: "없는 경로입니다", detail: "/get-data · /ai/models · /ai/chat · /explain · /split-hint · /selftest · /health" }, 404, H);
+    return json({ error: "없는 경로입니다", detail: "/get-data · /ai/models · /ai/chat · /explain · /split-hint · /notion · /selftest · /health" }, 404, H);
   }
 };
