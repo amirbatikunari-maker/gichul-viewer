@@ -6544,7 +6544,7 @@ sb?.auth?.onAuthStateChange?.((evt, session) => setTimeout(() => {
 </script>
 
 <!-- ══ AI 대화 상자 ══ config.js 의 AI_WORKER_URL 을 채워야 작동합니다 -->
-<script src="./ai-chat.js?v=241" defer></script>
+<script src="./ai-chat.js?v=242" defer></script>
 <script src="./ai-viewer.js" defer></script>
 <script>
 (function(){
@@ -11155,6 +11155,9 @@ setInterval(()=>paintAllCrops(),3000);
 .tagrow .tl2{font:500 9px/1 var(--font-d,system-ui);color:var(--muted,#94a3b8);margin-right:3px}
 .tagrow .sep{width:1px;height:16px;background:var(--line,#e2e8f0);margin:0 3px}
 .tagnote{font:500 10px/1.5 var(--font-d,system-ui);color:var(--muted,#64748b);margin-top:3px}
+#tagNote2{margin-top:5px;padding-top:5px;border-top:1px dashed var(--line,#e6eaf0);
+  font-weight:700;color:var(--ink-2,#475569)}
+#tagNote2:empty{display:none}
 </style>
 <script>
 (function(){
@@ -11309,22 +11312,28 @@ function rateOf(ys){
 
 /* λ 를 사람 말로 */
 const cycleOf = l => (l > 0 ? 1 / l : 99);          /* 평균 재출제 주기(년) */
-/* 다음 «1년» 안에 한 번이라도 나올 확률.
-   되풀이되는 일의 셈법은 포아송이 맞다 — λ 가 1을 넘어도 무너지지 않고,
-   «세 회차를 각각 동전 던지듯» 세는 어림(이항)보다 조금 더 보수적이다. */
+/* 다음 «1년» 안에 나올 확률.
+   ★ v242 — 여기가 틀려 있었다.
+     A 는 «나온 해의 수» 다. 한 해에 두 번 나와도 1로 센다(출제 연도 기록이 연 단위라서).
+     그러니 λ = A/W 는 이미 «어떤 해에 나올 확률» 그 자체다 — 비율이지 «횟수» 가 아니다.
+     그런데 포아송(1−e^−λ)을 한 번 더 씌우고 있었다. 되풀이 횟수를 확률로 바꾸는 식인데,
+     이미 확률인 값에 씌우니 위쪽이 통째로 눌렸다 — «매년 나오는 유형» 이 59% 로 나왔다.
+     그럴 리가 없다. 그대로 쓴다. */
 function probOf(l){
-  return Math.max(1, Math.min(95, Math.round((1 - Math.exp(-l)) * 100)));
+  return Math.max(1, Math.min(97, Math.round(l * 100)));
 }
 
 /* 등급 — 뱃지에 적힌 «출제확률» 그 숫자로 끊는다 (v240).
    주기로 끊었더니 뱃지 숫자와 색이 따로 놀았다. 눈에 보이는 값으로 끊는 것이 맞다.
-      금  25% 이상 — 다음 1년에 네 번 중 한 번꼴로 만날 유형
-      은  15~25%
-      동   7~15%
-      똥   7% 미만 — 오래전 한 번 나오고 만 것 */
+   표에 든 유형이 대략 700가지면 «아무 유형이나» 한 해에 나올 확률은 7~8% 다.
+   그 기준선 위로 몇 배냐로 끊는다.
+      금  30% 이상 — 기준선의 네 배. 3년 안쪽 주기
+      은  18~30%  — 두세 배. 4~5년 주기
+      동   9~18%  — 기준선 언저리
+      똥   9% 미만 — 기준선 아래 */
 function tierOf(l){
   const p = probOf(l);                              /* 뱃지에 적힌 바로 그 숫자로 끊는다 */
-  return p >= 25 ? 'g' : p >= 15 ? 's' : p >= 7 ? 'b' : 'r';
+  return p >= 30 ? 'g' : p >= 18 ? 's' : p >= 9 ? 'b' : 'r';
 }
 /* 출제 이력이 비어 있는 문항 — 예전에는 아주 다른 셈(닮은 정도)으로 등급을 매겨
    두 체계가 한 화면에 섞였다. 이제는 «한 핏줄 문항» 들이 실린 해를 빌려 와
@@ -11468,7 +11477,7 @@ function clamp(v,a,b){ return Math.max(a,Math.min(b,v)) }
 const info=id=>{ const m=ensure(); return m?m.get(String(id))||null:null };
 window.__pracTag=info;
 window.__pracTagKeyword=ncsOf;                 /* 낱말표만 쓰는 예전 방식 — 되돌림용 */
-window.__pracTagReset=()=>{ TAG=null; SIG=''; GYEARS=null; try{ ensure() }catch(e){} };
+window.__pracTagReset=()=>{ TAG=null; SIG=''; GYEARS=null; CL=null; NEWR=null; TMALL=null; try{ ensure() }catch(e){} };
 
 /* ══ ④ 문항 머리에 적기 — «가 글자» 왼쪽 ══ */
 function stamp(root){
@@ -11507,7 +11516,7 @@ function stamp_(root){
         + `\n마지막 출제 ${t.last||'?'}년 (${t.gap>=99?'아주 오래전':t.gap+'년 전'})`
         + `\n평균 ${(t.cyc||0)<50?(t.cyc||0).toFixed(1)+'년':'수십 년'}마다 한 번 도는 유형`
         + whereFrom
-        + `\n\n등급 — 금 25% 이상 · 은 15% · 동 7% · 똥 그 아래`
+        + `\n\n등급 — 금 30% 이상 · 은 18% · 동 9% · 똥 그 아래`
         + `\n저울 — 반감기 ${HALF}년(출제기준 개정 주기에 맞춤)`
         + `\n${BACK}년보다 오래된 이력은 «핵심이라는 증거» 로만 조금 셉니다`
         + `\n안 나온 해도 함께 세므로 «확률» 이 됩니다`;
@@ -11522,10 +11531,12 @@ function stamp_(root){
           + `\n(${window.NCS_GIJUN?.period||''})`)] : []),
       mk(t.tier, TL[t.tier],
          '등급 — 왼쪽에 적힌 «출제확률» 그 숫자로 끊습니다'
-         + '\n금  25% 이상 — 되풀이가 또렷한 유형 (주기 3.5년 안쪽)'
-         + '\n은  15~25% — 되풀이가 확인된 유형 (주기 3.5~6년)'
-         + '\n동  7~15% — 최근에 한 번, 아직 되풀이 없음'
-         + '\n똥  7% 미만 — 오래전 한 번 나오고 만 것')
+         + '\n금  30% 이상 — 되풀이가 또렷 (3년 안쪽 주기)'
+         + '\n은  18~30% — 되풀이가 확인됨 (4~5년 주기)'
+         + '\n동  9~18% — 기준선 언저리 (최근 한 번 / 8~10년 주기)'
+         + '\n똥  9% 미만 — 기준선 아래'
+         + '\n\n기준선 — 표에 든 유형이 700가지쯤이면 «아무 유형이나»'
+         + '\n한 해에 나올 확률이 7~8% 입니다. 금은 그 네 배입니다.')
     ];
     frag.forEach(el=>cv?head.insertBefore(el,cv):head.appendChild(el));
   });
@@ -11583,6 +11594,15 @@ function hook(){
           return y-x || (b.year-a.year) || (b.session-a.session);
         });
       }
+      /* 기대점수 = 출제확률 × 배점. 배점이 안 적힌 문항은 평균(5.6점)으로 본다 */
+      if(F.sort==='pt'){
+        const AVG=100/18;
+        const val=r=>((info(r.id)?.p??0)/100)*((+r.points)||AVG);
+        use=use.slice().sort((a,b)=>{
+          const d=val(b)-val(a);
+          return d || (b.year-a.year) || (b.session-a.session);
+        });
+      }
       if(!use.length) use=all;            /* 하나도 안 남으면 거르지 않은 것으로 */
     }catch(e){ use=all }
     try{
@@ -11608,15 +11628,146 @@ function paintChips(){
   if(note){
     const m=ensure();
     if(!m){ note.textContent = BUILDING ? '문항을 세는 중입니다…' : ''; return }
-    const n=rowsAll().filter(rowPass).length;
+    const picked=rowsAll().filter(rowPass);
+    const n=picked.length;
     const cnt={g:0,s:0,b:0,r:0};
     m.forEach(v=>cnt[v.tier]=(cnt[v.tier]||0)+1);
     let un=0; m.forEach(v=>{ if(!v.ncs) un++ });
-    note.textContent=`금 ${cnt.g} · 은 ${cnt.s} · 동 ${cnt.b} · 나머지 ${cnt.r}`
+
+    /* ① 등급마다 «유형 수» 를 함께 — 문항 줄 수만 보면 공부량을 못 가늠한다 */
+    let tcnt={g:0,s:0,b:0,r:0}, tAll=0;
+    try{
+      const tm=typeMapAll();
+      tAll=tm.size;
+      tm.forEach(v=>tcnt[v.tier]=(tcnt[v.tier]||0)+1);
+    }catch(e){}
+    const cell=(k,nm)=>`${nm} ${cnt[k]}` + (tAll?`(${tcnt[k]}유형)`:'');
+
+    note.textContent=`${cell('g','금')} · ${cell('s','은')} · ${cell('b','동')} · ${cell('r','똥')}`
       + (window.NCS_GIJUN?`   · 출제기준 미분류 ${un}문항`:'')
       + ((F.tiers.length||F.types.length||F.ncs)?`   → 지금 조건 ${n}문항`:'');
+
+    /* ②③ 커버리지 한 줄 — «다 봐야 하나» 에 숫자로 답한다 */
+    const note2=$('#tagNote2');
+    if(note2){
+      let txt='';
+      try{
+        const cv=coverage(typeMap(picked));
+        if(cv){
+          txt=`지금 고른 ${cv.types}유형 → 다음 시험 기대 ${cv.q.toFixed(1)}문항 · ${Math.round(cv.pt)}점`
+            + `   (전체 ${cv.allTypes}유형)`;
+          const nr=newRate();
+          if(nr) txt += `   ·   최근 ${nr.exams}회차 신규 ${Math.round(nr.rate*100)}%`
+                      + ` → 기출로 덮을 수 있는 몫 ${Math.round((1-nr.rate)*100)}%`;
+        }
+      }catch(e){}
+      note2.textContent=txt;
+      note2.title='한 회차 18문항을 100점으로 놓고 셉니다.\n'
+        + '모든 유형의 기대값을 더하면 18문항이 되도록 눈금을 맞춰 두었습니다.\n'
+        + '신규 %는 최근 회차에서 «그 전에 나온 적 없는» 문항의 몫입니다 — 기출로는 못 덮는 몫입니다.';
+    }
   }
 }
+/* ══════════════════════════════════════════════════════════════
+   v242 — «문항 줄 수» 가 아니라 «유형 수» 로, 그리고 커버리지
+
+   여태 «금 98» 은 «금 문항 98줄» 이었다. 같은 유형이 여러 회차에 실려 있으면
+   그 줄이 다 금으로 세어졌으므로, 공부량을 가늠할 수가 없었다.
+   («금 98» 이 실제로는 41가지일 수 있다)
+
+   그래서 세 가지를 더 센다.
+     ① 유형 수  — 중복 묶기 덩어리 + 연관(닮음 0.5 이상)을 이어 붙인 한 덩어리를 1유형으로
+     ② 커버리지 — 지금 고른 유형들이 다음 시험에서 몇 문항 · 몇 점을 덮을지
+     ③ 신규율   — 최근 회차에서 «이전에 나온 적 없는» 문항이 몇 %인가
+                  = 기출로는 어차피 못 덮는 몫. 어디서 끊을지 정하는 근거다.
+   ══════════════════════════════════════════════════════════════ */
+let CL=null;                                   /* row id → 유형 대표 id */
+function clusters(){
+  if(CL) return CL;
+  CL=new Map();
+  const rows=rowsAll(); if(!rows.length) return CL;
+  const par=new Map();
+  const find=x=>{ let r=x; while(par.get(r)!==r) r=par.get(r); while(par.get(x)!==r){ const n=par.get(x); par.set(x,r); x=n; } return r };
+  const uni=(a,b)=>{ if(!par.has(a)||!par.has(b)) return; const ra=find(a), rb=find(b); if(ra!==rb) par.set(rb,ra); };
+  rows.forEach(r=>par.set(String(r.id),String(r.id)));
+  /* 같은 문제(중복 묶기) */
+  try{
+    const d=window.__pracDup && window.__pracDup();
+    if(d&&d.groups) d.groups.forEach(list=>{
+      const ids=(list||[]).map(x=>String(x.id)).filter(x=>par.has(x));
+      for(let i=1;i<ids.length;i++) uni(ids[0],ids[i]);
+    });
+  }catch(e){}
+  /* 한 핏줄(연관) — 0.5 이상만. 느슨하게 이으면 사슬로 번져 한 덩어리가 된다 */
+  try{
+    if(window.__pracRel) rows.forEach(r=>{
+      const id=String(r.id);
+      (window.__pracRel(id)||[]).forEach(x=>{ if(x&&x.sim>=0.5) uni(id,String(x.id)); });
+    });
+  }catch(e){}
+  rows.forEach(r=>CL.set(String(r.id), find(String(r.id))));
+  return CL;
+}
+
+/* 한 유형의 대표값 — 그 덩어리에서 확률이 가장 높은 문항을 대표로 삼는다 */
+function typeMap(list){
+  const cl=clusters(), m=ensure();
+  const out=new Map();                          /* 대표 id → {p, tier, pt} */
+  if(!m) return out;
+  (list||[]).forEach(r=>{
+    const key=cl.get(String(r.id))||String(r.id);
+    const t=m.get(String(r.id)); if(!t) return;
+    const cur=out.get(key);
+    if(!cur || t.p>cur.p) out.set(key,{ p:t.p, tier:t.tier, pt:(+r.points||0) });
+    else if(!cur.pt && +r.points) cur.pt=+r.points;
+  });
+  return out;
+}
+
+let TMALL=null;
+function typeMapAll(){ return (TMALL = TMALL || typeMap(rowsAll())); }
+
+/* 커버리지 — 한 회차(18문항) 기준.
+   한 해 확률 p 를 한 회차 확률로 내린다: 1−(1−p)^(1/3)
+   그리고 모든 유형을 더한 값이 실제 출제 문항 수가 되도록 눈금을 맞춘다.
+   («전체 합 = 한 회차 문항 수» 라는 것은 셈이 아니라 사실이므로 기댈 수 있다) */
+const PER_EXAM = 18;
+function coverage(sel){
+  const all=typeMapAll();
+  if(!all.size) return null;
+  const per=p=>1-Math.pow(1-Math.min(0.97,p/100),1/3);
+  let tot=0; all.forEach(v=>tot+=per(v.p));
+  const k = tot>0 ? PER_EXAM/tot : 1;            /* 눈금 맞춤 */
+  const pts=[...all.values()].map(v=>v.pt).filter(x=>x>0);
+  const avgPt = pts.length ? pts.reduce((a,b)=>a+b,0)/pts.length : 100/PER_EXAM;
+  let q=0, pt=0;
+  sel.forEach(v=>{ const e=per(v.p)*k; q+=e; pt+=e*(v.pt||avgPt); });
+  return { types:sel.size, q, pt, allTypes:all.size };
+}
+
+/* 신규율 — 최근 회차에서 «그 전에 나온 적 없는» 문항의 몫 */
+let NEWR=null;
+function newRate(){
+  if(NEWR!=null) return NEWR;
+  const m=ensure(); const rows=rowsAll();
+  if(!m||!rows.length) return null;
+  const keyOf=r=>`${r.year}-${r.session}`;
+  const ex=[...new Set(rows.map(keyOf))].sort((a,b)=>{
+    const [ay,as]=a.split('-').map(Number), [by,bs]=b.split('-').map(Number);
+    return (by-ay)||(bs-as);
+  }).slice(0,5);
+  if(!ex.length) return null;
+  let n=0, fresh=0;
+  rows.forEach(r=>{
+    if(!ex.includes(keyOf(r))) return;
+    const t=m.get(String(r.id)); if(!t) return;
+    n++;
+    const earlier=(t.years||[]).some(y=>y<+r.year);
+    if(!earlier) fresh++;
+  });
+  return (NEWR = n ? { n, fresh, rate:fresh/n, exams:ex.length } : null);
+}
+
 function mount(){
   const find=$('.deck .dcol-find'); if(!find||$('#tagRow')) return false;
   const box=document.createElement('div');
@@ -11635,9 +11786,11 @@ function mount(){
       <select id="tagNcs" title="한국산업인력공단 출제기준(2024.1.1.~2026.12.31.) 주요항목"><option value="">전체 항목</option></select>
       <span class="sep"></span>
       <button type="button" data-sort="hot" title="출제확률이 높은 순서로 줄 세웁니다">🔥 빈출순</button>
+      <button type="button" data-sort="pt" title="출제확률 × 배점 — 공부해서 점수가 제일 많이 붙는 순서입니다">💯 기대점수순</button>
       <button type="button" data-clear>초기화</button>
     </div>
-    <div class="tagnote" id="tagNote"></div>`;
+    <div class="tagnote" id="tagNote"></div>
+    <div class="tagnote" id="tagNote2"></div>`;
   find.appendChild(box);
 
   /* 출제기준 주요항목 채우기 */
@@ -19268,7 +19421,7 @@ body.rzdrag .pane,body.rzdrag .pcol{pointer-events:none}
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=241").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=242").catch(() => {}));
 </script>
 </body>
 </html>
