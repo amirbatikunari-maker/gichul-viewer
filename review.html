@@ -2142,7 +2142,7 @@ function cropParts(parts){
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=237").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=239").catch(() => {}));
 </script>
 </body>
 </html>
