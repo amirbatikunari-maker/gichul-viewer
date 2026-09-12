@@ -1050,5 +1050,13 @@ boot();
 <script src="./ai-chat.js" defer></script>
 <script src="./ai-viewer.js" defer></script>
 <script src="./app-enhance.js?v=232" defer></script>
+<script>
+/* ★ v235 — 서비스워커(그림 캐시)를 이 화면에서도 켠다.
+   여태 index.html 에서만 켰다. 그런데 주소창에 바로 /practice 를 치고 들어오면
+   서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
+   같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
+if("serviceWorker" in navigator && location.protocol.startsWith("http"))
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=235").catch(() => {}));
+</script>
 </body>
 </html>

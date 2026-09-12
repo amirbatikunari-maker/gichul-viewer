@@ -12,8 +12,15 @@
 const SHELL = "shell-v235", DATA = "data-v3", IMG = "img-v1";
 const FILES = ["./","./index.html","./config.js","./ai-chat.js","./ai-viewer.js","./ai-explain.js","./ncs-gijun.js","./music.js","./manifest.json","./icon.svg","./practice.html","./calc.html","./upload.html","./ingest.html","./interview.html","./portfolio.html","./app-enhance.css","./app-enhance.js","./calc-engine.js","./explain-batch.html","./storage-clean.html","./review.html","./simple.js"];
 
+/* ★ v235 — 한 파일이라도 못 받으면 addAll 은 통째로 실패하고,
+   그러면 서비스워커가 아예 안 깔린다(= 그림 캐시도 안 돈다).
+   한 장씩 담고, 실패한 것은 그냥 넘어간다. */
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(SHELL).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(SHELL)
+      .then(c => Promise.all(FILES.map(f => c.add(f).catch(() => {}))))
+      .then(() => self.skipWaiting())
+  );
 });
 self.addEventListener("activate", e => {
   e.waitUntil(caches.keys().then(ks =>
