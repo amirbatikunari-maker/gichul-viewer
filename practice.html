@@ -6544,7 +6544,7 @@ sb?.auth?.onAuthStateChange?.((evt, session) => setTimeout(() => {
 </script>
 
 <!-- ══ AI 대화 상자 ══ config.js 의 AI_WORKER_URL 을 채워야 작동합니다 -->
-<script src="./ai-chat.js?v=242" defer></script>
+<script src="./ai-chat.js?v=246" defer></script>
 <script src="./ai-viewer.js" defer></script>
 <script>
 (function(){
@@ -11325,15 +11325,25 @@ function probOf(l){
 
 /* 등급 — 뱃지에 적힌 «출제확률» 그 숫자로 끊는다 (v240).
    주기로 끊었더니 뱃지 숫자와 색이 따로 놀았다. 눈에 보이는 값으로 끊는 것이 맞다.
-   표에 든 유형이 대략 700가지면 «아무 유형이나» 한 해에 나올 확률은 7~8% 다.
-   그 기준선 위로 몇 배냐로 끊는다.
-      금  30% 이상 — 기준선의 네 배. 3년 안쪽 주기
-      은  18~30%  — 두세 배. 4~5년 주기
-      동   9~18%  — 기준선 언저리
-      똥   9% 미만 — 기준선 아래 */
-function tierOf(l){
-  const p = probOf(l);                              /* 뱃지에 적힌 바로 그 숫자로 끊는다 */
-  return p >= 30 ? 'g' : p >= 18 ? 's' : p >= 9 ? 'b' : 'r';
+   (등급 잣대는 아래 tierOf 참고 — v246 에서 «누적 횟수» 축이 하나 더 붙었다) */
+/* ★ v246 — 축을 둘로 늘린다.
+   여태는 «최근 가중 확률» 한 축이었다. 그러면 26년 동안 열 번 나왔지만
+   요 몇 해 뜸한 «고전 단골» 이 통째로 아래로 밀린다. 실제로 금이 30문항밖에 안 나왔다.
+   문제집(타우린 등)이 «24개년 누적 출제 횟수» 로 금은동을 나누는 데는 까닭이 있다 —
+   여러 번 나왔다는 사실 자체가 «출제자가 좋아하는 주제» 라는 증거다.
+   그래서 둘 중 하나만 넘으면 그 등급을 준다.
+     금  확률 25% 이상  또는  통틀어 5번 이상 나온 유형
+     은  확률 15% 이상  또는  통틀어 3번 이상
+     동  확률  8% 이상  또는  통틀어 2번 이상
+     똥  한 번 나오고 만 유형
+   확률 축은 «지금 뜨는 것» 을, 횟수 축은 «원래 단골» 을 잡는다. 둘 다 필요하다. */
+function tierOf(l, nAll){
+  const p = probOf(l);
+  const n = nAll || 0;
+  if(p >= 25 || n >= 5) return 'g';
+  if(p >= 15 || n >= 3) return 's';
+  if(p >= 8  || n >= 2) return 'b';
+  return 'r';
 }
 /* 출제 이력이 비어 있는 문항 — 예전에는 아주 다른 셈(닮은 정도)으로 등급을 매겨
    두 체계가 한 화면에 섞였다. 이제는 «한 핏줄 문항» 들이 실린 해를 빌려 와
@@ -11462,7 +11472,7 @@ function buildNow(){
       const last = ys[0] || 0;
       const gap  = last ? Math.max(0, NOWY - last) : 99;
       const LAM  = rateOf(ys), CYC = cycleOf(LAM);
-      const P    = probOf(LAM), TIER = tierOf(LAM);
+      const P    = probOf(LAM), TIER = tierOf(LAM, nAll);
 
       const o={ p:P, tier:TIER, n5, nAll, last, gap, years:ys, lam:LAM, cyc:CYC,
                 selfN, selfLast,
@@ -11516,7 +11526,7 @@ function stamp_(root){
         + `\n마지막 출제 ${t.last||'?'}년 (${t.gap>=99?'아주 오래전':t.gap+'년 전'})`
         + `\n평균 ${(t.cyc||0)<50?(t.cyc||0).toFixed(1)+'년':'수십 년'}마다 한 번 도는 유형`
         + whereFrom
-        + `\n\n등급 — 금 30% 이상 · 은 18% · 동 9% · 똥 그 아래`
+        + `\n\n등급 — 확률 25/15/8% 또는 누적 5/3/2번 중 하나만 넘으면 금/은/동`
         + `\n저울 — 반감기 ${HALF}년(출제기준 개정 주기에 맞춤)`
         + `\n${BACK}년보다 오래된 이력은 «핵심이라는 증거» 로만 조금 셉니다`
         + `\n안 나온 해도 함께 세므로 «확률» 이 됩니다`;
@@ -11530,13 +11540,13 @@ function stamp_(root){
           + (t.ncs.why?`\n«${t.ncs.why}»`:'')
           + `\n(${window.NCS_GIJUN?.period||''})`)] : []),
       mk(t.tier, TL[t.tier],
-         '등급 — 왼쪽에 적힌 «출제확률» 그 숫자로 끊습니다'
-         + '\n금  30% 이상 — 되풀이가 또렷 (3년 안쪽 주기)'
-         + '\n은  18~30% — 되풀이가 확인됨 (4~5년 주기)'
-         + '\n동  9~18% — 기준선 언저리 (최근 한 번 / 8~10년 주기)'
-         + '\n똥  9% 미만 — 기준선 아래'
-         + '\n\n기준선 — 표에 든 유형이 700가지쯤이면 «아무 유형이나»'
-         + '\n한 해에 나올 확률이 7~8% 입니다. 금은 그 네 배입니다.')
+         '등급 — «출제확률» 과 «누적 횟수» 두 축 중 하나만 넘으면 됩니다'
+         + '\n금  확률 25% 이상  또는  통틀어 5번 이상'
+         + '\n은  확률 15% 이상  또는  통틀어 3번 이상'
+         + '\n동  확률  8% 이상  또는  통틀어 2번 이상'
+         + '\n똥  한 번 나오고 만 유형'
+         + '\n\n확률 축은 «지금 뜨는 것» 을, 횟수 축은 «원래 단골» 을 잡습니다.'
+         + `\n이 문항 — 확률 ${t.p}% · 누적 ${t.nAll}번`)
     ];
     frag.forEach(el=>cv?head.insertBefore(el,cv):head.appendChild(el));
   });
@@ -11698,6 +11708,17 @@ function clusters(){
       for(let i=1;i<ids.length;i++) uni(ids[0],ids[i]);
     });
   }catch(e){}
+  /* 문제집이 같은 «출제 연도» 목록을 적어 준 것끼리 (v245)
+     — 책이 «같은 문제» 라고 표시해 준 것이므로 가장 믿을 만하다. 사슬로 번질 일도 없다 */
+  try{
+    const byA=new Map();
+    rows.forEach(r=>{
+      const a=String(r.asked||'').replace(/\s+/g,'');
+      if(a.length<4) return;                       /* 한 해만 적힌 것은 근거가 못 된다 */
+      (byA.get(a)||byA.set(a,[]).get(a)).push(String(r.id));
+    });
+    byA.forEach(ids=>{ for(let i=1;i<ids.length;i++) uni(ids[0],ids[i]); });
+  }catch(e){}
   /* 한 핏줄(연관) — 0.5 이상만. 느슨하게 이으면 사슬로 번져 한 덩어리가 된다 */
   try{
     if(window.__pracRel) rows.forEach(r=>{
@@ -11714,9 +11735,18 @@ function typeMap(list){
   const cl=clusters(), m=ensure();
   const out=new Map();                          /* 대표 id → {p, tier, pt} */
   if(!m) return out;
+  /* ★ v246 — «나온 해 목록이 똑같은 것» 끼리 한 유형으로 본다.
+     글자 닮음으로 못 묶은 조각도 이력이 같으면 같은 문제다. 사슬로 번질 일도 없다.
+     («2034문항 → 1665유형» 처럼 유형이 잘게 쪼개지던 것을 여기서 줄인다) */
+  const sigMap=new Map();
   (list||[]).forEach(r=>{
-    const key=cl.get(String(r.id))||String(r.id);
+    let key=cl.get(String(r.id))||String(r.id);
     const t=m.get(String(r.id)); if(!t) return;
+    const ys=t.years;
+    if(ys&&ys.length>=2){
+      const sig=ys.join(',');
+      if(sigMap.has(sig)) key=sigMap.get(sig); else sigMap.set(sig,key);
+    }
     const cur=out.get(key);
     if(!cur || t.p>cur.p) out.set(key,{ p:t.p, tier:t.tier, pt:(+r.points||0) });
     else if(!cur.pt && +r.points) cur.pt=+r.points;
@@ -19414,6 +19444,650 @@ body.rzdrag .pane,body.rzdrag .pcol{pointer-events:none}
 })();
 </script>
 
+<script>
+
+/* ══════════════════════════════════════════════════════════════
+   v244 · 잘라 나누기 — 검수 화면 가지 않고 여기서 바로
+
+   원본 한 장에 문제와 답이 같이 찍혀 있거나, 위아래에 쓸데없는 여백·머리글이
+   붙어 있는 일이 잦다. 여태 그걸 고치려면 «검수» 화면까지 가야 했다.
+   문항 카드와 «한눈에» 에서 바로 하도록 옮겨 왔다.
+
+   하는 일
+     · 그림 위를 누르면 그 자리에 가로 절단선이 생긴다. 끌어서 옮기고 ×로 지운다.
+     · 선으로 나뉜 칸마다 «문제 / 답 / 버림» 을 고른다.
+     · 저장하면 문제로 고른 칸을 위에서 아래로 이어 붙여 문제 그림으로,
+       답으로 고른 칸을 이어 붙여 답 그림으로 올린다. 버림은 그냥 사라진다.
+
+   ★ 카드의 «✂ 자르기» 와 다르다 — 그것은 보여 주는 틀만 바꾸고 파일은 그대로다.
+     이것은 저장소의 그림 파일 자체를 새로 만든다.
+   ══════════════════════════════════════════════════════════════ */
+(function(){
+'use strict';
+const $ = (s,r=document)=>r.querySelector(s);
+/* 이 화면의 문항 목록은 앞 script 의 ROWS 에 들어 있다 (classic script 끼리 전역을 나눠 쓴다) */
+const allRows=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
+const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
+
+/* ── 모양 ── */
+const css = document.createElement('style');
+css.textContent = `
+.cutw{position:fixed;inset:0;z-index:6000;display:none;background:rgba(15,23,42,.62);
+  backdrop-filter:blur(2px);align-items:center;justify-content:center;padding:16px}
+.cutw.on{display:flex}
+.cutbox{width:min(1060px,100%);max-height:94vh;display:flex;flex-direction:column;
+  background:var(--paper,#fff);border-radius:16px;overflow:hidden;
+  box-shadow:0 24px 70px rgba(2,6,23,.45)}
+.cuth{display:flex;align-items:center;gap:8px;padding:11px 14px;
+  border-bottom:1px solid var(--rule,#e6eaf0);flex-wrap:wrap}
+.cuth b{font:700 13.5px/1 var(--font-d,system-ui);color:var(--ink,#0f172a)}
+.cuth .sp{flex:1}
+.cutb{padding:12px 14px;overflow:auto;flex:1}
+.cutstage{position:relative;display:inline-block;max-width:100%;
+  border:1px solid var(--rule,#e6eaf0);border-radius:10px;overflow:hidden;background:#fff}
+.cutstage canvas{display:block;max-width:100%;height:auto;cursor:crosshair}
+.cutline{position:absolute;left:0;right:0;height:0;border-top:2px dashed #1d4ed8;
+  cursor:ns-resize;z-index:5}
+.cutline::after{content:'';position:absolute;left:0;right:0;top:-7px;height:14px}
+.cutline i{position:absolute;right:4px;top:-11px;width:20px;height:20px;border-radius:50%;
+  background:#1d4ed8;color:#fff;font:700 12px/20px var(--font-d,system-ui);
+  text-align:center;font-style:normal;cursor:pointer}
+.cutlab{position:absolute;left:6px;padding:1px 7px;border-radius:999px;
+  font:700 10.5px/17px var(--font-d,system-ui);z-index:4;pointer-events:none}
+.cutlab.q{background:#dbeafe;color:#1e40af}
+.cutlab.a{background:#dcfce7;color:#15803d}
+.cutlab.x{background:#f1f5f9;color:#64748b}
+.cutband{position:absolute;left:0;right:0;z-index:2;pointer-events:none}
+.cutband.q{background:rgba(29,78,216,.08)}
+.cutband.a{background:rgba(21,128,61,.08)}
+.cutband.x{background:rgba(100,116,139,.16)}
+.cutsegs{display:grid;gap:6px;margin-top:11px}
+.cutseg{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:9px;
+  border:1px solid var(--rule,#e6eaf0);background:var(--surface-2,#f8fafc)}
+.cutseg span.n{font:700 11px/1 var(--font-d,system-ui);color:var(--ink-2,#64748b);min-width:52px}
+.cutseg .px{font:500 10.5px/1 var(--font-d,system-ui);color:var(--muted,#94a3b8);flex:1}
+.cutseg button{height:26px;padding:0 11px;border-radius:8px;cursor:pointer;
+  border:1px solid var(--rule,#e2e8f0);background:#fff;color:var(--ink,#0f172a);
+  font:700 11px/1 var(--font-d,system-ui)}
+.cutseg button.on[data-v="q"]{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+.cutseg button.on[data-v="a"]{background:#15803d;border-color:#15803d;color:#fff}
+.cutseg button.on[data-v="x"]{background:#64748b;border-color:#64748b;color:#fff}
+.cutf{display:flex;align-items:center;gap:8px;padding:11px 14px;
+  border-top:1px solid var(--rule,#e6eaf0);flex-wrap:wrap}
+.cutf .msg{flex:1;font:500 11.5px/1.5 var(--font-d,system-ui);color:var(--muted,#64748b)}
+.cutw button.b{height:31px;padding:0 12px;border-radius:9px;cursor:pointer;
+  border:1px solid var(--rule,#e2e8f0);background:#fff;color:var(--ink,#0f172a);
+  font:700 11.5px/1 var(--font-d,system-ui)}
+.cutw button.b:hover{background:var(--surface-2,#f6f8fb)}
+.cutw button.b.go{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+.cutw button.b:disabled{opacity:.45;cursor:default}
+.cutnote{font:500 11px/1.55 var(--font-d,system-ui);color:var(--muted,#64748b);margin:0 0 9px}
+`;
+document.head.appendChild(css);
+
+/* ── 창 ── */
+let W=null, CV=null, STAGE=null, SEGBOX=null, MSG=null;
+let IMG=null, LINES=[], ROW=null, FROM='q', SLOT=[];   /* SLOT[i] = 'q'|'a'|'x' */
+
+function build(){
+  if(W) return W;
+  W=document.createElement('div'); W.className='cutw';
+  W.innerHTML=`<div class="cutbox">
+    <div class="cuth">
+      <b data-nm>잘라 나누기</b><span class="sp"></span>
+      <button type="button" class="b" data-ai>AI로 경계 찾기</button>
+      <button type="button" class="b" data-clr>선 지우기</button>
+      <button type="button" class="b" data-x>닫기</button>
+    </div>
+    <div class="cutb">
+      <p class="cutnote">그림 위를 <b>누르면</b> 그 자리에 절단선이 생깁니다. 선을 <b>끌어서</b> 옮기고,
+        오른쪽 <b>×</b>로 지웁니다. 나뉜 칸마다 <b>문제 · 답 · 버림</b>을 고르세요.<br>
+        저장하면 문제로 고른 칸끼리, 답으로 고른 칸끼리 위에서 아래로 이어 붙여 올립니다.
+        <b>버림</b>은 사라집니다 — 여백·머리글을 이걸로 떼어 냅니다.</p>
+      <div class="cutstage" data-stage><canvas></canvas></div>
+      <div class="cutsegs" data-segs></div>
+    </div>
+    <div class="cutf">
+      <span class="msg" data-msg></span>
+      <button type="button" class="b" data-x2>취소</button>
+      <button type="button" class="b go" data-save>잘라서 저장</button>
+    </div>
+  </div>`;
+  document.body.appendChild(W);
+  CV=$('canvas',W); STAGE=$('[data-stage]',W); SEGBOX=$('[data-segs]',W); MSG=$('[data-msg]',W);
+
+  W.addEventListener('click',e=>{ if(e.target===W) close(); });
+  $('[data-x]',W).onclick=close; $('[data-x2]',W).onclick=close;
+  $('[data-clr]',W).onclick=()=>{ LINES=[]; paint(); };
+  $('[data-ai]',W).onclick=askAI;
+  $('[data-save]',W).onclick=save;
+
+  /* 그림을 누르면 그 자리에 선 */
+  CV.addEventListener('pointerdown',e=>{
+    const b=CV.getBoundingClientRect();
+    const y=Math.round((e.clientY-b.top)/b.height*CV.height);
+    if(y<8||y>CV.height-8) return;
+    LINES.push(y); paint();
+  });
+  addEventListener('keydown',e=>{ if(W.classList.contains('on')&&e.key==='Escape') close(); });
+  return W;
+}
+
+const say=(t)=>{ if(MSG) MSG.textContent=t||''; };
+function close(){ W&&W.classList.remove('on'); IMG=null; LINES=[]; ROW=null; }
+
+/* ── 칸 나누기 ── */
+function segs(){
+  if(!IMG) return [];
+  const ys=[0,...LINES.slice().sort((a,b)=>a-b),CV.height];
+  const out=[];
+  for(let i=0;i<ys.length-1;i++) if(ys[i+1]-ys[i]>10) out.push([ys[i],ys[i+1]]);
+  return out;
+}
+
+function paint(){
+  if(!IMG) return;
+  const g=CV.getContext('2d');
+  g.fillStyle='#fff'; g.fillRect(0,0,CV.width,CV.height);
+  g.drawImage(IMG,0,0,CV.width,CV.height);
+
+  $$('.cutline,.cutlab,.cutband',STAGE).forEach(x=>x.remove());
+  const list=segs();
+  /* 칸 배정이 모자라면 채운다 — 처음 열면 위=문제, 아래=답 */
+  while(SLOT.length<list.length) SLOT.push(SLOT.length?'a':'q');
+  SLOT.length=list.length;
+
+  const pct=v=>v/CV.height*100;
+  list.forEach(([a,b],i)=>{
+    const v=SLOT[i]||'x';
+    const band=document.createElement('div');
+    band.className='cutband '+v;
+    band.style.cssText=`top:${pct(a)}%;height:${pct(b-a)}%`;
+    STAGE.appendChild(band);
+    const lab=document.createElement('div');
+    lab.className='cutlab '+v;
+    lab.textContent=`칸 ${i+1} · ${v==='q'?'문제':v==='a'?'답':'버림'}`;
+    lab.style.top=`calc(${pct(a)}% + 5px)`;
+    STAGE.appendChild(lab);
+  });
+
+  LINES.slice().sort((a,b)=>a-b).forEach(y=>{
+    const el=document.createElement('div');
+    el.className='cutline'; el.style.top=pct(y)+'%';
+    el.innerHTML='<i>×</i>';
+    el.querySelector('i').onclick=ev=>{ ev.stopPropagation();
+      LINES=LINES.filter(v=>v!==y); paint(); };
+    el.addEventListener('pointerdown',ev=>{
+      ev.preventDefault(); ev.stopPropagation();
+      const box=CV.getBoundingClientRect(); const from=y;
+      const mv=e2=>{
+        const ny=Math.round(Math.min(Math.max((e2.clientY-box.top)/box.height,0),1)*CV.height);
+        LINES=LINES.map(v=>v===y?ny:v); y=ny; el.style.top=pct(ny)+'%';
+      };
+      const up=()=>{ removeEventListener('pointermove',mv); removeEventListener('pointerup',up);
+        if(y!==from) paint(); };
+      addEventListener('pointermove',mv); addEventListener('pointerup',up,{once:true});
+    });
+    STAGE.appendChild(el);
+  });
+  drawSegs();
+}
+
+function drawSegs(){
+  const list=segs();
+  SEGBOX.innerHTML=list.map(([a,b],i)=>`
+    <div class="cutseg" data-i="${i}">
+      <span class="n">칸 ${i+1}</span>
+      <span class="px">세로 ${a}~${b}px · ${b-a}px</span>
+      <button type="button" data-v="q" class="${SLOT[i]==='q'?'on':''}">문제</button>
+      <button type="button" data-v="a" class="${SLOT[i]==='a'?'on':''}">답</button>
+      <button type="button" data-v="x" class="${SLOT[i]==='x'?'on':''}">버림</button>
+    </div>`).join('') || `<p class="cutnote">선을 그으면 칸이 생깁니다.</p>`;
+  $$('.cutseg button',SEGBOX).forEach(b=>b.onclick=()=>{
+    const i=+b.closest('.cutseg').dataset.i;
+    SLOT[i]=b.dataset.v; paint();
+  });
+}
+
+/* ── 열기 ── */
+async function open_(id, which){
+  build();
+  ROW = allRows().find(r=>String(r.id)===String(id));
+  if(!ROW) return;
+  FROM = which==='a' ? 'a' : 'q';
+  const src = FROM==='a' ? ROW.a_url : ROW.q_url;
+  if(!src){ alert('이 칸에는 아직 그림이 없습니다.'); return; }
+
+  W.classList.add('on');
+  $('[data-nm]',W).textContent =
+    `잘라 나누기 — ${ROW.year}년 제${ROW.session}회 ${ROW.no}번 · ${FROM==='a'?'답':'문제'} 그림`;
+  LINES=[]; SLOT=[]; IMG=null; say('그림을 불러오는 중…');
+  SEGBOX.innerHTML='';
+
+  try{
+    /* 주소를 그대로 img.src 에 넣으면 캔버스가 «오염» 돼 잘라내지 못한다.
+       파일로 받아서 넣으면 그 문제가 없다. */
+    const res=await fetch(src,{mode:'cors'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const blob=await res.blob();
+    const im=await new Promise((ok,no)=>{
+      const x=new Image();
+      x.onload=()=>ok(x); x.onerror=()=>no(new Error('그림을 읽지 못했습니다'));
+      x.src=URL.createObjectURL(blob);
+    });
+    IMG=im;
+    const w=Math.min(1200,im.naturalWidth||im.width);
+    CV.width=w; CV.height=Math.round((im.naturalHeight||im.height)*w/(im.naturalWidth||im.width));
+    paint();
+    say(FROM==='a'
+      ? '답 그림입니다 — 위쪽에 문제가 섞여 있으면 그 경계에 선을 그으세요.'
+      : '문제 그림입니다 — 답이 시작되는 자리에 선을 그으세요.');
+  }catch(e){
+    say('불러오지 못했습니다 — '+(e.message||e));
+  }
+}
+
+/* ── AI 로 경계 찾기 — 워커의 /split-hint 를 그대로 쓴다 ── */
+async function askAI(){
+  if(!IMG||!ROW) return say('그림을 먼저 불러오세요.');
+  const CFG=window.APP_CONFIG||{};
+  const base=(CFG.CLAUDE_WORKER_URL||CFG.AI_WORKER_URL||'').replace(/\/+$/,'');
+  if(!base) return say('config.js 에 워커 주소가 없습니다.');
+  const url = FROM==='a' ? ROW.a_url : ROW.q_url;
+  const b=$('[data-ai]',W); const old=b.textContent;
+  b.disabled=true; b.textContent='보는 중…';
+  try{
+    const r=await fetch(base+'/split-hint',{
+      method:'POST',
+      headers:Object.assign({'Content-Type':'application/json'},
+        (CFG.CLAUDE_APP_KEY||CFG.AI_APP_KEY)?{'x-app-key':(CFG.CLAUDE_APP_KEY||CFG.AI_APP_KEY)}:{}),
+      body:JSON.stringify({ url, slot:FROM })
+    });
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(d.error||('HTTP '+r.status));
+    if(!d.ok){
+      say(d.found ? '경계를 찾긴 했는데 미덥지 않아 긋지 않았습니다 — 직접 그어 주세요.'
+                  : '이 그림에는 답이 같이 있지 않은 것 같습니다.');
+      return;
+    }
+    LINES=[Math.round(CV.height*d.y)]; SLOT=['q','a']; paint();
+    say('선을 그었습니다 — '+(d.why||'확인하고 필요하면 끌어서 옮기세요.'));
+  }catch(e){ say('실패 — '+(e.message||e)); }
+  finally{ b.disabled=false; b.textContent=old; }
+}
+
+/* ── 저장 ── */
+function build1(list, want){
+  const parts=list.filter((_,i)=>SLOT[i]===want);
+  if(!parts.length) return null;
+  const h=parts.reduce((t,[a,b])=>t+(b-a),0);
+  const out=document.createElement('canvas');
+  out.width=CV.width; out.height=h;
+  const g=out.getContext('2d');
+  g.fillStyle='#fff'; g.fillRect(0,0,out.width,out.height);
+  let y=0;
+  parts.forEach(([a,b])=>{ g.drawImage(CV,0,a,CV.width,b-a,0,y,CV.width,b-a); y+=b-a; });
+  return out;
+}
+
+async function save(){
+  if(!IMG||!ROW) return say('그림을 먼저 불러오세요.');
+  const list=segs();
+  if(!list.length) return say('선을 먼저 그어 주세요.');
+  if(SLOT.every(v=>v==='x')) return say('모두 «버림» 입니다 — 남길 칸을 골라 주세요.');
+
+  const b=$('[data-save]',W); const old=b.textContent;
+  b.disabled=true; b.textContent='자르는 중…';
+  try{
+    const jobs=[];
+    for(const want of ['q','a']){
+      const cv=build1(list,want);
+      if(!cv) continue;
+      const blob=await new Promise(r=>cv.toBlob(r,'image/jpeg',0.82));
+      jobs.push({ want, blob });
+    }
+    if(!jobs.length) throw new Error('남길 칸이 없습니다');
+
+    const patch={};
+    for(const j of jobs){
+      b.textContent='올리는 중…';
+      const path=`${ROW.subject_id}/${ROW.year}_${ROW.session}_${ROW.no}_${j.want}.jpg`;
+      const url=await put(path, j.blob);
+      patch[j.want==='q'?'q_url':'a_url']=url;
+    }
+    const up=await sb.from('practicals').update(patch).eq('id',ROW.id);
+    if(up.error) throw up.error;
+    Object.assign(ROW,patch);
+
+    /* 캐시에 남은 예전 그림을 지운다 — 주소가 바뀌었으니 새것을 받는다 */
+    try{ const c=await caches.open('img-v1'); await Promise.all(Object.values(patch).map(u=>c.delete(u))); }catch(e){}
+    try{ cacheSaveRows(); }catch(e){}
+
+    say('저장했습니다.');
+    close();
+    try{ drawList(); }catch(e){}
+    try{ window.__pracLog && window.__pracLog(`${ROW.year}년 ${ROW.session}회 ${ROW.no}번 — 그림을 잘라 나눴습니다`); }catch(e){}
+  }catch(e){
+    say('저장하지 못했습니다 — '+(e.message||e));
+  }finally{ b.disabled=false; b.textContent=old; }
+}
+
+window.__pracCut = open_;
+
+/* ── 단추 붙이기 ──
+   카드의 도구줄과 «한눈에» 머리줄 양쪽에 넣는다. 목록은 수시로 다시 그려지므로
+   지켜보다가 없으면 다시 붙인다. */
+function addBtns(){
+  $$('#list .pcard .ptools').forEach(bar=>{
+    const ov=bar.querySelector('[data-ov]'); if(!ov) return;
+    if(bar.querySelector('[data-cutsplit]')) return;
+    const id=ov.dataset.ov;
+    const b=document.createElement('button');
+    b.type='button'; b.className='zb'; b.dataset.cutsplit=id;
+    b.textContent='✂ 잘라 나누기';
+    b.title='그림 하나에 문제와 답이 같이 있거나 여백이 붙어 있을 때 — 선을 그어 나누고 저장합니다\n(«✂ 자르기» 는 보여 주는 틀만 바꾸고, 이것은 그림 파일을 새로 만듭니다)';
+    b.onclick=()=>pick(id);
+    ov.after(b);
+  });
+  /* 한눈에 머리줄 */
+  const oh=document.querySelector('#ovl .oh');
+  if(oh && !oh.querySelector('[data-cutsplit]')){
+    const b=document.createElement('button');
+    b.type='button'; b.className='zb'; b.dataset.cutsplit='ov';
+    b.textContent='✂ 잘라 나누기';
+    b.title='보고 있는 문항의 그림을 선으로 나눠 문제·답으로 다시 저장합니다';
+    b.onclick=()=>{ let id=null; try{ id=OVID }catch(e){} if(id) pick(id); };
+    const anchor=oh.querySelector('#ovText');
+    anchor ? anchor.after(b) : oh.appendChild(b);
+  }
+}
+
+/* 문제·답 둘 다 있으면 어느 쪽을 자를지 먼저 묻는다 */
+function pick(id){
+  const r=allRows().find(x=>String(x.id)===String(id)); if(!r) return;
+  if(r.q_url&&r.a_url){
+    const a=confirm('어느 그림을 나눌까요?\n\n[확인] 문제 그림\n[취소] 답 그림');
+    open_(id, a?'q':'a');
+  }else open_(id, r.q_url?'q':'a');
+}
+
+/* 목록은 수시로 다시 그려지므로 틈틈이 다시 붙인다.
+   (탭이 숨으면 쉬도록 위에서 걸어 둔 장치가 여기에도 걸린다) */
+setInterval(addBtns,1200);
+addEventListener('load',addBtns);
+setTimeout(addBtns,600); setTimeout(addBtns,2500);
+})();
+
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   v245 · 책 등급 — 내가 가진 문제집의 금·은·동을 같이 얹는다
+
+   왜 앱 등급과 따로 두는가
+     앱 등급은 «최근 가중 확률» 이고, 문제집 등급은 대개 «누적 출제 횟수» 다.
+     재는 것이 다르므로 둘 중 하나를 지우면 정보가 준다.
+     20년 만에 그대로 복붙되는 문항은 누적 쪽이 잘 잡고,
+     출제기준이 바뀐 뒤 죽은 유형은 최근 쪽이 잘 잡는다. 같이 보는 게 맞다.
+
+   넣는 법 셋
+     ① 문항 머리의 «📘» 칩을 눌러 금→은→동→똥→없음 으로 돌린다 (제일 빠름)
+     ② 창에서 줄줄이 붙여넣기 — «26-2-8 금» / «2026 2 8 금 3-2» 처럼
+     ③ 내보내기로 백업
+
+   세 번째 칸은 «단원» 이다. 출제기준 미분류를 메우는 데 쓴다.
+   자료는 이 기기에만 남는다 (localStorage) — 표를 건드리지 않는다.
+   ══════════════════════════════════════════════════════════════ */
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const KEY='prac:book:v1';
+const TL={g:'금',s:'은',b:'동',r:'똥'};
+const ORDER=['g','s','b','r'];
+const rowsAll=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
+const sid=()=>{ try{ return +($('#fSub')||{}).value||0 }catch(e){ return 0 } };
+const kOf=r=>`${sid()}|${r.year}-${r.session}-${r.no}`;
+
+let BAG=null;
+function bag(){
+  if(BAG) return BAG;
+  try{ BAG=JSON.parse(localStorage.getItem(KEY)||'{}') }catch(e){ BAG={} }
+  return BAG;
+}
+function put(r,v){
+  const b=bag(), k=kOf(r);
+  if(!v) delete b[k]; else b[k]=v;
+  try{ localStorage.setItem(KEY,JSON.stringify(b)) }catch(e){}
+}
+const get=r=>bag()[kOf(r)]||null;      /* {t:'g', u:'3-2'} */
+
+/* ── 모양 ── */
+const st=document.createElement('style');
+st.textContent=`
+.bkb{flex:none;display:inline-flex;align-items:center;gap:3px;height:19px;padding:0 7px;
+  border-radius:999px;border:1px solid var(--rule,#e2e8f0);background:var(--surface-2,#f1f5f9);
+  color:var(--ink-2,#64748b);font:700 10px/1 var(--font-d,system-ui);cursor:pointer;white-space:nowrap}
+.bkb.g{background:#fff7e0;border-color:#e9c46a;color:#8a6100}
+.bkb.s{background:#f2f5f9;border-color:#c3ccd8;color:#4a5768}
+.bkb.b{background:#fdf0e6;border-color:#dcb08a;color:#8a552a}
+.bkb.r{background:#f4f1ec;border-color:#cbc3b6;color:#6b5f4e}
+.bkb.diff{box-shadow:0 0 0 2px rgba(220,38,38,.28)}
+@media(max-width:620px){ .bkb{height:17px;padding:0 5px;font-size:9px} }
+.bkw{position:fixed;inset:0;z-index:6100;display:none;align-items:center;justify-content:center;
+  background:rgba(15,23,42,.6);padding:16px}
+.bkw.on{display:flex}
+.bkbox{width:min(880px,100%);max-height:92vh;display:flex;flex-direction:column;
+  background:var(--paper,#fff);border-radius:16px;overflow:hidden;box-shadow:0 24px 70px rgba(2,6,23,.45)}
+.bkh{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--rule,#e6eaf0)}
+.bkh b{font:700 13.5px/1 var(--font-d,system-ui)} .bkh .sp{flex:1}
+.bkbd{padding:13px 14px;overflow:auto;flex:1}
+.bkbd h4{font:700 12px/1 var(--font-d,system-ui);margin:14px 0 7px;color:var(--ink-2,#475569)}
+.bkbd h4:first-child{margin-top:0}
+.bkbd p.n{font:500 11.5px/1.6 var(--font-d,system-ui);color:var(--muted,#64748b);margin:0 0 8px}
+.bkbd textarea{width:100%;min-height:110px;resize:vertical;border:1px solid var(--rule,#e2e8f0);
+  border-radius:10px;padding:9px 11px;font:500 12px/1.6 ui-monospace,monospace;background:var(--surface,#fff);
+  color:var(--ink,#0f172a)}
+.bkw button.b{height:30px;padding:0 12px;border-radius:9px;cursor:pointer;border:1px solid var(--rule,#e2e8f0);
+  background:#fff;color:var(--ink,#0f172a);font:700 11.5px/1 var(--font-d,system-ui)}
+.bkw button.b.go{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+.bkrow{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+table.bkt{width:100%;border-collapse:collapse;font:500 11.5px/1.5 var(--font-d,system-ui)}
+table.bkt th,table.bkt td{border:1px solid var(--rule,#e6eaf0);padding:5px 7px;text-align:center}
+table.bkt th{background:var(--surface-2,#f8fafc);font-weight:700;color:var(--ink-2,#475569)}
+table.bkt td.hit{background:#ecfdf5;font-weight:700}
+table.bkt td.big{background:#fef2f2;font-weight:700;color:#b91c1c}
+.bkmiss{display:grid;gap:4px;margin-top:8px;max-height:230px;overflow:auto}
+.bkmiss a{display:flex;gap:8px;align-items:center;padding:5px 9px;border-radius:8px;cursor:pointer;
+  border:1px solid var(--rule,#e6eaf0);font:600 11.5px/1 var(--font-d,system-ui);color:var(--ink,#0f172a)}
+.bkmiss a:hover{background:var(--surface-2,#f6f8fb)}
+.bkmiss i{font-style:normal;color:var(--muted,#94a3b8);font-weight:500}
+`;
+document.head.appendChild(st);
+
+/* ── 앱 등급 읽기 ── */
+const appTier=r=>{ try{ const t=window.__pracTag&&window.__pracTag(r.id); return t?t.tier:null }catch(e){ return null } };
+
+/* ── 칩 붙이기 ── */
+function chips(){
+  $$('#list .pcard').forEach(card=>{
+    const head=card.querySelector('.phead'); if(!head) return;
+    const id=card.dataset.id||card.querySelector('[data-ov]')?.dataset.ov; if(!id) return;
+    const r=rowsAll().find(x=>String(x.id)===String(id)); if(!r) return;
+    const v=get(r), at=appTier(r);
+    let el=head.querySelector('.bkb');
+    if(!el){
+      el=document.createElement('span'); el.className='bkb';
+      el.onclick=ev=>{
+        ev.stopPropagation();
+        const cur=get(r), i=cur?ORDER.indexOf(cur.t):-1;
+        const nx=i<0?'g':(i>=ORDER.length-1?null:ORDER[i+1]);
+        put(r, nx?Object.assign({},cur,{t:nx}):null);
+        chips();
+      };
+      head.appendChild(el);
+    }
+    el.className='bkb'+(v?' '+v.t:'')+((v&&at&&v.t!==at)?' diff':'');
+    el.textContent='📘 '+(v?TL[v.t]+(v.u?' · '+v.u:''):'책 등급');
+    el.title=v
+      ? `문제집 등급 ${TL[v.t]}${v.u?` · 단원 ${v.u}`:''}`
+        + (at?`\n앱 등급 ${TL[at]}${v.t!==at?' — 엇갈립니다':''}`:'')
+        + '\n\n눌러서 금→은→동→똥→없음 으로 바꿉니다'
+      : '문제집 등급을 적어 둡니다 — 눌러서 금→은→동→똥→없음';
+  });
+}
+
+/* ── 창 ── */
+let W=null;
+function open_(){
+  if(!W){
+    W=document.createElement('div'); W.className='bkw';
+    W.innerHTML=`<div class="bkbox">
+      <div class="bkh"><b>📘 책 등급 — 문제집 금·은·동 얹기</b><span class="sp"></span>
+        <button class="b" data-x>닫기</button></div>
+      <div class="bkbd">
+        <h4>붙여넣기</h4>
+        <p class="n">한 줄에 하나씩. <b>연-회-번 등급 [단원]</b> 꼴이면 됩니다 —
+          <code>26-2-8 금</code> · <code>2026 2 8 은 3-2</code> · <code>26-2 8 동</code> 다 받습니다.
+          등급은 금·은·동·똥 또는 g·s·b·r.</p>
+        <textarea data-in placeholder="26-2-8 금&#10;26-2-9 은 4-1&#10;25-3-1 동"></textarea>
+        <div class="bkrow">
+          <button class="b go" data-imp>가져오기</button>
+          <button class="b" data-exp>지금 것 내보내기</button>
+          <button class="b" data-clr>이 과목 책 등급 전부 지우기</button>
+          <span class="n" data-msg style="align-self:center"></span>
+        </div>
+        <h4>대조</h4>
+        <div data-cmp></div>
+      </div>
+    </div>`;
+    document.body.appendChild(W);
+    W.addEventListener('click',e=>{ if(e.target===W) close_(); });
+    $('[data-x]',W).onclick=close_;
+    $('[data-imp]',W).onclick=imp;
+    $('[data-exp]',W).onclick=exp;
+    $('[data-clr]',W).onclick=clr;
+    addEventListener('keydown',e=>{ if(W.classList.contains('on')&&e.key==='Escape') close_(); });
+  }
+  W.classList.add('on'); cmp();
+}
+const close_=()=>W&&W.classList.remove('on');
+const say=t=>{ const m=$('[data-msg]',W); if(m) m.textContent=t||''; };
+
+const TMAP={'금':'g','은':'s','동':'b','똥':'r','g':'g','s':'s','b':'b','r':'r'};
+function imp(){
+  const txt=$('[data-in]',W).value||'';
+  const rows=rowsAll();
+  let ok=0, miss=0, bad=0;
+  txt.split('\n').forEach(line=>{
+    const t=line.trim(); if(!t) return;
+    const p=t.split(/[\s,\t·]+/).filter(Boolean);
+    /* 앞쪽에서 연·회·번 세 숫자를 뽑는다 — 26-2-8 도 26 2 8 로 갈린다 */
+    const nums=(t.match(/\d+/g)||[]).map(Number);
+    if(nums.length<3){ bad++; return; }
+    let [y,s,no]=nums;
+    if(y<100) y=y>=70?1900+y:2000+y;
+    const g=p.map(x=>TMAP[x]).find(Boolean);
+    if(!g){ bad++; return; }
+    /* 단원 — 등급 뒤에 남은 토큰 하나 */
+    const gi=p.findIndex(x=>TMAP[x]);
+    const u=(p[gi+1]&&!/^\d+$/.test(p[gi+1]))?p[gi+1]:(p[gi+1]||'');
+    const r=rows.find(x=>+x.year===y&&+x.session===s&&+x.no===no);
+    if(!r){ miss++; return; }
+    put(r,{t:g,u:u||''}); ok++;
+  });
+  BAG=null;
+  say(`${ok}개 넣었습니다` + (miss?` · 표에 없는 문항 ${miss}개`:'') + (bad?` · 못 읽은 줄 ${bad}개`:''));
+  chips(); cmp();
+}
+function exp(){
+  const rows=rowsAll(), out=[];
+  rows.forEach(r=>{ const v=get(r); if(v) out.push(`${r.year}-${r.session}-${r.no} ${TL[v.t]}${v.u?' '+v.u:''}`); });
+  $('[data-in]',W).value=out.join('\n');
+  say(`${out.length}개를 위 칸에 꺼내 두었습니다 — 복사해서 보관하세요`);
+}
+function clr(){
+  if(!confirm('이 과목에 적어 둔 책 등급을 전부 지웁니다. 되돌릴 수 없습니다.')) return;
+  const b=bag(), pre=sid()+'|';
+  Object.keys(b).forEach(k=>{ if(k.startsWith(pre)) delete b[k] });
+  try{ localStorage.setItem(KEY,JSON.stringify(b)) }catch(e){}
+  BAG=null; say('지웠습니다.'); chips(); cmp();
+}
+
+/* ── 대조표 ── */
+function cmp(){
+  const host=$('[data-cmp]',W); if(!host) return;
+  const rows=rowsAll();
+  const pair=[];
+  rows.forEach(r=>{ const v=get(r), a=appTier(r); if(v&&a) pair.push([a,v.t,r]); });
+  if(!pair.length){
+    host.innerHTML=`<p class="n">아직 견줄 것이 없습니다 — 책 등급을 먼저 넣어 주세요.</p>`;
+    return;
+  }
+  const M={}; ORDER.forEach(a=>{ M[a]={}; ORDER.forEach(b=>M[a][b]=0) });
+  pair.forEach(([a,b])=>M[a][b]++);
+  const hit=ORDER.reduce((t,k)=>t+M[k][k],0);
+  const pct=Math.round(hit/pair.length*100);
+
+  const cell=(a,b)=>{
+    const n=M[a][b];
+    const cls=a===b?'hit':(n>=Math.max(3,pair.length*0.04)?'big':'');
+    return `<td class="${cls}">${n||''}</td>`;
+  };
+  /* 가장 크게 엇갈린 칸을 짚어 준다 */
+  let worst=null;
+  ORDER.forEach(a=>ORDER.forEach(b=>{ if(a!==b&&(!worst||M[a][b]>M[worst[0]][worst[1]])) worst=[a,b] }));
+
+  const miss=pair.filter(([a,b])=>a!==b).slice(0,60);
+  host.innerHTML=`
+    <p class="n">견준 문항 <b>${pair.length}</b>개 · 등급이 같은 것 <b>${hit}</b>개 (<b>${pct}%</b>)</p>
+    <table class="bkt"><tr><th>앱 \\ 책</th>${ORDER.map(b=>`<th>${TL[b]}</th>`).join('')}</tr>
+      ${ORDER.map(a=>`<tr><th>${TL[a]}</th>${ORDER.map(b=>cell(a,b)).join('')}</tr>`).join('')}
+    </table>
+    ${worst&&M[worst[0]][worst[1]]?`<p class="n" style="margin-top:8px">
+      가장 크게 엇갈리는 칸 — <b>앱 ${TL[worst[0]]} · 책 ${TL[worst[1]]}</b> ${M[worst[0]][worst[1]]}개.
+      ${worst[0]==='b'||worst[0]==='r'?'앱이 낮게 본 쪽입니다 — 같은 유형을 못 묶어 이력이 쪼개졌을 수 있습니다.'
+        :'앱이 높게 본 쪽입니다 — 최근에 쏠려 과대평가했을 수 있습니다.'}</p>`:''}
+    <div class="bkmiss">${miss.map(([a,b,r])=>`
+      <a data-go="${r.id}"><b>${r.year}년 ${r.session}회 ${r.no}번</b>
+        <i>앱 ${TL[a]} · 책 ${TL[b]}</i></a>`).join('')}</div>
+    ${pair.length>miss.length+hit?`<p class="n">엇갈린 것 중 앞 60개만 보여 줍니다.</p>`:''}`;
+
+  $$('[data-go]',host).forEach(a=>a.onclick=()=>{
+    const id=a.dataset.go;
+    close_();
+    try{
+      const list=window.SHOWN||[];
+      const i=list.findIndex(x=>String(x.id)===String(id));
+      if(i>=0&&typeof window.showAt==='function') window.showAt(i);
+    }catch(e){}
+    setTimeout(()=>{
+      const card=document.querySelector(`#list .pcard[data-id="${id}"]`)
+             || [...document.querySelectorAll('#list .pcard')].find(c=>c.querySelector(`[data-ov="${id}"]`));
+      card&&card.scrollIntoView({block:'start',behavior:'smooth'});
+    },160);
+  });
+}
+
+/* ── 여는 단추 ── */
+function mountBtn(){
+  const host=document.querySelector('#tagRow')||document.querySelector('.deck .dcol-find');
+  if(!host||document.querySelector('#bookBtn')) return;
+  const b=document.createElement('button');
+  b.type='button'; b.id='bookBtn'; b.className='chip';
+  b.textContent='📘 책 등급';
+  b.title='문제집(타우린 등)의 금·은·동을 같이 얹고, 앱 등급과 견줍니다\n자료는 이 기기에만 남습니다';
+  b.onclick=open_;
+  host.appendChild(b);
+}
+
+setInterval(()=>{ mountBtn(); chips(); },1500);
+setTimeout(()=>{ mountBtn(); chips(); },900);
+window.__pracBook={ open:open_, get, put };
+})();
+
+</script>
+
 <script src="./simple.js?v=232"></script>
 <script>
 /* ★ v235 — 서비스워커(그림 캐시)를 이 화면에서도 켠다.
@@ -19421,7 +20095,7 @@ body.rzdrag .pane,body.rzdrag .pcol{pointer-events:none}
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=242").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=246").catch(() => {}));
 </script>
 </body>
 </html>
