@@ -6544,7 +6544,7 @@ sb?.auth?.onAuthStateChange?.((evt, session) => setTimeout(() => {
 </script>
 
 <!-- ══ AI 대화 상자 ══ config.js 의 AI_WORKER_URL 을 채워야 작동합니다 -->
-<script src="./ai-chat.js?v=246" defer></script>
+<script src="./ai-chat.js?v=247" defer></script>
 <script src="./ai-viewer.js" defer></script>
 <script>
 (function(){
@@ -11433,7 +11433,6 @@ function buildNow(){
     const fresh=Math.min(...idxs.map(i=>rank[`${rows[i].year}-${rows[i].session}`]??NE));
     /* 옛 방식은 «덩어리가 걸친 회차 / 전체 회차» 였다 — 덩어리가 커지면 저절로 100% 에 붙는다.
        이제는 문항마다 따로 센 재출제 확률을 쓰고, 이것이 아직 안 나왔을 때만 옛 셈으로 버틴다. */
-    const pFallback=Math.round(clamp((R+0.5)/(NE+2),0.03,0.85)*100);
     const blob = C > Math.max(12, N*0.08);      /* 사슬로 부푼 덩어리 — 주제어를 못 믿는다 */
     const freq=new Map();
     idxs.forEach(i=>keys[i].forEach(t=>freq.set(t,(freq.get(t)||0)+1)));
@@ -19748,24 +19747,41 @@ async function save(){
     }
     if(!jobs.length) throw new Error('남길 칸이 없습니다');
 
+    /* ★ 경로는 이 앱이 원래 쓰던 규칙 그대로여야 «덮어쓰기» 가 된다.
+       prac/과목/연도_회차_번호(두 자리)_q.jpg — 다르게 적으면 새 파일이 하나 더 쌓인다. */
+    const base=`prac/${ROW.subject_id}/${ROW.year}_${ROW.session}_${String(ROW.no).padStart(2,'0')}`;
+    const before={ q:ROW.q_url, a:ROW.a_url };
     const patch={};
     for(const j of jobs){
       b.textContent='올리는 중…';
-      const path=`${ROW.subject_id}/${ROW.year}_${ROW.session}_${ROW.no}_${j.want}.jpg`;
-      const url=await put(path, j.blob);
+      const url=await put(`${base}_${j.want}.jpg`, j.blob);
       patch[j.want==='q'?'q_url':'a_url']=url;
     }
     const up=await sb.from('practicals').update(patch).eq('id',ROW.id);
     if(up.error) throw up.error;
     Object.assign(ROW,patch);
 
-    /* 캐시에 남은 예전 그림을 지운다 — 주소가 바뀌었으니 새것을 받는다 */
-    try{ const c=await caches.open('img-v1'); await Promise.all(Object.values(patch).map(u=>c.delete(u))); }catch(e){}
+    /* 캐시에 남은 «예전» 그림을 지운다.
+       ★ 새 주소를 지우면 아무 소용이 없다 — 담긴 적이 없는 주소다. 옛 주소를 지워야 한다. */
+    try{
+      const c=await caches.open('img-v1');
+      await Promise.all(Object.values(before).filter(Boolean).map(u=>c.delete(u)));
+    }catch(e){}
+    /* 옛 파일 이름이 새것과 다르면(손으로 붙인 답 그림 등) 저장소에 그대로 남는다 — 같이 치운다 */
+    try{
+      const now=Object.values(patch).map(u=>String(u).split('?')[0]);
+      const old=Object.values(before).filter(Boolean)
+        .map(u=>String(u).split('?')[0]).filter(u=>!now.includes(u));
+      if(old.length && window.dropFigs)
+        await window.dropFigs(old.map(u=>({ q_url:u })));
+    }catch(e){}
     try{ cacheSaveRows(); }catch(e){}
 
     say('저장했습니다.');
     close();
     try{ drawList(); }catch(e){}
+    /* «한눈에» 를 켜 둔 채로 잘랐으면 그 판도 다시 그린다 — 안 그리면 옛 그림이 남는다 */
+    try{ if(document.querySelector('#ovl.on')) ovDraw(); }catch(e){}
     try{ window.__pracLog && window.__pracLog(`${ROW.year}년 ${ROW.session}회 ${ROW.no}번 — 그림을 잘라 나눴습니다`); }catch(e){}
   }catch(e){
     say('저장하지 못했습니다 — '+(e.message||e));
@@ -19910,10 +19926,12 @@ const appTier=r=>{ try{ const t=window.__pracTag&&window.__pracTag(r.id); return
 
 /* ── 칩 붙이기 ── */
 function chips(){
+  /* ★ 카드마다 2000줄을 훑으면 1.5초마다 수십만 번을 센다 — 표를 한 번만 만든다 */
+  const byId=new Map(); rowsAll().forEach(r=>byId.set(String(r.id),r));
   $$('#list .pcard').forEach(card=>{
     const head=card.querySelector('.phead'); if(!head) return;
     const id=card.dataset.id||card.querySelector('[data-ov]')?.dataset.ov; if(!id) return;
-    const r=rowsAll().find(x=>String(x.id)===String(id)); if(!r) return;
+    const r=byId.get(String(id)); if(!r) return;
     const v=get(r), at=appTier(r);
     let el=head.querySelector('.bkb');
     if(!el){
@@ -20095,7 +20113,7 @@ window.__pracBook={ open:open_, get, put };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=246").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=247").catch(() => {}));
 </script>
 </body>
 </html>
