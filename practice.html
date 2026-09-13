@@ -6544,7 +6544,7 @@ sb?.auth?.onAuthStateChange?.((evt, session) => setTimeout(() => {
 </script>
 
 <!-- ══ AI 대화 상자 ══ config.js 의 AI_WORKER_URL 을 채워야 작동합니다 -->
-<script src="./ai-chat.js?v=248" defer></script>
+<script src="./ai-chat.js?v=251" defer></script>
 <script src="./ai-viewer.js" defer></script>
 <script>
 (function(){
@@ -11656,9 +11656,15 @@ function paintChips(){
       + (window.NCS_GIJUN?`   · 출제기준 미분류 ${un}문항`:'')
       + ((F.tiers.length||F.types.length||F.ncs)?`   → 지금 조건 ${n}문항`:'');
 
-    /* ②③ 커버리지 한 줄 — «다 봐야 하나» 에 숫자로 답한다 */
+    /* ②③ 커버리지 한 줄 — «다 봐야 하나» 에 숫자로 답한다
+       ★ v249 — 이 줄을 만드느라 0.4초마다 2000줄을 다시 세고 있었다.
+         해마다 붙은 연도를 글자로 이어 붙이는 일까지 2000번씩 — 화면이 끊겼다.
+         «거른 조건과 문항 수가 그대로면» 다시 세지 않는다. */
     const note2=$('#tagNote2');
     if(note2){
+      const ck = JSON.stringify(F) + '|' + n + '|' + (TMALL?TMALL.size:0) + '|' + (NEWR?NEWR.n:0);
+      if(note2.dataset.ck === ck) return;
+      note2.dataset.ck = ck;
       let txt='';
       try{
         const cv=coverage(typeMap(picked));
@@ -17748,8 +17754,6 @@ setTimeout(()=>clearInterval(t),120000);
 })();
 </script>
 
-
-
 <!-- ══════════════════════════════════════════════════════════════
      v153 · 단답 두 칸 · 여백 잘라 저장 · 표 고치기
 
@@ -19863,32 +19867,212 @@ setTimeout(addBtns,600); setTimeout(addBtns,2500);
 
 <script>
 /* ══════════════════════════════════════════════════════════════
-   v245 · 책 등급 — 내가 가진 문제집의 금·은·동을 같이 얹는다
+   v249 · AI 사용량 — 얼마나 부르고 있는지 눈에 보이게
 
-   왜 앱 등급과 따로 두는가
-     앱 등급은 «최근 가중 확률» 이고, 문제집 등급은 대개 «누적 출제 횟수» 다.
-     재는 것이 다르므로 둘 중 하나를 지우면 정보가 준다.
-     20년 만에 그대로 복붙되는 문항은 누적 쪽이 잘 잡고,
-     출제기준이 바뀐 뒤 죽은 유형은 최근 쪽이 잘 잡는다. 같이 보는 게 맞다.
+   이 화면에서 «저절로» 돈이 나가는 길은 딱 하나다.
+     한눈에 보기에서 해설이 없는 문항에 2.5초 머무르면 해설을 만든다.
+   나머지(글자 변환 · AI 분류 · 다시 해석 · AI 대화)는 모두 손으로 눌러야 돈다.
 
-   넣는 법 셋
-     ① 문항 머리의 «📘» 칩을 눌러 금→은→동→똥→없음 으로 돌린다 (제일 빠름)
-     ② 창에서 줄줄이 붙여넣기 — «26-2-8 금» / «2026 2 8 금 3-2» 처럼
-     ③ 내보내기로 백업
-
-   세 번째 칸은 «단원» 이다. 출제기준 미분류를 메우는 데 쓴다.
-   자료는 이 기기에만 남는다 (localStorage) — 표를 건드리지 않는다.
+   그래도 «얼마나 나갔는지» 가 안 보이면 불안하다. 그래서
+     · 부른 횟수를 세어 띠에 적고
+     · 저절로 도는 것은 «하루 몇 개» 로 막고
+     · 스위치로 아예 끌 수 있게 한다.
    ══════════════════════════════════════════════════════════════ */
 (function(){
 'use strict';
+const KEY='prac:aiuse:v1';
+const today=()=>new Date().toISOString().slice(0,10);
+let U=null;
+function use(){
+  if(U) return U;
+  try{ U=JSON.parse(localStorage.getItem(KEY)||'null') }catch(e){ U=null }
+  if(!U||typeof U!=='object') U={ total:0, days:{}, auto:true, cap:30 };
+  if(typeof U.auto!=='boolean') U.auto=true;
+  if(!U.cap) U.cap=30;
+  if(!U.days) U.days={};
+  return U;
+}
+function save(){ try{ localStorage.setItem(KEY,JSON.stringify(use())) }catch(e){} }
+function bump(kind){
+  const u=use(), d=today();
+  u.total++; u.days[d]=u.days[d]||{n:0,auto:0,kinds:{}};
+  u.days[d].n++;
+  u.days[d].kinds[kind]=(u.days[d].kinds[kind]||0)+1;
+  if(kind==='해설(자동)') u.days[d].auto++;
+  /* 오래된 날은 30일까지만 */
+  const ks=Object.keys(u.days).sort();
+  while(ks.length>30) delete u.days[ks.shift()];
+  save(); paint();
+}
+const todayN=()=>{ const d=use().days[today()]; return d?d.n:0 };
+const todayAuto=()=>{ const d=use().days[today()]; return d?d.auto:0 };
+
+/* ── 부르는 길목 하나를 감싼다 ── */
+/* 무슨 일로 불렀는지는 «지금 하는 일» 딱지를 붙여 둔 채로 센다.
+   한 번 부르고 지우면 여러 번 도는 일(글자 변환 등)이 «그밖» 으로 새어 나간다. */
+let KIND='그밖';
+window.__aiKind = k => { KIND = k || '그밖'; };
+if(typeof window.askAI==='function' && !window.askAI.__wrapped){
+  const raw=window.askAI;
+  const w=async function(...a){ bump(KIND); return raw.apply(this,a); };
+  w.__wrapped=true;
+  window.askAI=w;
+}
+/* 어느 일에서 부른 것인지 딱지만 붙인다 — 하는 일은 그대로 둔다 */
+const tag=(name,label)=>{
+  const f=window[name];
+  if(typeof f!=='function'||f.__tagged) return;
+  const g=function(...a){ KIND=label; return f.apply(this,a); };
+  g.__tagged=true; window[name]=g;
+};
+tag('ezMake','해설');
+tag('cvRun','글자 변환');
+
+/* ── 저절로 도는 해설 만들기에 빗장을 건다 ── */
+if(typeof window.ezEnqueue==='function' && !window.ezEnqueue.__gated){
+  const raw=window.ezEnqueue;
+  const g=function(id){
+    const u=use();
+    if(!u.auto) return;                                  /* 스위치가 꺼져 있음 */
+    if(todayAuto()>=u.cap){                              /* 오늘 몫을 다 씀 */
+      try{ window.__pracLog && window.__pracLog(`해설 자동 만들기 — 오늘 몫 ${u.cap}개를 다 썼습니다`) }catch(e){}
+      return;
+    }
+    window.__aiKind('해설(자동)');
+    return raw.call(this,id);
+  };
+  g.__gated=true;
+  window.ezEnqueue=g;
+}
+
+/* ── 띠에 붙는 칩 ── */
+const st=document.createElement('style');
+st.textContent=`
+#aiUseBtn.warn{background:#fef3c7;border-color:#fcd34d;color:#92400e}
+.auw{position:fixed;inset:0;z-index:6200;display:none;align-items:center;justify-content:center;
+  background:rgba(15,23,42,.6);padding:16px}
+.auw.on{display:flex}
+.aubox{width:min(560px,100%);background:var(--paper,#fff);border-radius:16px;overflow:hidden;
+  box-shadow:0 24px 70px rgba(2,6,23,.45)}
+.auh{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--rule,#e6eaf0)}
+.auh b{font:700 13.5px/1 var(--font-d,system-ui)} .auh .sp{flex:1}
+.aub{padding:13px 14px}
+.aub p{font:500 11.5px/1.65 var(--font-d,system-ui);color:var(--muted,#64748b);margin:0 0 9px}
+.aub table{width:100%;border-collapse:collapse;font:500 12px/1.5 var(--font-d,system-ui);margin-bottom:11px}
+.aub td,.aub th{border:1px solid var(--rule,#e6eaf0);padding:5px 8px}
+.aub th{background:var(--surface-2,#f8fafc);text-align:left;font-weight:700;color:var(--ink-2,#475569)}
+.aub td.r{text-align:right;font-weight:700}
+.aurow{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:6px}
+.auw button.b{height:30px;padding:0 12px;border-radius:9px;cursor:pointer;border:1px solid var(--rule,#e2e8f0);
+  background:#fff;color:var(--ink,#0f172a);font:700 11.5px/1 var(--font-d,system-ui)}
+.auw button.b.on{background:#16a34a;border-color:#16a34a;color:#fff}
+.auw button.b.off{background:#64748b;border-color:#64748b;color:#fff}
+`;
+document.head.appendChild(st);
+
+let W=null;
+function open_(){
+  if(!W){
+    W=document.createElement('div'); W.className='auw';
+    W.innerHTML=`<div class="aubox">
+      <div class="auh"><b>💰 AI 사용량</b><span class="sp"></span><button class="b" data-x>닫기</button></div>
+      <div class="aub" data-body></div>
+    </div>`;
+    document.body.appendChild(W);
+    W.addEventListener('click',e=>{ if(e.target===W) W.classList.remove('on'); });
+    W.querySelector('[data-x]').onclick=()=>W.classList.remove('on');
+  }
+  draw(); W.classList.add('on');
+}
+function draw(){
+  const u=use(), d=u.days[today()]||{n:0,auto:0,kinds:{}};
+  const ks=Object.entries(d.kinds||{}).sort((a,b)=>b[1]-a[1]);
+  const last7=Object.keys(u.days).sort().slice(-7).reverse();
+  W.querySelector('[data-body]').innerHTML=`
+    <p>이 화면에서 <b>저절로</b> 돈이 나가는 길은 하나입니다 —
+      한눈에 보기에서 <b>해설이 없는 문항에 2.5초 머무르면</b> 해설을 만듭니다.<br>
+      글자 변환 · AI 분류 · 다시 해석 · AI 대화는 <b>모두 손으로 눌러야</b> 돕니다.<br>
+      아래 숫자는 <b>이 브라우저에서 부른 횟수</b>입니다 (다른 기기 것은 안 셉니다).</p>
+    <table>
+      <tr><th>오늘 부른 횟수</th><td class="r">${d.n}회</td></tr>
+      <tr><th>그중 저절로 만든 해설</th><td class="r">${d.auto} / ${u.cap}개</td></tr>
+      <tr><th>여태 모두</th><td class="r">${u.total}회</td></tr>
+    </table>
+    ${ks.length?`<table><tr><th>오늘 무엇으로</th><th>횟수</th></tr>
+      ${ks.map(([k,v])=>`<tr><td>${k}</td><td class="r">${v}</td></tr>`).join('')}</table>`:''}
+    ${last7.length>1?`<table><tr><th>요 며칠</th><th>횟수</th></tr>
+      ${last7.map(k=>`<tr><td>${k}</td><td class="r">${u.days[k].n}</td></tr>`).join('')}</table>`:''}
+    <div class="aurow">
+      <button class="b ${u.auto?'on':'off'}" data-auto>${u.auto?'자동 해설 켜짐':'자동 해설 꺼짐'}</button>
+      <button class="b" data-cap>하루 한도 ${u.cap}개 바꾸기</button>
+      <button class="b" data-reset>숫자 지우기</button>
+    </div>`;
+  W.querySelector('[data-auto]').onclick=()=>{ const u=use(); u.auto=!u.auto; save(); draw(); paint(); };
+  W.querySelector('[data-cap]').onclick=()=>{
+    const v=prompt('저절로 만드는 해설을 하루 몇 개까지 둘까요? (0 이면 안 만듭니다)', String(use().cap));
+    if(v==null) return;
+    const n=Math.max(0,Math.min(500,parseInt(v,10)||0));
+    use().cap=n; save(); draw(); paint();
+  };
+  W.querySelector('[data-reset]').onclick=()=>{
+    if(!confirm('세어 둔 숫자를 지웁니다. (요금 자체가 지워지는 것은 아닙니다)')) return;
+    U={ total:0, days:{}, auto:use().auto, cap:use().cap }; save(); draw(); paint();
+  };
+}
+
+function paint(){
+  const b=document.querySelector('#aiUseBtn'); if(!b) return;
+  const u=use(), n=todayN();
+  b.textContent=`💰 AI 오늘 ${n}회`;
+  b.classList.toggle('warn', !u.auto || n>=50);
+  b.title=`이 브라우저에서 오늘 AI 를 ${n}번 불렀습니다 (여태 모두 ${u.total}번)\n`
+        + `저절로 만든 해설 ${todayAuto()}/${u.cap}개 · 자동 ${u.auto?'켜짐':'꺼짐'}\n눌러서 자세히 보기`;
+}
+function mount(){
+  const host=document.querySelector('#tagRow')||document.querySelector('.deck .dcol-find');
+  if(!host||document.querySelector('#aiUseBtn')) return;
+  const b=document.createElement('button');
+  b.type='button'; b.id='aiUseBtn'; b.className='chip';
+  b.onclick=open_;
+  host.appendChild(b); paint();
+}
+setInterval(mount,1500); setTimeout(mount,900);
+window.__pracAiUse={ open:open_, get:use };
+})();
+
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   v250 · 자리 이어가기 — 거른 묶음마다 «어디까지 봤는지» 를 따로 기억한다
+
+   여태 불편했던 까닭
+     · 자리 기억은 «과목 하나» 에만 붙어 있었다. 금만 걸러 보다가 은으로 바꾸면
+       그 묶음은 처음부터 시작했다. 되돌아와도 마찬가지였다.
+     · 몇 번째를 보고 있는지는 «한 문항씩» 모드의 맨 아래 띠에만 적혀 있었다.
+     · 번호를 알아도 거기로 바로 갈 길이 없었다.
+
+   그래서
+     ① 거른 조건(과목·연도·회차·찾는 말·금은동·유형·정렬)마다 자리를 따로 적어 둔다
+     ② 목록이 다시 그려지면 그 묶음의 «마지막 자리» 로 알아서 돌아간다
+     ③ 번호를 쳐서 바로 갈 수 있게 하고, «↩ 이어서» 단추를 위아래 양쪽에 둔다
+   ══════════════════════════════════════════════════════════════ */
+(function(){
+'use strict';
+const KEY='prac:pos:v2';
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
-const KEY='prac:book:v1';
-const TL={g:'금',s:'은',b:'동',r:'똥'};
-const ORDER=['g','s','b','r'];
-const rowsAll=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
-const sid=()=>{ try{ return +($('#fSub')||{}).value||0 }catch(e){ return 0 } };
-const kOf=r=>`${sid()}|${r.year}-${r.session}-${r.no}`;
+const shown=()=>{ try{ return Array.isArray(window.SHOWN)?window.SHOWN:[] }catch(e){ return [] } };
+const at=()=>{ try{ return window.ONEAT|0 }catch(e){ return 0 } };
+
+/* ── 지금 어떤 조건으로 걸러 놓았는가 ── */
+function sig(){
+  const v=id=>{ const el=$(id); return el?String(el.value||''):''; };
+  const on=sel=>$$(sel).filter(b=>b.classList.contains('on')).map(b=>b.textContent.trim()).join(',');
+  return [ v('#fSub'), v('#fYear'), v('#fSess'), v('#fQ'),
+           on('#tagRow button[data-tier]'), on('#tagRow button[data-type]'),
+           on('#tagRow button[data-sort]'), v('#tagNcs') ].join('|');
+}
 
 let BAG=null;
 function bag(){
@@ -19896,237 +20080,197 @@ function bag(){
   try{ BAG=JSON.parse(localStorage.getItem(KEY)||'{}') }catch(e){ BAG={} }
   return BAG;
 }
-function put(r,v){
-  const b=bag(), k=kOf(r);
-  if(!v) delete b[k]; else b[k]=v;
+function remember(){
+  const rs=shown(); if(!rs.length) return;
+  const r=rs[Math.min(at(), rs.length-1)]; if(!r) return;
+  const b=bag();
+  b[sig()]={ id:String(r.id), at:at(), ts:Date.now() };
+  b['*last']={ id:String(r.id), sig:sig(), ts:Date.now() };   /* 조건과 상관없는 «맨 마지막» */
+  /* 오래된 것부터 200개까지만 */
+  const ks=Object.keys(b).filter(k=>k!=='*last');
+  if(ks.length>200){
+    ks.sort((x,y)=>(b[x].ts||0)-(b[y].ts||0));
+    while(ks.length>200) delete b[ks.shift()];
+  }
   try{ localStorage.setItem(KEY,JSON.stringify(b)) }catch(e){}
 }
-const get=r=>bag()[kOf(r)]||null;      /* {t:'g', u:'3-2'} */
 
-/* ── 모양 ── */
+/* ── 자리 이동 ── */
+function goIndex(i){
+  const rs=shown(); if(!rs.length) return false;
+  i=Math.max(0,Math.min(i, rs.length-1));
+  try{
+    if(typeof window.showAt==='function') window.showAt(i);
+  }catch(e){}
+  setTimeout(()=>{
+    const id=rs[i] && String(rs[i].id);
+    const card=id && ($(`#list > .pcard[data-id="${id}"]`)||$(`#list .pcard[data-id="${id}"]`));
+    card && card.scrollIntoView({block:'start',behavior:'smooth'});
+  },140);
+  return true;
+}
+function goId(id){
+  const rs=shown();
+  const i=rs.findIndex(r=>String(r.id)===String(id));
+  if(i<0) return false;
+  return goIndex(i);
+}
+
+/* ── 목록이 다시 그려지면 그 묶음의 마지막 자리로 ── */
+let LASTSIG=null, BUSY=false;
+function restore(){
+  if(BUSY) return;
+  const rs=shown(); if(!rs.length) return;
+  const s=sig();
+  if(s===LASTSIG) return;          /* 같은 조건 안에서는 건드리지 않는다 */
+  LASTSIG=s;
+  const m=bag()[s]; if(!m) return;
+  if(at()>0) return;               /* 이미 어딘가 보고 있으면 그대로 둔다 */
+  const i=rs.findIndex(r=>String(r.id)===String(m.id));
+  if(i<=0) return;
+  BUSY=true;
+  goIndex(i);
+  try{ window.__pracLog && window.__pracLog(`보던 자리로 돌아왔습니다 — ${i+1}번째`) }catch(e){}
+  setTimeout(()=>{ BUSY=false; },600);
+}
+
+/* showAt 을 감싸 자리마다 적어 둔다 */
+if(typeof window.showAt==='function' && !window.showAt.__pos){
+  const raw=window.showAt;
+  const w=function(...a){ const r=raw.apply(this,a); setTimeout(remember,0); return r; };
+  w.__pos=true; window.showAt=w;
+}
+
+/* ── 띠에 붙일 것들 ── */
 const st=document.createElement('style');
 st.textContent=`
-.bkb{flex:none;display:inline-flex;align-items:center;gap:3px;height:19px;padding:0 7px;
-  border-radius:999px;border:1px solid var(--rule,#e2e8f0);background:var(--surface-2,#f1f5f9);
-  color:var(--ink-2,#64748b);font:700 10px/1 var(--font-d,system-ui);cursor:pointer;white-space:nowrap}
-.bkb.g{background:#fff7e0;border-color:#e9c46a;color:#8a6100}
-.bkb.s{background:#f2f5f9;border-color:#c3ccd8;color:#4a5768}
-.bkb.b{background:#fdf0e6;border-color:#dcb08a;color:#8a552a}
-.bkb.r{background:#f4f1ec;border-color:#cbc3b6;color:#6b5f4e}
-.bkb.diff{box-shadow:0 0 0 2px rgba(220,38,38,.28)}
-@media(max-width:620px){ .bkb{height:17px;padding:0 5px;font-size:9px} }
-.bkw{position:fixed;inset:0;z-index:6100;display:none;align-items:center;justify-content:center;
-  background:rgba(15,23,42,.6);padding:16px}
-.bkw.on{display:flex}
-.bkbox{width:min(880px,100%);max-height:92vh;display:flex;flex-direction:column;
-  background:var(--paper,#fff);border-radius:16px;overflow:hidden;box-shadow:0 24px 70px rgba(2,6,23,.45)}
-.bkh{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--rule,#e6eaf0)}
-.bkh b{font:700 13.5px/1 var(--font-d,system-ui)} .bkh .sp{flex:1}
-.bkbd{padding:13px 14px;overflow:auto;flex:1}
-.bkbd h4{font:700 12px/1 var(--font-d,system-ui);margin:14px 0 7px;color:var(--ink-2,#475569)}
-.bkbd h4:first-child{margin-top:0}
-.bkbd p.n{font:500 11.5px/1.6 var(--font-d,system-ui);color:var(--muted,#64748b);margin:0 0 8px}
-.bkbd textarea{width:100%;min-height:110px;resize:vertical;border:1px solid var(--rule,#e2e8f0);
-  border-radius:10px;padding:9px 11px;font:500 12px/1.6 ui-monospace,monospace;background:var(--surface,#fff);
-  color:var(--ink,#0f172a)}
-.bkw button.b{height:30px;padding:0 12px;border-radius:9px;cursor:pointer;border:1px solid var(--rule,#e2e8f0);
-  background:#fff;color:var(--ink,#0f172a);font:700 11.5px/1 var(--font-d,system-ui)}
-.bkw button.b.go{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
-.bkrow{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
-table.bkt{width:100%;border-collapse:collapse;font:500 11.5px/1.5 var(--font-d,system-ui)}
-table.bkt th,table.bkt td{border:1px solid var(--rule,#e6eaf0);padding:5px 7px;text-align:center}
-table.bkt th{background:var(--surface-2,#f8fafc);font-weight:700;color:var(--ink-2,#475569)}
-table.bkt td.hit{background:#ecfdf5;font-weight:700}
-table.bkt td.big{background:#fef2f2;font-weight:700;color:#b91c1c}
-.bkmiss{display:grid;gap:4px;margin-top:8px;max-height:230px;overflow:auto}
-.bkmiss a{display:flex;gap:8px;align-items:center;padding:5px 9px;border-radius:8px;cursor:pointer;
-  border:1px solid var(--rule,#e6eaf0);font:600 11.5px/1 var(--font-d,system-ui);color:var(--ink,#0f172a)}
-.bkmiss a:hover{background:var(--surface-2,#f6f8fb)}
-.bkmiss i{font-style:normal;color:var(--muted,#94a3b8);font-weight:500}
+.posjump{display:inline-flex;align-items:center;gap:4px;flex:none;margin-left:4px}
+.posjump input{width:74px;height:26px;border-radius:8px;border:1px solid var(--line,#e2e8f0);
+  background:var(--surface,#fff);color:var(--ink,#0f172a);text-align:center;
+  font:700 11px/1 var(--font-m,ui-monospace,monospace)}
+.posjump input::placeholder{color:var(--muted,#94a3b8);font-weight:600}
+.posjump button{height:26px;padding:0 9px;border-radius:8px;cursor:pointer;
+  border:1px solid var(--line,#e2e8f0);background:var(--surface,#fff);color:var(--ink,#0f172a);
+  font:700 11px/1 var(--font-d,system-ui)}
+.posjump button:hover{background:var(--surface-2,#f6f8fb)}
+@media(max-width:620px){ .posjump input{width:60px;height:23px;font-size:10px}
+  .posjump button{height:23px;padding:0 7px;font-size:10px} }
+#posGo{display:inline-flex;align-items:center;gap:5px;margin-left:6px}
+#posGo input{width:62px;height:30px;border-radius:8px;border:1px solid var(--line,#e2e8f0);
+  background:var(--surface,#fff);color:var(--ink,#0f172a);text-align:center;
+  font:700 12px/1 var(--font-m,ui-monospace,monospace)}
+#posGo button{height:30px;padding:0 10px;border-radius:8px;cursor:pointer;
+  border:1px solid var(--line,#e2e8f0);background:var(--surface,#fff);color:var(--ink,#0f172a);
+  font:700 11.5px/1 var(--font-d,system-ui)}
+#posGo button:hover{background:var(--surface-2,#f6f8fb)}
+.posresume{white-space:nowrap}
+@media(max-width:620px){ #posGo input{width:52px;height:26px} #posGo button{height:26px;padding:0 8px;font-size:10.5px} }
 `;
 document.head.appendChild(st);
 
-/* ── 앱 등급 읽기 ── */
-const appTier=r=>{ try{ const t=window.__pracTag&&window.__pracTag(r.id); return t?t.tier:null }catch(e){ return null } };
+/* 쳐 넣은 것을 알아듣는다
+     · 그냥 숫자      → 지금 묶음의 «몇 번째»  (12 → 12번째)
+     · 26-2-8 / 2026 2 8 → 그 회차 그 번호로 바로
+     · 순번 밖의 숫자 → 문항 번호로 한 번 더 찾아본다 */
+function jump(v){
+  const t=String(v||'').trim(); if(!t) return false;
+  const rs=shown(); if(!rs.length) return false;
+  const nums=(t.match(/\d+/g)||[]).map(Number);
+  if(!nums.length) return false;
+  if(nums.length>=3){
+    let [y,se,no]=nums;
+    if(y<100) y = y>=70 ? 1900+y : 2000+y;
+    const i=rs.findIndex(r=>+r.year===y && +r.session===se && +r.no===no);
+    if(i>=0) return goIndex(i);
+  }
+  const n=nums[0];
+  if(n>=1 && n<=rs.length) return goIndex(n-1);
+  const i=rs.findIndex(r=>+r.no===n);
+  if(i>=0) return goIndex(i);
+  try{ window.AppUI && window.AppUI.toast && window.AppUI.toast(`${n} 은 이 묶음에 없습니다 (1~${rs.length})`,'info'); }catch(e){}
+  return false;
+}
 
-/* ── 칩 붙이기 ── */
-function chips(){
-  /* ★ 카드마다 2000줄을 훑으면 1.5초마다 수십만 번을 센다 — 표를 한 번만 만든다 */
-  const byId=new Map(); rowsAll().forEach(r=>byId.set(String(r.id),r));
-  $$('#list .pcard').forEach(card=>{
-    const head=card.querySelector('.phead'); if(!head) return;
-    const id=card.dataset.id||card.querySelector('[data-ov]')?.dataset.ov; if(!id) return;
-    const r=byId.get(String(id)); if(!r) return;
-    const v=get(r), at=appTier(r);
-    let el=head.querySelector('.bkb');
-    if(!el){
-      el=document.createElement('span'); el.className='bkb';
-      el.onclick=ev=>{
-        ev.stopPropagation();
-        const cur=get(r), i=cur?ORDER.indexOf(cur.t):-1;
-        const nx=i<0?'g':(i>=ORDER.length-1?null:ORDER[i+1]);
-        put(r, nx?Object.assign({},cur,{t:nx}):null);
-        chips();
-      };
-      head.appendChild(el);
+/* 문항 머리줄에 붙인다 — 맨 아래까지 내려가지 않아도 되게 */
+function mountCards(){
+  const rs=shown(), now=Math.min(at()+1, rs.length||1);
+  $$('#list .pcard .phead').forEach(head=>{
+    let box=head.querySelector('.posjump');
+    if(!box){
+      box=document.createElement('span');
+      box.className='posjump';
+      box.innerHTML=`<input type="text" inputmode="numeric" aria-label="문항으로 이동">
+        <button type="button" data-pgo>이동</button>`;
+      head.appendChild(box);
+      const inp=box.querySelector('input');
+      const go=()=>{ if(jump(inp.value)){ inp.value=''; inp.blur(); } };
+      box.querySelector('[data-pgo]').onclick=e=>{ e.stopPropagation(); go(); };
+      inp.addEventListener('keydown',e=>{
+        e.stopPropagation();                       /* 이 화면의 단축키와 안 부딪히게 */
+        if(e.key==='Enter'){ e.preventDefault(); go(); }
+      });
+      inp.addEventListener('click',e=>e.stopPropagation());
+      box.title='몇 번째로 갈지 치고 엔터\n26-2-8 처럼 치면 그 회차 그 번호로 바로 갑니다';
     }
-    el.className='bkb'+(v?' '+v.t:'')+((v&&at&&v.t!==at)?' diff':'');
-    el.textContent='📘 '+(v?TL[v.t]+(v.u?' · '+v.u:''):'책 등급');
-    el.title=v
-      ? `문제집 등급 ${TL[v.t]}${v.u?` · 단원 ${v.u}`:''}`
-        + (at?`\n앱 등급 ${TL[at]}${v.t!==at?' — 엇갈립니다':''}`:'')
-        + '\n\n눌러서 금→은→동→똥→없음 으로 바꿉니다'
-      : '문제집 등급을 적어 둡니다 — 눌러서 금→은→동→똥→없음';
+    const inp=box.querySelector('input');
+    if(document.activeElement!==inp) inp.placeholder = rs.length ? `${now} / ${rs.length}` : '번호';
   });
 }
 
-/* ── 창 ── */
-let W=null;
-function open_(){
-  if(!W){
-    W=document.createElement('div'); W.className='bkw';
-    W.innerHTML=`<div class="bkbox">
-      <div class="bkh"><b>📘 책 등급 — 문제집 금·은·동 얹기</b><span class="sp"></span>
-        <button class="b" data-x>닫기</button></div>
-      <div class="bkbd">
-        <h4>붙여넣기</h4>
-        <p class="n">한 줄에 하나씩. <b>연-회-번 등급 [단원]</b> 꼴이면 됩니다 —
-          <code>26-2-8 금</code> · <code>2026 2 8 은 3-2</code> · <code>26-2 8 동</code> 다 받습니다.
-          등급은 금·은·동·똥 또는 g·s·b·r.</p>
-        <textarea data-in placeholder="26-2-8 금&#10;26-2-9 은 4-1&#10;25-3-1 동"></textarea>
-        <div class="bkrow">
-          <button class="b go" data-imp>가져오기</button>
-          <button class="b" data-exp>지금 것 내보내기</button>
-          <button class="b" data-clr>이 과목 책 등급 전부 지우기</button>
-          <span class="n" data-msg style="align-self:center"></span>
-        </div>
-        <h4>대조</h4>
-        <div data-cmp></div>
-      </div>
-    </div>`;
-    document.body.appendChild(W);
-    W.addEventListener('click',e=>{ if(e.target===W) close_(); });
-    $('[data-x]',W).onclick=close_;
-    $('[data-imp]',W).onclick=imp;
-    $('[data-exp]',W).onclick=exp;
-    $('[data-clr]',W).onclick=clr;
-    addEventListener('keydown',e=>{ if(W.classList.contains('on')&&e.key==='Escape') close_(); });
+function mount(){
+  mountCards();
+  /* ① 맨 아래 띠 — 번호 쳐서 가기 */
+  const nav=$('#pnav');
+  if(nav && !$('#posGo')){
+    const box=document.createElement('span');
+    box.id='posGo';
+    box.innerHTML=`<input type="number" min="1" placeholder="번호" aria-label="몇 번째로 갈까요">
+      <button type="button" data-go>가기</button>
+      <button type="button" data-resume class="posresume">↩ 이어서</button>`;
+    const label=$('#pnavAt', nav);
+    label ? label.after(box) : nav.appendChild(box);
+    const inp=$('input',box);
+    const go=()=>{ const v=parseInt(inp.value,10); if(v>0){ goIndex(v-1); inp.blur(); } };
+    $('[data-go]',box).onclick=go;
+    inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); go(); } });
+    $('[data-resume]',box).onclick=resume;
   }
-  W.classList.add('on'); cmp();
-}
-const close_=()=>W&&W.classList.remove('on');
-const say=t=>{ const m=$('[data-msg]',W); if(m) m.textContent=t||''; };
-
-const TMAP={'금':'g','은':'s','동':'b','똥':'r','g':'g','s':'s','b':'b','r':'r'};
-function imp(){
-  const txt=$('[data-in]',W).value||'';
-  const rows=rowsAll();
-  let ok=0, miss=0, bad=0;
-  txt.split('\n').forEach(line=>{
-    const t=line.trim(); if(!t) return;
-    const p=t.split(/[\s,\t·]+/).filter(Boolean);
-    /* 앞쪽에서 연·회·번 세 숫자를 뽑는다 — 26-2-8 도 26 2 8 로 갈린다 */
-    const nums=(t.match(/\d+/g)||[]).map(Number);
-    if(nums.length<3){ bad++; return; }
-    let [y,s,no]=nums;
-    if(y<100) y=y>=70?1900+y:2000+y;
-    const g=p.map(x=>TMAP[x]).find(Boolean);
-    if(!g){ bad++; return; }
-    /* 단원 — 등급 뒤에 남은 토큰 하나 */
-    const gi=p.findIndex(x=>TMAP[x]);
-    const u=(p[gi+1]&&!/^\d+$/.test(p[gi+1]))?p[gi+1]:(p[gi+1]||'');
-    const r=rows.find(x=>+x.year===y&&+x.session===s&&+x.no===no);
-    if(!r){ miss++; return; }
-    put(r,{t:g,u:u||''}); ok++;
-  });
-  BAG=null;
-  say(`${ok}개 넣었습니다` + (miss?` · 표에 없는 문항 ${miss}개`:'') + (bad?` · 못 읽은 줄 ${bad}개`:''));
-  chips(); cmp();
-}
-function exp(){
-  const rows=rowsAll(), out=[];
-  rows.forEach(r=>{ const v=get(r); if(v) out.push(`${r.year}-${r.session}-${r.no} ${TL[v.t]}${v.u?' '+v.u:''}`); });
-  $('[data-in]',W).value=out.join('\n');
-  say(`${out.length}개를 위 칸에 꺼내 두었습니다 — 복사해서 보관하세요`);
-}
-function clr(){
-  if(!confirm('이 과목에 적어 둔 책 등급을 전부 지웁니다. 되돌릴 수 없습니다.')) return;
-  const b=bag(), pre=sid()+'|';
-  Object.keys(b).forEach(k=>{ if(k.startsWith(pre)) delete b[k] });
-  try{ localStorage.setItem(KEY,JSON.stringify(b)) }catch(e){}
-  BAG=null; say('지웠습니다.'); chips(); cmp();
-}
-
-/* ── 대조표 ── */
-function cmp(){
-  const host=$('[data-cmp]',W); if(!host) return;
-  const rows=rowsAll();
-  const pair=[];
-  rows.forEach(r=>{ const v=get(r), a=appTier(r); if(v&&a) pair.push([a,v.t,r]); });
-  if(!pair.length){
-    host.innerHTML=`<p class="n">아직 견줄 것이 없습니다 — 책 등급을 먼저 넣어 주세요.</p>`;
-    return;
+  /* ② 고르기 띠 — 어디서든 이어서 */
+  const row=$('#tagRow')||$('.deck .dcol-find');
+  if(row && !$('#posResume')){
+    const b=document.createElement('button');
+    b.type='button'; b.id='posResume'; b.className='chip';
+    b.textContent='↩ 이어서';
+    b.title='이 조건으로 마지막에 보던 자리로 갑니다\n(그 자리가 지금 묶음에 없으면 과목 전체의 마지막 자리로 갑니다)';
+    b.onclick=resume;
+    row.appendChild(b);
   }
-  const M={}; ORDER.forEach(a=>{ M[a]={}; ORDER.forEach(b=>M[a][b]=0) });
-  pair.forEach(([a,b])=>M[a][b]++);
-  const hit=ORDER.reduce((t,k)=>t+M[k][k],0);
-  const pct=Math.round(hit/pair.length*100);
-
-  const cell=(a,b)=>{
-    const n=M[a][b];
-    const cls=a===b?'hit':(n>=Math.max(3,pair.length*0.04)?'big':'');
-    return `<td class="${cls}">${n||''}</td>`;
-  };
-  /* 가장 크게 엇갈린 칸을 짚어 준다 */
-  let worst=null;
-  ORDER.forEach(a=>ORDER.forEach(b=>{ if(a!==b&&(!worst||M[a][b]>M[worst[0]][worst[1]])) worst=[a,b] }));
-
-  const miss=pair.filter(([a,b])=>a!==b).slice(0,60);
-  host.innerHTML=`
-    <p class="n">견준 문항 <b>${pair.length}</b>개 · 등급이 같은 것 <b>${hit}</b>개 (<b>${pct}%</b>)</p>
-    <table class="bkt"><tr><th>앱 \\ 책</th>${ORDER.map(b=>`<th>${TL[b]}</th>`).join('')}</tr>
-      ${ORDER.map(a=>`<tr><th>${TL[a]}</th>${ORDER.map(b=>cell(a,b)).join('')}</tr>`).join('')}
-    </table>
-    ${worst&&M[worst[0]][worst[1]]?`<p class="n" style="margin-top:8px">
-      가장 크게 엇갈리는 칸 — <b>앱 ${TL[worst[0]]} · 책 ${TL[worst[1]]}</b> ${M[worst[0]][worst[1]]}개.
-      ${worst[0]==='b'||worst[0]==='r'?'앱이 낮게 본 쪽입니다 — 같은 유형을 못 묶어 이력이 쪼개졌을 수 있습니다.'
-        :'앱이 높게 본 쪽입니다 — 최근에 쏠려 과대평가했을 수 있습니다.'}</p>`:''}
-    <div class="bkmiss">${miss.map(([a,b,r])=>`
-      <a data-go="${r.id}"><b>${r.year}년 ${r.session}회 ${r.no}번</b>
-        <i>앱 ${TL[a]} · 책 ${TL[b]}</i></a>`).join('')}</div>
-    ${pair.length>miss.length+hit?`<p class="n">엇갈린 것 중 앞 60개만 보여 줍니다.</p>`:''}`;
-
-  $$('[data-go]',host).forEach(a=>a.onclick=()=>{
-    const id=a.dataset.go;
-    close_();
-    try{
-      const list=window.SHOWN||[];
-      const i=list.findIndex(x=>String(x.id)===String(id));
-      if(i>=0&&typeof window.showAt==='function') window.showAt(i);
-    }catch(e){}
-    setTimeout(()=>{
-      const card=document.querySelector(`#list .pcard[data-id="${id}"]`)
-             || [...document.querySelectorAll('#list .pcard')].find(c=>c.querySelector(`[data-ov="${id}"]`));
-      card&&card.scrollIntoView({block:'start',behavior:'smooth'});
-    },160);
-  });
+  paint();
 }
 
-/* ── 여는 단추 ── */
-function mountBtn(){
-  const host=document.querySelector('#tagRow')||document.querySelector('.deck .dcol-find');
-  if(!host||document.querySelector('#bookBtn')) return;
-  const b=document.createElement('button');
-  b.type='button'; b.id='bookBtn'; b.className='chip';
-  b.textContent='📘 책 등급';
-  b.title='문제집(타우린 등)의 금·은·동을 같이 얹고, 앱 등급과 견줍니다\n자료는 이 기기에만 남습니다';
-  b.onclick=open_;
-  host.appendChild(b);
+function resume(){
+  const b=bag(), rs=shown();
+  if(!rs.length) return;
+  const m=b[sig()];
+  if(m && goId(m.id)) return;
+  const g=b['*last'];
+  if(g && goId(g.id)) return;
+  try{ window.AppUI && window.AppUI.toast && window.AppUI.toast('돌아갈 자리가 아직 없습니다','info'); }catch(e){}
 }
 
-setInterval(()=>{ mountBtn(); chips(); },1500);
-setTimeout(()=>{ mountBtn(); chips(); },900);
-window.__pracBook={ open:open_, get, put };
+/* «몇 / 몇» 을 고르기 띠에도 적어 준다 — 목록 보기에서도 보이게 */
+function paint(){
+  const b=$('#posResume'); if(!b) return;
+  const rs=shown();
+  b.textContent = rs.length ? `↩ 이어서 (${Math.min(at()+1,rs.length)}/${rs.length})` : '↩ 이어서';
+  const inp=$('#posGo input'); if(inp) inp.max=String(rs.length||1);
+}
+
+setInterval(()=>{ mount(); paint(); restore(); },1200);
+setTimeout(mount,800);
+addEventListener('pagehide',remember);
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) remember(); });
+window.__pracPos={ resume, goIndex, goId, remember };
 })();
 
 </script>
@@ -20138,7 +20282,7 @@ window.__pracBook={ open:open_, get, put };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=248").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=251").catch(() => {}));
 </script>
 </body>
 </html>
