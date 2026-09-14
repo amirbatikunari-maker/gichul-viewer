@@ -499,39 +499,36 @@ async function chat(req, env, H){
    화면(review·explain-batch)은 «있는 칸만» 찍으므로 옛 워커와도 섞여 돌아간다. */
 const TOOL = {
   name: "write_solution",
-  description: "전기기사 실기 한 문항의 해설을 정해진 칸에 나눠 적는다. 전기를 배운 적 없는 사람이 혼자 읽고 이해할 만큼 자세히 적는다.",
+  description: "전기기사 실기 한 문항의 해설을 정해진 칸에 나눠 적는다. 전기를 배운 적 없는 사람이 혼자 읽고 이해할 만큼 자세히.",
   input_schema: {
     type: "object",
     required: ["gist", "background", "given", "symbols", "steps", "answer"],
     properties: {
-      gist:    { type: "string", description: "한 줄 요지 — 무엇을 묻는 문제인가" },
+      gist:       { type: "string", description: "한 줄 요지 — 무엇을 묻는 문제인가" },
       background: { type: "array", items: { type: "string" },
-                 description: "이 문제를 풀기 전에 알아야 할 배경 지식. 전기를 처음 보는 사람 기준으로 3~6줄. 한 줄에 하나씩 «배열 원소로» 넣는다. 여러 줄을 한 문자열에 몰아 넣거나 대괄호·따옴표를 직접 쓰지 않는다." },
-      read:    { type: "array", items: { type: "string" },
-                 description: "문제 문장·도면을 어떻게 읽는지. 어느 말이 어느 값·조건을 뜻하는지 2~5줄." },
-      given:   { type: "array", items: { type: "string" },
-                 description: "문제에 주어진 값. 하나씩 «배열 원소로» 넣는다. '이름 = 숫자 단위 (무엇을 뜻하는지)' 꼴. 대괄호·따옴표로 목록을 직접 만들지 않는다." },
-      symbols: { type: "array", description: "식에 나오는 기호의 뜻",
-                 items: { type: "object", required: ["sym"], properties: {
-                   sym:  { type: "string", description: "기호. KaTeX, $ 없이" },
-                   mean: { type: "string", description: "무슨 뜻인지 쉬운 말로" },
-                   unit: { type: "string", description: "단위" },
-                   val:  { type: "string", description: "이 문제에서의 값" } } } },
-      steps:   { type: "array", description: "풀이 단계. 쓰는 식은 따로 모으지 말고 이 안에서 그때그때 세운다. 한 단계에 한 가지만 한다. 보통 4~8단계.",
-                 items: { type: "object", required: ["say"], properties: {
-                   say: { type: "string", description: "이 단계에서 무엇을 하는지 한 줄. 한글. 수식 기호를 넣지 않는다" },
-                   eq:  { type: "array", items: { type: "string" },
-                          description: "이 단계의 식. 기호식 = 숫자대입 = 결과[단위] 를 «등호로 이어» 한 줄에 쓴다. 한 줄이 길어지면 줄을 나눠 배열에 여러 개로 넣는다. 순수 KaTeX 만, $ 없이, 한글 없이." },
-                   why: { type: "string", description: "왜 이렇게 하는지 한글 설명. 어디서 나온 식인지·무엇을 무시했고 왜 무시해도 되는지·단위를 왜 바꿨는지. 3~6문장으로 정리해 쓰되 수식은 넣지 않는다" } } } },
-      answer:  { type: "string", description: "최종 답. 답안지 표기를 그대로" },
-      unit:    { type: "string", description: "단위. 없으면 빈 문자열" },
-      why_answer:{ type: "string", description: "이 값이 왜 답이 되는지, 채점에서 무엇을 보는지" },
-      check:   { type: "string", description: "답이 맞는지 거꾸로 확인하는 법, 또는 값의 크기가 상식에 맞는지 보는 법" },
-      memo:    { type: "string", description: "나열형(«n가지 쓰시오») 답일 때만. 두문자·묶음 등 외우는 요령 한 줄. 아니면 빈 문자열" },
-      trap:    { type: "string", description: "흔한 실수. 왜 틀리는지까지" },
-      also:    { type: "array", items: { type: "string" },
-                 description: "같이 알아 두면 좋은 것 — 비슷한 문제, 조건이 바뀌면 어떻게 되는지 2~4줄" },
-      tags:    { type: "array", items: { type: "string" }, description: "과목·주제 꼬리표 2~4개" }
+                    description: "풀기 전에 알아야 할 배경. 전기를 처음 보는 사람 기준으로 3~6개. 한 개가 배열 원소 하나" },
+      given:      { type: "array", items: { type: "string" },
+                    description: "문제에 주어진 값. 한 개가 배열 원소 하나. '이름 = 숫자 단위 (뜻)' 꼴" },
+      symbols:    { type: "array", description: "식에 나오는 기호",
+                    items: { type: "object", required: ["sym", "mean"], properties: {
+                      sym:  { type: "string", description: "기호. KaTeX, $ 없이" },
+                      mean: { type: "string", description: "무슨 뜻인지 쉬운 말로" },
+                      unit: { type: "string", description: "단위" },
+                      val:  { type: "string", description: "이 문제에서의 값" } } } },
+      steps:      { type: "array", description: "풀이 단계. 4~8개. 한 단계는 아래 다섯 줄로 이뤄진다",
+                    items: { type: "object", required: ["say"], properties: {
+                      say:   { type: "string", description: "이 단계의 이름. 한글 한 줄. 예: '전압강하 근사식으로 저항 R 구하기'" },
+                      sym:   { type: "string", description: "①부호식 — 기호만으로 세운 식. 조건 때문에 식이 바뀌면 \\xrightarrow{X=0} 으로 화살표 위에 조건을 얹어 한 줄에 잇는다. KaTeX, $ 없이" },
+                      plain: { type: "string", description: "②해설식 — ①과 똑같은 식인데 기호 자리에 한글 이름을 넣은 것. 한글은 \\text{} 안에. KaTeX, $ 없이" },
+                      num:   { type: "string", description: "③숫자대입식 — 같은 식에 이 문제의 숫자를 넣고 계산해 결과와 단위까지. KaTeX, $ 없이" },
+                      read:  { type: "string", description: "④읽기식 — 그 식을 소리 내 읽은 한글 문장. 발음 그대로" },
+                      why:   { type: "string", description: "⑤왜 — 이 식을 왜 쓰는지 한글 3~6문장. 기호는 $R$ 처럼 달러로 감싼다" } } } },
+      answer:     { type: "string", description: "최종 답. 답안지 표기를 그대로" },
+      unit:       { type: "string", description: "단위. 없으면 빈 문자열" },
+      check:      { type: "string", description: "답이 맞는지 거꾸로 확인하는 법" },
+      trap:       { type: "string", description: "흔한 실수. 왜 틀리는지까지" },
+      memo:       { type: "string", description: "나열형 답일 때만 외우는 요령 한 줄. 아니면 빈 문자열" },
+      tags:       { type: "array", items: { type: "string" }, description: "과목·주제 꼬리표 2~4개" }
     }
   }
 };
@@ -539,55 +536,41 @@ const SYS_SOL = [
   "너는 전기기사 실기 채점 기준을 아는 해설 작성자다.",
   "읽는 사람은 전기를 전공하지 않았고, 이 단원을 처음 본다고 여긴다.",
   "",
-  "무엇보다 중요한 규칙",
+  "지켜야 할 것",
   "- 답안지에 적힌 최종값·단위·유효숫자를 그대로 따른다. 반올림을 네 판단으로 바꾸지 않는다.",
-  "- 답안지에 없는 값을 지어내지 않는다. 문제에서 읽히지 않는 수치는 given 에 넣지 않는다.",
+  "- 답안지에 없는 값을 지어내지 않는다.",
   "- 이미지가 흐리거나 잘려 확신이 안 서면 gist 첫머리에 '[확인필요] ' 를 붙인다.",
+  "- 도구의 칸을 채울 때 <item> · <step> 같은 표를 쓰지 않는다. 목록은 배열 원소 하나에 한 개씩 넣는다.",
+  "- 한 칸에 해설 전체를 몰아 넣지 않는다. 칸마다 그 칸의 내용만 넣는다.",
   "",
-  "얼마나 자세히 쓰나",
-  "- 길이를 아끼지 않는다. 짧게 줄이는 것보다 빠짐없이 적는 쪽이 낫다.",
-  "- background 에는 이 문제가 무슨 단원인지, 거기 나오는 말이 무슨 뜻인지, 그 값이 현장에서 무엇을 뜻하는지를 적는다. 교과서 정의를 옮기지 말고 쉬운 말로 풀어 쓴다.",
-  "- symbols 에는 식에 나오는 기호를 하나도 빼지 않고 적는다. 뜻·단위·이 문제에서의 값까지.",
-  "- steps 는 암산으로 건너뛰지 않는다. 한 단계에 한 가지만 한다.",
-  "- 단위가 바뀌는 곳(kW↔W, mm²↔m², 분↔초)은 왜 바뀌는지 반드시 적는다.",
-  "- √3, 역률, 효율 같은 계수가 왜 붙는지 why 에 설명한다.",
-  "- 도면(시퀀스·단선결선도) 문항이면 도면에서 읽은 기호와 결선을 하나씩 말로 풀어 준다.",
-  "",
-  "풀이 한 단계를 적는 법",
-  "- 쓰는 식을 위에 따로 모으지 않는다. 식이 필요한 그 단계에서 세운다.",
-  "- say : 이 단계에서 무엇을 하는지 한글 한 줄. 기호·수식을 넣지 않는다.",
-  "- eq  : 식을 «등호로 이어» 한 줄로 쓴다. 기호식 = 숫자대입 = 결과[단위] 순서.",
-  "-   예: e = V_{s} - V_{r} = 6600 - 6300 = 300\\,[\\mathrm{V}]",
+  "풀이 한 단계 — 이름 하나에 다섯 줄. 순서를 지킨다",
+  "- say   : 그 단계의 이름. 한글 한 줄. 예: '전압강하 근사식으로 저항 R 구하기'",
+  "- sym   : ①부호식. 기호만으로 세운 식.",
+  "-   조건 때문에 식이 바뀌면 화살표 위에 조건을 얹는다.",
+  "-   예: e = \\dfrac{P}{V_{r}}(R + X\\tan\\theta) \\xrightarrow{X=0} e = \\dfrac{P}{V_{r}}R",
+  "- plain : ②해설식. ①과 똑같은 식인데 기호 자리에 한글 이름을 넣은 것. 한글은 \\text{} 안에.",
+  "-   예: \\text{전압강하} = \\dfrac{\\text{3상부하전력}}{\\text{수전단전압}}(\\text{1선당저항} + \\text{1선당리액턴스}\\tan\\theta)",
+  "- num   : ③숫자대입식. 같은 식에 숫자를 넣고 결과와 단위까지.",
   "-   예: R = \\dfrac{e V_{r}}{P} = \\dfrac{300 \\times 6300}{2000 \\times 10^{3}} = 0.945\\,[\\Omega]",
-  "-   한 줄이 길어지면 줄을 나눠 eq 배열에 여러 개로 넣는다. 한 줄에 등호는 셋까지.",
-  "- why : 왜 이렇게 하는지 한글로 정리해 쓴다. 어디서 나온 식인지, 무엇을 무시했고 왜 무시해도 되는지, 단위를 왜 바꿨는지. 3~6문장. 수식은 넣지 않는다.",
+  "- read  : ④읽기식. 그 식을 소리 내 읽은 한글 문장.",
+  "-   예: '이는 피 나누기 브이알 곱하기 괄호 알 플러스 엑스 탄젠트 세타 괄호 닫고'",
+  "- why   : ⑤왜 이 식을 쓰는지. 한글 3~6문장. 기호는 $R$ 처럼 달러로 감싼다.",
+  "- 계산이 없는 단계(표에서 규격 고르기 등)는 say 와 why 만 채운다.",
   "",
-  "수식(KaTeX) 쓰는 법 — 이걸 어기면 화면이 깨진다",
-  "- 분수는 반드시 \\dfrac{위}{아래} 로 쓴다. (1/58) 이나 a/b 처럼 빗금으로 쓰지 않는다.",
-  "-   맞는 예: \\rho = \\dfrac{1}{58} \\times \\dfrac{100}{97}",
-  "-   틀린 예: \\rho = (1/58) \\times (100/97)",
-  "- 아래첨자는 밑줄로. V_{s}, V_{r}, Q_{c} 처럼 쓴다. Vs, Vr 로 붙여 쓰지 않는다.",
-  "- 수식 안에 한글을 절대 넣지 않는다. '이므로', '에서' 같은 말은 why 로 뺀다.",
-  "- 숫자에 천 단위 쉼표를 넣지 않는다. 6600 으로 쓴다. 6,600 으로 쓰면 화면에서 사이가 벌어진다.",
-  "- 단위는 \\,[\\mathrm{V}] 꼴로 뒤에 붙인다. [mm^2] 는 [\\mathrm{mm^{2}}] 로 쓴다.",
-  "- \\quad · \\; · \\hspace · \\text 로 빈칸을 만들지 않는다. 화면이 휑하게 벌어진다.",
-  "- \\times · \\div · \\sqrt{} · \\cos\\theta 처럼 KaTeX 명령을 쓴다. ×, ÷, √ 같은 글자를 직접 쓰지 않는다.",
+  "수식(KaTeX) 쓰는 법 — 어기면 화면이 깨진다",
+  "- 분수는 \\dfrac{위}{아래}. (1/58) 처럼 빗금으로 쓰지 않는다.",
+  "- 아래첨자는 V_{s}, V_{r}, Q_{c} 꼴. Vs 로 붙여 쓰지 않는다.",
+  "- 수식 안 한글은 \\text{} 안에만. '이므로' 같은 잇는 말은 아예 넣지 말고 why 로 뺀다.",
+  "- 천 단위 쉼표를 쓰지 않는다. 6600 으로 쓴다.",
+  "- 단위는 \\,[\\mathrm{V}] 꼴. \\quad · \\; · \\hspace · \\text 로 빈칸을 만들지 않는다.",
+  "- ×, ÷, √ 대신 \\times · \\div · \\sqrt{} 를 쓴다.",
   "",
   "부호 칸",
-  "- symbols 에는 식에 나온 부호를 «하나도 빠짐없이» 적는다. 뜻(mean)·단위(unit)를 함께 쓴다.",
-  "- symbols 의 val 에는 이 문제에서 실제로 넣은 값을 쓴다. 구하는 값이면 '구하는 값', 문제에 없으면 빈 칸으로 둔다.",
-  "",
-  "외우기(memo) 칸",
-  "- 답이 항목 나열이면(«3가지를 쓰시오», «각각 쓰시오» 등) memo 에 외우는 요령을 한 줄 넣는다.",
-  "- 방법: 항목 첫 글자를 딴 두문자, 또는 «둘씩 짝지어» 같은 묶음, 또는 대비되는 쌍으로 묶기.",
-  "- 예: 접지 목적 3가지(감전방지·기기보호·이상전압억제) → '감·기·이 = 사람 먼저, 기기 다음, 전압 마지막'.",
-  "- 억지로 만들지 않는다. 자연스러운 요령이 없으면 비워 둔다.",
-  "- 계산 문항이면 memo 는 비워 둔다.",
+  "- symbols 에는 식에 나온 기호를 빠짐없이. 뜻·단위·이 문제에서의 값까지.",
   "",
   "말투",
-  "- 개조식으로 쓴다. '~함', '~임', '~됨' 형태. '~있습니다', '~합니다' 는 쓰지 않는다.",
-  "- 다만 설명은 충분히 길게 쓴다. 개조식이라고 해서 한 토막으로 끊지 않는다.",
-  "- 수식은 KaTeX 문법으로 쓰되 $ 기호는 넣지 않는다. 앱이 감싼다.",
+  "- 개조식. '~함', '~임', '~됨'. '~합니다' 는 쓰지 않는다.",
+  "- 다만 설명은 충분히 길게 쓴다.",
   "",
   "반드시 write_solution 도구로 답한다."
 ].join("\n");
@@ -801,7 +784,7 @@ export default {
         판정: 막힌곳.includes(colo)
           ? `${colo} 기지는 Anthropic 이 막는 지역입니다 — 403 의 원인입니다.`
           : `${colo} 기지는 보통 허용됩니다.`,
-        빌드: "v256"
+        빌드: "v262"
       }, 200, H);
     }
 
@@ -857,7 +840,7 @@ export default {
         keyHead: String(env.ANTHROPIC_API_KEY).slice(0,14) + "…",
         keyLen: String(env.ANTHROPIC_API_KEY).length,
         keyTrimmed: String(env.ANTHROPIC_API_KEY) === String(env.ANTHROPIC_API_KEY).trim(),
-        빌드: "v256",
+        빌드: "v262",
         기지: (req.cf && req.cf.colo) || "?",
         upstream: parsed || body.slice(0,600),
         vision
@@ -865,7 +848,7 @@ export default {
     }
 
     if (path === "/health" || path === "/")
-      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v256" }, 200, H);
+      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v262" }, 200, H);
 
     if (env.APP_KEY && req.headers.get("x-app-key") !== env.APP_KEY)
       return json({ error: "x-app-key 가 맞지 않습니다", detail: "x-app-key 가 맞지 않습니다" }, 401, H);
