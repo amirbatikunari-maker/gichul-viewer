@@ -381,7 +381,23 @@ function toMd(sol){
     return /[\\^_{]/.test(x) ? `$${tex(x)}$` : x;
   };
 
-  const line = t => unxml(String(t == null ? "" : t)).replace(/\n{2,}/g, "\n").trim();
+  /* ★ v263 — 글 칸(검산·흔한 실수·왜)에 수식을 넣으면 백슬래시가 떨어져 나간 채로 와서
+     «dfrac155 times ...» 처럼 글자가 흩어진다. 떨어진 백슬래시를 되살리고,
+     그래도 못 살릴 만큼 깨진 것은 수식 표시를 벗겨 글로 읽히게 둔다. */
+  const CMD = /(dfrac|tfrac|frac|sqrt|times|div|cdot|approx|fallingdotseq|leqq|geqq|leq|geq|neq|Omega|omega|theta|alpha|beta|rho|mu|Delta|sum|mathrm|text|left|right|tan|cos|sin|log|ln|xrightarrow|quad|pi)/g;
+  const fixMath = t => String(t == null ? "" : t).replace(/\$([^$\n]{1,400})\$/g, (m, body) => {
+    /* ① \t · \f 는 JSON 에서 «탭 · 페이지넘김» 으로 읽혀 버린다.
+       그래서 \times 가 [탭]imes, \fallingdotseq 가 [넘김]allingdotseq 로 도착한다.
+       그 자리에 백슬래시를 도로 꽂아 준다. */
+    const BACK = { "\t":"\\t", "\f":"\\f", "\b":"\\b", "\v":"\\v", "\r":"\\r" };
+    let b = body.replace(/[\t\f\v\b\r]/g, c => BACK[c] || "\\");
+    /* ② 백슬래시가 떨어져 나간 명령말 앞에 도로 붙인다.
+       \times\dfrac 처럼 붙어 있던 것이 \timesdfrac 로 와도 갈라 준다.
+       이미 백슬래시가 앞에 있는 것은 건드리지 않는다. */
+    b = b.replace(CMD, (w, _g, off, str) => (off > 0 && str[off - 1] === "\\") ? w : "\\" + w);
+    return "$" + b + "$";
+  });
+  const line = t => fixMath(unxml(String(t == null ? "" : t))).replace(/\n{2,}/g, "\n").trim();
 
   if(sol.gist) L.push(`**${line(sol.gist)}**`, "");
 
@@ -430,10 +446,11 @@ function toMd(sol){
       /* ★ v260 — 한 단계는 다섯 줄. 순서를 화면에서 못 박는다.
          ①부호식 ②해설식 ③숫자대입식 ④읽기식 ⑤왜 */
       const eqs = Array.isArray(s.eq) ? s.eq : (s.eq ? [s.eq] : []);
-      if(s.sym || s.plain || s.num){
+      if(s.sym || s.plain || s.num || s.unit){
         if(s.sym)   eqBlock(s.sym);
         if(s.plain) eqBlock(s.plain);
         if(s.num)   eqBlock(s.num);
+        if(s.unit)  eqBlock(s.unit);   /* 단위만 넣어 결과 단위를 맞춰 보는 식 */
       }
       else if(eqs.length) eqs.forEach(e => eqBlock(e));
       else eqBlock([s.math, s.calc].filter(Boolean));   /* 옛 판 대비 */

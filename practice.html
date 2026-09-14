@@ -6559,7 +6559,7 @@ sb?.auth?.onAuthStateChange?.((evt, session) => setTimeout(() => {
 </script>
 
 <!-- ══ AI 대화 상자 ══ config.js 의 AI_WORKER_URL 을 채워야 작동합니다 -->
-<script src="./ai-chat.js?v=262" defer></script>
+<script src="./ai-chat.js?v=263" defer></script>
 <script src="./ai-viewer.js" defer></script>
 <script>
 (function(){
@@ -20343,7 +20343,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=262").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=263").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -20513,7 +20513,23 @@ function solToMd(sol){
     return /[\\^_{]/.test(x) ? `$${tex(x)}$` : x;
   };
 
-  const line = t => unxml(String(t == null ? "" : t)).replace(/\n{2,}/g, "\n").trim();
+  /* ★ v263 — 글 칸(검산·흔한 실수·왜)에 수식을 넣으면 백슬래시가 떨어져 나간 채로 와서
+     «dfrac155 times ...» 처럼 글자가 흩어진다. 떨어진 백슬래시를 되살리고,
+     그래도 못 살릴 만큼 깨진 것은 수식 표시를 벗겨 글로 읽히게 둔다. */
+  const CMD = /(dfrac|tfrac|frac|sqrt|times|div|cdot|approx|fallingdotseq|leqq|geqq|leq|geq|neq|Omega|omega|theta|alpha|beta|rho|mu|Delta|sum|mathrm|text|left|right|tan|cos|sin|log|ln|xrightarrow|quad|pi)/g;
+  const fixMath = t => String(t == null ? "" : t).replace(/\$([^$\n]{1,400})\$/g, (m, body) => {
+    /* ① \t · \f 는 JSON 에서 «탭 · 페이지넘김» 으로 읽혀 버린다.
+       그래서 \times 가 [탭]imes, \fallingdotseq 가 [넘김]allingdotseq 로 도착한다.
+       그 자리에 백슬래시를 도로 꽂아 준다. */
+    const BACK = { "\t":"\\t", "\f":"\\f", "\b":"\\b", "\v":"\\v", "\r":"\\r" };
+    let b = body.replace(/[\t\f\v\b\r]/g, c => BACK[c] || "\\");
+    /* ② 백슬래시가 떨어져 나간 명령말 앞에 도로 붙인다.
+       \times\dfrac 처럼 붙어 있던 것이 \timesdfrac 로 와도 갈라 준다.
+       이미 백슬래시가 앞에 있는 것은 건드리지 않는다. */
+    b = b.replace(CMD, (w, _g, off, str) => (off > 0 && str[off - 1] === "\\") ? w : "\\" + w);
+    return "$" + b + "$";
+  });
+  const line = t => fixMath(unxml(String(t == null ? "" : t))).replace(/\n{2,}/g, "\n").trim();
 
   if(sol.gist) L.push(`**${line(sol.gist)}**`, "");
 
@@ -20562,10 +20578,11 @@ function solToMd(sol){
       /* ★ v260 — 한 단계는 다섯 줄. 순서를 화면에서 못 박는다.
          ①부호식 ②해설식 ③숫자대입식 ④읽기식 ⑤왜 */
       const eqs = Array.isArray(s.eq) ? s.eq : (s.eq ? [s.eq] : []);
-      if(s.sym || s.plain || s.num){
+      if(s.sym || s.plain || s.num || s.unit){
         if(s.sym)   eqBlock(s.sym);
         if(s.plain) eqBlock(s.plain);
         if(s.num)   eqBlock(s.num);
+        if(s.unit)  eqBlock(s.unit);   /* 단위만 넣어 결과 단위를 맞춰 보는 식 */
       }
       else if(eqs.length) eqs.forEach(e => eqBlock(e));
       else eqBlock([s.math, s.calc].filter(Boolean));   /* 옛 판 대비 */
@@ -20869,6 +20886,21 @@ function ovNowId(){
   if(m){ const r=allRows().find(x=>String(x.year)===m[1]&&String(x.session)===m[2]&&String(x.no)===m[3]); if(r) return String(r.id); }
   return '';
 }
+/* ★ v263 — 해설 글자 크기 (5~15pt). --ezfs 하나로 해설칸 전체가 따라온다 */
+const FSKEY='prac:ezfs';
+function applyFs(pt){
+  const v=Math.min(15, Math.max(5, +pt || 9));
+  document.documentElement.style.setProperty('--ezfs', v+'pt');
+  try{ localStorage.setItem(FSKEY, String(v)); }catch(e){}
+  const n=$('#pxFsN'); if(n) n.textContent=v+'pt';
+  const r=$('#pxFs'); if(r && +r.value!==v) r.value=String(v);
+}
+function curFs(){ try{ return +(localStorage.getItem(FSKEY) || 9) }catch(e){ return 9 } }
+applyFs(curFs());
+document.addEventListener('input', e=>{
+  if(e.target && e.target.id==='pxFs') applyFs(e.target.value);
+}, true);
+
 /* 해설만 보기 — 켜고 끄기. 고른 것은 이 기기에 적어 둔다 */
 const EZKEY='prac:ezonly';
 function paintEzOnly(){
@@ -20896,7 +20928,9 @@ function mount(){
     box.innerHTML=`<button type="button" class="pxb" data-pxsol="opus" title="비전공자용 상세 해설 — Opus 로 (문항당 약 80원)">✎ 상세해설 <b>Opus</b></button>
       <button type="button" class="pxb" data-pxsol="sonnet" title="비전공자용 상세 해설 — Sonnet 으로 (문항당 약 30원)">✎ 상세해설 <b>Sonnet</b></button>
       <button type="button" class="pxb" data-pxcut title="가로 절단선을 긋고 칸마다 문제·답으로 나눠 넣습니다">✂ 잘라 넣기</button>
-      <button type="button" class="pxb" data-pxezonly title="문제·답 칸을 접고 풀이만 화면 가득 봅니다. 다시 누르면 되돌아옵니다 (요금 안 붙음)">📖 해설만</button>`;
+      <button type="button" class="pxb" data-pxezonly title="문제·답 칸을 접고 풀이만 화면 가득 봅니다. 다시 누르면 되돌아옵니다 (요금 안 붙음)">📖 해설만</button>
+      <label class="pxfs" title="해설 글자 크기 (5~15pt)"><span>글자</span>
+        <input type="range" id="pxFs" min="5" max="15" step="0.5"><b id="pxFsN">9pt</b></label>`;
     const after=$('#ovReformat',oh)||oh.lastElementChild;
     after ? after.after(box) : oh.appendChild(box);
   }
@@ -20933,7 +20967,7 @@ document.addEventListener('click', e=>{
   if(z){ e.preventDefault(); e.stopPropagation(); return void ezOnly(); }
 }, true);
 
-setInterval(() => { mount(); paintEzOnly(); }, 1200); setTimeout(mount, 900);
+setInterval(() => { mount(); paintEzOnly(); applyFs(curFs()); }, 1200); setTimeout(mount, 900);
 window.__pxSol=makeSol; window.__pxCut=openCut;
 })();
 </script>
@@ -20981,6 +21015,27 @@ body.ezonly .pcol-q,body.ezonly .pcol-ans{display:none!important}
 body.ezonly .pgrid.split:not(.split3) .pcol-ez{display:block!important}
 body.ezonly .pcol-ez{grid-column:1 / -1!important}
 .pxb.on{background:var(--ink,#172033)!important;border-color:var(--ink,#172033)!important;color:#fff!important}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════
+   v263 · «가− 를 눌러도 해설 글자가 안 줄던» 까닭
+
+   단추는 --qfs 를 바꾸는데, 해설칸(.easybox · .ovl .ez)은 --fs-ez 라는
+   «다른 변수» 를 보고 있었다. 게다가 .easybox 는 14px 로 아예 못 박혀 있었다.
+   그래서 수식(--texScale)만 줄고 글자는 그대로였던 것.
+   이제 해설 글자는 --ezfs 하나만 본다. 5~15pt 자막대가 이 값을 정한다.
+   ══════════════════════════════════════════════════════════════ */
+.easybox,.ez,.ovl .ez,.pcol-ez .ez,#ovRight .ez,.mkb{
+  font-size:var(--ezfs, var(--fs-ez,12.5px))!important}
+.easybox p,.easybox li,.ez p,.ez li,.ovl .ez p,.ovl .ez li{font-size:inherit!important}
+.easybox h4,.ez h4,.ovl .ez h4{font-size:calc(var(--ezfs, 12.5px) + 0.5pt)!important}
+/* 자막대 */
+.pxfs{display:inline-flex;align-items:center;gap:6px;flex:none;
+  padding:0 8px;height:28px;border:1px solid var(--line,#e2e8f0);border-radius:8px;
+  background:var(--surface,#fff)}
+.pxfs input[type=range]{width:104px;accent-color:var(--accent,#2563eb)}
+.pxfs b{font:700 11px/1 var(--font-m,ui-monospace,monospace);min-width:34px;text-align:right}
+.pxfs span{font:700 10.5px/1 var(--font-d,system-ui);color:var(--muted,#64748b)}
 </style>
 </body>
 </html>
