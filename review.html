@@ -1476,7 +1476,9 @@ function solToMd(sol){
     L.push("**풀이**", "");
     arr(sol.steps).forEach((s, i) => {
       if(typeof s === "string") return void L.push(`${i+1}. ${s}`, "");
-      L.push(`${i+1}. ${line(s.say)}`, "");
+      /* 소문항 번호로 시작하면 «1. (1)» 처럼 번호가 겹치지 않게 둔다 */
+      const sy0 = line(s.say);
+      L.push(/^\s*(\(\d+\)|[①-⑳]|\d+\s*[).])/.test(sy0) ? `${sy0}` : `${i+1}. ${sy0}`, "");
       /* 새 판 — 등호로 이은 한 줄(여럿이면 줄마다) */
       /* ★ v260 — 한 단계는 다섯 줄. 순서를 화면에서 못 박는다.
          ①부호식 ②해설식 ③숫자대입식 ④읽기식 ⑤왜 */
@@ -1495,10 +1497,14 @@ function solToMd(sol){
     });
   }
   /* 답에 이미 단위가 붙어 온 경우 또 붙이지 않는다 (70[mm^2]mm^2 처럼 되던 것) */
-  const ansT = String(sol.answer || "").trim();
+  const ansT = line(sol.answer).trim();
   const unitT = String(sol.unit || "").trim();
+  const ansLines = ansT.split(/\n+|(?=\s\(\d+\)\s)/).map(x => x.trim()).filter(Boolean);
+  const many = ansLines.length > 1;                 /* 소문항이 여럿인 답 */
   const dup = unitT && (ansT.includes(unitT) || ansT.includes(unitT.replace(/[\[\]]/g, "")));
-  L.push("**답**", "", `> ${ansT}${unitT && !dup ? " " + unitT : ""}`, "");
+  L.push("**답**", "");
+  if(many) ansLines.forEach(x => L.push(`> ${x}`, ""));
+  else L.push(`> ${ansT}${unitT && !dup ? " " + unitT : ""}`, "");
   if(sol.why_answer) L.push("**왜 이 답인가**", "", line(sol.why_answer), "");
   if(sol.check)      L.push("**검산**", "", line(sol.check), "");
   if(sol.memo)       L.push("**외우기**", "", line(sol.memo), "");
