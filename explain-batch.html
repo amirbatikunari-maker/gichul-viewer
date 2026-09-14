@@ -390,6 +390,11 @@ async function one(r){
     throw new Error(d.error || ("HTTP " + res.status));
   }
   if(d.usage){ N.tin += d.usage.input_tokens || 0; N.tout += d.usage.output_tokens || 0; }
+  /* ★ v255 — 새 워커는 depth 를 되돌려 준다. 없으면 옛 판이라 옛 모양으로 나온다 */
+  if(!d.depth && !window.__oldSaid){
+    window.__oldSaid = true;
+    log("⚠ 워커가 옛 판입니다 — gichul-ai 워커에 새 index.js 를 배포하세요", "bad");
+  }
 
   const md = toMd(d.sol || {});
   if(!md || md.length < 20) throw new Error("해설이 비어서 왔습니다");

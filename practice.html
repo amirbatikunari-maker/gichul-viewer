@@ -6556,7 +6556,7 @@ sb?.auth?.onAuthStateChange?.((evt, session) => setTimeout(() => {
 </script>
 
 <!-- ══ AI 대화 상자 ══ config.js 의 AI_WORKER_URL 을 채워야 작동합니다 -->
-<script src="./ai-chat.js?v=251" defer></script>
+<script src="./ai-chat.js?v=255" defer></script>
 <script src="./ai-viewer.js" defer></script>
 <script>
 (function(){
@@ -20486,6 +20486,7 @@ function solToMd(sol){
 }
 
 /* ══ 한 문항 해설 뽑기 ══ */
+let OLD_SAID=false;
 const TIMEOUT=180000;
 async function askSol(r, which){
   const ac=new AbortController();
@@ -20508,9 +20509,14 @@ async function askSol(r, which){
   const raw=await res.text();
   let d={}; try{ d=JSON.parse(raw) }catch(e){}
   if(!res.ok) throw new Error(`HTTP ${res.status} — ${d.error||d.detail||raw.slice(0,160)}`);
+  /* ★ v255 — 새 워커는 depth 를 되돌려 준다. 없으면 워커가 옛 판이다 */
+  if(!d.depth && !OLD_SAID){
+    OLD_SAID=true;
+    toast('⚠ 워커가 옛 판입니다 — gichul-ai 워커에 새 index.js 를 배포해야 부호식·해설식·숫자대입식이 나옵니다');
+  }
   const md=solToMd(d.sol||{});
   if(!md||md.length<20) throw new Error('해설이 비어서 왔습니다');
-  return { md, model:d.model||null };
+  return { md, model:d.model||null, depth:d.depth||null };
 }
 
 let SOLBUSY=false;

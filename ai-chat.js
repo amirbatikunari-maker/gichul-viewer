@@ -394,6 +394,29 @@ const TIER = [
 ];
 
 
+/* ★ v255 — «자동» 이 질문 성격을 보고 모델을 바꾸는 바람에,
+   같은 자리에서 답이 왔다 갔다 했다. 직접 골라 못 박을 수 있게 한다.
+   여기 적은 id 를 워커에 그대로 보내므로 등급표(/ai/models)와 상관없이 먹는다. */
+const PIN = {
+
+  opus: {
+    id: "claude-opus-5",
+    label: "Opus 5"
+  },
+
+  sonnet: {
+    id: "claude-sonnet-5",
+    label: "Sonnet 5"
+  },
+
+  haiku: {
+    id: "claude-haiku-4-5-20251001",
+    label: "Haiku 4.5"
+  }
+
+};
+
+
 /* ═══════════════════════════════════════════════════════════════════════
    state
    ═══════════════════════════════════════════════════════════════════════ */
@@ -1114,6 +1137,30 @@ function autoPick(
 function resolveModel(
   text
 ) {
+
+  /* ★ v255 — 손으로 고른 모델이 있으면 그것만 쓴다. 자동 판단을 건너뛴다. */
+  if (
+    PIN[state.mode]
+  ) {
+
+    return {
+
+      provider:
+        "openai",
+
+      model:
+        PIN[state.mode].id,
+
+      tier:
+        PIN[state.mode].label,
+
+      pinned:
+        true
+
+    };
+
+  }
+
 
   if (
     !MODELS_READY
@@ -2499,12 +2546,24 @@ function renderModelBar() {
     ],
 
     [
-      "openai",
-      "Claude"
+      "opus",
+      "Opus 5"
+    ],
+
+    [
+      "sonnet",
+      "Sonnet 5"
+    ],
+
+    [
+      "haiku",
+      "Haiku 4.5"
     ]
 
     /* v202 — Gemini 탭 제거. 중계 워커가 전부 Claude 로 보내므로
-       고를 것이 없고, 이름만 남으면 헷갈린다. */
+       고를 것이 없고, 이름만 남으면 헷갈린다.
+       ★ v255 — «Claude» 한 칸을 모델 이름 세 칸으로 갈랐다.
+         고른 것은 ai:mode 로 저장되어 다음에 열어도 그대로 있다. */
 
   ];
 
@@ -2529,8 +2588,8 @@ function renderModelBar() {
 
 
   if (
-    state.mode !==
-    "auto"
+    state.mode ===
+    "openai"
   ) {
 
     html +=
@@ -2688,12 +2747,16 @@ function renderHint() {
 
 
   el.hint.textContent =
-    state.mode ===
-      "auto"
+    p.pinned
 
-      ? `자동 — ${current}`
+      ? `${PIN[state.mode].label} 로 고정됨`
 
-      : current;
+      : state.mode ===
+        "auto"
+
+        ? `자동 — ${current}`
+
+        : current;
 
 }
 

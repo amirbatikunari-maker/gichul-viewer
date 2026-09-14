@@ -1242,6 +1242,7 @@ async function delCand(k, i){
 const WORKER = (CFG.CLAUDE_WORKER_URL || CFG.WORKER_URL
                 || "https://gichul-ai.amirbatikunari.workers.dev").replace(/\/$/,"");
 const APPKEY = CFG.CLAUDE_APP_KEY || "";
+let WORKER_OLD_SAID = false;
 const SOL_TIMEOUT = 180000;          /* 3분. 이보다 길면 끊고 «왜 멈췄는지» 를 말함 */
 
 /* 워커에 한 문항을 물어봄. 성공하면 { md, model, usage }.
@@ -1279,9 +1280,17 @@ async function askSol(r, depth){
     if(d.code === "NO_ANSWER") err.skip = true;
     throw err;
   }
+  /* ★ v255 — 워커가 옛 판이면 여기서 잡는다.
+     새 워커는 depth 를 되돌려 준다. 그게 없으면 화면만 새 판이고 워커는 옛 판이라,
+     해설이 «쓰는 식 + 읽기» 옛 모양으로 나온다. 까닭을 모르면 화면만 계속 들여다보게 된다. */
+  if(!d.depth && !WORKER_OLD_SAID){
+    WORKER_OLD_SAID = true;
+    log("⚠ 워커가 옛 판입니다 — Cloudflare 의 gichul-ai 워커에 새 index.js 를 붙여넣고 Deploy 해야 새 해설 모양이 나옵니다", "bad");
+    say(`<span style="color:var(--bad)">워커가 옛 판입니다.</span> Cloudflare 워커에 새 <b>index.js</b> 를 배포하세요 — «워커 점검» 의 <code>빌드</code> 가 v255 여야 합니다.`);
+  }
   const md = solToMd(d.sol || {});
   if(!md || md.length < 20) throw new Error("해설이 비어서 왔습니다");
-  return { md, model: d.model || null, usage: d.usage || null };
+  return { md, model: d.model || null, usage: d.usage || null, depth: d.depth || null };
 }
 
 /* 한 문항을 뽑아 저장까지. 배치·단독이 같이 씀 */
