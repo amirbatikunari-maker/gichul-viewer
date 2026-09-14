@@ -1341,7 +1341,45 @@ async function genSol(btn){
    워커가 옛 판이라 새 칸을 안 보내도 그대로 돌아감 (있는 것만 찍음). */
 function solToMd(sol){
   const L = [];
-  const arr = v => Array.isArray(v) ? v : (v ? [v] : []);
+  /* ★ v256 — 목록 칸을 «['가','나']» 처럼 통째로 한 덩어리로 적어 보내는 일이 있다.
+     그대로 찍으면 대괄호·따옴표가 화면에 그대로 나온다. 풀어서 줄로 나눈다. */
+  const arr = v => {
+    if(Array.isArray(v)) return v.filter(x => x != null && String(x).trim());
+    const t = String(v == null ? "" : v).trim();
+    if(!t) return [];
+    if(/^\[[\s\S]*\]$/.test(t)){
+      try{ const j = JSON.parse(t); if(Array.isArray(j)) return j; }catch(e){}
+      try{ const j = JSON.parse(t.replace(/'/g, '"')); if(Array.isArray(j)) return j; }catch(e){}
+      return t.slice(1, -1).split(/['"]\s*,\s*['"]/)
+        .map(x => x.replace(/^['"]|['"]$/g, "").trim()).filter(Boolean);
+    }
+    return [t];
+  };
+  /* 수식 손질
+     · 천 단위 쉼표(6,600)는 KaTeX 에서 뒤가 휑하게 벌어진다 → {,} 로 붙인다
+     · \quad · \; · \hspace 같은 빈칸 명령이 들어오면 사이가 벌어진다 → 걷어낸다
+     · 한글이 섞인 식은 수식으로 그리면 깨진다 → 글줄로 내보낸다 */
+  const HAN = /[가-힣]/;
+  const tex = t => {
+    let x = String(t == null ? "" : t).trim();
+    if(!x) return null;
+    x = x.replace(/^\$+|\$+$/g, "").trim();
+    x = x.replace(/(\d),(?=\d{3})/g, "$1{,}");
+    x = x.replace(/\\(?:qquad|quad|hspace\{[^}]*\}|[;:!])/g, " ");
+    x = x.replace(/\\ /g, " ").replace(/[ \t]{2,}/g, " ").trim();
+    return x || null;
+  };
+  const eqLine = t => {
+    const x = tex(t); if(!x) return;
+    if(HAN.test(x)) L.push(x, "");
+    else L.push(`$$${x}$$`, "");
+  };
+  const inlineTex = t => {
+    const x = String(t || "").trim();
+    if(!x) return "";
+    return /[\\^_{]/.test(x) ? `$${tex(x)}$` : x;
+  };
+
   if(sol.gist) L.push(`**${sol.gist}**`, "");
 
   if(arr(sol.background).length){
@@ -1354,55 +1392,58 @@ function solToMd(sol){
     arr(sol.read).forEach(b => L.push(`- ${b}`));
     L.push("");
   }
-  if(arr(sol.given).length){ L.push("**주어진 값**",""); arr(sol.given).forEach(g => L.push(`- ${g}`)); L.push(""); }
-  if(arr(sol.formula).length){
-    L.push("**쓰는 식**", "");
-    arr(sol.formula).forEach(f => {
-      const tex  = (typeof f === "string") ? f : (f.tex || "");
-      const read = (typeof f === "string") ? "" : (f.read || "");
-      const why  = (typeof f === "string") ? "" : (f.why || "");
-      if(tex) L.push(`$$${tex}$$`, "");
-      if(read) L.push(`- 읽기: ${read}`, "");
-      if(why)  L.push(`- 왜 이 식인가: ${why}`, "");
-    });
+  if(arr(sol.given).length){
+    L.push("**주어진 값**", "");
+    arr(sol.given).forEach(g => L.push(`- ${g}`));
     L.push("");
   }
   if(arr(sol.symbols).length){
     L.push("**부호**", "");
     arr(sol.symbols).forEach(x => {
       if(typeof x === "string") return void L.push(`- ${x}`);
-      const v = x.val ? ` · 이 문제: ${x.val}` : "";
-      const u = x.unit ? ` (단위 ${x.unit})` : "";
-      L.push(`- $${x.sym}$ — ${x.mean || ""}${u}${v}`);
+      const u = x.unit ? ` · 단위 ${inlineTex(x.unit)}` : "";
+      const v = x.val  ? ` · 이 문제: ${inlineTex(x.val)}` : "";
+      const sy = HAN.test(String(x.sym||"")) ? String(x.sym||"") : `$${tex(x.sym)||""}$`;
+      L.push(`- ${sy} — ${x.mean || ""}${u}${v}`);
     });
     L.push("");
   }
+  /* 옛 워커(v232)는 «쓰는 식» 을 따로 보낸다. 새 워커는 안 보낸다 — 풀이 안에서 세운다 */
+  if(arr(sol.formula).length){
+    L.push("**쓰는 식**", "");
+    arr(sol.formula).forEach(f => {
+      if(typeof f === "string") return void eqLine(f);
+      eqLine(f.tex);
+      if(f.read) L.push(`- 읽기: ${f.read}`, "");
+      if(f.why)  L.push(`- 왜: ${f.why}`, "");
+    });
+  }
   if(arr(sol.steps).length){
-    L.push("**풀이**","");
-    /* ★ v254 — 한 단계를 네 겹으로: 부호식 → 숫자식 → 한글 읽기 → 왜 */
-    arr(sol.steps).forEach((s,i) => {
+    L.push("**풀이**", "");
+    arr(sol.steps).forEach((s, i) => {
       if(typeof s === "string") return void L.push(`${i+1}. ${s}`, "");
-      L.push(`${i+1}. ${s.say||""}`, "");
-      if(s.math)  L.push(`$$${s.math}$$`, "");
-      if(s.plain) L.push(`- 해설식: ${s.plain}`, "");
-      if(s.calc)  L.push(`$$${s.calc}$$`, "");
-      if(s.read)  L.push(`- 읽기식: ${s.read}`);
-      if(s.why)   L.push(`- 왜: ${s.why}`);
+      L.push(`${i+1}. ${s.say || ""}`, "");
+      /* 새 판 — 등호로 이은 한 줄(여럿이면 줄마다) */
+      const eqs = Array.isArray(s.eq) ? s.eq : (s.eq ? [s.eq] : []);
+      if(eqs.length) eqs.forEach(eqLine);
+      else { eqLine(s.math); eqLine(s.calc); }   /* 옛 판 대비 */
+      if(s.read) L.push(`- 읽기: ${s.read}`, "");
+      if(s.why)  L.push(`- 왜: ${s.why}`, "");
       L.push("");
     });
   }
-  L.push("**답**","",`> ${sol.answer||""}${sol.unit ? " "+sol.unit : ""}`,"");
-  if(sol.why_answer) L.push("**왜 이 답인가**","",sol.why_answer,"");
-  if(sol.check)      L.push("**검산**","",sol.check,"");
+  L.push("**답**", "", `> ${sol.answer || ""}${sol.unit ? " " + sol.unit : ""}`, "");
+  if(sol.why_answer) L.push("**왜 이 답인가**", "", sol.why_answer, "");
+  if(sol.check)      L.push("**검산**", "", sol.check, "");
   if(sol.memo)       L.push("**외우기**", "", sol.memo, "");
-  if(sol.trap)       L.push("**흔한 실수**","",sol.trap,"");
+  if(sol.trap)       L.push("**흔한 실수**", "", sol.trap, "");
   if(arr(sol.also).length){
-    L.push("**같이 알아 두기**","");
+    L.push("**같이 알아 두기**", "");
     arr(sol.also).forEach(x => L.push(`- ${x}`));
     L.push("");
   }
   if(arr(sol.tags).length) L.push("", `\`${arr(sol.tags).join("` `")}\``);
-  return L.join("\n").replace(/\n{3,}/g,"\n\n").trim();
+  return L.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 /* ═══════════════════════════════════════════════════

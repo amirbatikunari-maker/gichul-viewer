@@ -506,25 +506,23 @@ const TOOL = {
     properties: {
       gist:    { type: "string", description: "한 줄 요지 — 무엇을 묻는 문제인가" },
       background: { type: "array", items: { type: "string" },
-                 description: "이 문제를 풀기 전에 알아야 할 배경 지식. 전기를 처음 보는 사람 기준으로 3~6줄. 용어 뜻, 이 값이 현장에서 무엇을 뜻하는지까지." },
+                 description: "이 문제를 풀기 전에 알아야 할 배경 지식. 전기를 처음 보는 사람 기준으로 3~6줄. 한 줄에 하나씩 «배열 원소로» 넣는다. 여러 줄을 한 문자열에 몰아 넣거나 대괄호·따옴표를 직접 쓰지 않는다." },
       read:    { type: "array", items: { type: "string" },
                  description: "문제 문장·도면을 어떻게 읽는지. 어느 말이 어느 값·조건을 뜻하는지 2~5줄." },
       given:   { type: "array", items: { type: "string" },
-                 description: "문제에 주어진 값. '값 = 숫자 단위 (무엇을 뜻하는지)' 꼴로." },
+                 description: "문제에 주어진 값. 하나씩 «배열 원소로» 넣는다. '이름 = 숫자 단위 (무엇을 뜻하는지)' 꼴. 대괄호·따옴표로 목록을 직접 만들지 않는다." },
       symbols: { type: "array", description: "식에 나오는 기호의 뜻",
                  items: { type: "object", required: ["sym"], properties: {
                    sym:  { type: "string", description: "기호. KaTeX, $ 없이" },
                    mean: { type: "string", description: "무슨 뜻인지 쉬운 말로" },
                    unit: { type: "string", description: "단위" },
                    val:  { type: "string", description: "이 문제에서의 값" } } } },
-      steps:   { type: "array", description: "풀이 단계. 쓰는 식은 따로 모으지 말고 이 안에서 그때그때 세운다. 계산을 건너뛰지 말고 한 단계에 한 가지만 한다. 보통 4~8단계.",
+      steps:   { type: "array", description: "풀이 단계. 쓰는 식은 따로 모으지 말고 이 안에서 그때그때 세운다. 한 단계에 한 가지만 한다. 보통 4~8단계.",
                  items: { type: "object", required: ["say"], properties: {
-                   say:  { type: "string", description: "이 단계에서 무엇을 하는지 한 줄" },
-                   math:  { type: "string", description: "①부호식 — 숫자를 넣기 전, 기호만으로 세운 식. KaTeX, $ 없이" },
-                   plain: { type: "string", description: "②해설식 — 같은 식의 기호 자리에 «한글 이름» 을 넣어 다시 쓴 식. 수식이 아니라 글로. 예: '전선저항 = 전압강하 × 수전단전압 ÷ 부하전력'" },
-                   calc:  { type: "string", description: "③숫자대입식 — 같은 식에 이 문제의 숫자를 그대로 넣고 계산해 결과와 단위까지 쓴 식. KaTeX, $ 없이" },
-                   read:  { type: "string", description: "④읽기식 — 그 식을 한글로 소리 내 읽은 문장. 뜻풀이가 아니라 발음" },
-                   why:   { type: "string", description: "⑤왜 — 이 식을 왜 이렇게 쓰는지. 어디서 나온 식인지·무엇을 무시했고 왜 무시해도 되는지·왜 이 값을 여기에 넣는지" } } } },
+                   say: { type: "string", description: "이 단계에서 무엇을 하는지 한 줄. 한글. 수식 기호를 넣지 않는다" },
+                   eq:  { type: "array", items: { type: "string" },
+                          description: "이 단계의 식. 기호식 = 숫자대입 = 결과[단위] 를 «등호로 이어» 한 줄에 쓴다. 한 줄이 길어지면 줄을 나눠 배열에 여러 개로 넣는다. 순수 KaTeX 만, $ 없이, 한글 없이." },
+                   why: { type: "string", description: "왜 이렇게 하는지 한글 설명. 어디서 나온 식인지·무엇을 무시했고 왜 무시해도 되는지·단위를 왜 바꿨는지. 3~6문장으로 정리해 쓰되 수식은 넣지 않는다" } } } },
       answer:  { type: "string", description: "최종 답. 답안지 표기를 그대로" },
       unit:    { type: "string", description: "단위. 없으면 빈 문자열" },
       why_answer:{ type: "string", description: "이 값이 왜 답이 되는지, 채점에서 무엇을 보는지" },
@@ -555,23 +553,25 @@ const SYS_SOL = [
   "- √3, 역률, 효율 같은 계수가 왜 붙는지 why 에 설명한다.",
   "- 도면(시퀀스·단선결선도) 문항이면 도면에서 읽은 기호와 결선을 하나씩 말로 풀어 준다.",
   "",
-  "풀이 한 단계를 적는 법 — 같은 식을 네 가지 꼴로 잇달아 보이고, 마지막에 까닭을 단다",
+  "풀이 한 단계를 적는 법",
   "- 쓰는 식을 위에 따로 모으지 않는다. 식이 필요한 그 단계에서 세운다.",
-  "- ① math(부호식) : 숫자를 넣기 전, 기호만으로 세운 식.",
-  "-   예: R = \\dfrac{e V_r}{P}",
-  "- ② plain(해설식) : 같은 식의 기호 자리에 «한글 이름» 을 넣어 다시 쓴 것. 기호를 모르는 사람이 이 줄만 봐도 무엇을 무엇으로 나누는지 알게.",
-  "-   예: '전선저항 = 전압강하 × 수전단전압 ÷ 부하전력'",
-  "-   예: '단면적 = 고유저항 × 선로길이 ÷ 전선저항'",
-  "- ③ calc(숫자대입식) : 같은 식에 이 문제의 숫자를 그대로 넣고 계산해, 결과와 단위까지.",
-  "-   예: R = \\dfrac{300 \\times 6300}{2000 \\times 10^{3}} = 0.945\\,[\\Omega]",
-  "-   단위를 고친 곳은 숫자에 그대로 드러낸다. 예: 2000\\,kW = 2000 \\times 10^{3}\\,W",
-  "- ④ read(읽기식) : 그 식을 한글로 «소리 내 읽은» 문장. 뜻풀이가 아니라 발음이다.",
-  "-   예: R = \\dfrac{e V_r}{P} → '알은 피분의 이 브이알'.",
-  "-   예: Z = \\sqrt{R^2 + X^2} → '제트는 루트 알 제곱 더하기 엑스 제곱'.",
-  "- ⑤ why(왜) : 이 식을 왜 이렇게 쓰는지. 그 식이 어디서 나왔는지, 무엇을 무시했고 왜 무시해도 되는지, 왜 이 값을 여기에 넣는지까지 쓴다. 한 줄로 끊지 말고 까닭이 드러나게 쓴다.",
-  "-   예: '지중 단거리라 리액턴스가 저항보다 훨씬 작아 X=0 으로 둠. e = (P/V_r)(R + X\\tan\\theta) 에서 X 항이 사라지면 e = PR/V_r 이 되고, 이것을 R 에 대해 푼 것임'.",
-  "- 계산이 있는 단계라면 ①②③⑤ 를 빠뜨리지 않는다. ②와 ①은 같은 식이므로 내용이 어긋나면 안 된다.",
-  "- 계산이 없는 단계(표에서 규격 고르기 등)는 say 와 why 만으로도 된다.",
+  "- say : 이 단계에서 무엇을 하는지 한글 한 줄. 기호·수식을 넣지 않는다.",
+  "- eq  : 식을 «등호로 이어» 한 줄로 쓴다. 기호식 = 숫자대입 = 결과[단위] 순서.",
+  "-   예: e = V_{s} - V_{r} = 6600 - 6300 = 300\\,[\\mathrm{V}]",
+  "-   예: R = \\dfrac{e V_{r}}{P} = \\dfrac{300 \\times 6300}{2000 \\times 10^{3}} = 0.945\\,[\\Omega]",
+  "-   한 줄이 길어지면 줄을 나눠 eq 배열에 여러 개로 넣는다. 한 줄에 등호는 셋까지.",
+  "- why : 왜 이렇게 하는지 한글로 정리해 쓴다. 어디서 나온 식인지, 무엇을 무시했고 왜 무시해도 되는지, 단위를 왜 바꿨는지. 3~6문장. 수식은 넣지 않는다.",
+  "",
+  "수식(KaTeX) 쓰는 법 — 이걸 어기면 화면이 깨진다",
+  "- 분수는 반드시 \\dfrac{위}{아래} 로 쓴다. (1/58) 이나 a/b 처럼 빗금으로 쓰지 않는다.",
+  "-   맞는 예: \\rho = \\dfrac{1}{58} \\times \\dfrac{100}{97}",
+  "-   틀린 예: \\rho = (1/58) \\times (100/97)",
+  "- 아래첨자는 밑줄로. V_{s}, V_{r}, Q_{c} 처럼 쓴다. Vs, Vr 로 붙여 쓰지 않는다.",
+  "- 수식 안에 한글을 절대 넣지 않는다. '이므로', '에서' 같은 말은 why 로 뺀다.",
+  "- 숫자에 천 단위 쉼표를 넣지 않는다. 6600 으로 쓴다. 6,600 으로 쓰면 화면에서 사이가 벌어진다.",
+  "- 단위는 \\,[\\mathrm{V}] 꼴로 뒤에 붙인다. [mm^2] 는 [\\mathrm{mm^{2}}] 로 쓴다.",
+  "- \\quad · \\; · \\hspace · \\text 로 빈칸을 만들지 않는다. 화면이 휑하게 벌어진다.",
+  "- \\times · \\div · \\sqrt{} · \\cos\\theta 처럼 KaTeX 명령을 쓴다. ×, ÷, √ 같은 글자를 직접 쓰지 않는다.",
   "",
   "부호 칸",
   "- symbols 에는 식에 나온 부호를 «하나도 빠짐없이» 적는다. 뜻(mean)·단위(unit)를 함께 쓴다.",
@@ -801,7 +801,7 @@ export default {
         판정: 막힌곳.includes(colo)
           ? `${colo} 기지는 Anthropic 이 막는 지역입니다 — 403 의 원인입니다.`
           : `${colo} 기지는 보통 허용됩니다.`,
-        빌드: "v255"
+        빌드: "v256"
       }, 200, H);
     }
 
@@ -857,7 +857,7 @@ export default {
         keyHead: String(env.ANTHROPIC_API_KEY).slice(0,14) + "…",
         keyLen: String(env.ANTHROPIC_API_KEY).length,
         keyTrimmed: String(env.ANTHROPIC_API_KEY) === String(env.ANTHROPIC_API_KEY).trim(),
-        빌드: "v255",
+        빌드: "v256",
         기지: (req.cf && req.cf.colo) || "?",
         upstream: parsed || body.slice(0,600),
         vision
@@ -865,7 +865,7 @@ export default {
     }
 
     if (path === "/health" || path === "/")
-      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v255" }, 200, H);
+      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v256" }, 200, H);
 
     if (env.APP_KEY && req.headers.get("x-app-key") !== env.APP_KEY)
       return json({ error: "x-app-key 가 맞지 않습니다", detail: "x-app-key 가 맞지 않습니다" }, 401, H);
