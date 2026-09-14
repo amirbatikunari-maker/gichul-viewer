@@ -20474,11 +20474,31 @@ function solToMd(sol){
     x = x.replace(/\\ /g, " ").replace(/[ \t]{2,}/g, " ").trim();
     return x || null;
   };
-  const eqLine = t => {
-    const x = tex(t); if(!x) return;
-    if(HAN.test(x)) L.push(x, "");
-    else L.push(`$$${x}$$`, "");
+  /* 맨 글자로 들어온 한글은 \text{} 로 감싼다 — 안 감싸면 수식이 깨진다 */
+  const wrapHan = x => {
+    if(!HAN.test(x)) return x;
+    const keep = [];
+    let y = x.replace(/\\(?:text|mathrm|mathbf)\{[^{}]*\}/g, m => {
+      keep.push(m); return "\u0000" + (keep.length - 1) + "\u0000";
+    });
+    y = y.replace(/[가-힣][가-힣0-9 ·()]*[가-힣]|[가-힣]/g, m => `\\text{${m.trim()}}`);
+    return y.replace(/\u0000(\d+)\u0000/g, (_, i) => keep[+i]);
   };
+  /* ★ v258 — 같은 식을 여러 꼴로 이어 쓸 때 «=» 를 세로로 맞춰 그린다 */
+  const eqBlock = list => {
+    const rows = (Array.isArray(list) ? list : [list]).map(tex).filter(Boolean).map(wrapHan);
+    if(!rows.length) return;
+    if(rows.length === 1) return void L.push(`$$${rows[0]}$$`, "");
+    const body = rows.map((r, i) => {
+      if(i === 0){
+        const k = r.indexOf("=");
+        return k > 0 ? `${r.slice(0, k).trim()} &= ${r.slice(k + 1).trim()}` : `& ${r}`;
+      }
+      return /^=/.test(r) ? `&= ${r.replace(/^=\s*/, "")}` : `& ${r}`;
+    }).join(" \\\\ ");
+    L.push(`$$\\begin{aligned} ${body} \\end{aligned}$$`, "");
+  };
+  const eqLine = t => eqBlock(t);
   const inlineTex = t => {
     const x = String(t || "").trim();
     if(!x) return "";
@@ -20532,14 +20552,18 @@ function solToMd(sol){
       L.push(`${i+1}. ${line(s.say)}`, "");
       /* 새 판 — 등호로 이은 한 줄(여럿이면 줄마다) */
       const eqs = Array.isArray(s.eq) ? s.eq : (s.eq ? [s.eq] : []);
-      if(eqs.length) eqs.forEach(eqLine);
-      else { eqLine(s.math); eqLine(s.calc); }   /* 옛 판 대비 */
-      if(s.read) L.push(`- 읽기: ${s.read}`, "");
+      if(eqs.length) eqBlock(eqs);
+      else eqBlock([s.math, s.calc].filter(Boolean));   /* 옛 판 대비 */
+      if(s.read) L.push(`- 읽기: “${line(s.read).replace(/^["“]|["”]$/g, "")}”`, "");
       if(s.why)  L.push(`- 왜: ${line(s.why)}`, "");
       L.push("");
     });
   }
-  L.push("**답**", "", `> ${sol.answer || ""}${sol.unit ? " " + sol.unit : ""}`, "");
+  /* 답에 이미 단위가 붙어 온 경우 또 붙이지 않는다 (70[mm^2]mm^2 처럼 되던 것) */
+  const ansT = String(sol.answer || "").trim();
+  const unitT = String(sol.unit || "").trim();
+  const dup = unitT && (ansT.includes(unitT) || ansT.includes(unitT.replace(/[\[\]]/g, "")));
+  L.push("**답**", "", `> ${ansT}${unitT && !dup ? " " + unitT : ""}`, "");
   if(sol.why_answer) L.push("**왜 이 답인가**", "", line(sol.why_answer), "");
   if(sol.check)      L.push("**검산**", "", line(sol.check), "");
   if(sol.memo)       L.push("**외우기**", "", line(sol.memo), "");
