@@ -1526,7 +1526,9 @@ function drawRail(){
      지금 자리 앞뒤 60개만 만들고, 끝에는 «처음/끝으로» 를 붙인다. */
   const W = 60;
   const a = Math.max(0, ONEAT - W), b = Math.min(SHOWN.length, ONEAT + W + 1);
-  $("#prail").innerHTML =
+  /* ★ v253 — 내용이 그대로면 다시 그리지 않는다.
+     다시 그릴 때마다 스크롤 자리가 0으로 돌아가고 단추가 손 밑에서 사라졌다. */
+  const railHtml =
     (a > 0 ? `<button class="pb" type="button" data-go="0">↤ 처음</button>` : "")
     + SHOWN.slice(a, b).map((r, k) => {
       const i = a + k;
@@ -1535,12 +1537,20 @@ function drawRail(){
         type="button" data-go="${i}" data-y="${r.year}">${r.year % 100}-${r.session} ${r.no}</button>`;
     }).join("")
     + (b < SHOWN.length ? `<button class="pb" type="button" data-go="${SHOWN.length - 1}">끝 ↦</button>` : "");
-  $$("#prail .pb").forEach(b => b.onclick = () => showAt(+b.dataset.go));
+  const railEl = $("#prail");
+  if(railEl.__sig !== railHtml){
+    railEl.__sig = railHtml;
+    railEl.innerHTML = railHtml;
+    $$("#prail .pb").forEach(b => b.onclick = () => showAt(+b.dataset.go));
+  }
   /* ★ 방금 안(innerHTML)을 통째로 새로 짰다 — 스크롤 자리는 이미 0으로 리셋된 뒤다.
      여기서 «부드럽게» 옮기면 0으로 훅 꺼졌다가 다시 스르륵 돌아오는 것처럼 보인다
-     (반동처럼 느껴지는 원인). 새로 그린 직후 한 번은 즉시 자리를 잡는다. */
-  const railEl = $("#prail"), nowBtn = $("#prail .pb.now");
-  if(railEl && nowBtn){
+     (반동처럼 느껴지는 원인). 새로 그린 직후 한 번은 즉시 자리를 잡는다.
+     ★ v253 — 다만 «문항이 바뀐 때» 만. 예전에는 다시 그릴 때마다 끌어다 놓아서
+       옆 회차를 보려고 밀어 둔 자리가 번번이 날아갔다. */
+  const nowBtn = $("#prail .pb.now");
+  if(railEl && nowBtn && railEl.__at !== ONEAT){
+    railEl.__at = ONEAT;
     const prevSB = railEl.style.scrollBehavior;
     railEl.style.scrollBehavior = "auto";
     nowBtn.scrollIntoView({ block:"nearest", inline:"center" });
@@ -5717,6 +5727,8 @@ function ovOpen(id){
   const r = ROWS.find(x => String(x.id) === String(id)); if(!r) return;
   OVID = String(id);
   document.body.classList.add("ovlopen");
+  /* v253 — 판을 새로 열 때만 레일을 가운데로 맞춘다 (그 뒤엔 손으로 민 자리를 지킴) */
+  if(!$("#ovl").classList.contains("on")) window.__ovrRailReset?.();
   $("#ovl").classList.add("on");
   ovDraw();
   /* 해설이 아직 없으면 여기서도 만들어 준다 — 보러 들어왔으니 필요한 것이다
@@ -7132,29 +7144,71 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
     new MutationObserver(()=>{ if(ovl.classList.contains('on')) drawOvRail(); })
       .observe(ovl,{attributes:true,attributeFilter:['class']});
   }
+  /* ★ v253 — 레일이 «자꾸 가운데로 돌아오던» 것을 끝낸다.
+       여태: 제목(#ovSub)이 바뀔 때마다 레일을 통째로 다시 그리고 지금 칸을
+       한가운데로 끌어다 놓았다. 해설이 붙거나 글자 크기를 건드리기만 해도
+       제목이 바뀌므로, 옆 회차를 보려고 밀어 놓은 자리가 매번 날아갔다.
+       심하면 누르려던 단추가 그 순간 새로 그려져 «눌리지도» 않았다.
+     이제:
+       ① 내용이 그대로면 다시 그리지 않는다 (단추가 손 밑에서 사라지지 않음)
+       ② 가운데로 끌어다 놓는 것은 «처음 열 때» 와 «문항이 바뀐 때» 뿐
+       ③ 사람이 한 번이라도 손으로 밀면, 그 판이 닫힐 때까지 안 건드린다 */
+  let OVR_SIG='', OVR_NOW=-1, OVR_MOVED=false;
+  function ovrHook(s){
+    if(s.__hooked) return; s.__hooked=1;
+    const mark=()=>{ OVR_MOVED=true; };
+    ['wheel','pointerdown','touchstart','keydown'].forEach(ev=>
+      s.addEventListener(ev,mark,{passive:true}));
+    /* 손끌기 — 마우스로 잡아 밀 수 있게 */
+    let down=false,sx=0,sl=0;
+    s.addEventListener('pointerdown',e=>{
+      if(e.pointerType!=='mouse'||e.target.closest('.railar'))return;
+      down=true;sx=e.clientX;sl=s.scrollLeft;
+    });
+    s.addEventListener('pointermove',e=>{
+      if(!down||e.pointerType!=='mouse')return;
+      const d=e.clientX-sx; if(Math.abs(d)>4){ s.classList.add('drag'); s.scrollLeft=sl-d; }
+    });
+    const up=()=>{ down=false; setTimeout(()=>s.classList.remove('drag'),0); };
+    s.addEventListener('pointerup',up); s.addEventListener('pointercancel',up);
+    s.addEventListener('pointerleave',()=>{ if(down) up(); });
+  }
+  /* 판이 열릴 때마다 «손으로 민 적 없음» 으로 되돌린다 */
+  window.__ovrRailReset=()=>{ OVR_MOVED=false; OVR_NOW=-1; };
   function drawOvRail(){
     const s=$('#ovrS'); if(!s) return;
+    ovrHook(s);
     const rs=rows(); if(!rs.length){ s.innerHTML=''; return; }
     const at=(()=>{ try{ return Math.max(0,window.ONEAT|0) }catch(e){ return 0 } })();
     const m=String($('#ovTitle')?.textContent||'').match(/(\d{4})년 제(\d+)회 (\d+)번/);
     let now=at;
     if(m){ const k=rs.findIndex(r=>String(r.year)===m[1]&&String(r.session)===m[2]&&String(r.no)===m[3]); if(k>=0)now=k; }
     const W=45, a=Math.max(0,now-W), b=Math.min(rs.length,now+W+1);
-    s.innerHTML=rs.slice(a,b).map((r,k)=>{
+    const html=rs.slice(a,b).map((r,k)=>{
       const i=a+k, p=PROG[String(r.id)];
       return `<button class="pb ${i===now?'now':''} ${p?'done':''}" type="button" data-ovgo="${i}" data-y="${r.year}">${r.year%100}-${r.session} ${r.no}</button>`;
     }).join('');
-    s.querySelectorAll('[data-ovgo]').forEach(b=>b.onclick=()=>{
-      const i=+b.dataset.ovgo, r=rs[i]; if(!r)return;
-      if(document.body.classList.contains('oneup') && typeof window.showAt==='function') window.showAt(i);
-      if(typeof window.ovOpen==='function') window.ovOpen(r.id);
-    });
-    const nowBtn=s.querySelector('.pb.now');
-    if(nowBtn){
-      const prevSB=s.style.scrollBehavior;
-      s.style.scrollBehavior='auto';
-      nowBtn.scrollIntoView({block:'nearest',inline:'center'});
-      s.style.scrollBehavior=prevSB||'';
+    /* ① 내용이 그대로면 손대지 않는다 */
+    if(html!==OVR_SIG){
+      OVR_SIG=html;
+      s.innerHTML=html;
+      s.querySelectorAll('[data-ovgo]').forEach(b=>b.onclick=()=>{
+        const i=+b.dataset.ovgo, r=rs[i]; if(!r)return;
+        if(document.body.classList.contains('oneup') && typeof window.showAt==='function') window.showAt(i);
+        if(typeof window.ovOpen==='function') window.ovOpen(r.id);
+      });
+    }
+    /* ②③ 문항이 바뀐 때만, 그것도 사람이 안 밀었을 때만 가운데로 */
+    const moved = now!==OVR_NOW;
+    OVR_NOW=now;
+    if(moved && !OVR_MOVED){
+      const nowBtn=s.querySelector('.pb.now');
+      if(nowBtn){
+        const prevSB=s.style.scrollBehavior;
+        s.style.scrollBehavior='auto';
+        nowBtn.scrollIntoView({block:'nearest',inline:'center'});
+        s.style.scrollBehavior=prevSB||'';
+      }
     }
   }
 
@@ -20124,7 +20178,11 @@ function restore(){
   const s=sig();
   if(s===LASTSIG) return;          /* 같은 조건 안에서는 건드리지 않는다 */
   LASTSIG=s;
-  const m=bag()[s]; if(!m) return;
+  /* ★ v253 — 자리표의 «열쇠» 는 거른 조건을 통째로 이어 붙인 긴 글이다.
+     정렬 칩 하나, 찾는 말 한 글자만 달라져도 열쇠가 달라져 «기억 못 하는» 것처럼 보였다.
+     그 조건으로 적어 둔 자리가 없으면 «맨 마지막에 보던 자리» 로 물러선다. */
+  const b0=bag();
+  const m=b0[s] || b0['*last']; if(!m) return;
   if(at()>0) return;               /* 이미 어딘가 보고 있으면 그대로 둔다 */
   const i=rs.findIndex(r=>String(r.id)===String(m.id));
   if(i<=0) return;
@@ -20282,7 +20340,466 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=251").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=253").catch(() => {}));
 </script>
+<!-- ══════════════════════════════════════════════════════════════
+     v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
+
+     ① 해설
+        여태 뷰어의 «해설 만들기» 는 /get-data 로 짧은 글을 받아 왔다.
+        검수·배치 화면이 쓰는 /explain 과 형식이 달라, 같은 문항인데도
+        어디서 만들었느냐에 따라 해설 모양이 달랐다.
+        이제 셋 다 /explain 을 쓴다 — 배경·기호·단계별 «왜»·검산까지 들어간
+        비전공자용 상세판. 모델만 Opus / Sonnet 으로 골라 누른다.
+
+     ② 잘라 넣기
+        여태 뷰어의 ✂ 자르기는 «보이는 자리만 가리는» 것이었다. 원본은 그대로라
+        다음에 다시 열면 또 잘라야 했고, 한 장에 문제와 답이 같이 든 그림을
+        갈라 놓을 수도 없었다.
+        검수 화면의 «페이지 잘라 넣기» 와 같은 방식을 여기에도 둔다 —
+        가로 절단선을 긋고, 칸마다 «몇 번 문항의 어느 칸» 인지 골라
+        진짜로 잘라서 저장소에 넣는다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+.pxbtns{display:inline-flex;align-items:center;gap:4px;flex:none}
+.pxb{height:28px;padding:0 10px;border-radius:8px;cursor:pointer;white-space:nowrap;
+  border:1px solid var(--line,#e2e8f0);background:var(--surface,#fff);color:var(--ink,#0f172a);
+  font:700 11px/1 var(--font-d,system-ui)}
+.pxb:hover{border-color:var(--accent,#2563eb);color:var(--accent,#2563eb)}
+.pxb[disabled]{opacity:.5;cursor:not-allowed}
+.pxb.go{background:var(--accent,#2563eb);border-color:var(--accent,#2563eb);color:#fff}
+.pxb b{font-weight:800}
+.pxez{display:inline-flex;gap:4px;margin-left:4px}
+.pxez .pxb{height:26px;font-size:10.5px;padding:0 8px}
+
+.pxov{position:fixed;inset:0;z-index:100060;background:rgba(15,23,42,.55);
+  display:none;align-items:center;justify-content:center;padding:14px}
+.pxov.on{display:flex}
+.pxbox{background:var(--surface,#fff);color:var(--ink,#0f172a);border-radius:16px;
+  width:100%;max-width:860px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 18px 55px rgba(15,23,42,.3)}
+.pxhead{display:flex;align-items:center;gap:8px;padding:12px 14px;flex:0 0 auto;
+  border-bottom:1px solid var(--line,#e2e8f0)}
+.pxhead b{font:800 14px/1 var(--font-d,system-ui);margin-right:auto}
+.pxbody{flex:1;min-height:0;overflow:auto;padding:12px 14px}
+.pxfoot{display:flex;align-items:center;gap:10px;padding:11px 14px;flex:0 0 auto;
+  border-top:1px solid var(--line,#e2e8f0)}
+.pxnote{font:600 11.5px/1.6 var(--font-d,system-ui);color:var(--muted,#64748b)}
+.pxpick{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.pxpick select,.pxseg select{height:30px;border-radius:8px;padding:0 8px;
+  border:1px solid var(--line,#e2e8f0);background:var(--surface,#fff);color:var(--ink,#0f172a);
+  font:700 11.5px/1 var(--font-d,system-ui)}
+.pxstage{position:relative;user-select:none;border:1px solid var(--line,#e2e8f0);
+  border-radius:10px;overflow:hidden;background:#fff;line-height:0}
+.pxstage img{width:100%;display:block;cursor:crosshair}
+.pxline{position:absolute;left:0;right:0;height:0;border-top:2px dashed #2563eb;cursor:ns-resize;
+  touch-action:none}
+.pxline i{position:absolute;right:2px;top:-11px;width:22px;height:22px;border-radius:6px;
+  background:#2563eb;color:#fff;font:800 12px/22px var(--font-d,system-ui);text-align:center;
+  cursor:pointer}
+.pxseg{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;margin-top:7px;
+  border-radius:9px;background:var(--surface-2,#f1f5f9)}
+.pxseg .n{font:700 11.5px/1 var(--font-m,ui-monospace,monospace);color:var(--muted,#64748b);margin-right:auto}
+.pxwarn{margin-top:10px;padding:9px 11px;border-radius:9px;font:600 11.5px/1.6 var(--font-d,system-ui);
+  border:1px solid #f5c86b;border-left:3px solid #f5c86b;background:rgba(245,200,107,.12)}
+@media(max-width:620px){ .pxseg{gap:6px} .pxseg .n{flex-basis:100%} }
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const CF=window.APP_CONFIG||{};
+const WK=(CF.CLAUDE_WORKER_URL||CF.WORKER_URL||'https://gichul-ai.amirbatikunari.workers.dev').replace(/\/$/,'');
+const APPKEY=CF.CLAUDE_APP_KEY||'';
+const BUCKET='qfig';
+const MODEL={ opus:'claude-opus-5', sonnet:'claude-sonnet-5' };
+const NAME ={ opus:'Opus', sonnet:'Sonnet' };
+
+function db(){ try{ return sb }catch(e){ return null } }
+function allRows(){
+  try{ if(Array.isArray(ROWS)&&ROWS.length) return ROWS }catch(e){}
+  try{ return Array.isArray(window.SHOWN)?window.SHOWN:[] }catch(e){ return [] }
+}
+const rowById=id=>allRows().find(r=>String(r.id)===String(id))||null;
+function toast(m){
+  try{ if(window.AppUI&&window.AppUI.toast) return window.AppUI.toast(m,'info') }catch(e){}
+  try{ window.__pracLog&&window.__pracLog(m) }catch(e){}
+}
+function repaint(id){
+  try{ if(typeof window.ovOpen==='function'&&String(window.__pxOvId||'')===String(id)) {} }catch(e){}
+  try{ if(typeof ovDraw==='function'&&$('#ovl')?.classList.contains('on')) ovDraw() }catch(e){}
+  try{ (window.__pracRedraw||window.drawList)?.() }catch(e){}
+  try{ typeof drawRail==='function'&&drawRail() }catch(e){}
+}
+
+/* ══ ① 해설 JSON → 마크다운 (검수·배치와 같은 틀) ══ */
+function solToMd(sol){
+  const L=[], arr=v=>Array.isArray(v)?v:(v?[v]:[]);
+  if(sol.gist) L.push(`**${sol.gist}**`,'');
+  if(arr(sol.background).length){ L.push('**먼저 알아야 할 것**',''); arr(sol.background).forEach(b=>L.push(`- ${b}`)); L.push(''); }
+  if(arr(sol.read).length){ L.push('**문제를 이렇게 읽음**',''); arr(sol.read).forEach(b=>L.push(`- ${b}`)); L.push(''); }
+  if(arr(sol.given).length){ L.push('**주어진 값**',''); arr(sol.given).forEach(g=>L.push(`- ${g}`)); L.push(''); }
+  if(arr(sol.formula).length){
+    L.push('**쓰는 식**','');
+    arr(sol.formula).forEach(f=>{
+      const tex=(typeof f==='string')?f:(f.tex||'');
+      const read=(typeof f==='string')?'':(f.read||'');
+      const why =(typeof f==='string')?'':(f.why||'');
+      if(tex) L.push(`$$${tex}$$`,'');
+      if(read) L.push(`- 읽기: ${read}`,'');
+      if(why)  L.push(`- 왜 이 식인가: ${why}`,'');
+    });
+    L.push('');
+  }
+  if(arr(sol.symbols).length){
+    L.push('**부호**','');
+    arr(sol.symbols).forEach(x=>{
+      if(typeof x==='string') return void L.push(`- ${x}`);
+      const v=x.val?` · 이 문제: ${x.val}`:''; const u=x.unit?` (단위 ${x.unit})`:'';
+      L.push(`- $${x.sym}$ — ${x.mean||''}${u}${v}`);
+    });
+    L.push('');
+  }
+  if(arr(sol.steps).length){
+    L.push('**풀이**','');
+    arr(sol.steps).forEach((s,i)=>{
+      if(typeof s==='string') return void L.push(`${i+1}. ${s}`,'');
+      L.push(`${i+1}. ${s.say||''}`);
+      if(s.math) L.push('',`$$${s.math}$$`,'');
+      if(s.why)  L.push(`- 왜: ${s.why}`);
+      if(s.calc) L.push(`- 계산: ${s.calc}`);
+      L.push('');
+    });
+  }
+  L.push('**답**','',`> ${sol.answer||''}${sol.unit?' '+sol.unit:''}`,'');
+  if(sol.why_answer) L.push('**왜 이 답인가**','',sol.why_answer,'');
+  if(sol.check)      L.push('**검산**','',sol.check,'');
+  if(sol.memo)       L.push('**외우기**','',sol.memo,'');
+  if(sol.trap)       L.push('**흔한 실수**','',sol.trap,'');
+  if(arr(sol.also).length){ L.push('**같이 알아 두기**',''); arr(sol.also).forEach(x=>L.push(`- ${x}`)); L.push(''); }
+  if(arr(sol.tags).length) L.push('',`\`${arr(sol.tags).join('` `')}\``);
+  return L.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+}
+
+/* ══ 한 문항 해설 뽑기 ══ */
+const TIMEOUT=180000;
+async function askSol(r, which){
+  const ac=new AbortController();
+  const t=setTimeout(()=>ac.abort(), TIMEOUT);
+  let res;
+  try{
+    res=await fetch(WK+'/explain',{
+      method:'POST', signal:ac.signal,
+      headers:Object.assign({'Content-Type':'application/json'}, APPKEY?{'x-app-key':APPKEY}:{}),
+      body:JSON.stringify({
+        q_url:r.q_url, q_text:r.q_text||r.q_md, a_url:r.a_url, a_text:r.a_text||r.a_md,
+        year:r.year, session:r.session, no:r.no, points:r.points,
+        depth:'full', effort:'high', model:MODEL[which]||MODEL.opus
+      })
+    });
+  }catch(e){
+    if(e.name==='AbortError') throw new Error('3분을 넘겨 끊었습니다 — 워커가 답을 안 줍니다');
+    throw new Error('워커에 닿지 못했습니다 — '+(e.message||e));
+  }finally{ clearTimeout(t); }
+  const raw=await res.text();
+  let d={}; try{ d=JSON.parse(raw) }catch(e){}
+  if(!res.ok) throw new Error(`HTTP ${res.status} — ${d.error||d.detail||raw.slice(0,160)}`);
+  const md=solToMd(d.sol||{});
+  if(!md||md.length<20) throw new Error('해설이 비어서 왔습니다');
+  return { md, model:d.model||null };
+}
+
+let SOLBUSY=false;
+async function makeSol(id, which, btn){
+  const r=rowById(id); if(!r) return;
+  if(SOLBUSY) return void toast('해설을 하나 뽑는 중입니다');
+  if(!r.a_url && !r.a_text && !r.a_md)
+    return void toast('답이 없는 문항입니다 — 근거가 없어 해설을 못 만듭니다');
+  const sbx=db(); if(!sbx) return void toast('Supabase 를 쓸 수 없습니다');
+  if(r.easy_md && !confirm(`${r.no}번 해설이 이미 있습니다.\n${NAME[which]} 로 다시 쓸까요?`)) return;
+
+  SOLBUSY=true;
+  const old=btn?btn.innerHTML:'';
+  const t0=Date.now();
+  const tick=btn?setInterval(()=>{ btn.textContent=`${NAME[which]} 뽑는 중… ${Math.round((Date.now()-t0)/1000)}초` },1000):null;
+  if(btn){ btn.disabled=true; btn.textContent=`${NAME[which]} 뽑는 중… 0초`; }
+  /* 카드 안에도 «쓰는 중» 을 남긴다 — 어디를 봐도 돌고 있는 것이 보이게 */
+  const box=document.querySelector(`.pcard[data-id="${id}"] .easybox`);
+  if(box){ box.classList.remove('empty'); box.innerHTML='<span class="wait">상세 해설을 쓰는 중입니다… 30~90초쯤 걸립니다.</span>'; }
+
+  try{
+    const got=await askSol(r, which);
+    const patch={ easy_md:got.md, st_sol:'raw', sol_by:got.model, sol_ver:(r.sol_ver||0)+1 };
+    let up=await sbx.from('practicals').update(patch).eq('id', r.id);
+    if(up.error && /st_sol|sol_ver|sol_by|column|schema cache/i.test(up.error.message))
+      up=await sbx.from('practicals').update({ easy_md:got.md }).eq('id', r.id);
+    if(up.error) throw new Error('저장 실패 — '+up.error.message);
+    Object.assign(r, patch);
+    toast(`${r.no}번 해설 완료 (${NAME[which]} · ${got.md.length}자)`);
+    repaint(id);
+  }catch(e){
+    const why=String(e.message||e);
+    toast(`해설 실패 — ${why}`);
+    if(box) box.innerHTML=`<span class="wait">해설을 쓰지 못했습니다 — ${why}</span>`;
+  }finally{
+    SOLBUSY=false;
+    if(tick) clearInterval(tick);
+    if(btn){ btn.disabled=false; btn.innerHTML=old; }
+  }
+}
+
+/* ══ ② 그림 잘라 넣기 ══ */
+let OVX=null, LINES=[], IMG=null, SRC='q', BASE=null;
+
+function loadImg(url){
+  return fetch(url,{mode:'cors'})
+    .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.blob() })
+    .then(b=>new Promise((ok,no)=>{
+      const im=new Image();
+      im.onload=()=>ok(im);
+      im.onerror=()=>no(new Error('그림을 읽지 못했습니다'));
+      im.src=URL.createObjectURL(b);
+    }));
+}
+function crop(img, y0, y1){
+  const W=img.naturalWidth, H=img.naturalHeight;
+  const a=Math.round(H*y0), b=Math.round(H*y1);
+  const maxW=1600, sc=Math.min(1, maxW/W);
+  const cv=document.createElement('canvas');
+  cv.width=Math.max(1,Math.round(W*sc)); cv.height=Math.max(1,Math.round((b-a)*sc));
+  cv.getContext('2d').drawImage(img, 0, a, W, b-a, 0, 0, cv.width, cv.height);
+  return new Promise((res,rej)=>cv.toBlob(bl=>bl?res(bl):rej(new Error('그림을 만들지 못했습니다')),'image/jpeg',0.85));
+}
+async function put(path, blob){
+  const sbx=db();
+  const up=await sbx.storage.from(BUCKET).upload(path, blob, { contentType:'image/jpeg', upsert:true });
+  if(up.error) throw up.error;
+  return sbx.storage.from(BUCKET).getPublicUrl(path).data.publicUrl + '?t=' + Date.now();
+}
+const pathOf=(r,k)=>`prac/${r.subject_id}/${r.year}_${r.session}_${String(r.no).padStart(2,'0')}_${k}.jpg`;
+
+/* 같은 회차 문항들 — 칸마다 «몇 번» 인지 고르게 */
+function sameSheet(r){
+  return allRows().filter(x=>String(x.subject_id)===String(r.subject_id)
+      && +x.year===+r.year && +x.session===+r.session)
+    .sort((a,b)=>a.no-b.no);
+}
+
+function segs(){
+  const rs=[...LINES].sort((a,b)=>a-b);
+  const edge=[0, ...rs, 1];
+  const out=[];
+  for(let i=0;i<edge.length-1;i++) if(edge[i+1]-edge[i] > 0.01) out.push([edge[i], edge[i+1]]);
+  return out;
+}
+
+function drawLines(){
+  const stage=$('#pxStage', OVX); if(!stage) return;
+  $$('.pxline', stage).forEach(n=>n.remove());
+  LINES.forEach((y,i)=>{
+    const el=document.createElement('div');
+    el.className='pxline'; el.style.top=(y*100)+'%';
+    el.innerHTML='<i>×</i>';
+    el.querySelector('i').onclick=e=>{ e.stopPropagation(); LINES.splice(i,1); drawLines(); drawSegs(); };
+    let down=false;
+    el.addEventListener('pointerdown',e=>{ if(e.target.tagName==='I')return; down=true; el.setPointerCapture(e.pointerId); e.preventDefault(); });
+    el.addEventListener('pointermove',e=>{
+      if(!down) return;
+      const box=stage.getBoundingClientRect();
+      const y2=Math.min(0.999,Math.max(0.001,(e.clientY-box.top)/box.height));
+      LINES[i]=y2; el.style.top=(y2*100)+'%';
+    });
+    const up=()=>{ if(!down)return; down=false; LINES.sort((a,b)=>a-b); drawLines(); drawSegs(); };
+    el.addEventListener('pointerup',up); el.addEventListener('pointercancel',up);
+    stage.appendChild(el);
+  });
+}
+
+function drawSegs(){
+  const wrap=$('#pxSegs', OVX); if(!wrap||!IMG) return;
+  const H=IMG.naturalHeight;
+  const list=segs();
+  const opts=sameSheet(BASE).map(x=>
+    `<option value="${x.id}"${String(x.id)===String(BASE.id)?' selected':''}>${x.no}번</option>`).join('');
+  wrap.innerHTML=list.map(([a,b],i)=>{
+    /* 첫 칸은 문제, 둘째 칸은 답이 가장 흔한 모양임 */
+    const useDef = i<2 ? 'y' : 'n';
+    const slotDef = i===1 ? 'a' : 'q';
+    return `<div class="pxseg" data-i="${i}" data-a="${a}" data-b="${b}">
+      <span class="n">칸 ${i+1} · 세로 ${Math.round(H*a)}~${Math.round(H*b)}px</span>
+      <select data-use>
+        <option value="n"${useDef==='n'?' selected':''}>— 안 씀 —</option>
+        <option value="y"${useDef==='y'?' selected':''}>넣기</option>
+      </select>
+      <select data-row>${opts}</select>
+      <select data-slot>
+        <option value="q"${slotDef==='q'?' selected':''}>문제</option>
+        <option value="a"${slotDef==='a'?' selected':''}>답</option>
+      </select>
+    </div>`;
+  }).join('') || '<p class="pxnote">그림 위를 눌러 절단선을 그으세요.</p>';
+}
+
+async function openCut(id, src){
+  const r=rowById(id); if(!r) return void toast('문항을 찾지 못했습니다');
+  const sbx=db(); if(!sbx) return void toast('Supabase 를 쓸 수 없습니다');
+  BASE=r; SRC=src||(r.q_url?'q':'a'); LINES=[]; IMG=null;
+
+  if(!OVX){
+    OVX=document.createElement('div');
+    OVX.className='pxov';
+    OVX.innerHTML=`<div class="pxbox">
+      <div class="pxhead">
+        <b>그림 잘라 넣기</b>
+        <button type="button" class="pxb" id="pxAdd">＋ 절단선</button>
+        <button type="button" class="pxb" id="pxClr">선 지우기</button>
+        <button type="button" class="pxb" id="pxClose">닫기</button>
+      </div>
+      <div class="pxbody">
+        <div class="pxpick">
+          <span class="pxnote">자를 그림</span>
+          <select id="pxSrc"><option value="q">문제 그림</option><option value="a">답 그림</option></select>
+          <span class="pxnote" id="pxHint"></span>
+        </div>
+        <div class="pxstage" id="pxStage"><img id="pxImg" alt="자를 그림"></div>
+        <div id="pxSegs"></div>
+        <div class="pxwarn">칸마다 «몇 번 문항의 어느 칸» 인지 고르고 «잘라서 넣기» 를 누르면,
+          진짜로 잘려서 그 자리에 저장됨. 원본 그림은 저장소에서 덮어써짐 — 되돌릴 수 없음.</div>
+      </div>
+      <div class="pxfoot">
+        <button type="button" class="pxb go" id="pxSave">✂ 잘라서 넣기</button>
+        <span class="pxnote" id="pxMsg"></span>
+      </div>
+    </div>`;
+    document.body.appendChild(OVX);
+    OVX.addEventListener('click',e=>{ if(e.target===OVX) close(); });
+    $('#pxClose',OVX).onclick=close;
+    $('#pxClr',OVX).onclick=()=>{ LINES=[]; drawLines(); drawSegs(); };
+    $('#pxAdd',OVX).onclick=()=>{ LINES.push(0.5); LINES.sort((a,b)=>a-b); drawLines(); drawSegs(); };
+    $('#pxSrc',OVX).onchange=()=>{ SRC=$('#pxSrc',OVX).value; LINES=[]; load(); };
+    $('#pxStage',OVX).addEventListener('click',e=>{
+      if(e.target.classList.contains('pxline')||e.target.tagName==='I') return;
+      const box=e.currentTarget.getBoundingClientRect();
+      const y=Math.min(0.999,Math.max(0.001,(e.clientY-box.top)/box.height));
+      LINES.push(y); LINES.sort((a,b)=>a-b); drawLines(); drawSegs();
+    });
+    $('#pxSave',OVX).onclick=save;
+    document.addEventListener('keydown',e=>{
+      if(OVX&&OVX.classList.contains('on')&&e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); close(); }
+    },true);
+  }
+  $('#pxSrc',OVX).value=SRC;
+  OVX.classList.add('on');
+  await load();
+}
+function close(){ if(OVX) OVX.classList.remove('on'); }
+
+async function load(){
+  const url = SRC==='a' ? BASE.a_url : BASE.q_url;
+  const msg=$('#pxMsg',OVX), hint=$('#pxHint',OVX);
+  $('#pxSegs',OVX).innerHTML=''; $$('.pxline',$('#pxStage',OVX)).forEach(n=>n.remove());
+  hint.textContent=`${BASE.year}년 제${BASE.session}회 ${BASE.no}번`;
+  if(!url){ msg.textContent='그 칸에는 그림이 없습니다.'; $('#pxImg',OVX).removeAttribute('src'); IMG=null; return; }
+  msg.textContent='그림을 받는 중…';
+  try{
+    IMG=await loadImg(url);
+    $('#pxImg',OVX).src=IMG.src;
+    msg.textContent=`${IMG.naturalWidth}×${IMG.naturalHeight}px — 그림 위를 눌러 절단선을 그으세요`;
+    drawSegs();
+  }catch(e){
+    IMG=null; msg.textContent='그림을 읽지 못했습니다 — '+(e.message||e);
+  }
+}
+
+async function save(){
+  if(!IMG) return void ($('#pxMsg',OVX).textContent='자를 그림이 없습니다.');
+  const sbx=db();
+  const rows=$$('.pxseg',OVX).filter(el=>$('[data-use]',el).value==='y');
+  if(!rows.length) return void ($('#pxMsg',OVX).textContent='넣을 칸을 하나도 안 골랐습니다.');
+  const btn=$('#pxSave',OVX); btn.disabled=true;
+  const msg=$('#pxMsg',OVX);
+  let done=0;
+  try{
+    for(const el of rows){
+      const a=+el.dataset.a, b=+el.dataset.b;
+      const tgt=rowById($('[data-row]',el).value);
+      const slot=$('[data-slot]',el).value;
+      if(!tgt) continue;
+      msg.textContent=`${tgt.no}번 ${slot==='q'?'문제':'답'} — 자르는 중…`;
+      const blob=await crop(IMG, a, b);
+      const url=await put(pathOf(tgt, slot), blob);
+      const patch={ [slot==='q'?'q_url':'a_url']: url, ['st_'+slot]:'draft' };
+      let up=await sbx.from('practicals').update(patch).eq('id', tgt.id);
+      if(up.error && /st_q|st_a|column|schema cache/i.test(up.error.message))
+        up=await sbx.from('practicals').update({ [slot==='q'?'q_url':'a_url']: url }).eq('id', tgt.id);
+      if(up.error) throw new Error(up.error.message);
+      Object.assign(tgt, patch);
+      done++;
+    }
+    msg.textContent=`${done}칸 넣었습니다.`;
+    toast(`그림 ${done}칸을 잘라 넣었습니다`);
+    repaint(BASE.id);
+    setTimeout(close, 700);
+  }catch(e){
+    msg.textContent='실패 — '+(e.message||e);
+  }finally{ btn.disabled=false; }
+}
+
+/* ══ 단추 붙이기 ══ */
+function ovNowId(){
+  try{ if(typeof OVID!=='undefined'&&OVID) return String(OVID) }catch(e){}
+  const m=String($('#ovTitle')?.textContent||'').match(/(\d{4})년 제(\d+)회 (\d+)번/);
+  if(m){ const r=allRows().find(x=>String(x.year)===m[1]&&String(x.session)===m[2]&&String(x.no)===m[3]); if(r) return String(r.id); }
+  return '';
+}
+function mount(){
+  /* ① 한눈에 판 머리줄 */
+  const oh=$('#ovl .oh');
+  if(oh && !$('#pxOvBtns')){
+    const box=document.createElement('span');
+    box.className='pxbtns'; box.id='pxOvBtns';
+    box.innerHTML=`<button type="button" class="pxb" data-pxsol="opus" title="비전공자용 상세 해설 — Opus 로 (문항당 약 80원)">✎ 상세해설 <b>Opus</b></button>
+      <button type="button" class="pxb" data-pxsol="sonnet" title="비전공자용 상세 해설 — Sonnet 으로 (문항당 약 30원)">✎ 상세해설 <b>Sonnet</b></button>
+      <button type="button" class="pxb" data-pxcut title="가로 절단선을 긋고 칸마다 문제·답으로 나눠 넣습니다">✂ 잘라 넣기</button>`;
+    const after=$('#ovReformat',oh)||oh.lastElementChild;
+    after ? after.after(box) : oh.appendChild(box);
+  }
+  /* ② 카드마다 — 이미 있는 «해설 만들기» 옆에 */
+  $$('#list .pcard [data-easy]').forEach(b=>{
+    if(b.nextElementSibling && b.nextElementSibling.classList?.contains('pxez')) return;
+    const id=b.dataset.easy;
+    const s=document.createElement('span');
+    s.className='pxez';
+    s.innerHTML=`<button type="button" class="pxb" data-pxsol2="${id}|opus" title="비전공자용 상세 해설 — Opus">✎ 상세 Opus</button>
+      <button type="button" class="pxb" data-pxsol2="${id}|sonnet" title="비전공자용 상세 해설 — Sonnet">✎ 상세 Sonnet</button>
+      <button type="button" class="pxb" data-pxcut2="${id}" title="그림을 잘라 문제·답 칸에 나눠 넣습니다">✂ 잘라 넣기</button>`;
+    b.after(s);
+  });
+}
+
+document.addEventListener('click', e=>{
+  const a=e.target.closest('[data-pxsol]');
+  if(a){ e.preventDefault(); e.stopPropagation();
+    const id=ovNowId(); if(!id) return void toast('어느 문항인지 알 수 없습니다');
+    return void makeSol(id, a.dataset.pxsol, a); }
+  const b=e.target.closest('[data-pxsol2]');
+  if(b){ e.preventDefault(); e.stopPropagation();
+    const [id,which]=b.dataset.pxsol2.split('|');
+    return void makeSol(id, which, b); }
+  const c=e.target.closest('[data-pxcut]');
+  if(c){ e.preventDefault(); e.stopPropagation();
+    const id=ovNowId(); if(!id) return void toast('어느 문항인지 알 수 없습니다');
+    return void openCut(id); }
+  const d=e.target.closest('[data-pxcut2]');
+  if(d){ e.preventDefault(); e.stopPropagation();
+    return void openCut(d.dataset.pxcut2); }
+}, true);
+
+setInterval(mount, 1200); setTimeout(mount, 900);
+window.__pxSol=makeSol; window.__pxCut=openCut;
+})();
+</script>
+
 </body>
 </html>
