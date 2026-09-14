@@ -1370,12 +1370,15 @@ function solToMd(sol){
   }
   if(arr(sol.steps).length){
     L.push("**풀이**","");
+    /* ★ v254 — 한 단계를 네 겹으로: 부호식 → 숫자식 → 한글 읽기 → 왜 */
     arr(sol.steps).forEach((s,i) => {
       if(typeof s === "string") return void L.push(`${i+1}. ${s}`, "");
-      L.push(`${i+1}. ${s.say||""}`);
-      if(s.math) L.push("",`$$${s.math}$$`,"");
-      if(s.why)  L.push(`   - 왜: ${s.why}`);
-      if(s.calc) L.push(`   - 계산: ${s.calc}`);
+      L.push(`${i+1}. ${s.say||""}`, "");
+      if(s.math)  L.push(`$$${s.math}$$`, "");
+      if(s.plain) L.push(`- 해설식: ${s.plain}`, "");
+      if(s.calc)  L.push(`$$${s.calc}$$`, "");
+      if(s.read)  L.push(`- 읽기식: ${s.read}`);
+      if(s.why)   L.push(`- 왜: ${s.why}`);
       L.push("");
     });
   }

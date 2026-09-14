@@ -517,22 +517,19 @@ const TOOL = {
                    mean: { type: "string", description: "무슨 뜻인지 쉬운 말로" },
                    unit: { type: "string", description: "단위" },
                    val:  { type: "string", description: "이 문제에서의 값" } } } },
-      formula: { type: "array", description: "쓰는 공식",
-                 items: { type: "object", required: ["tex"], properties: {
-                   tex:  { type: "string", description: "식. KaTeX 문법, $ 없이" },
-                   read: { type: "string", description: "그 식을 말로 읽으면 어떻게 되는지" },
-                   why:  { type: "string", description: "왜 이 식을 쓰는지. 어디서 나온 식인지" } } } },
-      steps:   { type: "array", description: "풀이 단계. 계산을 건너뛰지 말고 한 줄에 한 가지만 한다. 보통 4~8단계.",
+      steps:   { type: "array", description: "풀이 단계. 쓰는 식은 따로 모으지 말고 이 안에서 그때그때 세운다. 계산을 건너뛰지 말고 한 단계에 한 가지만 한다. 보통 4~8단계.",
                  items: { type: "object", required: ["say"], properties: {
-                   say:  { type: "string", description: "이 단계에서 무엇을 하는지" },
-                   math: { type: "string", description: "그 단계의 식. KaTeX, $ 없이" },
-                   why:  { type: "string", description: "왜 이렇게 하는지" },
-                   calc: { type: "string", description: "숫자를 실제로 넣어 계산한 과정. 단위 환산도 여기에." } } } },
+                   say:  { type: "string", description: "이 단계에서 무엇을 하는지 한 줄" },
+                   math:  { type: "string", description: "①부호식 — 숫자를 넣기 전, 기호만으로 세운 식. KaTeX, $ 없이" },
+                   plain: { type: "string", description: "②해설식 — 같은 식의 기호 자리에 «한글 이름» 을 넣어 다시 쓴 식. 수식이 아니라 글로. 예: '전선저항 = 전압강하 × 수전단전압 ÷ 부하전력'" },
+                   calc:  { type: "string", description: "③숫자대입식 — 같은 식에 이 문제의 숫자를 그대로 넣고 계산해 결과와 단위까지 쓴 식. KaTeX, $ 없이" },
+                   read:  { type: "string", description: "④읽기식 — 그 식을 한글로 소리 내 읽은 문장. 뜻풀이가 아니라 발음" },
+                   why:   { type: "string", description: "⑤왜 — 이 식을 왜 이렇게 쓰는지. 어디서 나온 식인지·무엇을 무시했고 왜 무시해도 되는지·왜 이 값을 여기에 넣는지" } } } },
       answer:  { type: "string", description: "최종 답. 답안지 표기를 그대로" },
       unit:    { type: "string", description: "단위. 없으면 빈 문자열" },
       why_answer:{ type: "string", description: "이 값이 왜 답이 되는지, 채점에서 무엇을 보는지" },
       check:   { type: "string", description: "답이 맞는지 거꾸로 확인하는 법, 또는 값의 크기가 상식에 맞는지 보는 법" },
-      memo:    { type: "string", description: "외우는 요령 한 가지" },
+      memo:    { type: "string", description: "나열형(«n가지 쓰시오») 답일 때만. 두문자·묶음 등 외우는 요령 한 줄. 아니면 빈 문자열" },
       trap:    { type: "string", description: "흔한 실수. 왜 틀리는지까지" },
       also:    { type: "array", items: { type: "string" },
                  description: "같이 알아 두면 좋은 것 — 비슷한 문제, 조건이 바뀌면 어떻게 되는지 2~4줄" },
@@ -553,10 +550,39 @@ const SYS_SOL = [
   "- 길이를 아끼지 않는다. 짧게 줄이는 것보다 빠짐없이 적는 쪽이 낫다.",
   "- background 에는 이 문제가 무슨 단원인지, 거기 나오는 말이 무슨 뜻인지, 그 값이 현장에서 무엇을 뜻하는지를 적는다. 교과서 정의를 옮기지 말고 쉬운 말로 풀어 쓴다.",
   "- symbols 에는 식에 나오는 기호를 하나도 빼지 않고 적는다. 뜻·단위·이 문제에서의 값까지.",
-  "- steps 는 암산으로 건너뛰지 않는다. 식을 세우고 → 숫자를 넣고 → 계산하고 → 단위를 정리하는 과정을 따로따로 적는다. calc 에는 실제 숫자 대입을 그대로 보인다.",
+  "- steps 는 암산으로 건너뛰지 않는다. 한 단계에 한 가지만 한다.",
   "- 단위가 바뀌는 곳(kW↔W, mm²↔m², 분↔초)은 왜 바뀌는지 반드시 적는다.",
   "- √3, 역률, 효율 같은 계수가 왜 붙는지 why 에 설명한다.",
   "- 도면(시퀀스·단선결선도) 문항이면 도면에서 읽은 기호와 결선을 하나씩 말로 풀어 준다.",
+  "",
+  "풀이 한 단계를 적는 법 — 같은 식을 네 가지 꼴로 잇달아 보이고, 마지막에 까닭을 단다",
+  "- 쓰는 식을 위에 따로 모으지 않는다. 식이 필요한 그 단계에서 세운다.",
+  "- ① math(부호식) : 숫자를 넣기 전, 기호만으로 세운 식.",
+  "-   예: R = \\dfrac{e V_r}{P}",
+  "- ② plain(해설식) : 같은 식의 기호 자리에 «한글 이름» 을 넣어 다시 쓴 것. 기호를 모르는 사람이 이 줄만 봐도 무엇을 무엇으로 나누는지 알게.",
+  "-   예: '전선저항 = 전압강하 × 수전단전압 ÷ 부하전력'",
+  "-   예: '단면적 = 고유저항 × 선로길이 ÷ 전선저항'",
+  "- ③ calc(숫자대입식) : 같은 식에 이 문제의 숫자를 그대로 넣고 계산해, 결과와 단위까지.",
+  "-   예: R = \\dfrac{300 \\times 6300}{2000 \\times 10^{3}} = 0.945\\,[\\Omega]",
+  "-   단위를 고친 곳은 숫자에 그대로 드러낸다. 예: 2000\\,kW = 2000 \\times 10^{3}\\,W",
+  "- ④ read(읽기식) : 그 식을 한글로 «소리 내 읽은» 문장. 뜻풀이가 아니라 발음이다.",
+  "-   예: R = \\dfrac{e V_r}{P} → '알은 피분의 이 브이알'.",
+  "-   예: Z = \\sqrt{R^2 + X^2} → '제트는 루트 알 제곱 더하기 엑스 제곱'.",
+  "- ⑤ why(왜) : 이 식을 왜 이렇게 쓰는지. 그 식이 어디서 나왔는지, 무엇을 무시했고 왜 무시해도 되는지, 왜 이 값을 여기에 넣는지까지 쓴다. 한 줄로 끊지 말고 까닭이 드러나게 쓴다.",
+  "-   예: '지중 단거리라 리액턴스가 저항보다 훨씬 작아 X=0 으로 둠. e = (P/V_r)(R + X\\tan\\theta) 에서 X 항이 사라지면 e = PR/V_r 이 되고, 이것을 R 에 대해 푼 것임'.",
+  "- 계산이 있는 단계라면 ①②③⑤ 를 빠뜨리지 않는다. ②와 ①은 같은 식이므로 내용이 어긋나면 안 된다.",
+  "- 계산이 없는 단계(표에서 규격 고르기 등)는 say 와 why 만으로도 된다.",
+  "",
+  "부호 칸",
+  "- symbols 에는 식에 나온 부호를 «하나도 빠짐없이» 적는다. 뜻(mean)·단위(unit)를 함께 쓴다.",
+  "- symbols 의 val 에는 이 문제에서 실제로 넣은 값을 쓴다. 구하는 값이면 '구하는 값', 문제에 없으면 빈 칸으로 둔다.",
+  "",
+  "외우기(memo) 칸",
+  "- 답이 항목 나열이면(«3가지를 쓰시오», «각각 쓰시오» 등) memo 에 외우는 요령을 한 줄 넣는다.",
+  "- 방법: 항목 첫 글자를 딴 두문자, 또는 «둘씩 짝지어» 같은 묶음, 또는 대비되는 쌍으로 묶기.",
+  "- 예: 접지 목적 3가지(감전방지·기기보호·이상전압억제) → '감·기·이 = 사람 먼저, 기기 다음, 전압 마지막'.",
+  "- 억지로 만들지 않는다. 자연스러운 요령이 없으면 비워 둔다.",
+  "- 계산 문항이면 memo 는 비워 둔다.",
   "",
   "말투",
   "- 개조식으로 쓴다. '~함', '~임', '~됨' 형태. '~있습니다', '~합니다' 는 쓰지 않는다.",
@@ -762,6 +788,23 @@ export default {
     const path = new URL(req.url).pathname.replace(/\/+$/, "") || "/";
     const T = tiers(env);
 
+    /* v230 — 어느 나라 기지에서 도는지 본다.
+       열쇠도 모델도 멀쩡한데 403 이 나면, 워커가 «Anthropic 이 막은 지역»
+       기지(HKG 등)에서 돌고 있는 것이다. 그건 코드로는 못 고친다. */
+    if (path === "/whereami"){
+      const cf = req.cf || {};
+      const colo = cf.colo || "?";
+      const 막힌곳 = ["HKG"];
+      return json({
+        기지: colo,
+        나라: cf.country || "?",
+        판정: 막힌곳.includes(colo)
+          ? `${colo} 기지는 Anthropic 이 막는 지역입니다 — 403 의 원인입니다.`
+          : `${colo} 기지는 보통 허용됩니다.`,
+        빌드: "v255"
+      }, 200, H);
+    }
+
     /* v209 — 자가진단.
        가장 짧은 요청 하나를 보내고 Anthropic 이 돌려준 것을 «그대로» 보여 준다.
        배치가 무더기로 실패할 때, 열쇠 문제인지 요청 모양 문제인지 여기서 갈린다. */
@@ -814,14 +857,15 @@ export default {
         keyHead: String(env.ANTHROPIC_API_KEY).slice(0,14) + "…",
         keyLen: String(env.ANTHROPIC_API_KEY).length,
         keyTrimmed: String(env.ANTHROPIC_API_KEY) === String(env.ANTHROPIC_API_KEY).trim(),
-        빌드: "v229",
+        빌드: "v255",
+        기지: (req.cf && req.cf.colo) || "?",
         upstream: parsed || body.slice(0,600),
         vision
       }, 200, H);
     }
 
     if (path === "/health" || path === "/")
-      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY }, 200, H);
+      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v255" }, 200, H);
 
     if (env.APP_KEY && req.headers.get("x-app-key") !== env.APP_KEY)
       return json({ error: "x-app-key 가 맞지 않습니다", detail: "x-app-key 가 맞지 않습니다" }, 401, H);
@@ -859,6 +903,6 @@ export default {
       return json({ error: e.message, detail: e.message, upstream: e.upstream || null }, 502, H);
     }
 
-    return json({ error: "없는 경로입니다", detail: "/get-data · /ai/models · /ai/chat · /explain · /split-hint · /notion · /selftest · /health" }, 404, H);
+    return json({ error: "없는 경로입니다", detail: "/get-data · /ai/models · /ai/chat · /explain · /split-hint · /notion · /selftest · /whereami · /health" }, 404, H);
   }
 };
