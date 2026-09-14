@@ -308,10 +308,20 @@ function toMd(sol){
   const L = [];
   /* ★ v256 — 목록 칸을 «['가','나']» 처럼 통째로 한 덩어리로 적어 보내는 일이 있다.
      그대로 찍으면 대괄호·따옴표가 화면에 그대로 나온다. 풀어서 줄로 나눈다. */
+  /* ★ v257 — 칸을 못 채우고 «<item>…</item>» 같은 표를 통째로 적어 보내는 일이 있다.
+     그대로 찍으면 태그가 화면에 그대로 나온다. 태그를 걷어내고 줄로 나눈다. */
+  const XML = /<\/?(item|step|symbol|sym|mean|unit|val|say|math|calc|plain|read|why|eq|steps|symbols|given|background|also|tags|tag|check|trap|memo|answer|gist|write_solution|why_answer)\s*\/?>/gi;
+  const unxml = t => String(t == null ? "" : t)
+    .replace(/<\/?item\s*\/?>/gi, "\n")
+    .replace(XML, " ")
+    .replace(/<[^<>\n]{1,30}>/g, " ")
+    .replace(/[ \t]{2,}/g, " ").trim();
   const arr = v => {
-    if(Array.isArray(v)) return v.filter(x => x != null && String(x).trim());
-    const t = String(v == null ? "" : v).trim();
+    if(Array.isArray(v)) return v.flatMap(x => (x && typeof x === "object") ? [x] : arr(x));
+    let t = String(v == null ? "" : v).trim();
     if(!t) return [];
+    if(/<\w+[^>]*>/.test(t))
+      return unxml(t).split("\n").map(x => x.replace(/^[-·•\s]+/, "").trim()).filter(Boolean);
     if(/^\[[\s\S]*\]$/.test(t)){
       try{ const j = JSON.parse(t); if(Array.isArray(j)) return j; }catch(e){}
       try{ const j = JSON.parse(t.replace(/'/g, '"')); if(Array.isArray(j)) return j; }catch(e){}
@@ -345,7 +355,9 @@ function toMd(sol){
     return /[\\^_{]/.test(x) ? `$${tex(x)}$` : x;
   };
 
-  if(sol.gist) L.push(`**${sol.gist}**`, "");
+  const line = t => unxml(String(t == null ? "" : t)).replace(/\n{2,}/g, "\n").trim();
+
+  if(sol.gist) L.push(`**${line(sol.gist)}**`, "");
 
   if(arr(sol.background).length){
     L.push("**먼저 알아야 할 것**", "");
@@ -387,21 +399,21 @@ function toMd(sol){
     L.push("**풀이**", "");
     arr(sol.steps).forEach((s, i) => {
       if(typeof s === "string") return void L.push(`${i+1}. ${s}`, "");
-      L.push(`${i+1}. ${s.say || ""}`, "");
+      L.push(`${i+1}. ${line(s.say)}`, "");
       /* 새 판 — 등호로 이은 한 줄(여럿이면 줄마다) */
       const eqs = Array.isArray(s.eq) ? s.eq : (s.eq ? [s.eq] : []);
       if(eqs.length) eqs.forEach(eqLine);
       else { eqLine(s.math); eqLine(s.calc); }   /* 옛 판 대비 */
       if(s.read) L.push(`- 읽기: ${s.read}`, "");
-      if(s.why)  L.push(`- 왜: ${s.why}`, "");
+      if(s.why)  L.push(`- 왜: ${line(s.why)}`, "");
       L.push("");
     });
   }
   L.push("**답**", "", `> ${sol.answer || ""}${sol.unit ? " " + sol.unit : ""}`, "");
-  if(sol.why_answer) L.push("**왜 이 답인가**", "", sol.why_answer, "");
-  if(sol.check)      L.push("**검산**", "", sol.check, "");
-  if(sol.memo)       L.push("**외우기**", "", sol.memo, "");
-  if(sol.trap)       L.push("**흔한 실수**", "", sol.trap, "");
+  if(sol.why_answer) L.push("**왜 이 답인가**", "", line(sol.why_answer), "");
+  if(sol.check)      L.push("**검산**", "", line(sol.check), "");
+  if(sol.memo)       L.push("**외우기**", "", line(sol.memo), "");
+  if(sol.trap)       L.push("**흔한 실수**", "", line(sol.trap), "");
   if(arr(sol.also).length){
     L.push("**같이 알아 두기**", "");
     arr(sol.also).forEach(x => L.push(`- ${x}`));
