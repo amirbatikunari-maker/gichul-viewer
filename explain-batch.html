@@ -104,10 +104,10 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
           <option value="missing">해설 없는 것만 (권장)</option>
           <option value="all">전부 다시 (있는 해설도 덮어씀)</option>
         </select></div>
-        <div><label for="fEffort">사고량</label><select id="fEffort">
-          <option value="low">낮음 (권장 · 가장 쌈)</option>
-          <option value="mid">보통</option>
-          <option value="high">높음</option>
+        <div><label for="fEffort">해설 상세도</label><select id="fEffort">
+          <option value="mid" selected>상세 (비전공자용 · 권장)</option>
+          <option value="high">아주 상세 (가장 길고 비쌈)</option>
+          <option value="low">짧게 (가장 쌈)</option>
         </select></div>
         <div><label for="fConc">동시 처리</label><select id="fConc">
           <option>2</option><option selected>3</option><option>4</option><option>6</option>
@@ -161,6 +161,8 @@ const APPKEY = CFG.CLAUDE_APP_KEY || "";
 
 const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
 
+/* ★ v252 — 사고량 고르개를 «해설을 얼마나 자세히 적을까» 로도 씀 */
+const DEPTH_OF = { low:"mid", mid:"full", high:"full" };
 let ROWS = [], TARGET = [], FAILED = [], RUNNING = false, STOP = false;
 /* v209 — 열쇠·설정이 잘못되면 1257개가 «전부» 같은 오류로 순식간에 탄다.
    실제로 581개가 1초 만에 실패했다. 그래서 처음 5개가 연달아 같은 이유로
@@ -304,41 +306,65 @@ $("#btnScan").addEventListener("click", async () => {
 /* ── 해설 JSON → 마크다운 ─────────────────────────── */
 function toMd(sol){
   const L = [];
+  const arr = v => Array.isArray(v) ? v : (v ? [v] : []);
   if(sol.gist) L.push(`**${sol.gist}**`, "");
-  if(sol.given?.length){
-    L.push("**주어진 값**", "");
-    sol.given.forEach(g => L.push(`- ${g}`));
+
+  if(arr(sol.background).length){
+    L.push("**먼저 알아야 할 것**", "");
+    arr(sol.background).forEach(b => L.push(`- ${b}`));
     L.push("");
   }
-  if(sol.formula?.length){
+  if(arr(sol.read).length){
+    L.push("**문제를 이렇게 읽음**", "");
+    arr(sol.read).forEach(b => L.push(`- ${b}`));
+    L.push("");
+  }
+  if(arr(sol.given).length){ L.push("**주어진 값**",""); arr(sol.given).forEach(g => L.push(`- ${g}`)); L.push(""); }
+  if(arr(sol.formula).length){
     L.push("**쓰는 식**", "");
-    sol.formula.forEach(f => {
-      const tex = (typeof f === "string") ? f : (f.tex || "");
+    arr(sol.formula).forEach(f => {
+      const tex  = (typeof f === "string") ? f : (f.tex || "");
       const read = (typeof f === "string") ? "" : (f.read || "");
+      const why  = (typeof f === "string") ? "" : (f.why || "");
       if(tex) L.push(`$$${tex}$$`, "");
       if(read) L.push(`- 읽기: ${read}`, "");
+      if(why)  L.push(`- 왜 이 식인가: ${why}`, "");
     });
+    L.push("");
   }
-  if(sol.symbols?.length){
+  if(arr(sol.symbols).length){
     L.push("**부호**", "");
-    sol.symbols.forEach(x => {
+    arr(sol.symbols).forEach(x => {
+      if(typeof x === "string") return void L.push(`- ${x}`);
       const v = x.val ? ` · 이 문제: ${x.val}` : "";
-      L.push(`- $${x.sym}$ — ${x.mean || ""}${v}`);
+      const u = x.unit ? ` (단위 ${x.unit})` : "";
+      L.push(`- $${x.sym}$ — ${x.mean || ""}${u}${v}`);
     });
     L.push("");
   }
-  if(sol.steps?.length){
-    L.push("**풀이**", "");
-    sol.steps.forEach((s, i) => {
-      L.push(`${i+1}. ${s.say || ""}`);
-      if(s.math) L.push("", `$$${s.math}$$`, "");
+  if(arr(sol.steps).length){
+    L.push("**풀이**","");
+    arr(sol.steps).forEach((s,i) => {
+      if(typeof s === "string") return void L.push(`${i+1}. ${s}`, "");
+      L.push(`${i+1}. ${s.say||""}`);
+      if(s.math) L.push("",`$$${s.math}$$`,"");
+      if(s.why)  L.push(`   - 왜: ${s.why}`);
+      if(s.calc) L.push(`   - 계산: ${s.calc}`);
+      L.push("");
     });
+  }
+  L.push("**답**","",`> ${sol.answer||""}${sol.unit ? " "+sol.unit : ""}`,"");
+  if(sol.why_answer) L.push("**왜 이 답인가**","",sol.why_answer,"");
+  if(sol.check)      L.push("**검산**","",sol.check,"");
+  if(sol.memo)       L.push("**외우기**", "", sol.memo, "");
+  if(sol.trap)       L.push("**흔한 실수**","",sol.trap,"");
+  if(arr(sol.also).length){
+    L.push("**같이 알아 두기**","");
+    arr(sol.also).forEach(x => L.push(`- ${x}`));
     L.push("");
   }
-  L.push("**답**", "", `> ${sol.answer || ""}${sol.unit ? " " + sol.unit : ""}`, "");
-  if(sol.memo) L.push("**외우기**", "", sol.memo, "");
-  if(sol.trap) L.push("**흔한 실수**", "", sol.trap, "");
-  return L.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  if(arr(sol.tags).length) L.push("", `\`${arr(sol.tags).join("` `")}\``);
+  return L.join("\n").replace(/\n{3,}/g,"\n\n").trim();
 }
 
 /* ── 한 문항 ──────────────────────────────────────── */
@@ -350,7 +376,8 @@ async function one(r){
     body: JSON.stringify({
       q_url:r.q_url, q_text:r.q_text, a_url:r.a_url, a_text:r.a_text,
       year:r.year, session:r.session, no:r.no, points:r.points,
-      effort: $("#fEffort").value
+      effort: $("#fEffort").value,
+      depth: DEPTH_OF[$("#fEffort").value] || "full"
     })
   });
   const d = await res.json().catch(() => ({}));

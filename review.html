@@ -124,6 +124,15 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .log{max-height:150px;overflow:auto;background:var(--sunk);border:1px solid var(--line);
   border-radius:6px;padding:8px;font-family:"IBM Plex Mono",monospace;font-size:11.5px;line-height:1.65;margin-top:10px}
 .log .ok{color:var(--ok)}.log .bad{color:var(--bad)}
+.log .skip{color:var(--draft)}
+.log div{white-space:pre-wrap;word-break:break-all}
+.bar{height:7px;background:var(--sunk);border:1px solid var(--line);border-radius:4px;
+  overflow:hidden;margin:12px 0 10px}
+.bar>i{display:block;height:100%;background:var(--ac);width:0;transition:width .25s}
+/* 뽑는 중인 칸 — 눈으로 바로 보이게 */
+.slot.busy{outline:2px solid var(--ac);outline-offset:2px}
+.genmsg{font-size:11.5px;margin-top:6px;font-family:"IBM Plex Mono",monospace;word-break:break-all}
+.genmsg.bad{color:var(--bad)} .genmsg.ok{color:var(--ok)} .genmsg.run{color:var(--ac)}
 </style>
 <style>
 .subnav{display:flex;align-items:center;gap:4px;flex-wrap:wrap;
@@ -224,6 +233,50 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
         <span><i class="sw empty"></i>empty 미등록</span>
         <span>점선 테두리 = 새 후보 있음</span>
       </div>
+    </div>
+
+    <!-- ★ v252 — 검수 화면 안에서 «해설 없는 문항» 만 골라 한 번에 돌림.
+         해설 배치(explain-batch)와 같은 일을 하지만, 지금 보고 있는 회차를
+         그대로 대상으로 삼는다. 격자에서 빈 해설이 채워지는 것을 바로 본다. -->
+    <div class="card hide" id="solCard">
+      <h2>해설 일괄 뽑기</h2>
+      <p class="note" style="margin-top:0">
+        <b>지금 화면에 불러온 문항</b> 중 답이 있는 것만 대상임.
+        사본(다른 문항의 복사본)은 뺌. 중간에 멈춰도 남은 것부터 이어서 됨.
+      </p>
+      <div class="row" style="margin-top:10px">
+        <div><label for="solScope">범위</label><select id="solScope">
+          <option value="missing">해설 없는 것만 (권장)</option>
+          <option value="raw">해설이 raw 인 것까지 다시</option>
+          <option value="all">전부 다시 (있는 해설도 덮어씀)</option>
+        </select></div>
+        <div><label for="solEffort">상세도</label><select id="solEffort">
+          <option value="full" selected>아주 상세 (비전공자용 · 권장)</option>
+          <option value="mid">보통</option>
+          <option value="low">짧게 (쌈)</option>
+        </select></div>
+        <div><label for="solConc">동시 처리</label><select id="solConc">
+          <option>1</option><option selected>2</option><option>3</option><option>4</option>
+        </select></div>
+      </div>
+      <div class="bar" id="solBar"><i id="solFill"></i></div>
+      <div class="stat" style="margin-bottom:6px">
+        <span>대상 <b id="solTotal">0</b></span>
+        <span>완료 <b id="solDone">0</b></span>
+        <span>실패 <b id="solBad">0</b></span>
+        <span>건너뜀 <b id="solSkip">0</b></span>
+        <span>입력토큰 <b id="solIn">0</b></span>
+        <span>출력토큰 <b id="solOut">0</b></span>
+      </div>
+      <div class="btns" style="margin-top:0">
+        <button id="btnSolScan">대상 세어보기</button>
+        <button class="pri" id="btnSolRun" disabled>일괄 뽑기</button>
+        <button id="btnSolStop" disabled>멈추기</button>
+        <button id="btnSolRetry" disabled>실패한 것만 다시</button>
+        <button id="btnSolPing">워커 점검</button>
+      </div>
+      <p class="note" id="solMsg">«대상 세어보기»를 누르면 몇 문항인지 셈.</p>
+      <div class="log hide" id="solLog" style="max-height:300px"></div>
     </div>
 
     <div class="card hide" id="dupCard">
@@ -472,6 +525,8 @@ async function load(){
   $("#gridCard").classList.remove("hide");
   $("#dumpCard").classList.remove("hide");
   $("#dupCard").classList.remove("hide");
+  $("#solCard").classList.remove("hide");
+  $("#btnSolScan").click();                /* 몇 문항이 해설 없는지 바로 보여 줌 */
   $("#gridTitle").textContent = sheetLabel(YEAR, SESS);
   MODE = "sheet";
   $("#wantBar").classList.add("hide");   /* 고르개는 «모아보기» 에서만 쓴다 */
@@ -645,6 +700,7 @@ $("#btnAllEmpty").addEventListener("click", async () => {
     $("#detCard").classList.add("hide");
     $("#gridCard").classList.remove("hide");
     $("#dumpCard").classList.remove("hide");
+    $("#solCard").classList.remove("hide");
     $("#dupCard").classList.remove("hide");
     drawAll();
   }catch(e){
@@ -1081,11 +1137,30 @@ function detail(no){
     b.addEventListener("click", () => delCand(...b.dataset.delcand.split("|"))));
 }
 
+/* ★ v252 — «칸이 없어서» 저장이 통째로 실패하던 것을 막음.
+   해설 배치 화면은 st_sol·sol_ver·sol_by 가 없는 옛 표에서도 easy_md 만
+   다시 넣어 성공했는데, 검수 화면은 그 되물림이 없어 그냥 실패했다.
+   화면에는 «실패» 한 줄만 로그에 찍혀서 «눌러도 아무 일 없음» 으로 보였다. */
+async function updateRow(id, obj){
+  let up = await sb.from("practicals").update(obj).eq("id", id);
+  if(up.error && /st_sol|sol_ver|sol_by|st_q|st_a|cand|column|schema cache/i.test(up.error.message)){
+    const slim = {};
+    ["easy_md","q_url","a_url","q_text","a_text","points","dup_of"].forEach(k => {
+      if(k in obj) slim[k] = obj[k];
+    });
+    if(Object.keys(slim).length){
+      const retry = await sb.from("practicals").update(slim).eq("id", id);
+      if(!retry.error) return { ok:true, obj:slim, note:"(칸이 없어 일부만 저장함)" };
+    }
+  }
+  return up.error ? { ok:false, why:up.error.message } : { ok:true, obj };
+}
+
 async function patch(obj, tag){
-  const { error } = await sb.from("practicals").update(obj).eq("id", CUR.id);
-  if(error){ log(`${tag} 실패 — ${error.message}`, "bad"); return false; }
-  Object.assign(CUR, obj);
-  log(`${tag} 완료`, "ok");
+  const r = await updateRow(CUR.id, obj);
+  if(!r.ok){ log(`${tag} 실패 — ${r.why}`, "bad"); say(`${tag} 실패 — ${esc(r.why)}`); return false; }
+  Object.assign(CUR, r.obj);
+  log(`${tag} 완료 ${r.note || ""}`, "ok");
   draw(); detail(CUR.no);
   return true;
 }
@@ -1161,66 +1236,302 @@ async function delCand(k, i){
 /* ── 해설 한 문항만 뽑기 ──────────────────────────
    배치(explain-batch)를 통째로 돌리지 않고 이 문항만.
    답이 없는 문항은 워커가 되돌려 보낸다 — 근거 없는 해설이 제일 위험함. */
-const WORKER = (CFG.CLAUDE_WORKER_URL || CFG.WORKER_URL || "").replace(/\/$/,"");
-async function genSol(btn){
-  if(!CUR) return;
-  if(!WORKER) return void log("config.js 에 CLAUDE_WORKER_URL 이 없습니다", "bad");
-  if(st(CUR,"a") === "empty" && !CUR.a_url && !CUR.a_text)
-    return void log("답이 없는 문항입니다. 답 슬롯을 먼저 채우세요.", "bad");
-  const old = btn.textContent;
-  btn.disabled = true; btn.textContent = "뽑는 중…";
+/* ★ v252 — 주소가 비면 여태 조용히 아무 일도 안 했다.
+   해설 배치 화면에는 기본 주소가 박혀 있어 «배치는 되는데 검수만 안 됨» 이 됐다.
+   같은 기본 주소를 여기에도 둔다. */
+const WORKER = (CFG.CLAUDE_WORKER_URL || CFG.WORKER_URL
+                || "https://gichul-ai.amirbatikunari.workers.dev").replace(/\/$/,"");
+const APPKEY = CFG.CLAUDE_APP_KEY || "";
+const SOL_TIMEOUT = 180000;          /* 3분. 이보다 길면 끊고 «왜 멈췄는지» 를 말함 */
+
+/* 워커에 한 문항을 물어봄. 성공하면 { md, model, usage }.
+   ★ v252 — 예전에는 여기서 답이 안 오면 화면이 «뽑는 중…» 인 채로 영영 멈췄다.
+   끊는 시계(AbortController)를 달아, 늦으면 늦다고 말하게 함. */
+async function askSol(r, depth){
+  if(!WORKER) throw new Error("config.js 에 CLAUDE_WORKER_URL 이 없습니다");
+  if(!r.a_url && !r.a_text) { const e = new Error("답이 없는 문항입니다"); e.skip = true; throw e; }
+
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), SOL_TIMEOUT);
+  let res;
   try{
-    const res = await fetch(WORKER + "/explain", {
+    res = await fetch(WORKER + "/explain", {
       method:"POST",
-      headers:Object.assign({"Content-Type":"application/json"},
-        CFG.CLAUDE_APP_KEY ? {"x-app-key":CFG.CLAUDE_APP_KEY} : {}),
+      signal: ac.signal,
+      headers:Object.assign({"Content-Type":"application/json"}, APPKEY ? {"x-app-key":APPKEY} : {}),
       body:JSON.stringify({
-        q_url:CUR.q_url, q_text:CUR.q_text, a_url:CUR.a_url, a_text:CUR.a_text,
-        year:YEAR, session:SESS, no:CUR.no, points:CUR.points, effort:"low"
+        q_url:r.q_url, q_text:r.q_text, a_url:r.a_url, a_text:r.a_text,
+        year:r.year, session:r.session, no:r.no, points:r.points,
+        depth: depth || "full",
+        effort: depth === "low" ? "low" : (depth === "mid" ? "mid" : "high")
       })
     });
-    const d = await res.json().catch(() => ({}));
-    if(!res.ok) throw new Error(d.error || ("HTTP " + res.status));
-    const md = solToMd(d.sol || {});
-    if(!md || md.length < 20) throw new Error("해설이 비어서 왔습니다");
-    await patch({ easy_md:md, st_sol:"raw", sol_by:d.model || null,
-                  sol_ver:(CUR.sol_ver || 0) + 1 }, "해설 뽑기");
   }catch(e){
-    log("해설 실패 — " + (e.message||e), "bad");
+    if(e.name === "AbortError") throw new Error(`${SOL_TIMEOUT/1000}초를 넘겨 끊었습니다 — 워커가 답을 안 줍니다`);
+    throw new Error("워커에 닿지 못했습니다 — " + (e.message || e));
+  }finally{ clearTimeout(timer); }
+
+  const raw = await res.text();
+  let d = {}; try{ d = JSON.parse(raw); }catch(e){}
+  if(!res.ok){
+    const why = d.error || d.detail || raw.slice(0,200) || ("HTTP " + res.status);
+    const err = new Error(`HTTP ${res.status} — ${why}`);
+    if(d.code === "NO_ANSWER") err.skip = true;
+    throw err;
+  }
+  const md = solToMd(d.sol || {});
+  if(!md || md.length < 20) throw new Error("해설이 비어서 왔습니다");
+  return { md, model: d.model || null, usage: d.usage || null };
+}
+
+/* 한 문항을 뽑아 저장까지. 배치·단독이 같이 씀 */
+async function solveOne(r, depth){
+  const got = await askSol(r, depth);
+  const obj = { easy_md: got.md, st_sol:"raw", sol_by: got.model,
+                sol_ver: (r.sol_ver || 0) + 1 };
+  const up = await updateRow(r.id, obj);
+  if(!up.ok) throw new Error("저장 실패 — " + up.why);
+  Object.assign(r, up.obj);
+  return got;
+}
+
+async function genSol(btn){
+  if(!CUR) return;
+  const slot = btn.closest(".slot");
+  const box = document.createElement("div");
+  box.className = "genmsg run";
+  const put = (t, cls) => { box.className = "genmsg " + (cls||""); box.textContent = t; };
+  if(slot) slot.appendChild(box), slot.classList.add("busy");
+
+  const target = CUR, t0 = Date.now();
+  const tick = setInterval(() => put(`뽑는 중… ${Math.round((Date.now()-t0)/1000)}초`, "run"), 1000);
+  const old = btn.textContent;
+  btn.disabled = true; btn.textContent = "뽑는 중…";
+  put("뽑는 중… 0초", "run");
+  log(`${target.no}번 해설 뽑는 중…`);
+
+  try{
+    const got = await solveOne(target, $("#solEffort") ? $("#solEffort").value : "full");
+    clearInterval(tick);
+    log(`${target.no}번 해설 뽑기 완료 (${got.md.length}자)`, "ok");
+    draw();
+    if(CUR && CUR.no === target.no) detail(target.no);   /* 다시 그리면 이 쪽지는 사라짐 */
+  }catch(e){
+    clearInterval(tick);
+    const why = String(e.message || e);
+    put("실패 — " + why, "bad");
+    log(`${target.no}번 해설 실패 — ${why}`, "bad");
+    say(`해설 실패 — ${esc(why)}`);
     btn.disabled = false; btn.textContent = old;
+    if(slot) slot.classList.remove("busy");
   }
 }
+
+/* ── 해설 JSON → 마크다운 ─────────────────────────
+   ★ v252 — 비전공자가 혼자 읽고 이해하도록 칸을 늘림.
+   워커가 옛 판이라 새 칸을 안 보내도 그대로 돌아감 (있는 것만 찍음). */
 function solToMd(sol){
   const L = [];
+  const arr = v => Array.isArray(v) ? v : (v ? [v] : []);
   if(sol.gist) L.push(`**${sol.gist}**`, "");
-  if(sol.given?.length){ L.push("**주어진 값**",""); sol.given.forEach(g => L.push(`- ${g}`)); L.push(""); }
-  if(sol.formula?.length){
+
+  if(arr(sol.background).length){
+    L.push("**먼저 알아야 할 것**", "");
+    arr(sol.background).forEach(b => L.push(`- ${b}`));
+    L.push("");
+  }
+  if(arr(sol.read).length){
+    L.push("**문제를 이렇게 읽음**", "");
+    arr(sol.read).forEach(b => L.push(`- ${b}`));
+    L.push("");
+  }
+  if(arr(sol.given).length){ L.push("**주어진 값**",""); arr(sol.given).forEach(g => L.push(`- ${g}`)); L.push(""); }
+  if(arr(sol.formula).length){
     L.push("**쓰는 식**", "");
-    sol.formula.forEach(f => {
-      const tex = (typeof f === "string") ? f : (f.tex || "");
+    arr(sol.formula).forEach(f => {
+      const tex  = (typeof f === "string") ? f : (f.tex || "");
       const read = (typeof f === "string") ? "" : (f.read || "");
+      const why  = (typeof f === "string") ? "" : (f.why || "");
       if(tex) L.push(`$$${tex}$$`, "");
       if(read) L.push(`- 읽기: ${read}`, "");
+      if(why)  L.push(`- 왜 이 식인가: ${why}`, "");
     });
+    L.push("");
   }
-  if(sol.symbols?.length){
+  if(arr(sol.symbols).length){
     L.push("**부호**", "");
-    sol.symbols.forEach(x => {
+    arr(sol.symbols).forEach(x => {
+      if(typeof x === "string") return void L.push(`- ${x}`);
       const v = x.val ? ` · 이 문제: ${x.val}` : "";
-      L.push(`- $${x.sym}$ — ${x.mean || ""}${v}`);
+      const u = x.unit ? ` (단위 ${x.unit})` : "";
+      L.push(`- $${x.sym}$ — ${x.mean || ""}${u}${v}`);
     });
     L.push("");
   }
-  if(sol.steps?.length){
+  if(arr(sol.steps).length){
     L.push("**풀이**","");
-    sol.steps.forEach((s,i) => { L.push(`${i+1}. ${s.say||""}`); if(s.math) L.push("",`$$${s.math}$$`,""); });
-    L.push("");
+    arr(sol.steps).forEach((s,i) => {
+      if(typeof s === "string") return void L.push(`${i+1}. ${s}`, "");
+      L.push(`${i+1}. ${s.say||""}`);
+      if(s.math) L.push("",`$$${s.math}$$`,"");
+      if(s.why)  L.push(`   - 왜: ${s.why}`);
+      if(s.calc) L.push(`   - 계산: ${s.calc}`);
+      L.push("");
+    });
   }
   L.push("**답**","",`> ${sol.answer||""}${sol.unit ? " "+sol.unit : ""}`,"");
-  if(sol.memo) L.push("**외우기**", "", sol.memo, "");
-  if(sol.trap) L.push("**흔한 실수**","",sol.trap,"");
+  if(sol.why_answer) L.push("**왜 이 답인가**","",sol.why_answer,"");
+  if(sol.check)      L.push("**검산**","",sol.check,"");
+  if(sol.memo)       L.push("**외우기**", "", sol.memo, "");
+  if(sol.trap)       L.push("**흔한 실수**","",sol.trap,"");
+  if(arr(sol.also).length){
+    L.push("**같이 알아 두기**","");
+    arr(sol.also).forEach(x => L.push(`- ${x}`));
+    L.push("");
+  }
+  if(arr(sol.tags).length) L.push("", `\`${arr(sol.tags).join("` `")}\``);
   return L.join("\n").replace(/\n{3,}/g,"\n\n").trim();
 }
+
+/* ═══════════════════════════════════════════════════
+   해설 일괄 뽑기 — 지금 불러온 문항이 대상 (v252)
+   ═══════════════════════════════════════════════════ */
+const SN = { total:0, done:0, bad:0, skip:0, tin:0, tout:0 };
+let SOL_TARGET = [], SOL_FAILED = [], SOL_RUN = false, SOL_STOP = false;
+
+function solLog(m, cls){
+  const b = $("#solLog"); b.classList.remove("hide");
+  const d = document.createElement("div"); if(cls) d.className = cls;
+  d.textContent = new Date().toLocaleTimeString("ko-KR",{hour12:false}) + "  " + m;
+  b.appendChild(d); b.scrollTop = b.scrollHeight;
+}
+function solPaint(){
+  $("#solTotal").textContent = SN.total;
+  $("#solDone").textContent  = SN.done;
+  $("#solBad").textContent   = SN.bad;
+  $("#solSkip").textContent  = SN.skip;
+  $("#solIn").textContent    = SN.tin.toLocaleString();
+  $("#solOut").textContent   = SN.tout.toLocaleString();
+  const seen = SN.done + SN.bad + SN.skip;
+  $("#solFill").style.width = SN.total ? Math.round(seen / SN.total * 100) + "%" : "0%";
+}
+/* 지금 화면이 보고 있는 목록. 모아보기 모드면 그 목록을 그대로 쓴다 */
+const curList = () => (MODE === "all" ? ALL : ROWS) || [];
+
+function solPick(){
+  const scope = $("#solScope").value;
+  return curList().filter(r => {
+    if(r.dup_of) return false;                         /* 사본은 원본에서 한 번만 */
+    if(!r.a_url && !r.a_text) return false;            /* 답 없으면 근거가 없음 */
+    if(scope === "missing" && r.easy_md) return false;
+    if(scope === "raw" && r.easy_md && st(r,"sol") !== "raw") return false;
+    return true;
+  });
+}
+
+$("#btnSolScan").addEventListener("click", () => {
+  const rows = curList();
+  if(!rows.length) return void ($("#solMsg").textContent = "먼저 «불러오기» 로 회차를 여세요.");
+  SOL_TARGET = solPick();
+  const noAns = rows.filter(r => !r.dup_of && !r.a_url && !r.a_text).length;
+  SN.total = SOL_TARGET.length; SN.done = SN.bad = SN.skip = SN.tin = SN.tout = 0;
+  SOL_FAILED = []; solPaint();
+  $("#btnSolRun").disabled = SOL_TARGET.length === 0;
+  $("#btnSolRetry").disabled = true;
+  $("#solMsg").innerHTML = `화면에 <b>${rows.length}</b>문항 · 이번에 돌릴 대상 <b>${SOL_TARGET.length}</b>문항`
+    + (noAns ? ` · 답이 없어 제외 <b>${noAns}</b>` : "");
+});
+["#solScope"].forEach(s => $(s).addEventListener("change", () => $("#btnSolScan").click()));
+
+async function solRun(list){
+  SOL_RUN = true; SOL_STOP = false;
+  $("#btnSolRun").disabled = true; $("#btnSolStop").disabled = false;
+  $("#btnSolScan").disabled = true; $("#btnSolRetry").disabled = true;
+  const depth = $("#solEffort").value;
+  const conc = +$("#solConc").value || 2;
+  let i = 0, sameWhy = "", sameCnt = 0;
+  SOL_FAILED = [];
+
+  async function one(){
+    while(!SOL_STOP){
+      const idx = i++; if(idx >= list.length) return;
+      const r = list[idx];
+      const tag = `${String(r.no).padStart(2,"0")}번`;
+      try{
+        const got = await solveOne(r, depth);
+        if(got.usage){ SN.tin += got.usage.input_tokens||0; SN.tout += got.usage.output_tokens||0; }
+        SN.done++; solLog(`${tag} 완료 · ${got.md.length}자`, "ok");
+        draw();
+      }catch(e){
+        if(e.skip){ SN.skip++; solLog(`${tag} 건너뜀 — ${e.message}`, "skip"); }
+        else{
+          SN.bad++; SOL_FAILED.push(r);
+          const why = String(e.message||e).slice(0,160);
+          solLog(`${tag} 실패 — ${why}`, "bad");
+          /* 설정이 틀리면 수십 개가 순식간에 같은 이유로 탄다. 5번이면 선다 */
+          if(SN.done === 0){
+            sameCnt = (why === sameWhy) ? sameCnt+1 : 1; sameWhy = why;
+            if(sameCnt >= 5 && !SOL_STOP){
+              SOL_STOP = true;
+              solLog("같은 이유로 5번 연달아 실패 — 설정 문제로 보고 멈췄습니다", "bad");
+              $("#solMsg").innerHTML = `<span style="color:var(--bad)">멈췄습니다.</span> ${esc(why)}<br>«워커 점검» 을 눌러 보세요.`;
+            }
+          }
+        }
+      }
+      solPaint();
+    }
+  }
+  await Promise.all(Array.from({length:conc}, one));
+
+  SOL_RUN = false;
+  $("#btnSolStop").disabled = true; $("#btnSolScan").disabled = false;
+  $("#btnSolRun").disabled = false; $("#btnSolRetry").disabled = SOL_FAILED.length === 0;
+  solLog(SOL_STOP ? `멈춤 — 완료 ${SN.done} · 실패 ${SN.bad}`
+                  : `끝 — 완료 ${SN.done} · 실패 ${SN.bad} · 건너뜀 ${SN.skip}`);
+  draw();
+  if(CUR) detail(CUR.no);
+}
+
+$("#btnSolRun").addEventListener("click", () => {
+  if(SOL_RUN) return;
+  if(!SOL_TARGET.length) SOL_TARGET = solPick();
+  if(!SOL_TARGET.length) return void ($("#solMsg").textContent = "돌릴 문항이 없습니다.");
+  /* 한 문항마다 요금이 붙는다. 뭉텅이로 돌리기 전에 한 번 묻는다 */
+  if(SOL_TARGET.length > 30 &&
+     !confirm(`${SOL_TARGET.length}문항을 한 번에 돌립니다. 문항마다 요금이 붙습니다.\n계속할까요?`)) return;
+  SN.total = SOL_TARGET.length; SN.done = SN.bad = SN.skip = SN.tin = SN.tout = 0; solPaint();
+  solLog(`시작 — ${SOL_TARGET.length}문항 · 상세도 ${$("#solEffort").value} · 동시 ${$("#solConc").value}`);
+  solRun(SOL_TARGET.slice());
+});
+$("#btnSolStop").addEventListener("click", () => {
+  SOL_STOP = true; $("#btnSolStop").disabled = true;
+  solLog("멈추는 중… 이미 보낸 것은 끝내고 섭니다");
+});
+$("#btnSolRetry").addEventListener("click", () => {
+  if(SOL_RUN || !SOL_FAILED.length) return;
+  const again = SOL_FAILED.slice();
+  SN.total = again.length; SN.done = SN.bad = SN.skip = 0; solPaint();
+  solLog(`실패한 ${again.length}문항 다시`);
+  solRun(again);
+});
+
+/* 워커 점검 — «눌러도 아무 일 없음» 일 때 어디가 막혔는지 한 번에 본다 */
+$("#btnSolPing").addEventListener("click", async () => {
+  const b = $("#btnSolPing"); b.disabled = true;
+  solLog(`워커 주소: ${WORKER || "(config.js 에 없음)"}`);
+  if(!WORKER){ b.disabled = false; return; }
+  for(const p of ["/health", "/selftest"]){
+    try{
+      const r = await fetch(WORKER + p, { headers: APPKEY ? {"x-app-key":APPKEY} : {} });
+      const t = (await r.text()).slice(0, 500);
+      solLog(`${p} → HTTP ${r.status} ${t}`, r.ok ? "ok" : "bad");
+    }catch(e){
+      solLog(`${p} → 닿지 못함 (${e.message||e}) — 주소·CORS(ALLOWED_ORIGINS)를 보세요`, "bad");
+    }
+  }
+  b.disabled = false;
+});
 
 /* 그림 줄이기 — 폭 상한 + jpeg. 저장소가 덜 참 */
 function shrink(file, maxW, q){

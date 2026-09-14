@@ -491,35 +491,77 @@ async function chat(req, env, H){
 /* ═══════════════════════════════════════════════════════════════
    4. /explain — 해설 배치 전용. 틀을 못 박음
    ═══════════════════════════════════════════════════════════════ */
+/* ★ v252 — 칸을 크게 늘렸다.
+   여태 해설은 «식 쓰고 숫자 넣고 답» 이 전부라, 그 과목을 배운 적 없는 사람은
+   왜 그 식을 쓰는지, 기호가 무엇인지, 단위가 왜 그렇게 변하는지를 알 수 없었다.
+   background(먼저 알아야 할 것) · read(문제 읽는 법) · symbols(기호 뜻) ·
+   steps[].why / calc(왜 · 숫자 대입) · why_answer · check(검산) 를 새로 받는다.
+   화면(review·explain-batch)은 «있는 칸만» 찍으므로 옛 워커와도 섞여 돌아간다. */
 const TOOL = {
   name: "write_solution",
-  description: "전기기사 실기 한 문항의 해설을 정해진 칸에 나눠 적는다.",
+  description: "전기기사 실기 한 문항의 해설을 정해진 칸에 나눠 적는다. 전기를 배운 적 없는 사람이 혼자 읽고 이해할 만큼 자세히 적는다.",
   input_schema: {
     type: "object",
-    required: ["gist", "given", "steps", "answer"],
+    required: ["gist", "background", "given", "symbols", "steps", "answer"],
     properties: {
       gist:    { type: "string", description: "한 줄 요지 — 무엇을 묻는 문제인가" },
-      given:   { type: "array", items: { type: "string" }, description: "문제에 주어진 값" },
-      formula: { type: "array", items: { type: "string" }, description: "쓰는 공식. KaTeX 문법, $ 없이" },
-      steps:   { type: "array", description: "풀이 단계", items: { type: "object", required: ["say"],
-                 properties: { say: { type: "string" }, math: { type: "string" } } } },
+      background: { type: "array", items: { type: "string" },
+                 description: "이 문제를 풀기 전에 알아야 할 배경 지식. 전기를 처음 보는 사람 기준으로 3~6줄. 용어 뜻, 이 값이 현장에서 무엇을 뜻하는지까지." },
+      read:    { type: "array", items: { type: "string" },
+                 description: "문제 문장·도면을 어떻게 읽는지. 어느 말이 어느 값·조건을 뜻하는지 2~5줄." },
+      given:   { type: "array", items: { type: "string" },
+                 description: "문제에 주어진 값. '값 = 숫자 단위 (무엇을 뜻하는지)' 꼴로." },
+      symbols: { type: "array", description: "식에 나오는 기호의 뜻",
+                 items: { type: "object", required: ["sym"], properties: {
+                   sym:  { type: "string", description: "기호. KaTeX, $ 없이" },
+                   mean: { type: "string", description: "무슨 뜻인지 쉬운 말로" },
+                   unit: { type: "string", description: "단위" },
+                   val:  { type: "string", description: "이 문제에서의 값" } } } },
+      formula: { type: "array", description: "쓰는 공식",
+                 items: { type: "object", required: ["tex"], properties: {
+                   tex:  { type: "string", description: "식. KaTeX 문법, $ 없이" },
+                   read: { type: "string", description: "그 식을 말로 읽으면 어떻게 되는지" },
+                   why:  { type: "string", description: "왜 이 식을 쓰는지. 어디서 나온 식인지" } } } },
+      steps:   { type: "array", description: "풀이 단계. 계산을 건너뛰지 말고 한 줄에 한 가지만 한다. 보통 4~8단계.",
+                 items: { type: "object", required: ["say"], properties: {
+                   say:  { type: "string", description: "이 단계에서 무엇을 하는지" },
+                   math: { type: "string", description: "그 단계의 식. KaTeX, $ 없이" },
+                   why:  { type: "string", description: "왜 이렇게 하는지" },
+                   calc: { type: "string", description: "숫자를 실제로 넣어 계산한 과정. 단위 환산도 여기에." } } } },
       answer:  { type: "string", description: "최종 답. 답안지 표기를 그대로" },
       unit:    { type: "string", description: "단위. 없으면 빈 문자열" },
-      trap:    { type: "string", description: "흔한 실수 한 가지" },
+      why_answer:{ type: "string", description: "이 값이 왜 답이 되는지, 채점에서 무엇을 보는지" },
+      check:   { type: "string", description: "답이 맞는지 거꾸로 확인하는 법, 또는 값의 크기가 상식에 맞는지 보는 법" },
+      memo:    { type: "string", description: "외우는 요령 한 가지" },
+      trap:    { type: "string", description: "흔한 실수. 왜 틀리는지까지" },
+      also:    { type: "array", items: { type: "string" },
+                 description: "같이 알아 두면 좋은 것 — 비슷한 문제, 조건이 바뀌면 어떻게 되는지 2~4줄" },
       tags:    { type: "array", items: { type: "string" }, description: "과목·주제 꼬리표 2~4개" }
     }
   }
 };
 const SYS_SOL = [
   "너는 전기기사 실기 채점 기준을 아는 해설 작성자다.",
+  "읽는 사람은 전기를 전공하지 않았고, 이 단원을 처음 본다고 여긴다.",
   "",
-  "규칙",
+  "무엇보다 중요한 규칙",
   "- 답안지에 적힌 최종값·단위·유효숫자를 그대로 따른다. 반올림을 네 판단으로 바꾸지 않는다.",
   "- 답안지에 없는 값을 지어내지 않는다. 문제에서 읽히지 않는 수치는 given 에 넣지 않는다.",
-  "- 도면(시퀀스·단선결선도) 문항이면 도면에서 읽은 기호와 결선을 말로 풀어 준다.",
-  "- 문장은 개조식으로 짧게. '~함', '~임' 형태.",
-  "- 수식은 KaTeX 문법으로 쓰되 $ 기호는 넣지 않는다. 앱이 감싼다.",
   "- 이미지가 흐리거나 잘려 확신이 안 서면 gist 첫머리에 '[확인필요] ' 를 붙인다.",
+  "",
+  "얼마나 자세히 쓰나",
+  "- 길이를 아끼지 않는다. 짧게 줄이는 것보다 빠짐없이 적는 쪽이 낫다.",
+  "- background 에는 이 문제가 무슨 단원인지, 거기 나오는 말이 무슨 뜻인지, 그 값이 현장에서 무엇을 뜻하는지를 적는다. 교과서 정의를 옮기지 말고 쉬운 말로 풀어 쓴다.",
+  "- symbols 에는 식에 나오는 기호를 하나도 빼지 않고 적는다. 뜻·단위·이 문제에서의 값까지.",
+  "- steps 는 암산으로 건너뛰지 않는다. 식을 세우고 → 숫자를 넣고 → 계산하고 → 단위를 정리하는 과정을 따로따로 적는다. calc 에는 실제 숫자 대입을 그대로 보인다.",
+  "- 단위가 바뀌는 곳(kW↔W, mm²↔m², 분↔초)은 왜 바뀌는지 반드시 적는다.",
+  "- √3, 역률, 효율 같은 계수가 왜 붙는지 why 에 설명한다.",
+  "- 도면(시퀀스·단선결선도) 문항이면 도면에서 읽은 기호와 결선을 하나씩 말로 풀어 준다.",
+  "",
+  "말투",
+  "- 개조식으로 쓴다. '~함', '~임', '~됨' 형태. '~있습니다', '~합니다' 는 쓰지 않는다.",
+  "- 다만 설명은 충분히 길게 쓴다. 개조식이라고 해서 한 토막으로 끊지 않는다.",
+  "- 수식은 KaTeX 문법으로 쓰되 $ 기호는 넣지 않는다. 앱이 감싼다.",
   "",
   "반드시 write_solution 도구로 답한다."
 ].join("\n");
@@ -604,14 +646,25 @@ async function explain(req, env, H){
 
   const T = tiers(env);
   const model = b.model || T.best;
-  const budget = EFFORT[b.effort] ?? EFFORT.low;
 
   /* v209 — «생각(thinking)» 과 «이 도구를 반드시 써라(tool_choice: tool)» 는
      같이 쓸 수 없다. 둘 다 보내면 요청이 통째로 거절된다.
      해설은 틀이 고정돼야 하므로 도구 강제를 남기고 생각을 끈다.
      답안지가 이미 주어져 있어 생각이 없어도 결과 차이가 거의 없다. */
+  /* ★ v252 — 상세도(depth). 화면에서 고른 값이 그대로 온다.
+     4000 토큰으로는 배경·기호·단계별 이유까지 담으면 중간에 잘렸다. */
+  const DEPTH = { low: 3000, mid: 6000, full: 12000 };
+  const depth = DEPTH[b.depth] ? b.depth : (b.depth ? "full" : "full");
+  const maxTok = b.max_tokens || DEPTH[depth];
+  const ask = depth === "low"
+    ? "짧게 요점만 적는다."
+    : depth === "mid"
+      ? "보통 길이로 적되, 기호 뜻과 숫자 대입 과정은 빠뜨리지 않는다."
+      : "아주 자세히 적는다. 전기를 처음 보는 사람이 이 해설만 읽고 혼자 이해할 수 있어야 한다. 길이를 아끼지 않는다.";
+  parts.push({ type: "text", text: "── 어떻게 적을까 ──\n" + ask });
+
   const res = await call(env, {
-    model, max_tokens: 4000, system: SYS_SOL,
+    model, max_tokens: maxTok, system: SYS_SOL,
     tools: [TOOL], tool_choice: { type: "tool", name: "write_solution" },
     messages: [{ role: "user", content: parts }]
   });
@@ -619,7 +672,9 @@ async function explain(req, env, H){
   const call_ = (out.content || []).find(c => c.type === "tool_use" && c.name === "write_solution");
   if (!call_) return json({ error: "정해진 틀로 답하지 않았습니다", said: textOf(out).slice(0, 400) }, 502, H);
 
-  return json({ ok: true, sol: call_.input, model, effort: b.effort || "low", usage: out.usage || null }, 200, H);
+  return json({ ok: true, sol: call_.input, model, depth,
+                effort: b.effort || "low", stop: out.stop_reason || null,
+                usage: out.usage || null }, 200, H);
 }
 
 /* ═══════════════════════════════════════════════════════════════
