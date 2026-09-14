@@ -1394,12 +1394,18 @@ function solToMd(sol){
     const rows = (Array.isArray(list) ? list : [list]).map(tex).filter(Boolean).map(wrapHan);
     if(!rows.length) return;
     if(rows.length === 1) return void L.push(`$$${rows[0]}$$`, "");
-    const body = rows.map((r, i) => {
-      if(i === 0){
-        const k = r.indexOf("=");
-        return k > 0 ? `${r.slice(0, k).trim()} &= ${r.slice(k + 1).trim()}` : `& ${r}`;
+    const body = rows.map(r => {
+      if(/^=/.test(r)) return `&= ${r.replace(/^=\s*/, "")}`;
+      /* 줄마다 «첫 등호» 를 맞춤자리로 삼는다 — 기호식과 한글식의 = 가 세로로 선다.
+         \xrightarrow{X=0} 안의 등호는 중괄호 안이므로 건너뛴다. */
+      let d = 0, k = -1;
+      for(let i = 0; i < r.length; i++){
+        const c = r[i];
+        if(c === "{") d++;
+        else if(c === "}") d--;
+        else if(c === "=" && d === 0 && r[i-1] !== "<" && r[i-1] !== ">" && r[i+1] !== "="){ k = i; break; }
       }
-      return /^=/.test(r) ? `&= ${r.replace(/^=\s*/, "")}` : `& ${r}`;
+      return k > 0 ? `${r.slice(0, k).trim()} &= ${r.slice(k + 1).trim()}` : `& ${r}`;
     }).join(" \\\\ ");
     L.push(`$$\\begin{aligned} ${body} \\end{aligned}$$`, "");
   };
@@ -1456,8 +1462,15 @@ function solToMd(sol){
       if(typeof s === "string") return void L.push(`${i+1}. ${s}`, "");
       L.push(`${i+1}. ${line(s.say)}`, "");
       /* 새 판 — 등호로 이은 한 줄(여럿이면 줄마다) */
+      /* ★ v260 — 한 단계는 다섯 줄. 순서를 화면에서 못 박는다.
+         ①부호식 ②해설식 ③숫자대입식 ④읽기식 ⑤왜 */
       const eqs = Array.isArray(s.eq) ? s.eq : (s.eq ? [s.eq] : []);
-      if(eqs.length) eqBlock(eqs);
+      if(s.sym || s.plain || s.num){
+        if(s.sym)   eqBlock(s.sym);
+        if(s.plain) eqBlock(s.plain);
+        if(s.num)   eqBlock(s.num);
+      }
+      else if(eqs.length) eqs.forEach(e => eqBlock(e));
       else eqBlock([s.math, s.calc].filter(Boolean));   /* 옛 판 대비 */
       if(s.read) L.push(`- 읽기: “${line(s.read).replace(/^["“]|["”]$/g, "")}”`, "");
       if(s.why)  L.push(`- 왜: ${line(s.why)}`, "");
