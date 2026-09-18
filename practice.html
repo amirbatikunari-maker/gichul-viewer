@@ -76,7 +76,31 @@
     return s.replace(/\u0000(\d+)\u0000/g, function(_, k){ return keep[+k]; });
   }
 
-  var tidy = function(t){ return frac(pct(t)); };
+  /* ── ③ 떨어져 나간 백슬래시 ──
+     모델이 JSON 에 \\frac 을 «\\» 하나로 적어 보내면, JSON.parse 가 \\f 를
+     «페이지넘김» 글자로 읽어 버린다. 그래서 \\frac 은 [넘김]rac, \\times 는
+     [탭]imes, \\theta 는 [탭]heta 로 도착한다. KaTeX 는 «rac» «imes» 를
+     그냥 기울인 글자로 그려서, 식이 터지지도 않고 조용히 뭉개진다.
+     ★ 글 칸(검산·흔한 실수)에는 fixMath 가 이미 이 일을 하는데,
+       정작 식 칸(sym·plain·num·unit)은 tex() 로만 가서 아무 손질도 없었다.
+     제어글자 다음이 «아는 명령의 나머지» 일 때만 백슬래시를 도로 꽂는다.
+     그냥 빈칸으로 쓰인 탭은 빈칸으로 둔다. */
+  var LET  = { "\t":"t", "\f":"f", "\b":"b", "\v":"v", "\r":"r" };
+  var TAIL = { t:["imes","heta","an","ext","frac","au","riangle","o"],
+               f:["rac","allingdotseq","orall"],
+               b:["eta","egin","ar","mod"],
+               v:["arphi","ec","arepsilon","arDelta"],
+               r:["ho","ight","angle"] };
+  function unctrl(t){
+    if(typeof t !== "string" || !/[\t\f\v\b\r]/.test(t)) return t;
+    return t.replace(/[\t\f\v\b\r]/g, function(c, off, str){
+      var L = LET[c], rest = str.slice(off + 1), list = TAIL[L] || [];
+      for(var i = 0; i < list.length; i++) if(rest.indexOf(list[i]) === 0) return "\\" + L;
+      return " ";
+    });
+  }
+
+  var tidy = function(t){ return frac(pct(unctrl(t))); };
   var done = false;
   function fix(k){
     if(!k || done) return k;
