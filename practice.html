@@ -21449,14 +21449,40 @@ window.sbrOn  = function(){ MIN = 34; };
 body.ovlopen #pnav{display:none!important}
 .ovl .oh{row-gap:4px!important}
 .ovl .oh .ot{display:flex;align-items:center;gap:6px}
-.pxpick{display:inline-flex;align-items:center;gap:3px;flex:none}
-.pxpick select{height:30px;padding:0 22px 0 8px;border:1px solid var(--line,#e2e8f0);border-radius:8px;
+#pxPick.pxsel,.ovl .oh .pxsel,#list .pxhd .pxsel,.pxsel{display:inline-flex!important;flex-direction:row!important;
+  flex-wrap:nowrap!important;align-items:center!important;gap:3px!important;flex:none!important;
+  width:auto!important;min-width:0!important;max-width:none!important;margin:0!important;padding:0!important}
+#pxPick select,.ovl .oh .pxsel select,#list .pxhd .pxsel select,.pxsel select{display:inline-block!important;flex:none!important;width:auto!important;min-width:0!important;max-width:none!important;
+  margin:0!important;box-sizing:border-box!important;height:30px!important;padding:0 19px 0 7px!important;background-position:right 6px center!important;line-height:28px!important;
+  border-radius:8px!important;border:1px solid var(--line,#e2e8f0);border-radius:8px;
   background:var(--surface,#fff) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2364748b' stroke-width='1.6' fill='none'/%3E%3C/svg%3E") no-repeat right 7px center;
   -webkit-appearance:none;appearance:none;cursor:pointer;
   font:800 13px/1 var(--font-d,system-ui);color:var(--ink,#0f172a)}
-.pxpick select:hover{border-color:var(--accent,#2563eb)}
-.pxfs input[type=range]{width:64px!important}
+.pxsel select:hover{border-color:var(--accent,#2563eb)}
+.pxfs input[type=range]{width:60px!important}
+.ovl .oh .pxfs > span{display:none!important}          /* «글자» 글씨는 빼고 막대·숫자만 */
+.ovl .oh .pxfs{padding:0 6px!important;gap:4px!important}
+.ovl .oh{column-gap:5px!important}
+.ovl .oh .pxbtns{gap:3px!important}
+.pxinfo{margin-left:6px!important;gap:3px!important}
+.ovl .oh .ovfs button{padding:0 7px!important;min-width:0!important}
+.ovl .oh .ovfs{gap:3px!important}
+.pxrunbtn{padding:0 9px!important}
+.ovl .oh .pxfs b{min-width:26px!important}
 #pxOvBtns [data-pxsol]{display:none!important}
+/* ── ④ 일반 보기(한 문항씩) 카드 머리도 같은 꼴로 ── */
+body.oneup #list > .pcard > .phead > :not(.pxhd){display:none!important}
+body.oneup #list > .pcard > .phead{flex-wrap:nowrap!important;gap:8px!important;cursor:default!important}
+.pxhd{display:flex;align-items:center;gap:6px;min-width:0}
+.pxhd.l{flex:1 1 auto;overflow:hidden}
+.pxhd.l .meta{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+  font:600 12px/1 var(--font-m,ui-monospace,monospace);color:var(--muted,#64748b)}
+.pxhd.r{flex:none;margin-left:auto}
+.pxhd.r button{height:32px;padding:0 11px;border:1px solid var(--line,#e2e8f0);border-radius:9px;cursor:pointer;
+  background:var(--surface,#fff);color:var(--ink,#0f172a);font:700 11.5px/1 var(--font-d,system-ui);white-space:nowrap}
+.pxhd.r button:hover{border-color:#b8c1cf}
+.pxhd.r button.ok.on{background:#16a34a;border-color:#16a34a;color:#fff}
+@media(max-width:620px){ .pxhd.l .meta{display:none} body.oneup #list > .pcard > .phead{flex-wrap:wrap!important} }
 /* 제목칸 — «6점 · 출제 … 1/16» 오른쪽에 문제 정보 */
 .pxinfo{display:inline-flex;align-items:center;gap:4px;flex:none;margin-left:8px}
 .pxinfo .fqb{height:21px;font-size:10.5px}
@@ -21549,23 +21575,123 @@ function mount(){
     run.onclick=()=>openRun();
   }
   if(ot && !$('#pxPick',oh)){
-    const k=document.createElement('span'); k.className='pxpick'; k.id='pxPick';
+    const k=document.createElement('span'); k.className='pxsel'; k.id='pxPick';
     k.innerHTML=`<select id="pxSelY" title="년도"></select><select id="pxSelS" title="회차"></select><select id="pxSelN" title="번호"></select>`;
     ot.before(k);   /* 제목칸 «밖» 에 — 제목칸이 줄어들어도 잘리지 않게 */
     k.addEventListener('keydown',e=>e.stopPropagation());   /* ← → 가 문항 넘기기로 새지 않게 */
     k.addEventListener('change',e=>{
-      const y=$('#pxSelY').value, se=$('#pxSelS').value, n=$('#pxSelN').value, rs=all();
-      const bySess=(yy,ss)=>rs.filter(r=>String(r.year)===yy&&String(r.session)===ss).sort((a,b)=>(+a.no||0)-(+b.no||0));
-      let hit=null;
-      if(e.target.id==='pxSelY'){
-        const ss=[...new Set(rs.filter(r=>String(r.year)===y).map(r=>String(r.session)))].sort((a,b)=>a-b);
-        hit=ss.length?bySess(y,ss[0])[0]:null;
-      }else if(e.target.id==='pxSelS') hit=bySess(y,se)[0];
-      else hit=bySess(y,se).find(r=>String(r.no)===n);
+      const w={pxSelY:'y',pxSelS:'s',pxSelN:'n'}[e.target.id];
+      const hit=pickTarget($('#pxSelY').value,$('#pxSelS').value,$('#pxSelN').value,w);
       if(hit) goRow(hit);
     });
   }
 }
+
+const TLV={g:'금',s:'은',b:'동',r:'똥'};
+/* 문제집 자료는 «가짜 연도»(9419 · 9523 · 9301 …)로 들어 있다 — 이름표로 바꿔 보여 준다 */
+const isReal=y=>+y>0&&+y<3000;
+function ylab(y){
+  if(isReal(y)) return y+'년';
+  let h=''; try{ h=(window.__pracYLabel&&window.__pracYLabel()||{})[String(y)]||'' }catch(e){}
+  let a=''; try{ a=window.__pracYAuto?window.__pracYAuto(y):'' }catch(e){}
+  return h||a||('자료 '+y);
+}
+function slab(y,se){ try{ if(window.__pracSessLabel) return window.__pracSessLabel(y,se) }catch(e){} return '제'+se+'회'; }
+/* 진짜 연도 먼저(최신순), 문제집은 뒤로 */
+const ysort=(a,b)=>(isReal(a)?0:1)-(isReal(b)?0:1) || (isReal(a) ? b-a : a-b);
+function infoHtml(id){
+  let t=null; try{ t=id&&window.__pracTag?window.__pracTag(id):null }catch(e){}
+  if(!t) return '';
+  return `<span class="fqb ${t.tier} tier" title="등급 — 확률 25/15/8% 또는 누적 5/3/2번 중 하나만 넘으면 금/은/동, 한 번뿐이면 똥">${TLV[t.tier]||'—'}</span>`
+   +`<span class="fqb ${t.tier==='g'?'hot':''}" title="다음 1년 안에 이 유형이 나올 확률">${t.p}%</span>`
+   +`<span class="fqb yr" title="같은 유형 — 최근 5년 ${t.n5}회 · 통틀어 ${t.nAll}회">누적 ${t.nAll}회</span>`;
+}
+const selOpts=(r)=>{
+  const rs=all();
+  const ys=[...new Set(rs.map(x=>String(x.year)))].sort(ysort);
+  const ss=[...new Set(rs.filter(x=>String(x.year)===String(r.year)).map(x=>String(x.session)))].sort((a,b)=>a-b);
+  const ns=rs.filter(sameSess(r)).map(x=>String(x.no)).sort((a,b)=>a-b);
+  const opt=(list,cur,f)=>list.map(v=>`<option value="${v}"${v===String(cur)?' selected':''}>${f(v)}</option>`).join('');
+  return { y:opt(ys,r.year,ylab), s:opt(ss,r.session,v=>slab(r.year,v)), n:opt(ns,r.no,v=>v+'번'), sig:[r.id,ys,ss,ns].join('|') };
+};
+/* 고른 값 → 갈 문항 */
+function pickTarget(y,se,n,which){
+  const rs=all();
+  const bySess=(yy,ss)=>rs.filter(r=>String(r.year)===yy&&String(r.session)===ss).sort((a,b)=>(+a.no||0)-(+b.no||0));
+  if(which==='y'){
+    const ss=[...new Set(rs.filter(r=>String(r.year)===y).map(r=>String(r.session)))].sort((a,b)=>a-b);
+    return ss.length?bySess(y,ss[0])[0]:null;
+  }
+  if(which==='s') return bySess(y,se)[0];
+  return bySess(y,se).find(r=>String(r.no)===n);
+}
+/* 일반 보기에서 옮겨 가기 — 목록에 없으면 위쪽 년도·회차 거르기를 그 문항에 맞춘 뒤 간다 */
+function syncFilter(r){
+  if(shown().some(x=>String(x.id)===String(r.id))) return;
+  const fy=$('#fYear'), fs=$('#fSess'); let ch=false;
+  if(fy && fy.value && fy.value!==String(r.year)){ fy.value=String(r.year); ch=true; }
+  if(fs && fs.value && fs.value!==String(r.session)){
+    fs.value=[...fs.options].some(o=>o.value===String(r.session))?String(r.session):''; ch=true;
+  }
+  if(ch) (fy||fs).dispatchEvent(new Event('change'));
+}
+function goList(r){
+  syncFilter(r);
+  const i=shown().findIndex(x=>String(x.id)===String(r.id));
+  if(i>=0 && typeof window.showAt==='function') return void window.showAt(i);
+  try{ window.ovOpen && window.ovOpen(r.id) }catch(e){}   /* 검색·랜덤에 걸려 목록에 못 넣으면 한눈에로 */
+}
+function cardHead(){
+  if(!document.body.classList.contains('oneup')) return;
+  const rs=shown();
+  $$('#list > .pcard').forEach(card=>{
+    const head=card.querySelector(':scope > .phead'); if(!head) return;
+    const id=String(card.dataset.id||''); const r=all().find(x=>String(x.id)===id); if(!r) return;
+    let L=head.querySelector(':scope > .pxhd.l'), R=head.querySelector(':scope > .pxhd.r');
+    if(!L){
+      L=document.createElement('div'); L.className='pxhd l';
+      L.innerHTML=`<span class="pxsel"><select data-k="y" title="년도"></select><select data-k="s" title="회차"></select><select data-k="n" title="번호"></select></span>
+        <span class="meta"></span><span class="pxinfo"></span>`;
+      R=document.createElement('div'); R.className='pxhd r';
+      R.innerHTML=`<button type="button" data-hd="ov">⛶ 한눈에</button><button type="button" class="ok" data-hd="ok">✓ 맞음</button>`;
+      head.appendChild(L); head.appendChild(R);
+      /* 머리 전체가 «한눈에 열기» 라, 여기서 누른 것이 새어 나가지 않게 막는다 */
+      [L,R].forEach(x=>['click','pointerdown','mousedown','keydown'].forEach(ev=>x.addEventListener(ev,e=>e.stopPropagation())));
+      L.addEventListener('change',e=>{
+        const g=k=>L.querySelector(`[data-k="${k}"]`).value;
+        const hit=pickTarget(g('y'),g('s'),g('n'),e.target.dataset.k);
+        if(hit) goList(hit);
+      });
+      R.addEventListener('click',e=>{
+        const b=e.target.closest('[data-hd]'); if(!b) return;
+        if(b.dataset.hd==='ov'){ try{ window.ovOpen(id) }catch(x){} return; }
+        card.querySelector('[data-result="ok"]')?.click();
+        setTimeout(()=>paintCard(card),80);
+      });
+    }
+    const i=rs.findIndex(x=>String(x.id)===id);
+    const meta=[r.points?r.points+'점':'', r.asked?'출제 '+r.asked:'', i>=0?`${i+1}/${rs.length}`:''].filter(Boolean).join(' · ');
+    const m=L.querySelector('.meta'); if(m.textContent!==meta) m.textContent=meta;
+    const sels=[...L.querySelectorAll('select')];
+    if(!sels.includes(document.activeElement)){
+      const o=selOpts(r);
+      if(L.dataset.sig!==o.sig){ L.dataset.sig=o.sig;
+        sels[0].innerHTML=o.y; sels[1].innerHTML=o.s; sels[2].innerHTML=o.n; }
+    }
+    const inf=infoHtml(id), box=L.querySelector('.pxinfo');
+    if(box.dataset.h!==inf){ box.dataset.h=inf; box.innerHTML=inf; }
+    paintCard(card);
+  });
+}
+function paintCard(card){
+  const b=card.querySelector('.pxhd.r [data-hd="ok"]'); if(!b) return;
+  b.classList.toggle('on', card.dataset.result==='ok' || !!card.querySelector('[data-result="ok"].on'));
+}
+/* 목록이 새로 그려지면 바로 붙인다(깜빡임 없게) — #list 바로 아래만 본다 */
+(function watch(){
+  const l=$('#list'); if(!l) return void setTimeout(watch,500);
+  new MutationObserver(()=>{ try{ cardHead() }catch(e){} }).observe(l,{childList:true});
+})();
 
 let INFOSIG='';
 function paintInfo(){
@@ -21577,11 +21703,7 @@ function paintInfo(){
   const sig=t?`${id}|${t.p}|${t.tier}|${t.nAll}|${t.n5}`:id+'|-';
   if(sig===INFOSIG) return; INFOSIG=sig;
   if(!t){ box.innerHTML=''; return; }
-  const TL={g:'금',s:'은',b:'동',r:'똥'};
-  box.innerHTML=
-    `<span class="fqb ${t.tier} tier" title="등급 — 확률 25/15/8% 또는 누적 5/3/2번 중 하나만 넘으면 금/은/동, 한 번뿐이면 똥">${TL[t.tier]||'—'}</span>`
-   +`<span class="fqb ${t.tier==='g'?'hot':''}" title="다음 1년 안에 이 유형이 나올 확률">${t.p}%</span>`
-   +`<span class="fqb yr" title="같은 유형 — 최근 5년 ${t.n5}회 · 통틀어 ${t.nAll}회">누적 ${t.nAll}회</span>`;
+  box.innerHTML=infoHtml(id);
 }
 let PICKSIG='';
 function paintAt(){
@@ -21590,18 +21712,12 @@ function paintAt(){
   const Y=$('#pxSelY'), S=$('#pxSelS'), N=$('#pxSelN'); if(!Y) return;
   if([Y,S,N].includes(document.activeElement)) return;   /* 펼쳐 놓은 동안엔 안 건드림 */
   const r=nowRow(); if(!r) return;
-  const rs=all();
-  const ys=[...new Set(rs.map(x=>String(x.year)))].sort((a,b)=>b-a);
-  const ss=[...new Set(rs.filter(x=>String(x.year)===String(r.year)).map(x=>String(x.session)))].sort((a,b)=>a-b);
-  const ns=rs.filter(sameSess(r)).map(x=>String(x.no)).sort((a,b)=>a-b);
-  const sig=[r.id,ys,ss,ns].join('|');
-  if(sig===PICKSIG) return; PICKSIG=sig;
-  const opt=(list,cur,f)=>list.map(v=>`<option value="${v}"${v===String(cur)?' selected':''}>${f(v)}</option>`).join('');
-  Y.innerHTML=opt(ys,r.year,v=>v+'년');
-  S.innerHTML=opt(ss,r.session,v=>'제'+v+'회');
-  N.innerHTML=opt(ns,r.no,v=>v+'번');
+  const o=selOpts(r);
+  if(o.sig===PICKSIG) return; PICKSIG=o.sig;
+  Y.innerHTML=o.y; S.innerHTML=o.s; N.innerHTML=o.n;
 }
 function goRow(r){
+  syncFilter(r);                               /* 아래 레일·목록이 새 회차를 따라오게 */
   const rs=shown(), i=rs.findIndex(x=>String(x.id)===String(r.id));
   try{ if(i>=0 && document.body.classList.contains('oneup') && typeof window.showAt==='function') window.showAt(i) }catch(e){}
   try{ if(typeof window.ovOpen==='function') window.ovOpen(r.id) }catch(e){}
@@ -21744,7 +21860,7 @@ function stop(){ if(!RUN) return; RUN.halt=true; log('■ 중지 — 돌고 있�
 /* 탭을 닫으려 하면 한 번 붙잡는다 */
 addEventListener('beforeunload',e=>{ if(RUN){ e.preventDefault(); e.returnValue=''; } });
 
-setInterval(()=>{ mount(); paintAt(); if(PAN&&PAN.classList.contains('on')) paint(); }, 800);
+setInterval(()=>{ mount(); paintAt(); try{ cardHead() }catch(e){} if(PAN&&PAN.classList.contains('on')) paint(); }, 800);
 setTimeout(mount, 600);
 })();
 </script>
