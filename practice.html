@@ -21540,7 +21540,14 @@ body.oneup #list > .pcard > .phead{flex-wrap:nowrap!important;gap:8px!important;
 .pxrun .go[disabled]{opacity:.45;cursor:not-allowed}
 .pxrun .bar{height:5px;border-radius:3px;background:var(--line,#e2e8f0);overflow:hidden;margin-top:8px;display:none}
 .pxrun .bar i{display:block;height:100%;width:0;background:var(--accent,#2563eb);transition:width .3s}
-.pxrun .log{margin-top:6px;font-size:11px;color:var(--muted,#64748b);white-space:pre-wrap;max-height:90px;overflow:auto}
+.pxrun .log{margin-top:6px;font:600 11px/1.5 var(--font-d,system-ui);color:var(--muted,#64748b);
+  white-space:pre-wrap;word-break:break-all;overflow-wrap:anywhere;max-height:110px;overflow-y:auto;overflow-x:hidden}
+.pxrun input[type=checkbox]{width:auto!important;height:auto!important;margin:0!important;padding:0!important;flex:none}
+.pxrun label.ck{justify-content:flex-start}
+.pxrun .no.wait{background:#e0f2fe;border-color:#0284c7;color:#075985}
+.pxrun .again{height:32px;padding:0 12px;border:1px solid #dc2626;border-radius:8px;cursor:pointer;
+  background:#fff;color:#dc2626;font:800 12px/1 var(--font-d,system-ui);display:none}
+.pxrun .again.on{display:inline-block}
 @media(max-width:620px){ .pxrun{top:auto;bottom:10px;right:10px} .pxjump .at{display:none} }
 </style>
 <script>
@@ -21745,7 +21752,7 @@ function panel(){
     <div class="row"><span class="lb">동시</span><span class="seg" data-g="c">
       <button type="button" data-v="1">1</button><button type="button" data-v="2">2</button>
       <button type="button" data-v="3">3</button></span></div>
-    <div class="foot"><span class="sum" id="pxSum">—</span><button type="button" class="go" id="pxGo">▶ 시작</button></div>
+    <div class="foot"><span class="sum" id="pxSum">—</span><button type="button" class="again" id="pxAgain">↻ 실패만 다시</button><button type="button" class="go" id="pxGo">▶ 시작</button></div>
     <div class="bar" id="pxBar"><i></i></div>
     <div class="log" id="pxLog"></div>`;
   document.body.appendChild(PAN);
@@ -21763,6 +21770,7 @@ function panel(){
     if(n){ if(RUN) return; const id=n.dataset.id;
       PICK.has(id)?PICK.delete(id):PICK.add(id); OPT.sc='pick'; keep(); return void paint(); }
     if(e.target.closest('#pxGo')) return void (RUN ? stop() : start());
+    if(e.target.closest('#pxAgain')) return void again();
   });
   $('#pxRe',PAN).onchange=e=>{ OPT.re=e.target.checked; keep(); paint(); };
   PAN.addEventListener('keydown',e=>e.stopPropagation());
@@ -21818,16 +21826,29 @@ function paint(){
       : (OPT.sc==='pick' ? '번호를 눌러 고르세요' : '돌릴 문항이 없습니다');
     go.textContent='▶ 시작'; go.classList.remove('stop'); go.disabled=!ts.length;
   }
+  const bad=Object.values(STATE).filter(v=>v==='bad').length;
+  const ag=$('#pxAgain',PAN); if(ag){ ag.classList.toggle('on', !RUN && bad>0); ag.textContent=`↻ 실패한 ${bad}개 다시`; }
   const btn=$('#pxRunBtn');
   if(btn){ btn.classList.toggle('busy',!!RUN);
     btn.textContent = RUN ? `✎ 해설 ${RUN.done}/${RUN.list.length}` : '✎ 해설 돌리기'; }
 }
 function log(m){ const l=$('#pxLog'); if(!l) return; l.textContent=(m+'\n'+l.textContent).slice(0,2000); }
 
-async function start(){
+/* 서버가 붐빌 때(529 overloaded · 502/503) 는 잠깐 쉬었다 다시 — 이런 실패는 요금이 안 붙는다 */
+const BUSY=m=>/\b529\b|overload|\b50[234]\b|rate.?limit|\b429\b/i.test(m) && !/3분을 넘겨/.test(m);
+const nice=m=>BUSY(m) ? 'Anthropic 서버 혼잡(529)' : String(m).replace(/\{[\s\S]*$/,'').slice(0,90);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function again(){
+  if(RUN) return;
+  const m=new Map(all().map(r=>[String(r.id),r]));
+  const ids=Object.keys(STATE).filter(id=>STATE[id]==='bad');
+  if(!ids.length) return;
+  start(ids.map(id=>m.get(id)).filter(Boolean));
+}
+async function start(given){
   if(RUN) return;
   if(typeof window.__pxSolOne!=='function') return say('해설 모듈이 아직 안 실렸습니다 — 잠시 뒤 다시');
-  const list=targets(); if(!list.length) return;
+  const list=Array.isArray(given)?given:targets(); if(!list.length) return;
   const cost=(list.length*COST[OPT.m]).toLocaleString();
   if(list.length>1 && !confirm(`${list.length}문항을 ${NM[OPT.m]} 로 해설합니다 (약 ${cost}원).\n시작할까요?`)) return;
   if(list.length===1 && list[0].easy_md && !confirm(`${list[0].no}번 해설이 이미 있습니다. ${NM[OPT.m]} 로 다시 쓸까요?`)) return;
@@ -21840,11 +21861,27 @@ async function start(){
     while(!RUN.halt && next<RUN.list.length){
       const r=RUN.list[next++], id=String(r.id);
       STATE[id]='run'; paint();
-      try{
-        const n=await window.__pxSolOne(id, RUN.which);
-        STATE[id]='ok'; RUN.ok++; log(`✓ ${r.year}-${r.session} ${r.no}번 (${n}자)`);
-      }catch(e){
-        STATE[id]='bad'; RUN.bad++; log(`✕ ${r.year}-${r.session} ${r.no}번 — ${String(e.message||e).slice(0,120)}`);
+      const nm=`${r.year}-${r.session} ${r.no}번`;
+      let done=false, last='';
+      for(let k=0; k<4 && !done && !RUN.halt; k++){
+        /* 누가 혼잡을 만났으면 다 같이 쉰다 — 셋이 동시에 두드리면 더 막힌다 */
+        while(RUN.cool>Date.now() && !RUN.halt){ STATE[id]='wait'; paint(); await sleep(1000); }
+        if(RUN.halt) break;
+        STATE[id]='run'; paint();
+        try{
+          const n=await window.__pxSolOne(id, RUN.which);
+          STATE[id]='ok'; RUN.ok++; done=true; log(`✓ ${nm} (${n}자)${k?` · ${k}번 다시 해서 성공`:''}`);
+        }catch(e){
+          last=String(e.message||e);
+          if(!BUSY(last) || k===3) break;
+          const w=[20,45,90][k]*1000 + Math.random()*5000;
+          RUN.cool=Math.max(RUN.cool||0, Date.now()+w);
+          log(`… ${nm} — 서버 혼잡, ${Math.round(w/1000)}초 쉬고 다시 (${k+1}/3)`);
+        }
+      }
+      if(!done){
+        STATE[id]='bad'; RUN.bad++;
+        log(`✕ ${nm} — ${RUN.halt&&!last?'중지':nice(last)}${BUSY(last)?' · 3번 다시 해도 안 됨':''}`);
       }
       RUN.done++;
       $('#pxBar i').style.width=Math.round(RUN.done/RUN.list.length*100)+'%';
