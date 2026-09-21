@@ -21432,27 +21432,43 @@ window.sbrOn  = function(){ MIN = 34; };
         머리줄 : 여백 잘라 저장 · 저장 · 그림 고정 · 🔒 문제/답안/풀이 · 이 문제 꾸미기 · AI · 틀림
         카드줄 : 잘라 나누기 · 막히는 곳 표시 · 해설 만들기/다시 해석하기 · 고쳐 쓰기 ·
                  해설 지우기 · 글자로 변환 · 회전 · 여백 잘라 저장 · 저장 · 문제↔답안 · 삭제
-     ② 아래 이동줄(1/16 · 번호 · 가기)을 머리줄 둘째 줄로 올린다.
+     ② 머리줄 한 줄 · 제목 자리를 년도·회차·번호 고르기로 (이전·다음·필기·북마크·기능은 뺌)
      ③ «✎ 해설 돌리기» — 이 문제 / 이 회차 / 고른 번호 / 목록 전체 × Sonnet · Opus
      ══════════════════════════════════════════════════════════════ -->
 <style>
 /* ── ① 없앤 단추 ── 다른 조각이 없으면 다시 만들어 붙이므로, 화면에서만 뺀다 */
 #ovTight,#ovTightDown,#ovImgFix,#ovLockSet,#ovReformat,#rfPop,
 .ovacts [data-ova="ai"],.ovacts [data-ova="no"],
+.ovacts [data-ova="pen"],.ovacts [data-ova="fav"],.ovacts [data-ova="lab"],
+.ovl .oh #ovPrev,.ovl .oh #ovNext,.ovl .oh #ovTitle,
 .pcard .ptools :is([data-cutsplit],[data-pick],[data-easy],[data-easyedit],
   [data-easydel],[data-cv],[data-rot],[data-tight],[data-tightdown],[data-swap],[data-qdel]){
   display:none!important}
 
-/* ── ② 머리줄 둘째 줄 ── */
-.ovl .oh .pxbrk{flex:0 0 100%!important;height:0;margin:0;padding:0}
+/* ── ② 머리줄 한 줄 · 제목 자리에 년도·회차·번호 고르기 ── */
 body.ovlopen #pnav{display:none!important}
-.pxjump{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 4px 0 10px;margin-left:6px;
-  border:1px solid var(--line,#e2e8f0);border-radius:9px;background:var(--surface,#fff)}
-.pxjump .at{font:700 11.5px/1 var(--font-m,ui-monospace,monospace);color:var(--ink,#0f172a);white-space:nowrap}
-.pxjump input{width:54px;height:24px;padding:0 6px;border:1px solid var(--line,#e2e8f0);border-radius:6px;
-  font:700 12px/1 var(--font-m,monospace);background:var(--surface,#fff);color:var(--ink,#0f172a)}
-.pxjump button{height:24px;padding:0 9px;border:0;border-radius:6px;cursor:pointer;
-  background:var(--ink,#111827);color:#fff;font:700 11px/1 var(--font-d,system-ui)}
+.ovl .oh{row-gap:4px!important}
+.ovl .oh .ot{display:flex;align-items:center;gap:6px}
+.pxpick{display:inline-flex;align-items:center;gap:3px;flex:none}
+.pxpick select{height:30px;padding:0 22px 0 8px;border:1px solid var(--line,#e2e8f0);border-radius:8px;
+  background:var(--surface,#fff) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2364748b' stroke-width='1.6' fill='none'/%3E%3C/svg%3E") no-repeat right 7px center;
+  -webkit-appearance:none;appearance:none;cursor:pointer;
+  font:800 13px/1 var(--font-d,system-ui);color:var(--ink,#0f172a)}
+.pxpick select:hover{border-color:var(--accent,#2563eb)}
+.pxfs input[type=range]{width:64px!important}
+#pxOvBtns [data-pxsol]{display:none!important}
+/* 제목칸 — «6점 · 출제 … 1/16» 오른쪽에 문제 정보 */
+.pxinfo{display:inline-flex;align-items:center;gap:4px;flex:none;margin-left:8px}
+.pxinfo .fqb{height:21px;font-size:10.5px}
+.pxinfo .fqb.tier{min-width:24px;justify-content:center;font-weight:800}
+/* 넓은 화면은 한 줄로 못 박는다 — 모자라면 제목 뒤 «6점 · 출제…» 글이 먼저 줄어든다 */
+@media(min-width:900px){
+  .ovl .oh{flex-wrap:nowrap!important}
+  .ovl .oh .ot{flex:1 1 0!important;min-width:0!important;overflow:hidden}
+  .ovl .oh .ot #ovSub{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .ovl .oh .ot .pxinfo{flex:none}
+  .ovl .oh > :not(.ot){flex-shrink:0}
+}
 
 /* ── ③ 해설 돌리기 ── */
 .pxrunbtn{height:32px;padding:0 11px;margin-left:6px;border-radius:9px;cursor:pointer;white-space:nowrap;
@@ -21525,44 +21541,71 @@ const sessRows=()=>{ const r=nowRow(); if(!r) return [];
 /* ══ ① «⋯» · ② 둘째 줄 · 이동줄 ══ */
 function mount(){
   const oh=$('#ovl .oh'); if(!oh) return;
-  const close=$('#ovClose',oh), prev=$('#ovPrev',oh);
-  if(prev && !$('.pxbrk',oh)){
-    const br=document.createElement('span'); br.className='pxbrk'; prev.before(br);
-  }
-  if(close && !$('#pxJump',oh)){
-    const j=document.createElement('span'); j.className='pxjump'; j.id='pxJump';
-    j.innerHTML=`<span class="at" id="pxJumpAt">—</span>
-      <input id="pxJumpIn" type="number" min="1" inputmode="numeric" placeholder="번호">
-      <button type="button" id="pxJumpGo">가기</button>`;
+  const close=$('#ovClose',oh), ot=$('.ot',oh);
+  if(close && !$('#pxRunBtn',oh)){
     const run=document.createElement('button'); run.type='button'; run.className='pxrunbtn'; run.id='pxRunBtn';
     run.textContent='✎ 해설 돌리기';
-    close.after(j); j.after(run);
-    $('#pxJumpGo',j).onclick=jump;
-    $('#pxJumpIn',j).addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); jump(); } e.stopPropagation(); });
+    close.after(run);
     run.onclick=()=>openRun();
+  }
+  if(ot && !$('#pxPick',oh)){
+    const k=document.createElement('span'); k.className='pxpick'; k.id='pxPick';
+    k.innerHTML=`<select id="pxSelY" title="년도"></select><select id="pxSelS" title="회차"></select><select id="pxSelN" title="번호"></select>`;
+    ot.before(k);   /* 제목칸 «밖» 에 — 제목칸이 줄어들어도 잘리지 않게 */
+    k.addEventListener('keydown',e=>e.stopPropagation());   /* ← → 가 문항 넘기기로 새지 않게 */
+    k.addEventListener('change',e=>{
+      const y=$('#pxSelY').value, se=$('#pxSelS').value, n=$('#pxSelN').value, rs=all();
+      const bySess=(yy,ss)=>rs.filter(r=>String(r.year)===yy&&String(r.session)===ss).sort((a,b)=>(+a.no||0)-(+b.no||0));
+      let hit=null;
+      if(e.target.id==='pxSelY'){
+        const ss=[...new Set(rs.filter(r=>String(r.year)===y).map(r=>String(r.session)))].sort((a,b)=>a-b);
+        hit=ss.length?bySess(y,ss[0])[0]:null;
+      }else if(e.target.id==='pxSelS') hit=bySess(y,se)[0];
+      else hit=bySess(y,se).find(r=>String(r.no)===n);
+      if(hit) goRow(hit);
+    });
   }
 }
 
+let INFOSIG='';
+function paintInfo(){
+  const ot=$('#ovl .oh .ot'); if(!ot) return;
+  let box=$('#pxInfo',ot);
+  if(!box){ box=document.createElement('span'); box.className='pxinfo'; box.id='pxInfo'; ot.appendChild(box); }
+  const id=nowId(); let t=null;
+  try{ t=id&&window.__pracTag?window.__pracTag(id):null }catch(e){}
+  const sig=t?`${id}|${t.p}|${t.tier}|${t.nAll}|${t.n5}`:id+'|-';
+  if(sig===INFOSIG) return; INFOSIG=sig;
+  if(!t){ box.innerHTML=''; return; }
+  const TL={g:'금',s:'은',b:'동',r:'똥'};
+  box.innerHTML=
+    `<span class="fqb ${t.tier} tier" title="등급 — 확률 25/15/8% 또는 누적 5/3/2번 중 하나만 넘으면 금/은/동, 한 번뿐이면 똥">${TL[t.tier]||'—'}</span>`
+   +`<span class="fqb ${t.tier==='g'?'hot':''}" title="다음 1년 안에 이 유형이 나올 확률">${t.p}%</span>`
+   +`<span class="fqb yr" title="같은 유형 — 최근 5년 ${t.n5}회 · 통틀어 ${t.nAll}회">누적 ${t.nAll}회</span>`;
+}
+let PICKSIG='';
 function paintAt(){
-  const at=$('#pxJumpAt'); if(!at || !$('#ovl')?.classList.contains('on')) return;
-  const rs=shown(), id=nowId(), i=rs.findIndex(r=>String(r.id)===id), r=rs[i];
-  const t = r ? `${i+1} / ${rs.length} · ${r.year}년 제${r.session}회 ${r.no}번` : '—';
-  if(at.textContent!==t) at.textContent=t;
+  if(!$('#ovl')?.classList.contains('on')) return;
+  paintInfo();
+  const Y=$('#pxSelY'), S=$('#pxSelS'), N=$('#pxSelN'); if(!Y) return;
+  if([Y,S,N].includes(document.activeElement)) return;   /* 펼쳐 놓은 동안엔 안 건드림 */
+  const r=nowRow(); if(!r) return;
+  const rs=all();
+  const ys=[...new Set(rs.map(x=>String(x.year)))].sort((a,b)=>b-a);
+  const ss=[...new Set(rs.filter(x=>String(x.year)===String(r.year)).map(x=>String(x.session)))].sort((a,b)=>a-b);
+  const ns=rs.filter(sameSess(r)).map(x=>String(x.no)).sort((a,b)=>a-b);
+  const sig=[r.id,ys,ss,ns].join('|');
+  if(sig===PICKSIG) return; PICKSIG=sig;
+  const opt=(list,cur,f)=>list.map(v=>`<option value="${v}"${v===String(cur)?' selected':''}>${f(v)}</option>`).join('');
+  Y.innerHTML=opt(ys,r.year,v=>v+'년');
+  S.innerHTML=opt(ss,r.session,v=>'제'+v+'회');
+  N.innerHTML=opt(ns,r.no,v=>v+'번');
 }
 function goRow(r){
   const rs=shown(), i=rs.findIndex(x=>String(x.id)===String(r.id));
   try{ if(i>=0 && document.body.classList.contains('oneup') && typeof window.showAt==='function') window.showAt(i) }catch(e){}
   try{ if(typeof window.ovOpen==='function') window.ovOpen(r.id) }catch(e){}
 }
-function jump(){
-  const inp=$('#pxJumpIn'); const n=+(inp?.value||0); if(!n) return;
-  const r=nowRow(); const rs=shown();
-  /* 같은 회차의 그 번호 → 없으면 목록의 n 번째 */
-  const hit=(r && rs.find(x=>sameSess(r)(x) && +x.no===n)) || rs[n-1];
-  if(!hit) return say(`${n}번을 찾지 못했습니다`);
-  inp.value=''; goRow(hit);
-}
-
 /* ══ ③ 해설 돌리기 ══ */
 let PAN=null, RUN=null, PICK=new Set(), STATE={};
 function panel(){
