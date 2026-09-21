@@ -5769,7 +5769,7 @@ function skip(t){
 /* 한 줄을 조각으로 나눈다 */
 function chop(body){
   var keep = [];
-  var s = String(body).replace(/\$\$[\s\S]*?\$\$|\$[^$\n]*\$|`[^`]*`/g, function(m){
+  var s = String(body).replace(/\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$[^$\n]*\$|`[^`]*`/g, function(m){
     return K0 + (keep.push(m) - 1) + K0;
   });
 
