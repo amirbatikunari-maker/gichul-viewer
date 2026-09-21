@@ -20598,7 +20598,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=264").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=266").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -20943,6 +20943,25 @@ async function makeSol(id, which, btn){
   }
 }
 
+/* ★ v266 — 여러 문항 돌리기용. 묻지 않고, 잠그지 않고, 한 문항만 뽑아 저장한다.
+   성공하면 글 길이를, 실패하면 이유를 담은 Error 를 던진다. */
+async function solOne(id, which){
+  const r=rowById(id); if(!r) throw new Error('문항을 못 찾음');
+  if(!r.a_url && !r.a_text && !r.a_md) throw new Error('답 없음');
+  const sbx=db(); if(!sbx) throw new Error('Supabase 없음');
+  const box=document.querySelector(`.pcard[data-id="${id}"] .easybox`);
+  if(box){ box.classList.remove('empty'); box.innerHTML='<span class="wait">상세 해설을 쓰는 중…</span>'; }
+  const got=await askSol(r, which);
+  const patch={ easy_md:got.md, st_sol:'raw', sol_by:got.model, sol_ver:(r.sol_ver||0)+1 };
+  let up=await sbx.from('practicals').update(patch).eq('id', r.id);
+  if(up.error && /st_sol|sol_ver|sol_by|column|schema cache/i.test(up.error.message))
+    up=await sbx.from('practicals').update({ easy_md:got.md }).eq('id', r.id);
+  if(up.error) throw new Error('저장 실패 — '+up.error.message);
+  Object.assign(r, patch);
+  repaint(id);
+  return got.md.length;
+}
+
 /* ══ ② 그림 잘라 넣기 ══ */
 let OVX=null, LINES=[], IMG=null, SRC='q', BASE=null;
 
@@ -21230,6 +21249,7 @@ document.addEventListener('click', e=>{
 
 setInterval(() => { mount(); paintEzOnly(); applyFs(curFs()); }, 1200); setTimeout(mount, 900);
 window.__pxSol=makeSol; window.__pxCut=openCut;
+window.__pxSolOne=solOne; window.__pxRows=allRows; window.__pxNowId=ovNowId; window.__pxToast=toast;
 })();
 </script>
 
@@ -21403,6 +21423,286 @@ function paint(html){
 window.sbrSet = function(min, max){ if(min > 0) MIN = min; if(max > 0) MAX = max; };
 window.sbrOff = function(){ MIN = 1e9; };
 window.sbrOn  = function(){ MIN = 34; };
+})();
+</script>
+<!-- ══════════════════════════════════════════════════════════════
+     v266 · 한눈에 보기 정리 · 번호 이동 · 해설 여러 문항 돌리기
+
+     ① 안 쓰는 단추를 없앤다 (화면에서만 — 다른 조각이 없으면 다시 만들어 붙이므로)
+        머리줄 : 여백 잘라 저장 · 저장 · 그림 고정 · 🔒 문제/답안/풀이 · 이 문제 꾸미기 · AI · 틀림
+        카드줄 : 잘라 나누기 · 막히는 곳 표시 · 해설 만들기/다시 해석하기 · 고쳐 쓰기 ·
+                 해설 지우기 · 글자로 변환 · 회전 · 여백 잘라 저장 · 저장 · 문제↔답안 · 삭제
+     ② 아래 이동줄(1/16 · 번호 · 가기)을 머리줄 둘째 줄로 올린다.
+     ③ «✎ 해설 돌리기» — 이 문제 / 이 회차 / 고른 번호 / 목록 전체 × Sonnet · Opus
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* ── ① 없앤 단추 ── 다른 조각이 없으면 다시 만들어 붙이므로, 화면에서만 뺀다 */
+#ovTight,#ovTightDown,#ovImgFix,#ovLockSet,#ovReformat,#rfPop,
+.ovacts [data-ova="ai"],.ovacts [data-ova="no"],
+.pcard .ptools :is([data-cutsplit],[data-pick],[data-easy],[data-easyedit],
+  [data-easydel],[data-cv],[data-rot],[data-tight],[data-tightdown],[data-swap],[data-qdel]){
+  display:none!important}
+
+/* ── ② 머리줄 둘째 줄 ── */
+.ovl .oh .pxbrk{flex:0 0 100%!important;height:0;margin:0;padding:0}
+body.ovlopen #pnav{display:none!important}
+.pxjump{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 4px 0 10px;margin-left:6px;
+  border:1px solid var(--line,#e2e8f0);border-radius:9px;background:var(--surface,#fff)}
+.pxjump .at{font:700 11.5px/1 var(--font-m,ui-monospace,monospace);color:var(--ink,#0f172a);white-space:nowrap}
+.pxjump input{width:54px;height:24px;padding:0 6px;border:1px solid var(--line,#e2e8f0);border-radius:6px;
+  font:700 12px/1 var(--font-m,monospace);background:var(--surface,#fff);color:var(--ink,#0f172a)}
+.pxjump button{height:24px;padding:0 9px;border:0;border-radius:6px;cursor:pointer;
+  background:var(--ink,#111827);color:#fff;font:700 11px/1 var(--font-d,system-ui)}
+
+/* ── ③ 해설 돌리기 ── */
+.pxrunbtn{height:32px;padding:0 11px;margin-left:6px;border-radius:9px;cursor:pointer;white-space:nowrap;
+  border:1px solid var(--accent,#2563eb);background:var(--accent,#2563eb);color:#fff;
+  font:800 11.5px/1 var(--font-d,system-ui)}
+.pxrunbtn.busy{background:#f59e0b;border-color:#f59e0b}
+.pxrun{position:fixed;z-index:100050;top:96px;right:14px;width:min(430px,calc(100vw - 20px));
+  max-height:calc(100vh - 110px);overflow:auto;display:none;
+  background:var(--surface,#fff);color:var(--ink,#0f172a);border:1px solid var(--line,#e2e8f0);
+  border-radius:14px;box-shadow:0 18px 50px rgba(15,23,42,.22);padding:12px 13px;
+  font:600 12px/1.45 var(--font-d,system-ui)}
+.pxrun.on{display:block}
+.pxrun .hd{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.pxrun .hd b{font-size:13.5px}
+.pxrun .hd .x{margin-left:auto;border:0;background:none;font-size:16px;cursor:pointer;color:var(--muted,#64748b)}
+.pxrun .row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:7px 0}
+.pxrun .lb{width:34px;flex:none;color:var(--muted,#64748b);font-size:11px}
+.pxrun .seg{display:inline-flex;border:1px solid var(--line,#e2e8f0);border-radius:8px;overflow:hidden}
+.pxrun .seg button{height:28px;padding:0 10px;border:0;border-right:1px solid var(--line,#e2e8f0);
+  background:var(--surface,#fff);color:var(--ink,#0f172a);cursor:pointer;font:700 11.5px/1 var(--font-d,system-ui)}
+.pxrun .seg button:last-child{border-right:0}
+.pxrun .seg button.on{background:var(--ink,#111827);color:#fff}
+.pxrun .seg button small{font-weight:600;opacity:.7;margin-left:3px}
+.pxrun .nos{display:grid;grid-template-columns:repeat(auto-fill,minmax(38px,1fr));gap:4px;margin:4px 0 2px}
+.pxrun .no{height:30px;border:1px solid var(--line,#e2e8f0);border-radius:7px;cursor:pointer;
+  background:var(--surface,#fff);color:var(--ink,#0f172a);font:700 11.5px/1 var(--font-m,monospace);position:relative}
+.pxrun .no.has::after{content:'';position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:#60a5fa}
+.pxrun .no.sel{background:#eef4ff;border-color:var(--accent,#2563eb);color:var(--accent,#2563eb)}
+.pxrun .no.run{background:#fef3c7;border-color:#f59e0b;color:#92400e}
+.pxrun .no.ok{background:#dcfce7;border-color:#16a34a;color:#166534}
+.pxrun .no.bad{background:#fee2e2;border-color:#dc2626;color:#991b1b}
+.pxrun .no.now{outline:2px solid var(--ink,#111827);outline-offset:1px}
+.pxrun .mini{display:flex;gap:4px;flex-wrap:wrap}
+.pxrun .mini button{height:24px;padding:0 8px;border:1px solid var(--line,#e2e8f0);border-radius:6px;
+  background:var(--surface,#fff);cursor:pointer;font:700 10.5px/1 var(--font-d,system-ui);color:var(--muted,#64748b)}
+.pxrun label.ck{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11.5px}
+.pxrun .foot{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:9px;border-top:1px solid var(--line,#e2e8f0)}
+.pxrun .sum{margin-right:auto;font-size:11.5px;color:var(--muted,#64748b)}
+.pxrun .sum b{color:var(--ink,#0f172a)}
+.pxrun .go{height:32px;padding:0 14px;border:0;border-radius:8px;cursor:pointer;
+  background:var(--accent,#2563eb);color:#fff;font:800 12px/1 var(--font-d,system-ui)}
+.pxrun .go.stop{background:#dc2626}
+.pxrun .go[disabled]{opacity:.45;cursor:not-allowed}
+.pxrun .bar{height:5px;border-radius:3px;background:var(--line,#e2e8f0);overflow:hidden;margin-top:8px;display:none}
+.pxrun .bar i{display:block;height:100%;width:0;background:var(--accent,#2563eb);transition:width .3s}
+.pxrun .log{margin-top:6px;font-size:11px;color:var(--muted,#64748b);white-space:pre-wrap;max-height:90px;overflow:auto}
+@media(max-width:620px){ .pxrun{top:auto;bottom:10px;right:10px} .pxjump .at{display:none} }
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const say=m=>{ try{ (window.__pxToast||window.AppUI?.toast||alert)(m) }catch(e){} };
+const COST={ sonnet:30, opus:80 };
+const NM={ sonnet:'Sonnet', opus:'Opus' };
+const K='prac:pxrun:v1';
+let OPT=(()=>{ try{ return Object.assign({ m:'sonnet', sc:'one', re:false, c:2 }, JSON.parse(localStorage.getItem(K)||'{}')) }catch(e){ return { m:'sonnet', sc:'one', re:false, c:2 } } })();
+const keep=()=>{ try{ localStorage.setItem(K, JSON.stringify(OPT)) }catch(e){} };
+
+const shown=()=>{ try{ return Array.isArray(window.SHOWN)?window.SHOWN:[] }catch(e){ return [] } };
+const all=()=>{ try{ return (window.__pxRows&&window.__pxRows())||shown() }catch(e){ return shown() } };
+const nowId=()=>{ try{ return (window.__pxNowId&&window.__pxNowId())||'' }catch(e){ return '' } };
+const nowRow=()=>{ const id=nowId(); return id?all().find(r=>String(r.id)===id)||null:null };
+const sameSess=r=>x=>String(x.year)===String(r.year)&&String(x.session)===String(r.session)
+  &&(!r.subject_id||String(x.subject_id)===String(r.subject_id));
+const sessRows=()=>{ const r=nowRow(); if(!r) return [];
+  return all().filter(sameSess(r)).sort((a,b)=>(+a.no||0)-(+b.no||0)); };
+
+/* ══ ① «⋯» · ② 둘째 줄 · 이동줄 ══ */
+function mount(){
+  const oh=$('#ovl .oh'); if(!oh) return;
+  const close=$('#ovClose',oh), prev=$('#ovPrev',oh);
+  if(prev && !$('.pxbrk',oh)){
+    const br=document.createElement('span'); br.className='pxbrk'; prev.before(br);
+  }
+  if(close && !$('#pxJump',oh)){
+    const j=document.createElement('span'); j.className='pxjump'; j.id='pxJump';
+    j.innerHTML=`<span class="at" id="pxJumpAt">—</span>
+      <input id="pxJumpIn" type="number" min="1" inputmode="numeric" placeholder="번호">
+      <button type="button" id="pxJumpGo">가기</button>`;
+    const run=document.createElement('button'); run.type='button'; run.className='pxrunbtn'; run.id='pxRunBtn';
+    run.textContent='✎ 해설 돌리기';
+    close.after(j); j.after(run);
+    $('#pxJumpGo',j).onclick=jump;
+    $('#pxJumpIn',j).addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); jump(); } e.stopPropagation(); });
+    run.onclick=()=>openRun();
+  }
+}
+
+function paintAt(){
+  const at=$('#pxJumpAt'); if(!at || !$('#ovl')?.classList.contains('on')) return;
+  const rs=shown(), id=nowId(), i=rs.findIndex(r=>String(r.id)===id), r=rs[i];
+  const t = r ? `${i+1} / ${rs.length} · ${r.year}년 제${r.session}회 ${r.no}번` : '—';
+  if(at.textContent!==t) at.textContent=t;
+}
+function goRow(r){
+  const rs=shown(), i=rs.findIndex(x=>String(x.id)===String(r.id));
+  try{ if(i>=0 && document.body.classList.contains('oneup') && typeof window.showAt==='function') window.showAt(i) }catch(e){}
+  try{ if(typeof window.ovOpen==='function') window.ovOpen(r.id) }catch(e){}
+}
+function jump(){
+  const inp=$('#pxJumpIn'); const n=+(inp?.value||0); if(!n) return;
+  const r=nowRow(); const rs=shown();
+  /* 같은 회차의 그 번호 → 없으면 목록의 n 번째 */
+  const hit=(r && rs.find(x=>sameSess(r)(x) && +x.no===n)) || rs[n-1];
+  if(!hit) return say(`${n}번을 찾지 못했습니다`);
+  inp.value=''; goRow(hit);
+}
+
+/* ══ ③ 해설 돌리기 ══ */
+let PAN=null, RUN=null, PICK=new Set(), STATE={};
+function panel(){
+  if(PAN) return PAN;
+  PAN=document.createElement('div'); PAN.className='pxrun'; PAN.id='pxRun';
+  PAN.innerHTML=`
+    <div class="hd"><b>✎ 해설 돌리기</b><button class="x" type="button" data-x>✕</button></div>
+    <div class="row"><span class="lb">모델</span><span class="seg" data-g="m">
+      <button type="button" data-v="sonnet">Sonnet<small>~30원</small></button>
+      <button type="button" data-v="opus">Opus<small>~80원</small></button></span></div>
+    <div class="row"><span class="lb">범위</span><span class="seg" data-g="sc">
+      <button type="button" data-v="one">이 문제</button>
+      <button type="button" data-v="sess">이 회차</button>
+      <button type="button" data-v="pick">고른 번호</button>
+      <button type="button" data-v="list">목록 전체</button></span></div>
+    <div class="row" style="justify-content:space-between"><span class="lb" id="pxSessNm" style="width:auto">번호</span>
+      <span class="mini"><button type="button" data-p="empty">해설 없는 것</button>
+      <button type="button" data-p="all">전체</button><button type="button" data-p="none">비우기</button></span></div>
+    <div class="nos" id="pxNos"></div>
+    <div class="row"><label class="ck"><input type="checkbox" id="pxRe"> 이미 해설 있는 것도 다시 쓰기</label></div>
+    <div class="row"><span class="lb">동시</span><span class="seg" data-g="c">
+      <button type="button" data-v="1">1</button><button type="button" data-v="2">2</button>
+      <button type="button" data-v="3">3</button></span></div>
+    <div class="foot"><span class="sum" id="pxSum">—</span><button type="button" class="go" id="pxGo">▶ 시작</button></div>
+    <div class="bar" id="pxBar"><i></i></div>
+    <div class="log" id="pxLog"></div>`;
+  document.body.appendChild(PAN);
+  PAN.addEventListener('click',e=>{
+    if(e.target.closest('[data-x]')) return void PAN.classList.remove('on');
+    const sb=e.target.closest('.seg[data-g] button');
+    if(sb){ if(RUN) return; const g=sb.parentElement.dataset.g;
+      OPT[g] = g==='c' ? +sb.dataset.v : sb.dataset.v; keep(); return void paint(); }
+    const p=e.target.closest('[data-p]');
+    if(p){ if(RUN) return; const rs=sessRows();
+      if(p.dataset.p==='none') PICK.clear();
+      else rs.forEach(r=>{ if(p.dataset.p==='all' || !r.easy_md) PICK.add(String(r.id)); });
+      OPT.sc='pick'; keep(); return void paint(); }
+    const n=e.target.closest('.no[data-id]');
+    if(n){ if(RUN) return; const id=n.dataset.id;
+      PICK.has(id)?PICK.delete(id):PICK.add(id); OPT.sc='pick'; keep(); return void paint(); }
+    if(e.target.closest('#pxGo')) return void (RUN ? stop() : start());
+  });
+  $('#pxRe',PAN).onchange=e=>{ OPT.re=e.target.checked; keep(); paint(); };
+  PAN.addEventListener('keydown',e=>e.stopPropagation());
+  return PAN;
+}
+function openRun(){
+  const p=panel();
+  if(p.classList.contains('on') && !RUN) return void p.classList.remove('on');
+  /* 회차가 바뀌었으면 고른 번호를 비운다 */
+  const r=nowRow(); const sig=r?`${r.subject_id}|${r.year}|${r.session}`:'';
+  if(p.dataset.sig!==sig){ p.dataset.sig=sig; if(!RUN){ PICK.clear(); STATE={}; } }
+  p.classList.add('on'); paint();
+}
+
+/* 돌릴 문항 — 범위대로 고르고, 필요하면 해설 있는 것은 뺀다 */
+function targets(){
+  let rs=[];
+  if(OPT.sc==='one'){ const r=nowRow(); rs=r?[r]:[]; }
+  else if(OPT.sc==='sess') rs=sessRows();
+  else if(OPT.sc==='pick'){ const m=new Map(all().map(r=>[String(r.id),r])); rs=[...PICK].map(id=>m.get(id)).filter(Boolean); }
+  else rs=shown().slice();
+  const noAns=r=>!r.a_url && !r.a_text && !r.a_md;
+  return rs.filter(r=>!noAns(r) && (OPT.re || OPT.sc==='one' || OPT.sc==='pick' || !r.easy_md));
+}
+
+function paint(){
+  if(!PAN) return;
+  $$('.seg[data-g] button',PAN).forEach(b=>{
+    const g=b.parentElement.dataset.g;
+    b.classList.toggle('on', String(OPT[g])===b.dataset.v);
+    b.disabled=!!RUN;
+  });
+  $('#pxRe',PAN).checked=!!OPT.re;
+  const r=nowRow(), rs=sessRows();
+  $('#pxSessNm',PAN).textContent = r ? `${r.year}년 ${r.session}회` : '번호';
+  const nowS=r?String(r.id):'';
+  const html=rs.map(x=>{
+    const id=String(x.id), st=STATE[id]||'';
+    return `<button type="button" class="no${x.easy_md?' has':''}${PICK.has(id)?' sel':''}${st?' '+st:''}${id===nowS?' now':''}"
+      data-id="${id}" title="${x.no}번${x.easy_md?' · 해설 있음':''}${st==='bad'?' · 실패':''}">${x.no}</button>`;
+  }).join('');
+  const box=$('#pxNos',PAN); if(box.innerHTML!==html) box.innerHTML=html;
+  const ts=RUN?RUN.list:targets();
+  const skip = (OPT.sc==='sess'||OPT.sc==='list') && !OPT.re
+    ? (OPT.sc==='sess'?rs:shown()).filter(x=>x.easy_md).length : 0;
+  const go=$('#pxGo',PAN);
+  if(RUN){
+    $('#pxSum',PAN).innerHTML=`<b>${RUN.done}/${RUN.list.length}</b> · 성공 ${RUN.ok} · 실패 ${RUN.bad}`;
+    go.textContent='■ 중지'; go.classList.add('stop'); go.disabled=RUN.halt;
+  }else{
+    $('#pxSum',PAN).innerHTML = ts.length
+      ? `<b>${ts.length}문항</b> · ${NM[OPT.m]} · 약 ${(ts.length*COST[OPT.m]).toLocaleString()}원${skip?` · 해설 있는 ${skip}개 건너뜀`:''}`
+      : (OPT.sc==='pick' ? '번호를 눌러 고르세요' : '돌릴 문항이 없습니다');
+    go.textContent='▶ 시작'; go.classList.remove('stop'); go.disabled=!ts.length;
+  }
+  const btn=$('#pxRunBtn');
+  if(btn){ btn.classList.toggle('busy',!!RUN);
+    btn.textContent = RUN ? `✎ 해설 ${RUN.done}/${RUN.list.length}` : '✎ 해설 돌리기'; }
+}
+function log(m){ const l=$('#pxLog'); if(!l) return; l.textContent=(m+'\n'+l.textContent).slice(0,2000); }
+
+async function start(){
+  if(RUN) return;
+  if(typeof window.__pxSolOne!=='function') return say('해설 모듈이 아직 안 실렸습니다 — 잠시 뒤 다시');
+  const list=targets(); if(!list.length) return;
+  const cost=(list.length*COST[OPT.m]).toLocaleString();
+  if(list.length>1 && !confirm(`${list.length}문항을 ${NM[OPT.m]} 로 해설합니다 (약 ${cost}원).\n시작할까요?`)) return;
+  if(list.length===1 && list[0].easy_md && !confirm(`${list[0].no}번 해설이 이미 있습니다. ${NM[OPT.m]} 로 다시 쓸까요?`)) return;
+  RUN={ list, done:0, ok:0, bad:0, halt:false, which:OPT.m };
+  list.forEach(r=>{ STATE[String(r.id)]=''; });
+  $('#pxLog').textContent=''; $('#pxBar').style.display='block'; $('#pxBar i').style.width='0';
+  paint();
+  let next=0;
+  const worker=async()=>{
+    while(!RUN.halt && next<RUN.list.length){
+      const r=RUN.list[next++], id=String(r.id);
+      STATE[id]='run'; paint();
+      try{
+        const n=await window.__pxSolOne(id, RUN.which);
+        STATE[id]='ok'; RUN.ok++; log(`✓ ${r.year}-${r.session} ${r.no}번 (${n}자)`);
+      }catch(e){
+        STATE[id]='bad'; RUN.bad++; log(`✕ ${r.year}-${r.session} ${r.no}번 — ${String(e.message||e).slice(0,120)}`);
+      }
+      RUN.done++;
+      $('#pxBar i').style.width=Math.round(RUN.done/RUN.list.length*100)+'%';
+      paint();
+    }
+  };
+  await Promise.all(Array.from({ length:Math.max(1,Math.min(3,OPT.c|0||1,list.length)) }, worker));
+  const R=RUN; RUN=null; paint();
+  say(`해설 ${R.halt?'중지':'끝'} — 성공 ${R.ok} · 실패 ${R.bad}${R.halt?` · 남음 ${R.list.length-R.done}`:''}`);
+}
+function stop(){ if(!RUN) return; RUN.halt=true; log('■ 중지 — 돌고 있는 것만 마저 끝냅니다'); paint(); }
+
+/* 탭을 닫으려 하면 한 번 붙잡는다 */
+addEventListener('beforeunload',e=>{ if(RUN){ e.preventDefault(); e.returnValue=''; } });
+
+setInterval(()=>{ mount(); paintAt(); if(PAN&&PAN.classList.contains('on')) paint(); }, 800);
+setTimeout(mount, 600);
 })();
 </script>
 </body>
