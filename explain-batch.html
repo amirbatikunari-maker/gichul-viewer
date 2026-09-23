@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>해설 배치 · 기출 해설 노트</title>
+<link rel="icon" href="./favicon.ico?v=267" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=267">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png?v=267">
+<link rel="manifest" href="./manifest.json">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.css">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -256,12 +260,20 @@ async function fetchRows(sid){
   return out;
 }
 
+/* ★ v267 — 실기 화면에서 «🔒 쉬운해설 고정» 한 문항은 여기서도 건드리지 않는다.
+   ez_lock 칸이 없으면(SQL 전) 그 기기에 적어 둔 목록을 본다. */
+const ezFixed = r => {
+  if(r && r.ez_lock) return true;
+  try{ return (JSON.parse(localStorage.getItem("prac:ezfix:v1") || "[]") || []).map(String).includes(String(r.id)); }
+  catch(e){ return false; }
+};
 function applyFilters(){
   const y = $("#fYear").value, s = $("#fSess").value, mode = $("#fMode").value;
   return ROWS.filter(r => {
     if(y && String(r.year) !== y) return false;
     if(s && String(r.session) !== s) return false;
     if(!r.a_url && !r.a_text) return false;                 // 답 없는 문항은 대상 아님
+    if(ezFixed(r)) return false;                            // ★ v267 — 쉬운해설 고정
     if(mode === "missing" && r.easy_md) return false;
     return true;
   });
@@ -284,12 +296,14 @@ $("#btnScan").addEventListener("click", async () => {
 
     TARGET = applyFilters();
     const noAns = ROWS.filter(r => !r.a_url && !r.a_text).length;
+    const fixN = ROWS.filter(r => (r.a_url || r.a_text) && ezFixed(r)).length;
     N.total = TARGET.length; N.done = N.bad = N.skip = N.tin = N.tout = 0;
     FAILED = []; paint();
     $("#btnRun").disabled = TARGET.length === 0;
     $("#scanMsg").innerHTML =
       `전체 <b>${ROWS.length}</b>문항 · 이번에 돌릴 대상 <b>${TARGET.length}</b>문항` +
-      (noAns ? ` · <span class="pill">답 없어서 제외 ${noAns}</span>` : "");
+      (noAns ? ` · <span class="pill">답 없어서 제외 ${noAns}</span>` : "") +
+      (fixN ? ` · <span class="pill">🔒 고정이라 제외 ${fixN}</span>` : "");
   }catch(e){
     $("#scanMsg").textContent = "불러오지 못했습니다 — " + (e.message || e);
   }finally{ $("#btnScan").disabled = false; }

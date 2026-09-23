@@ -25,6 +25,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>실기 · 기출 해설 노트</title>
+<link rel="icon" href="./favicon.ico?v=267" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=267">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png?v=267">
+<link rel="manifest" href="./manifest.json">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.css">
 <!-- 글자로 변환한 문항에는 수식이 그대로 들어온다. 필기뷰어와 같은 방식으로 그린다. -->
@@ -4637,7 +4641,8 @@ setInterval(() => {
   window.__needCv = r => !!(
        (r.q_url && !r.q_md && !window.__locked('q'))
     || (r.a_url && !r.a_md && !window.__locked('a')));
-  window.__needEz = r => !!(!r.easy_md && (r.q_url || r.q_md) && !window.__locked('ez'));
+  window.__needEz = r => !!(!r.easy_md && (r.q_url || r.q_md) && !window.__locked('ez')
+    && !(window.__ezFixed && window.__ezFixed(r.id)));   /* ★ v267 — 고정 문항은 «할 일» 이 아니다 */
 
   paint();
   setTimeout(paint, 800);
@@ -4662,7 +4667,8 @@ const rffDel = id => { const F = rffAll(); delete F[String(id)];
 /* 잠기지 않았고 내용이 있는 칸만 «손볼 칸» 이다 */
 function rfFields(r){
   return [["q_md","문제","q"],["a_md","답안","a"],["easy_md","쉬운 풀이","ez"]]
-    .filter(([key,, lk]) => r[key] && !window.__locked(lk));
+    .filter(([key,, lk]) => r[key] && !window.__locked(lk)
+      && !(lk === "ez" && window.__ezFixed && window.__ezFixed(r.id)));   /* ★ v267 */
 }
 function rfPool(scope){
   const rows = Array.isArray(ROWS) ? ROWS : [];
@@ -5271,6 +5277,8 @@ async function ezMake(id, force, quiet){
   /* ★ v192 — 쉬운 풀이를 잠가 뒀으면 여기서 바로 돌아간다.
      한 곳만 막으면 낱개·일괄·자동 채우기가 전부 이 자물쇠를 지킨다. */
   try{ if(window.__locked && window.__locked('ez')) return; }catch(e){}
+  /* ★ v267 — 문항별 «쉬운해설 고정». 전체 자물쇠와 같은 자리에서 막는다 */
+  try{ if(window.__ezFixed && window.__ezFixed(r.id)) return; }catch(e){}
 
   const card = document.querySelector(`.pcard[data-id="${id}"]`);
   let box = card?.querySelector(".easybox");
@@ -6330,6 +6338,7 @@ ${body}`;
 
 async function reformatRow(r, field){
   const src = r[field]; if(!src) return false;
+  if(field === 'easy_md' && window.__ezFixed && window.__ezFixed(r.id)) return false;   /* ★ v267 */
   const kind = field === 'easy_md' ? 'ez' : field === 'q_md' ? 'q' : 'a';
   /* ★ v195 — 안 볼 항목은 AI 에 넘기기 «전» 에 잘라 낸다. 그래야 새로 쓴 글에
      그 부분이 되살아나지 않고, 저장될 때 영영 사라진다(그리기 때만 감추는 게 아니라). */
@@ -6382,7 +6391,7 @@ async function reformatRow(r, field){
 
 async function ezRunAll(){
   if(CVBUSY || EZBUSY) return;
-  const pool = ROWS.filter(r => (r.q_url || r.q_md) && !r.easy_md);
+  const pool = ROWS.filter(r => (r.q_url || r.q_md) && !r.easy_md && !(window.__ezFixed&&window.__ezFixed(r.id)));
   if(!pool.length) return cvSay("이 과목은 쉬운 풀이가 다 돼 있습니다.");
   if(!confirm(`해설이 없는 ${pool.length}개에 쉬운 풀이를 씁니다.\n`
     + `한 개에 20~40초쯤 걸리므로 대략 ${Math.ceil(pool.length * 30 / 60)}분입니다.\n`
@@ -10725,6 +10734,9 @@ async function redo(scope){
   let busy=false;
   try{ busy = CVBUSY || EZBUSY }catch(e){}
   if(busy) return alert('지금 다른 작업이 돌고 있습니다.');
+  /* ★ v267 — 🔒 풀이 잠금이면 «지우기» 전에 멈춘다. 예전엔 먼저 지운 뒤 ezMake 가
+     잠금 때문에 돌아가 버려, 서버엔 남은 해설이 화면·캐시에서만 사라졌다. */
+  if(window.__locked&&window.__locked('ez')) return alert('쉬운 풀이가 🔒 잠겨 있습니다 — 목록 위 자물쇠에서 «쉬운 풀이» 잠금을 먼저 풀어 주세요.');
 
   const yr=$('#fYear')?.value||'', ss=$('#fSess')?.value||'';
   let pool=rowsAll().filter(r=>r.q_url||r.q_md);
@@ -10742,8 +10754,11 @@ async function redo(scope){
       label=`${yr||'모든 연도'} ${ss?('제'+ss+'회'):''}`.trim();
     }
   }
+  const fixN=pool.filter(r=>(window.__ezFixed&&window.__ezFixed(r.id))).length;       /* ★ v267 — 고정 문항은 뺀다 */
+  pool=pool.filter(r=>!(window.__ezFixed&&window.__ezFixed(r.id)));
+  if(fixN) label+=` (고정 ${fixN}개 빼고)`;
   const done=pool.filter(r=>r.easy_md).length;
-  if(!pool.length) return alert('해당하는 문항이 없습니다.');
+  if(!pool.length) return alert(fixN?'남은 문항이 전부 «쉬운해설 고정» 입니다.':'해당하는 문항이 없습니다.');
   if(!confirm(`${label} — ${pool.length}개의 쉬운 풀이를 «지우고» 처음부터 다시 씁니다.\n`
     +`이미 써 둔 해설 ${done}개는 사라집니다.\n`
     +`한 개에 20~40초쯤 걸리므로 대략 ${Math.ceil(pool.length*30/60)}분입니다.\n`
@@ -10761,6 +10776,7 @@ async function redo(scope){
     n++;
     say(`다시 해석 ${n}/${pool.length} — ${r.year}년 제${r.session}회 ${r.no}번 · 됨 ${ok}`+(bad?` · 실패 ${bad}`:''));
     if(bar) bar.style.width=(n/pool.length*100)+'%';
+    if((window.__ezFixed&&window.__ezFixed(r.id))) continue;                     /* ★ v267 — 돌던 중에 고정했어도 지키게 */
     try{
       r.easy_md=null;                       /* 먼저 지운다 — 그래야 새로 쓴다 */
       await ezMake(r.id,true,true);
@@ -10833,6 +10849,8 @@ function openPop(kind){
     pop.querySelector('[data-one]').onclick=async()=>{
       let id=null; try{ id=OVID }catch(e){}
       if(!id) return alert('먼저 문항을 한눈에 열어 주세요.');
+      if(window.__ezFixed&&window.__ezFixed(id)) return alert('이 문항은 «쉬운해설 고정» 입니다.\n쉬운 풀이 칸의 🔒 고정을 먼저 풀어 주세요.');
+      if(window.__locked&&window.__locked('ez')) return alert('쉬운 풀이가 🔒 잠겨 있습니다 — 자물쇠를 먼저 풀어 주세요.');
       const btn=pop.querySelector('[data-one]'), msg=pop.querySelector('[data-msg]');
       btn.disabled=true; msg.textContent='다시 쓰는 중입니다… 20~40초쯤 걸립니다.';
       try{
@@ -14042,6 +14060,7 @@ async function retry(kind){
   const ids=F[kind].slice();
   if(!ids.length) return alert('다시 할 실패 기록이 없습니다.');
   const what=kind==='cv'?'글자 변환':'쉬운 풀이';
+  if(kind!=='cv' && window.__locked&&window.__locked('ez')) return alert('쉬운 풀이가 🔒 잠겨 있습니다 — 자물쇠를 먼저 풀어 주세요.');   /* ★ v267 */
   if(!confirm(`지난번에 실패한 ${ids.length}개만 골라 ${what}을 다시 시도합니다.\n`
     +`대략 ${Math.ceil(ids.length*(kind==='cv'?25:30)/60)}분입니다. 계속할까요?`)) return;
 
@@ -14059,6 +14078,7 @@ async function retry(kind){
     try{
       if(kind==='cv'){ await window.cvRow(r,true);
         (window.__needCv ? window.__needCv(r) : ((r.q_url&&!r.q_md)||(r.a_url&&!r.a_md)))?bad++:ok++; }
+      else if((window.__ezFixed&&window.__ezFixed(r.id))){ noteFail(kind,id,false); continue; }   /* ★ v267 — 고정은 실패 목록에서도 뺀다 */
       else{ r.easy_md=null; await window.ezMake(r.id,true,true); r.easy_md?ok++:bad++; }
     }catch(e){ bad++; }
     paint();
@@ -20151,8 +20171,9 @@ function addBtns(){
   if(oh && !oh.querySelector('[data-cutsplit]')){
     const b=document.createElement('button');
     b.type='button'; b.className='zb'; b.dataset.cutsplit='ov';
-    b.textContent='✂ 잘라 나누기';
-    b.title='보고 있는 문항의 그림을 선으로 나눠 문제·답으로 다시 저장합니다';
+    b.textContent='✂';                      /* ★ v267 — 머리줄은 가위만. 뜻은 title 로 */
+    b.setAttribute('aria-label','잘라 나누기');
+    b.title='잘라 나누기 — 보고 있는 문항의 그림을 선으로 나눠 문제·답으로 다시 저장합니다';
     b.onclick=()=>{ let id=null; try{ id=OVID }catch(e){} if(id) pick(id); };
     const anchor=oh.querySelector('#ovText');
     anchor ? anchor.after(b) : oh.appendChild(b);
@@ -20911,6 +20932,8 @@ async function makeSol(id, which, btn){
   if(!r.a_url && !r.a_text && !r.a_md)
     return void toast('답이 없는 문항입니다 — 근거가 없어 해설을 못 만듭니다');
   const sbx=db(); if(!sbx) return void toast('Supabase 를 쓸 수 없습니다');
+  if(window.__ezFixed && window.__ezFixed(r.id))
+    return void toast(`${r.no}번은 «쉬운해설 고정» 입니다 — 🔒 고정을 풀어야 다시 씁니다`);
   if(r.easy_md && !confirm(`${r.no}번 해설이 이미 있습니다.\n${NAME[which]} 로 다시 쓸까요?`)) return;
 
   SOLBUSY=true;
@@ -20947,6 +20970,7 @@ async function makeSol(id, which, btn){
    성공하면 글 길이를, 실패하면 이유를 담은 Error 를 던진다. */
 async function solOne(id, which){
   const r=rowById(id); if(!r) throw new Error('문항을 못 찾음');
+  if(window.__ezFixed && window.__ezFixed(r.id)) throw new Error('쉬운해설 고정');   /* ★ v267 */
   if(!r.a_url && !r.a_text && !r.a_md) throw new Error('답 없음');
   const sbx=db(); if(!sbx) throw new Error('Supabase 없음');
   const box=document.querySelector(`.pcard[data-id="${id}"] .easybox`);
@@ -21570,6 +21594,8 @@ const sameSess=r=>x=>String(x.year)===String(r.year)&&String(x.session)===String
   &&(!r.subject_id||String(x.subject_id)===String(r.subject_id));
 const sessRows=()=>{ const r=nowRow(); if(!r) return [];
   return all().filter(sameSess(r)).sort((a,b)=>(+a.no||0)-(+b.no||0)); };
+/* ★ v267 — 🔒 쉬운해설 고정 문항 */
+const fx=r=>{ try{ return !!(r && window.__ezFixed && window.__ezFixed(r.id||r)) }catch(e){ return false } };
 
 /* ══ ① «⋯» · ② 둘째 줄 · 이동줄 ══ */
 function mount(){
@@ -21764,10 +21790,11 @@ function panel(){
     const p=e.target.closest('[data-p]');
     if(p){ if(RUN) return; const rs=sessRows();
       if(p.dataset.p==='none') PICK.clear();
-      else rs.forEach(r=>{ if(p.dataset.p==='all' || !r.easy_md) PICK.add(String(r.id)); });
+      else rs.forEach(r=>{ if(!fx(r) && (p.dataset.p==='all' || !r.easy_md)) PICK.add(String(r.id)); });
       OPT.sc='pick'; keep(); return void paint(); }
     const n=e.target.closest('.no[data-id]');
     if(n){ if(RUN) return; const id=n.dataset.id;
+      if(fx(id) && !PICK.has(id)) return void say('🔒 쉬운해설 고정 문항입니다 — 쉬운 풀이 칸에서 고정을 풀어야 고를 수 있습니다');
       PICK.has(id)?PICK.delete(id):PICK.add(id); OPT.sc='pick'; keep(); return void paint(); }
     if(e.target.closest('#pxGo')) return void (RUN ? stop() : start());
     if(e.target.closest('#pxAgain')) return void again();
@@ -21786,14 +21813,17 @@ function openRun(){
 }
 
 /* 돌릴 문항 — 범위대로 고르고, 필요하면 해설 있는 것은 뺀다 */
-function targets(){
+function scopeRows(){
   let rs=[];
   if(OPT.sc==='one'){ const r=nowRow(); rs=r?[r]:[]; }
   else if(OPT.sc==='sess') rs=sessRows();
   else if(OPT.sc==='pick'){ const m=new Map(all().map(r=>[String(r.id),r])); rs=[...PICK].map(id=>m.get(id)).filter(Boolean); }
   else rs=shown().slice();
+  return rs;
+}
+function targets(){
   const noAns=r=>!r.a_url && !r.a_text && !r.a_md;
-  return rs.filter(r=>!noAns(r) && (OPT.re || OPT.sc==='one' || OPT.sc==='pick' || !r.easy_md));
+  return scopeRows().filter(r=>!noAns(r) && !fx(r) && (OPT.re || OPT.sc==='one' || OPT.sc==='pick' || !r.easy_md));
 }
 
 function paint(){
@@ -21809,21 +21839,24 @@ function paint(){
   const nowS=r?String(r.id):'';
   const html=rs.map(x=>{
     const id=String(x.id), st=STATE[id]||'';
-    return `<button type="button" class="no${x.easy_md?' has':''}${PICK.has(id)?' sel':''}${st?' '+st:''}${id===nowS?' now':''}"
-      data-id="${id}" title="${x.no}번${x.easy_md?' · 해설 있음':''}${st==='bad'?' · 실패':''}">${x.no}</button>`;
+    return `<button type="button" class="no${x.easy_md?' has':''}${fx(x)?' fix':''}${PICK.has(id)?' sel':''}${st?' '+st:''}${id===nowS?' now':''}"
+      data-id="${id}" title="${x.no}번${x.easy_md?' · 해설 있음':''}${fx(x)?' · 🔒 고정 (안 돌림)':''}${st==='bad'?' · 실패':''}">${x.no}</button>`;
   }).join('');
   const box=$('#pxNos',PAN); if(box.innerHTML!==html) box.innerHTML=html;
   const ts=RUN?RUN.list:targets();
   const skip = (OPT.sc==='sess'||OPT.sc==='list') && !OPT.re
-    ? (OPT.sc==='sess'?rs:shown()).filter(x=>x.easy_md).length : 0;
+    ? (OPT.sc==='sess'?rs:shown()).filter(x=>x.easy_md && !fx(x)).length : 0;
+  const fixN = RUN ? 0 : scopeRows().filter(fx).length;
+  const fixT = fixN ? ` · 🔒 고정 ${fixN}개 건너뜀` : '';
   const go=$('#pxGo',PAN);
   if(RUN){
     $('#pxSum',PAN).innerHTML=`<b>${RUN.done}/${RUN.list.length}</b> · 성공 ${RUN.ok} · 실패 ${RUN.bad}`;
     go.textContent='■ 중지'; go.classList.add('stop'); go.disabled=RUN.halt;
   }else{
     $('#pxSum',PAN).innerHTML = ts.length
-      ? `<b>${ts.length}문항</b> · ${NM[OPT.m]} · 약 ${(ts.length*COST[OPT.m]).toLocaleString()}원${skip?` · 해설 있는 ${skip}개 건너뜀`:''}`
-      : (OPT.sc==='pick' ? '번호를 눌러 고르세요' : '돌릴 문항이 없습니다');
+      ? `<b>${ts.length}문항</b> · ${NM[OPT.m]} · 약 ${(ts.length*COST[OPT.m]).toLocaleString()}원${skip?` · 해설 있는 ${skip}개 건너뜀`:''}${fixT}`
+      : (OPT.sc==='one' && fixN ? '이 문제는 🔒 쉬운해설 고정입니다'
+        : OPT.sc==='pick' ? '번호를 눌러 고르세요' : '돌릴 문항이 없습니다'+fixT);
     go.textContent='▶ 시작'; go.classList.remove('stop'); go.disabled=!ts.length;
   }
   const bad=Object.values(STATE).filter(v=>v==='bad').length;
@@ -21899,6 +21932,254 @@ addEventListener('beforeunload',e=>{ if(RUN){ e.preventDefault(); e.returnValue=
 
 setInterval(()=>{ mount(); paintAt(); try{ cardHead() }catch(e){} if(PAN&&PAN.classList.contains('on')) paint(); }, 800);
 setTimeout(mount, 600);
+})();
+</script>
+<!-- ══════════════════════════════════════════════════════════════
+     v267 · 문항별 쉬운해설 고정 · 이지뷰 · 머리줄 가위
+
+     ① 🔓 고정 — 쉬운 풀이 칸 이름 옆(한눈에 · 목록 카드 둘 다).
+        고정한 문항은 AI 가 쉬운 풀이를 «새로 만들지도, 다시 쓰지도» 않는다.
+          막는 길 : 2.5초 머물면 자동 생성 · 해설 만들기/다시 해석 · 상세 Opus/Sonnet ·
+                    ✎ 해설 돌리기 · ✨ 꾸미기 · 실패한 것 다시 · 해설 배치(explain-batch) · 검수(review)
+          열린 길 : ✎ 고치기(손으로 고치기) · 해설 지우기
+        저장 — practicals.ez_lock (supabase-ezlock.sql 한 번). PC·폰이 같이 본다.
+               칸이 아직 없으면 이 기기(localStorage prac:ezfix:v1)에만 적어 두고,
+               SQL 을 돌린 뒤 처음 열 때 서버로 옮긴다.
+        목록 캐시(IndexedDB)는 줄 수만 보고 재사용하므로, 고정 여부는 과목을 열 때마다
+        «고정된 id 만» 따로 가볍게 물어 맞춘다(필기 자국 inkSync 와 같은 방식).
+     ② 이지뷰 — 한눈에 보기를 «문제·답안(위아래) | 쉬운 풀이» 두 칸으로.
+        «해설만» 과는 둘 중 하나만 켜진다. 고른 것은 이 기기에 남는다.
+     ③ 머리줄 «✂ 잘라 나누기» → «✂» (뜻은 마우스를 올리면 나온다)
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* ── ① 고정 단추 — «✎ 고치기» 바로 왼쪽 ── */
+.ezfix{order:8;margin-left:6px;height:20px;padding:0 8px;border:1px solid var(--line,#e2e8f0);
+  border-radius:6px;background:var(--surface,#fff);color:var(--muted,#64748b);cursor:pointer;
+  font:700 9.5px/1 var(--font-d,system-ui);letter-spacing:0;text-transform:none;flex:0 0 auto;white-space:nowrap}
+.ezfix:hover{border-color:#f0a9a9;color:#b91c1c}
+.ezfix.on{background:#fef2f2;border-color:#f0a9a9;color:#b91c1c}
+.ezfix[disabled]{opacity:.55;cursor:progress}
+.ezfix:focus-visible{outline:2px solid var(--accent,#2563eb);outline-offset:1px}
+/* 해설 돌리기 번호판 — 고정은 빗금 · 자물쇠 */
+.pxrun .no.fix{background:repeating-linear-gradient(135deg,#f1f5f9 0 4px,var(--surface,#fff) 4px 8px);
+  color:#94a3b8;border-style:dashed;cursor:not-allowed}
+.pxrun .no.fix::before{content:'🔒';position:absolute;left:2px;top:2px;font-size:7.5px;line-height:1}
+
+/* ── ③ 머리줄 가위 ── */
+.ovl .oh [data-cutsplit="ov"]{padding:0 9px!important;font-size:13px!important;min-width:30px}
+
+/* ── ② 이지뷰 — 왼쪽: 문제 위 · 답안 아래 / 오른쪽: 쉬운 풀이 통째로 ──
+   문제 칸은 «들어 있는 만큼만» 자리를 잡고(길면 58% 에서 멈추고 안에서 굴림),
+   답안이 남은 높이를 다 먹는다. 칸 사이 폭 손잡이(v232)는 두 칸으로 그대로 쓴다. */
+body.easyview .ovl .otabs{display:none!important}
+body.easyview #ovl .pane.right{display:contents!important}
+body.easyview #ovl .pane.left{min-height:0}
+body.easyview #ovl .pane.right > .seg{display:flex!important;flex-direction:column;gap:2px;
+  overflow:auto;min-height:0;-webkit-overflow-scrolling:touch}
+@media(min-width:900px){
+  body.easyview #ovl .ob{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+    grid-template-rows:fit-content(58%) minmax(0,1fr)!important}
+  body.easyview #ovl .pane.left{grid-column:1;grid-row:1}
+  body.easyview #ovl .pane.right > .seg[data-seg="a"]{grid-column:1;grid-row:2}
+  body.easyview #ovl .pane.right > .seg[data-seg="e"]{grid-column:2;grid-row:1 / span 2}
+  body.easyview #ovl.solo .pane.left{grid-row:1 / span 2}    /* 단답(문제+답 한 덩어리) */
+}
+@media(max-width:899px){
+  body.easyview #ovl .ob{grid-template-columns:1fr!important;
+    grid-template-rows:fit-content(36%) fit-content(28%) minmax(0,1fr)!important}
+  body.easyview #ovl .pane.left{grid-row:1}
+  body.easyview #ovl .pane.right > .seg[data-seg="a"]{grid-row:2}
+  body.easyview #ovl .pane.right > .seg[data-seg="e"]{grid-row:3}
+  body.easyview #ovl.solo .pane.left{grid-row:1 / span 2}
+}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const say=m=>{ try{ (window.__pxToast||window.AppUI?.toast||console.log)(m) }catch(e){} };
+const rows=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
+const rowOf=id=>rows().find(r=>String(r.id)===String(id))||null;
+const client=()=>{ try{ return sb }catch(e){ return null } };
+const curSid=()=>{ try{ return CACHE_SID }catch(e){ return null } };
+const nowOv=()=>{ try{ return OVID!=null?String(OVID):'' }catch(e){ return '' } };
+const keepCache=()=>{ try{ cacheSaveRows() }catch(e){} };
+/* ez_lock 칸이 없을 때 Supabase 가 돌려주는 말들 */
+const NOCOL=m=>/ez_lock|column|schema cache|42703|PGRST204/i.test(String(m||''));
+
+/* ══ ① 쉬운해설 고정 ══ */
+const LK='prac:ezfix:v1';
+const readLocal=()=>{ try{ return (JSON.parse(localStorage.getItem(LK)||'[]')||[]).map(String) }catch(e){ return [] } };
+const writeLocal=a=>{ try{ a.length?localStorage.setItem(LK,JSON.stringify(a)):localStorage.removeItem(LK) }catch(e){} };
+
+let COL=null;                    /* null 아직 모름 · true 서버에 ez_lock 칸 있음 · false 없음(이 기기에만) */
+let FIX=new Set(readLocal());
+let SYNCED=null, BUSY=false, TOLD=false;
+
+/* 다른 조각들(ezMake · 해설 돌리기 · 꾸미기 …)이 묻는 곳은 여기 하나 */
+window.__ezFixed = id => FIX.has(String(id));
+
+async function sync(force){
+  const s=curSid(), c=client();
+  if(!s || !c || BUSY) return;
+  if(!force && SYNCED===s) return;
+  BUSY=true;
+  try{
+    /* SQL 을 돌리기 전에 이 기기에 적어 둔 고정이 있으면 서버로 올린다 */
+    const local=readLocal();
+    if(COL!==false && local.length){
+      const up=await c.from('practicals').update({ ez_lock:true }).in('id', local);
+      if(!up.error){ COL=true; writeLocal([]); say(`🔒 이 기기에만 적어 두었던 고정 ${local.length}개를 서버로 옮겼습니다`); }
+      else if(NOCOL(up.error.message)) COL=false;
+    }
+    if(COL===false){ FIX=new Set(readLocal()); SYNCED=s; paint(); return; }
+
+    const q=await c.from('practicals').select('id').eq('subject_id', s).eq('ez_lock', true);
+    if(q.error){
+      if(NOCOL(q.error.message)){ COL=false; FIX=new Set(readLocal()); SYNCED=s; paint(); }
+      return;                                     /* 그 밖의 실패(오프라인 등)는 다음에 다시 */
+    }
+    COL=true;
+    const srv=new Set((q.data||[]).map(d=>String(d.id)));
+    const mine=new Set(rows().map(r=>String(r.id)));
+    [...FIX].forEach(id=>{ if(mine.has(id) && !srv.has(id)) FIX.delete(id); });   /* 이 과목만 서버 값으로 */
+    srv.forEach(id=>FIX.add(id));
+    let ch=false;
+    rows().forEach(r=>{ const v=srv.has(String(r.id)); if(!!r.ez_lock!==v){ r.ez_lock=v; ch=true; } });
+    if(ch) keepCache();
+    SYNCED=s; paint();
+  }catch(e){}
+  finally{ BUSY=false; }
+}
+
+async function toggle(id, btn){
+  id=String(id||''); if(!id) return;
+  const on=!FIX.has(id), r=rowOf(id);
+  on ? FIX.add(id) : FIX.delete(id);
+  paint();
+  const c=client();
+  if(COL!==false && c){
+    if(btn) btn.disabled=true;
+    let err=null;
+    try{ const up=await c.from('practicals').update({ ez_lock:on }).eq('id', id); err=up.error||null; }
+    catch(e){ err=e; }
+    if(btn) btn.disabled=false;
+    if(!err){
+      COL=true;
+      if(r){ r.ez_lock=on; keepCache(); }
+      return tell(r, on, '');
+    }
+    if(!NOCOL(err.message||err)){                  /* 칸은 있는데 못 적었다 — 되돌린다 */
+      on ? FIX.delete(id) : FIX.add(id); paint();
+      return say('고정을 저장하지 못했습니다 — '+(err.message||err));
+    }
+    COL=false;
+  }
+  const L=new Set(readLocal()); on ? L.add(id) : L.delete(id); writeLocal([...L]);
+  tell(r, on, TOLD ? '' : ' · 이 기기에만 저장했습니다 (supabase-ezlock.sql 을 돌리면 PC·폰이 같이 봅니다)');
+  TOLD=true;
+}
+function tell(r, on, tail){
+  const nm=r?`${r.year}-${r.session} ${r.no}번`:'이 문항';
+  say(on ? `🔒 ${nm} 쉬운해설 고정 — AI 가 새로 만들거나 다시 쓰지 않습니다${tail}`
+         : `🔓 ${nm} 고정을 풀었습니다${tail}`);
+  try{ window.__pracLog && window.__pracLog(`${nm} 쉬운해설 ${on?'고정':'고정 풂'}`) }catch(e){}
+}
+
+/* 쉬운 풀이 칸 이름 옆에 단추 — 화면이 다시 그려지면 사라지므로 지켜보다 다시 붙인다 */
+const isEzLab=lab=>String(lab.childNodes[0]?.textContent||'').trim()==='쉬운 풀이';
+function btnFor(lab, id){
+  id=String(id);
+  let b=lab.querySelector(':scope > .ezfix');
+  if(!b){ b=document.createElement('button'); b.type='button'; b.className='ezfix'; lab.appendChild(b); }
+  const on=FIX.has(id), txt=on?'🔒 고정됨':'🔓 고정';
+  if(b.dataset.id===id && b.textContent===txt) return;
+  b.dataset.id=id;
+  b.classList.toggle('on', on);
+  b.textContent=txt;
+  b.setAttribute('aria-pressed', on?'true':'false');
+  b.title = on
+    ? '쉬운해설 고정 중 — AI 가 새로 만들거나 다시 쓰지 않습니다. 누르면 풉니다'
+    : '이 문항의 쉬운 풀이를 고정합니다 — 자동 생성·해설 돌리기·다시 해석·꾸미기에서 모두 빠집니다 (✎ 고치기는 됩니다)';
+}
+function paint(){
+  const oid=nowOv();
+  if(oid) $$('#ovl .plab').forEach(lab=>{ if(isEzLab(lab)) btnFor(lab, oid); });
+  $$('#list .pcard .plabel').forEach(lab=>{
+    if(!isEzLab(lab)) return;
+    const card=lab.closest('.pcard'); if(card && card.dataset.id) btnFor(lab, card.dataset.id);
+  });
+}
+window.__ezFixPaint=paint;
+window.__ezFixSync=()=>sync(true);
+
+document.addEventListener('click', e=>{
+  const b=e.target.closest && e.target.closest('.ezfix'); if(!b) return;
+  e.preventDefault(); e.stopPropagation();
+  if(!b.disabled) toggle(b.dataset.id, b);
+}, true);
+
+/* ══ ② 이지뷰 ══ */
+const EVK='prac:easyview';
+const B=()=>document.body;
+function paintEv(){
+  const on=B().classList.contains('easyview');
+  $$('[data-pxeasyview]').forEach(b=>{ b.classList.toggle('on', on); b.setAttribute('aria-pressed', on?'true':'false'); });
+}
+function setEv(on){
+  B().classList.toggle('easyview', !!on);
+  try{ localStorage.setItem(EVK, on?'1':'0') }catch(e){}
+  if(on && B().classList.contains('ezonly')){          /* «해설만» 과는 둘 중 하나 */
+    B().classList.remove('ezonly');
+    try{ localStorage.setItem('prac:ezonly','0') }catch(e){}
+    $$('[data-pxezonly]').forEach(b=>{ b.classList.remove('on'); b.textContent='📖 해설만'; });
+  }
+  paintEv();
+}
+try{ if(localStorage.getItem(EVK)==='1' && !B().classList.contains('ezonly')) B().classList.add('easyview') }catch(e){}
+
+function mountEv(){
+  const box=$('#pxOvBtns'); if(!box || box.querySelector('[data-pxeasyview]')) return;
+  const b=document.createElement('button');
+  b.type='button'; b.className='pxb'; b.dataset.pxeasyview='1';
+  b.textContent='◧ 이지뷰';
+  b.title='문제·답안은 왼쪽에 위아래로, 쉬운 풀이는 오른쪽에 길게 — 두 칸으로 봅니다. 다시 누르면 되돌아옵니다 (요금 안 붙음)';
+  const ez=box.querySelector('[data-pxezonly]');
+  ez ? ez.before(b) : box.prepend(b);
+  paintEv();
+}
+document.addEventListener('click', e=>{
+  const v=e.target.closest && e.target.closest('[data-pxeasyview]');
+  if(v){ e.preventDefault(); e.stopPropagation(); return void setEv(!B().classList.contains('easyview')); }
+  /* «해설만» 을 켜면 이지뷰는 끈다 — 그쪽 처리가 끝난 뒤에 본다 */
+  if(e.target.closest && e.target.closest('[data-pxezonly]'))
+    setTimeout(()=>{ if(B().classList.contains('ezonly') && B().classList.contains('easyview')) setEv(false); }, 0);
+}, true);
+
+/* ══ 지켜보기 ══ */
+let raf=0;
+const soon=()=>{ if(raf) return; raf=requestAnimationFrame(()=>{ raf=0; try{ paint(); mountEv(); }catch(e){} }); };
+['#list','#ovl'].forEach(sel=>{
+  const w=setInterval(()=>{
+    const n=$(sel); if(!n) return; clearInterval(w);
+    new MutationObserver(soon).observe(n, { childList:true, subtree:true });
+    soon();
+  }, 300);
+  setTimeout(()=>clearInterval(w), 20000);
+});
+setInterval(()=>{
+  const s=curSid();
+  if(s && SYNCED!==s){
+    /* 서버에 묻기 전에, 받아 둔 줄에 ez_lock 이 있으면 먼저 믿는다 */
+    if(COL!==false) rows().forEach(r=>{ if(r.ez_lock) FIX.add(String(r.id)); });
+    sync();
+  }
+  paint(); mountEv(); paintEv();
+}, 1500);
+/* 다른 기기에서 고정을 바꿨을 수 있다 — 이 탭으로 돌아오면 다시 맞춘다 */
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) sync(true); });
+setTimeout(()=>{ paint(); mountEv(); paintEv(); }, 900);
 })();
 </script>
 </body>
