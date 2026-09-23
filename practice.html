@@ -1709,7 +1709,8 @@ function drawRail(){
       const i = a + k;
       const has = (MARKS[r.id] || []).length;
       return `<button class="pb ${i === ONEAT ? "now" : ""} ${has ? "mark" : ""} ${r.easy_md ? "easy" : ""}"
-        type="button" data-go="${i}" data-y="${r.year}">${r.year % 100}-${r.session} ${r.no}</button>`;
+        type="button" data-go="${i}" data-y="${r.year}">${r.year % 100}-${r.session} ${r.no}</button>`
+        + (window.__grpTail ? window.__grpTail(r) : "");   /* ★ v269 — 묶음 ▼ 꼬리도 같이 그린다 */
     }).join("")
     + (b < SHOWN.length ? `<button class="pb" type="button" data-go="${SHOWN.length - 1}">끝 ↦</button>` : "");
   const railEl = $("#prail");
@@ -3637,7 +3638,9 @@ let PICKING = null;    // 지금 네모를 그리는 중인 카드
 /* ★ v264 — 그림을 «여러 장» 실어 보낼 수 있게 했다.
    여태 이 함수는 그림 한 장만 받았다. 그래서 해설을 만들 때 문제 그림만 가고
    답안 그림은 아예 안 갔다(아래 ezMake 참고). 한 장을 주든 배열을 주든 받는다. */
-async function askAI(prompt, blob, maxTokens = 2200){
+/* ★ v268 — 넷째 인자 opt { model, json } — 없으면 예전과 똑같다(워커 기본 모델).
+   유형 추천처럼 «짧은 글만 보내는 일» 은 싼 모델로 돌리려고 붙였다. */
+async function askAI(prompt, blob, maxTokens = 2200, opt){
   const parts = [];
   const blobs = (Array.isArray(blob) ? blob : [blob]).filter(Boolean);
   for(const bl of blobs){
@@ -3652,6 +3655,8 @@ async function askAI(prompt, blob, maxTokens = 2200){
   parts.push({ text: prompt });
   const body = { contents:[{ role:"user", parts }],
                  generationConfig:{ maxOutputTokens:maxTokens, temperature:0.3 } };
+  if(opt && opt.model) body.model = opt.model;
+  if(opt && opt.json) body.generationConfig.responseMimeType = "application/json";
   let last = "";
   for(const base of ENDPOINTS){
     const ac = new AbortController();
@@ -7440,11 +7445,14 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
     const at=(()=>{ try{ return Math.max(0,window.ONEAT|0) }catch(e){ return 0 } })();
     const m=String($('#ovTitle')?.textContent||'').match(/(\d{4})년 제(\d+)회 (\d+)번/);
     let now=at;
-    if(m){ const k=rs.findIndex(r=>String(r.year)===m[1]&&String(r.session)===m[2]&&String(r.no)===m[3]); if(k>=0)now=k; }
+    if(m){ const k=rs.findIndex(r=>String(r.year)===m[1]&&String(r.session)===m[2]&&String(r.no)===m[3]); if(k>=0)now=k;
+      /* ★ v269 — 중복 묶기로 접힌 문항을 보는 중이면, 엉뚱한 칸 대신 그 묶음의 대표 칸을 «지금» 으로 */
+      else{ try{ const rid=window.__pracRepOf&&window.__pracRepOf(OVID); const k2=rid?rs.findIndex(r=>String(r.id)===String(rid)):-1; if(k2>=0) now=k2; }catch(e){} } }
     const W=45, a=Math.max(0,now-W), b=Math.min(rs.length,now+W+1);
     const html=rs.slice(a,b).map((r,k)=>{
       const i=a+k, p=PROG[String(r.id)];
-      return `<button class="pb ${i===now?'now':''} ${p?'done':''}" type="button" data-ovgo="${i}" data-y="${r.year}">${r.year%100}-${r.session} ${r.no}</button>`;
+      return `<button class="pb ${i===now?'now':''} ${p?'done':''}" type="button" data-ovgo="${i}" data-y="${r.year}">${r.year%100}-${r.session} ${r.no}</button>`
+        + (window.__grpTail ? window.__grpTail(r) : '');
     }).join('');
     /* ① 내용이 그대로면 손대지 않는다 */
     if(html!==OVR_SIG){
@@ -8629,7 +8637,7 @@ body.deck-fold .deck{display:none}
       btn.textContent=off?'▼ 도구 펴기':'▲ 도구 접기';
       const now=$('#dpFound')?.textContent||'';
       const pct=$('#dpPct')?.textContent||'';
-      $('#deckNow',bar).textContent=off?`진도 ${pct} · ${now}`:'';
+      $('#deckNow',bar).textContent=off?now:'';
     };
     btn.onclick=()=>{
       document.body.classList.toggle('deck-fold');
@@ -11893,6 +11901,9 @@ let F=(()=>{
   if(!Array.isArray(out.tiers)) out.tiers = v.tier ? [v.tier] : [];
   if(!Array.isArray(out.types)) out.types = v.type ? [v.type] : [];
   delete out.tier; delete out.type;
+  /* ★ v269 — 유형(계산·회로·단답·서술) 단추와 빈출순·기대점수순을 뺐다.
+     예전에 켜 둔 값이 남아 있으면 단추도 없이 몰래 거르므로 비운다. */
+  out.types=[]; out.sort='';
   return out;
 })();
 const picked=(a,v)=>Array.isArray(a)&&a.includes(v);
@@ -12167,16 +12178,9 @@ function mount(){
       <button type="button" class="s" data-tier="s">은</button>
       <button type="button" class="b" data-tier="b">동</button>
       <button type="button" class="r" data-tier="r" title="어느 무리에도 안 든 나머지 문항">똥</button>
-      <span class="sep"></span><span class="tl">유형</span>
-      <button type="button" data-type="계산">계산</button>
-      <button type="button" data-type="회로">회로·도면</button>
-      <button type="button" data-type="단답">단답</button>
-      <button type="button" data-type="서술">서술</button>
       <span class="sep"></span><span class="tl">출제기준</span>
       <select id="tagNcs" title="한국산업인력공단 출제기준(2024.1.1.~2026.12.31.) 주요항목"><option value="">전체 항목</option></select>
       <span class="sep"></span>
-      <button type="button" data-sort="hot" title="출제확률이 높은 순서로 줄 세웁니다">🔥 빈출순</button>
-      <button type="button" data-sort="pt" title="출제확률 × 배점 — 공부해서 점수가 제일 많이 붙는 순서입니다">💯 기대점수순</button>
       <button type="button" data-clear>초기화</button>
     </div>
     <div class="tagnote" id="tagNote"></div>
@@ -14513,13 +14517,20 @@ function meas(a,b){
   let hit=0; x.forEach(v=>{ if(y.has(v)) hit++ });
   return { j:hit/(a.size+b.size-hit), c:hit/Math.max(1,x.size) };
 }
+/* ★ v268 — «수동» 을 더하고 기본으로 삼는다.
+   글이 닮은 것을 저절로 묶으니 엉뚱하게 묶이거나 빠지는 게 많았다.
+   이제 한눈에 머리줄의 «🏷 유형» 으로 사람이 묶은 것이 곧 중복 묶기다.
+   자동 셋(엄격·보통·느슨)은 남겨 두되, 고르면 «유형 + 자동» 으로 돈다 — 손으로 묶은 것이 늘 먼저. */
 const LEVELS={
-  strict:{ nm:'엄격', j:0.92, c:0,    r:0,    d:'글자까지 거의 같은 것만' },
-  normal:{ nm:'보통', j:0.85, c:0,    r:0,    d:'그림·빈칸·부호만 다른 것' },
-  loose: { nm:'느슨', j:0.72, c:0.90, r:0.55, d:'뒤에 단서가 붙은 정도까지' }
+  manual:{ nm:'수동', lb:'수동 · 유형만', d:'내가 «🏷 유형» 으로 묶은 것만 접습니다' },
+  strict:{ nm:'엄격', lb:'유형 + 엄격', j:0.92, c:0,    r:0,    d:'유형 + 글자까지 거의 같은 것을 저절로' },
+  normal:{ nm:'보통', lb:'유형 + 보통', j:0.85, c:0,    r:0,    d:'유형 + 그림·빈칸·부호만 다른 것을 저절로' },
+  loose: { nm:'느슨', lb:'유형 + 느슨', j:0.72, c:0.90, r:0.55, d:'유형 + 뒤에 단서가 붙은 정도까지 저절로' }
 };
-let LV=(()=>{ try{ return LEVELS[localStorage.getItem('prac:duplv:v1')]?localStorage.getItem('prac:duplv:v1'):'normal' }
-              catch(e){ return 'normal' } })();
+try{ if(!localStorage.getItem('prac:duplv:v268')){
+  localStorage.setItem('prac:duplv:v1','manual'); localStorage.setItem('prac:duplv:v268','1'); } }catch(e){}
+let LV=(()=>{ try{ return LEVELS[localStorage.getItem('prac:duplv:v1')]?localStorage.getItem('prac:duplv:v1'):'manual' }
+              catch(e){ return 'manual' } })();
 function same(sa,sb,la,lb){
   const L=LEVELS[LV]||LEVELS.normal, m=meas(sa,sb);
   if(m.j>=L.j) return true;
@@ -14550,6 +14561,8 @@ function better(a,b){
 
 /* ══ ② 묶기 (틈날 때 잘게) ══ */
 let GROUPS=new Map();      /* 대표 id → [겹치는 row …] */
+let MANNM=new Map();       /* ★ v268 — 손으로 묶은 덩어리의 대표 id → 유형 이름 */
+let AUTO=[];               /* ★ v268 — 글이 닮아 저절로 묶인 덩어리. 유형이 바뀌어도 다시 안 센다 */
 let REL=new Map();         /* id → [{id, sim} …]  닮음 0.35 이상 */
 let HIDE=new Set();        /* 감출 id */
 let SIG='', BUSY=false, READY=false;
@@ -14577,7 +14590,7 @@ function build(){
       (buckets.get(key2)||buckets.set(key2,[]).get(key2)).push(r);
     }
     if(i<rows.length) return idle(pass1);
-    i=0; return idle(pass2);
+    i=0; return idle(LV==='manual' ? done : pass2);
   }
   const seen=new Set(), reps=[];
   const keys=[]; 
@@ -14678,13 +14691,8 @@ function build(){
   }
 
   function done(){
-    GROUPS=new Map(); HIDE=new Set();
-    reps.forEach(({rep,all})=>{
-      const uniq=[...new Map(all.map(x=>[String(x.id),x])).values()]
-        .sort((a,b)=>(b.year-a.year)||(b.session-a.session)||(a.no-b.no));
-      GROUPS.set(String(rep.id),uniq);
-      uniq.forEach(x=>{ if(String(x.id)!==String(rep.id)) HIDE.add(String(x.id)) });
-    });
+    AUTO=reps.slice();
+    compose();
     BUSY=false; READY=true;
     /* ★ v238b — 묶음이 생겼으니 등급을 다시 센다.
        같은 문제의 출제 이력을 합쳐야 «한쪽은 똥, 한쪽은 은» 이 안 생긴다. */
@@ -14696,7 +14704,60 @@ function build(){
   }
   idle(pass1);
 }
-window.__pracDup=()=>({groups:GROUPS,hide:HIDE,ready:READY});
+/* ★ v268 — 손으로 묶은 것(유형)과 저절로 묶인 것을 합친다.
+   유형이 먼저다 — 한 문항이 둘 다에 걸리면 유형 쪽에만 남긴다. */
+function compose(){
+  const rows=rowsAll(), byId=new Map(rows.map(r=>[String(r.id),r]));
+  const reps=[], inM=new Set();
+  let man=null; try{ man=window.__qtypeGroups && window.__qtypeGroups() }catch(e){}
+  (man||new Map()).forEach((ids,name)=>{
+    const all=ids.map(id=>byId.get(String(id))).filter(Boolean);
+    if(all.length<2) return;
+    all.forEach(x=>inM.add(String(x.id)));
+    reps.push({ rep:all.reduce(better), all, name });
+  });
+  if(LV!=='manual') AUTO.forEach(({all})=>{
+    const rest=all.filter(x=>byId.has(String(x.id)) && !inM.has(String(x.id)));
+    if(rest.length>=2) reps.push({ rep:rest.reduce(better), all:rest });
+  });
+  GROUPS=new Map(); HIDE=new Set(); MANNM=new Map();
+  reps.forEach(({rep,all,name})=>{
+    const uniq=[...new Map(all.map(x=>[String(x.id),x])).values()]
+      .sort((a,b)=>(b.year-a.year)||(b.session-a.session)||(a.no-b.no));
+    GROUPS.set(String(rep.id),uniq);
+    if(name) MANNM.set(String(rep.id),name);
+    uniq.forEach(x=>{ if(String(x.id)!==String(rep.id)) HIDE.add(String(x.id)) });
+  });
+}
+/* 유형을 바꿨을 때 — 글자 견주기는 다시 안 돌리고 묶음만 다시 짠다 (네트워크 0) */
+window.__pracDupRecompose=()=>{
+  if(!READY){ build(); return; }
+  const was=ON();
+  /* ★ v269 — 한 문항씩 보는 중이면 «지금 문항» 을 id 로 붙잡아 둔다.
+     묶음이 바뀌면 목록 길이가 달라져서, 번호(ONEAT)만 두면 옆 문항으로 튀었다. */
+  let keep=null; try{ keep=SHOWN[ONEAT] ? String(SHOWN[ONEAT].id) : null }catch(e){}
+  compose();
+  try{ window.__pracTagReset && window.__pracTagReset() }catch(e){}
+  try{ stamp() }catch(e){}
+  if(was||ON()){
+    try{ drawList() }catch(e){}
+    try{
+      if(keep && document.body.classList.contains('oneup') && typeof showAt==='function'){
+        let i=SHOWN.findIndex(r=>String(r.id)===keep);
+        if(i<0){ const rep=repOf(keep); i=rep?SHOWN.findIndex(r=>String(r.id)===rep):-1; }
+        if(i>=0 && i!==ONEAT) showAt(i);
+      }
+    }catch(e){}
+  }
+};
+/* 접힌 문항 → 그 묶음의 대표 id (안 접혔으면 null) */
+function repOf(id){
+  id=String(id); if(!HIDE.has(id)) return null;
+  for(const [rep,g] of GROUPS) if(g.some(x=>String(x.id)===id)) return rep;
+  return null;
+}
+window.__pracRepOf=repOf;
+window.__pracDup=()=>({groups:GROUPS,hide:HIDE,ready:READY,man:MANNM,on:ON()});
 
 /* ══ ③ 목록에서 빼기 ══ */
 const KEY='prac:dupfold:v1';
@@ -14748,8 +14809,9 @@ function stamp(){
       const cv=head.querySelector('.cvbadge');
       cv?head.insertBefore(b,cv):head.appendChild(b);
     }
-    b.textContent=`중복 ${g.length}문항`;
-    b.title=g.map(nameOf).join(' · ')+'\n눌러서 어느 회차인지 봅니다';
+    const mn=MANNM.get(id);
+    b.textContent=mn?`🏷 ${mn.length>12?mn.slice(0,12)+'…':mn} ${g.length}`:`중복 ${g.length}문항`;
+    b.title=(mn?`유형 «${mn}» — `:'')+g.map(nameOf).join(' · ')+'\n눌러서 어느 회차인지 봅니다';
   });
   stampRel();
 }
@@ -14795,7 +14857,8 @@ function openList(card,id){
   let box=card.querySelector('.dupwrap');
   if(box){ box.remove(); return; }
   box=document.createElement('div'); box.className='dupwrap';
-  box.innerHTML=`<div class="t">같은 내용으로 묶인 ${g.length}문항 — 눌러서 그 회차로 갑니다</div>`
+  const mn=MANNM.get(id);
+  box.innerHTML=`<div class="t">${mn?`유형 «${String(mn).replace(/[<>&"]/g,'')}» `:'같은 내용으로 묶인 '}${g.length}문항 — 눌러서 그 회차로 갑니다</div>`
     + g.map(r=>`<span class="it" data-go="${r.id}">${nameOf(r)}${String(r.id)===id?' · 대표':''}</span>`).join('');
   card.querySelector('.phead').after(box);
   box.addEventListener('click',e=>{
@@ -14814,8 +14877,10 @@ function mountChip(){
   b.title='묻는 글이 같은 문항을 한 덩어리로 접습니다 (그림이 조금 달라도)';
   const paint=()=>{
     const off=FOLD&&READY&&HIDE.size>0&&oneSheet();   /* 켜 뒀지만 지금은 안 접는 중 */
-    b.textContent=`⧉ 중복 묶기${READY&&HIDE.size?' ('+HIDE.size+')':''}`
-                + (off?' · 회차 볼 땐 끔':'');
+    let man=0; MANNM.forEach((_,rep)=>{ const g=GROUPS.get(rep); if(g) man+=g.length-1; });
+    const auto=Math.max(0,HIDE.size-man);
+    const cnt=!READY||!HIDE.size ? '' : (auto ? ` (유형 ${man} · 자동 ${auto})` : ` (유형 ${man})`);
+    b.textContent=`⧉ 중복 묶기${cnt}` + (off?' · 회차 볼 땐 끔':'');
     b.classList.toggle('on',FOLD&&!off);
     b.title = off
       ? '회차를 하나 골라 놓아서 지금은 접지 않습니다 — 그 회차를 통째로 보여 줍니다'
@@ -14828,10 +14893,12 @@ function mountChip(){
   const sel=document.createElement('select');
   sel.title='어느 정도까지 «같다» 고 볼지';
   sel.innerHTML=Object.entries(LEVELS).map(([k,v])=>
-    `<option value="${k}"${k===LV?' selected':''}>${v.nm} — ${v.d}</option>`).join('');
+    `<option value="${k}"${k===LV?' selected':''} title="${v.d}">${v.lb||v.nm}</option>`).join('');
+  sel.title='어디까지 «같은 문제» 로 접을지 — '+(LEVELS[LV]||{}).d;
+  sel.addEventListener('change',()=>{ sel.title='어디까지 «같은 문제» 로 접을지 — '+(LEVELS[sel.value]||{}).d; });
   sel.addEventListener('change',()=>{
     LV=sel.value; try{ localStorage.setItem('prac:duplv:v1',LV) }catch(e){}
-    SIG=''; READY=false; HIDE=new Set(); GROUPS=new Map();   /* 처음부터 다시 센다 */
+    SIG=''; READY=false; HIDE=new Set(); GROUPS=new Map(); AUTO=[];   /* 처음부터 다시 센다 */
     paint(); build();
   });
   const clear=row.querySelector('[data-clear]');
@@ -21953,7 +22020,7 @@ setTimeout(mount, 600);
      ══════════════════════════════════════════════════════════════ -->
 <style>
 /* ── ① 고정 단추 — «✎ 고치기» 바로 왼쪽 ── */
-.ezfix{order:8;margin-left:6px;height:20px;padding:0 8px;border:1px solid var(--line,#e2e8f0);
+.ezfix{order:8;margin-left:6px;height:20px;padding:0 8px;min-width:64px;text-align:center;border:1px solid var(--line,#e2e8f0);
   border-radius:6px;background:var(--surface,#fff);color:var(--muted,#64748b);cursor:pointer;
   font:700 9.5px/1 var(--font-d,system-ui);letter-spacing:0;text-transform:none;flex:0 0 auto;white-space:nowrap}
 .ezfix:hover{border-color:#f0a9a9;color:#b91c1c}
@@ -21979,7 +22046,7 @@ body.easyview #ovl .pane.right > .seg{display:flex!important;flex-direction:colu
 @media(min-width:900px){
   body.easyview #ovl .ob{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
     grid-template-rows:fit-content(58%) minmax(0,1fr)!important}
-  body.easyview #ovl .pane.left{grid-column:1;grid-row:1}
+  body.easyview #ovl .pane.left{grid-column:1;grid-row:1;min-height:clamp(120px,24vh,220px)}
   body.easyview #ovl .pane.right > .seg[data-seg="a"]{grid-column:1;grid-row:2}
   body.easyview #ovl .pane.right > .seg[data-seg="e"]{grid-column:2;grid-row:1 / span 2}
   body.easyview #ovl.solo .pane.left{grid-row:1 / span 2}    /* 단답(문제+답 한 덩어리) */
@@ -22177,9 +22244,913 @@ setInterval(()=>{
   }
   paint(); mountEv(); paintEv();
 }, 1500);
-/* 다른 기기에서 고정을 바꿨을 수 있다 — 이 탭으로 돌아오면 다시 맞춘다 */
-document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) sync(true); });
+/* 다른 기기에서 고정을 바꿨을 수 있다 — 이 탭으로 돌아오면 다시 맞춘다.
+   ★ v268 — 탭을 오갈 때마다 묻지 않게 1분에 한 번까지만 */
+let LASTV=0;
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden || Date.now()-LASTV<60000) return;
+  LASTV=Date.now(); sync(true);
+});
 setTimeout(()=>{ paint(); mountEv(); paintEv(); }, 900);
+})();
+</script>
+<!-- ══════════════════════════════════════════════════════════════
+     v268 · 🏷 문항 유형 — 손으로 묶는 중복 묶기
+
+     ① 한눈에 머리줄 ✂ 옆 «🏷 유형» — 누르면 쪽지가 뜬다.
+          · 추천 : 이 기기에서만 셈(네트워크 0).
+                   닮은 문항(연관 0.35↑)이 이미 가진 유형 → 문제 글에 이름 낱말이 든 유형 →
+                   새 이름 후보(출제기준 세부항목 · 주제어 · 글투).
+                   «🤖 AI 추천» 은 누를 때만, 글만 보내고(그림 안 보냄) 싼 모델로, 결과는 기기에 남겨 다시 안 부른다.
+          · 유형 목록 : 체크하면 이 문제가 그 유형으로. 새 이름을 쓰고 Enter 면 새 유형.
+          · 번호로 연동 : «12-1 6» 을 넣으면 그 문제와 같은 유형이 된다.
+                   한쪽만 유형이 있으면 그 유형으로, 둘 다 없으면 이름을 물어 둘 다에,
+                   둘 다 다르면 합칠지(또는 그 한 문항만 옮길지) 묻는다.
+          · 같은 유형 = 서로 연동된 문항. 유형을 정하는 것과 번호로 잇는 것이 같은 일이다.
+     ② 중복 묶기 = 같은 유형. 수준 고르기에 «수동» 을 더하고 기본으로 삼았다(v126 쪽 고침).
+        출제 이력(누적 N회 · 확률 · 금은동)도 같은 유형끼리 합쳐 센다.
+     ③ 중복 묶기를 켜 두면 레일 번호 옆에 ▼ — 누르면 묶인 문항이 쫘르륵.
+     ── 아끼는 방법 ──
+        저장 : practicals.qtype 한 칸 (supabase-qtype.sql). 바꿀 때 요청 한 번(여러 문항도 .in 한 번).
+        읽기 : 과목을 열 때 «유형이 붙은 줄의 id·이름» 만 한 번. 탭으로 돌아와도 1분에 한 번까지만.
+        묶기 : 유형이 바뀌면 글자 견주기는 다시 안 돌리고 묶음만 다시 짠다.
+        칸이 아직 없으면 이 기기에만 적고, SQL 뒤 처음 열 때 서버로 옮긴다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* ── ① 머리줄 단추 ── */
+.ovl .oh .qtbtn{display:inline-flex!important;align-items:center;gap:5px;width:150px;max-width:150px;justify-content:flex-start;
+  border:1px solid var(--line,#e2e8f0)!important;background:var(--surface,#fff)!important;
+  color:var(--muted,#64748b)!important;cursor:pointer;white-space:nowrap}
+.ovl .oh .qtbtn .nm{overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1 1 auto;text-align:left}
+.ovl .oh .qtbtn .n{flex:none}
+@media(max-width:899px){ .ovl .oh .qtbtn{width:auto;max-width:170px} }
+/* ★ v269 — 900~1279px 에서는 한 줄에 다 안 들어가 «✎ 해설 돌리기» 가 화면 밖으로 잘렸다.
+   🏷 을 조금 줄이고, 그래도 넘치면 잘리는 대신 두 줄로 내려간다. */
+@media(min-width:900px) and (max-width:1279px){
+  .ovl .oh .qtbtn{width:112px;max-width:112px}
+  .ovl .oh{flex-wrap:wrap!important;row-gap:4px!important}
+  .ovl .oh .pxfs input[type=range]{width:48px!important}
+}
+.ovl .oh .qtbtn .n{font:800 9.5px/1 var(--font-m,monospace);padding:2px 4px;border-radius:5px;background:#6b2fb3;color:#fff}
+.ovl .oh .qtbtn.has{border-color:#cbb7e6!important;background:#f6f1fd!important;color:#6b2fb3!important;font-weight:800!important}
+.ovl .oh .qtbtn.open{box-shadow:0 0 0 2px #a97fdd}
+.ovl .oh .qtbtn:focus-visible{outline:2px solid #a97fdd;outline-offset:1px}
+
+/* ── ① 쪽지 ── */
+.qtpop{position:fixed;z-index:100055;width:min(384px,calc(100vw - 16px));overflow:auto;display:none;
+  background:var(--surface,#fff);color:var(--ink,#0f172a);border:1px solid var(--line,#e2e8f0);border-radius:14px;
+  box-shadow:0 18px 50px rgba(15,23,42,.22);padding:11px 12px 10px;font:600 12px/1.45 var(--font-d,system-ui)}
+.qtpop.on{display:block}
+.qtpop button{font-family:inherit}
+.qtpop .hd{display:flex;align-items:baseline;gap:7px;margin-bottom:8px}
+.qtpop .hd b{font-size:13.5px}
+.qtpop .hd span{color:var(--muted,#64748b);font-size:11.5px}
+.qtpop .hd .x{margin-left:auto;border:0;background:none;font-size:16px;cursor:pointer;color:var(--muted,#64748b);padding:0 2px}
+.qtpop .cur{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 9px;border-radius:10px;
+  background:#f6f1fd;border:1px solid #e3d5f5}
+.qtpop .cur.none{background:var(--surface-2,#f8fafc);border-color:var(--line,#e2e8f0)}
+.qtpop .cur .t{font:800 13px/1.3 var(--font-d,system-ui);color:#6b2fb3;margin-right:auto;min-width:0;word-break:keep-all}
+.qtpop .cur.none .t{color:var(--muted,#64748b);font-weight:700;font-size:11.5px}
+.qtpop .mini{height:24px;padding:0 8px;border:1px solid var(--line,#e2e8f0);border-radius:6px;
+  background:var(--surface,#fff);cursor:pointer;font:700 10.5px/1 var(--font-d,system-ui);color:var(--muted,#64748b)}
+.qtpop .mini:hover{border-color:#a97fdd;color:#6b2fb3}
+.qtpop .sec{margin-top:11px}
+.qtpop .lb{display:flex;align-items:baseline;gap:6px;margin:0 0 5px;font:800 11px/1.2 var(--font-d,system-ui);color:var(--ink,#0f172a)}
+.qtpop .lb small{font-weight:600;font-size:10px;color:var(--muted,#64748b)}
+.qtpop input[type=text]{width:100%;height:32px;padding:0 10px;box-sizing:border-box;border:1px solid var(--line,#e2e8f0);
+  border-radius:8px;background:var(--surface,#fff);color:var(--ink,#0f172a);font:600 12.5px/1 var(--font-d,system-ui)}
+.qtpop input[type=text]:focus{outline:2px solid #a97fdd;outline-offset:0;border-color:#a97fdd}
+.qtpop .chips{display:flex;flex-wrap:wrap;gap:5px}
+.qtpop .sg{display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;max-width:100%;padding:5px 9px;
+  border:1px solid var(--line,#e2e8f0);border-radius:9px;background:var(--surface,#fff);cursor:pointer;text-align:left;
+  font:700 11.5px/1.25 var(--font-d,system-ui);color:var(--ink,#0f172a)}
+.qtpop .sg small{font:600 9.5px/1.2 var(--font-d,system-ui);color:var(--muted,#64748b)}
+.qtpop .sg.ex{border-color:#cbb7e6;background:#f6f1fd;color:#6b2fb3}
+.qtpop .sg:hover{border-color:#a97fdd}
+.qtpop .sg.ai{border-style:dashed;border-color:#a9d5e6;background:#f6fcfe;color:#0e6d8c}
+.qtpop .sg[disabled]{opacity:.6;cursor:progress}
+.qtpop .list{margin-top:5px;max-height:188px;overflow:auto;border:1px solid var(--line,#e2e8f0);border-radius:9px}
+.qtpop .it{display:flex;align-items:center;gap:8px;width:100%;min-height:31px;padding:5px 9px;border:0;
+  border-bottom:1px solid var(--line,#e2e8f0);background:var(--surface,#fff);cursor:pointer;text-align:left;
+  font:600 12px/1.3 var(--font-d,system-ui);color:var(--ink,#0f172a)}
+.qtpop .it:last-child{border-bottom:0}
+.qtpop .it:hover{background:#faf7fe}
+.qtpop .it .ck{flex:none;width:15px;height:15px;box-sizing:border-box;border:1.5px solid #b8a3d6;border-radius:4px;
+  display:grid;place-items:center;font:900 10px/1 var(--font-d,system-ui);color:#fff}
+.qtpop .it.on .ck{background:#6b2fb3;border-color:#6b2fb3}
+.qtpop .it .nm{flex:1;min-width:0}
+.qtpop .it b{font:800 10px/1 var(--font-m,monospace);color:var(--muted,#64748b)}
+.qtpop .it.new{color:#6b2fb3;font-weight:800;background:#faf7fe}
+.qtpop .it.new .ck{border-style:dashed;color:#6b2fb3}
+.qtpop .qtempty{padding:9px;color:var(--muted,#64748b);font-size:11.5px}
+.qtpop .row{display:flex;gap:6px;align-items:center}
+.qtpop .go{height:32px;padding:0 13px;border:0;border-radius:8px;background:#6b2fb3;color:#fff;cursor:pointer;
+  font:800 11.5px/1 var(--font-d,system-ui);flex:none}
+.qtpop .go[disabled]{opacity:.4;cursor:not-allowed}
+.qtpop .pv{margin-top:4px;font-size:10.5px;color:var(--muted,#64748b)}
+.qtpop .pv b{color:#6b2fb3}
+.qtpop .near{display:flex;align-items:center;gap:7px;padding:4px 0;border-bottom:1px dashed var(--line,#e2e8f0)}
+.qtpop .near:last-child{border-bottom:0}
+.qtpop .near .nm{flex:1;min-width:0;font-size:11.5px;cursor:pointer}
+.qtpop .near .nm small{color:var(--muted,#64748b);font-weight:600}
+.qtpop .near .pc{font:800 10px/1 var(--font-m,monospace);color:#0e6d8c}
+.qtpop .mem{display:inline-flex;align-items:center;gap:2px;padding:3px 3px 3px 8px;border:1px solid var(--line,#e2e8f0);
+  border-radius:8px;background:var(--surface,#fff);font:700 11px/1 var(--font-m,monospace);cursor:pointer;color:var(--ink,#0f172a)}
+.qtpop .mem.now{border-color:#6b2fb3;color:#6b2fb3}
+.qtpop .mem i{font-style:normal;padding:3px 5px;border-radius:5px;color:var(--muted,#64748b)}
+.qtpop .mem i:hover{background:#fee2e2;color:#b91c1c}
+.qtpop .qtmsg{display:block;min-height:15px;margin-top:8px;font-size:11px;color:#6b2fb3}
+.qtpop .foot{margin-top:6px;padding-top:7px;border-top:1px solid var(--line,#e2e8f0);font-size:10px;color:var(--muted,#64748b);line-height:1.5}
+
+/* ── ③ 레일 ▼ — 번호 단추 바로 오른쪽에 붙은 꼬리 ── */
+.grpv{flex:none;align-self:stretch;min-width:17px;margin-left:-4px;padding:0 3px;border:1px solid #cbb7e6;border-left:0;
+  border-radius:0 8px 8px 0;background:#f6f1fd;color:#6b2fb3;cursor:pointer;font:900 8.5px/1 var(--font-d,system-ui)}
+.grpv:hover,.grpv.open{background:#6b2fb3;color:#fff;border-color:#6b2fb3}
+.grppop{position:fixed;z-index:100056;min-width:200px;max-width:min(320px,calc(100vw - 16px));max-height:60vh;overflow:auto;
+  display:none;padding:5px;background:var(--surface,#fff);border:1px solid #cbb7e6;border-radius:12px;
+  box-shadow:0 14px 40px rgba(15,23,42,.22);font:600 12px/1.3 var(--font-d,system-ui)}
+.grppop.on{display:block}
+.grppop .t{padding:5px 7px 7px;margin-bottom:3px;border-bottom:1px solid var(--line,#e2e8f0);
+  font:800 11px/1.35 var(--font-d,system-ui);color:#6b2fb3}
+.grppop .g{display:flex;align-items:center;gap:7px;width:100%;padding:7px 8px;border:0;border-radius:7px;background:none;
+  cursor:pointer;text-align:left;font:700 12px/1 var(--font-m,monospace);color:var(--ink,#0f172a)}
+.grppop .g:hover{background:#faf7fe}
+.grppop .g.now{background:#f6f1fd;color:#6b2fb3}
+.grppop .g small{margin-left:auto;font:700 9.5px/1 var(--font-d,system-ui);color:var(--muted,#64748b)}
+.grppop .g .dot{flex:none;width:5px;height:5px;border-radius:50%;background:#60a5fa}
+.grppop .g .dot.no{background:transparent;box-shadow:inset 0 0 0 1px #cbd5e1}
+/* 누른 뒤 줄이 차례로 내려온다 — 누른 것에 답하는 움직임 하나만 */
+@media (prefers-reduced-motion:no-preference){
+  .grppop.on .g{animation:qtdrop .18s ease-out both;animation-delay:calc(var(--i,0) * 22ms)}
+  @keyframes qtdrop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const say=m=>{ try{ (window.__pxToast||window.AppUI?.toast||console.log)(m) }catch(e){} };
+const esc=t=>String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rows=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
+const shown=()=>{ try{ return Array.isArray(window.SHOWN)?window.SHOWN:[] }catch(e){ return [] } };
+const rowOf=id=>rows().find(r=>String(r.id)===String(id))||null;
+const client=()=>{ try{ return sb }catch(e){ return null } };
+const curSid=()=>{ try{ return CACHE_SID }catch(e){ return null } };
+const nowOv=()=>{ try{ return OVID!=null?String(OVID):'' }catch(e){ return '' } };
+const keepCache=()=>{ try{ cacheSaveRows() }catch(e){} };
+const dup=()=>{ try{ return window.__pracDup ? window.__pracDup() : null }catch(e){ return null } };
+const NOCOL=m=>/qtype|column|schema cache|42703|PGRST204/i.test(String(m||''));
+const clean=t=>String(t==null?'':t).replace(/\s+/g,' ').trim().slice(0,40);
+const isReal=y=>+y>0&&+y<3000;
+const short=r=>`${r.year%100}-${r.session} ${r.no}`;                       /* 레일과 같은 꼴 */
+const full=r=>{
+  if(isReal(r.year)) return `${r.year}년 ${r.session}회 ${r.no}번`;
+  let h=''; try{ h=(window.__pracYLabel&&window.__pracYLabel()||{})[String(r.year)]||'' }catch(e){}
+  return `${h||('자료 '+r.year)} ${r.session}회 ${r.no}번`;
+};
+
+/* ══ ① 유형 자료 — 줄(row) 의 qtype 이 곧 원본 ══ */
+const LK='prac:qtype:v1';                      /* SQL 전 · 이 기기에만 { id: 이름('' = 뺌) } */
+const readLocal=()=>{ try{ return JSON.parse(localStorage.getItem(LK)||'{}')||{} }catch(e){ return {} } };
+const writeLocal=o=>{ try{ Object.keys(o).length?localStorage.setItem(LK,JSON.stringify(o)):localStorage.removeItem(LK) }catch(e){} };
+let COL=null, SYNCED=null, LOCALSID=null, BUSY=false, TOLD=false, LASTV=0;
+
+const tOf=id=>clean(rowOf(id)?.qtype);
+window.__qtypeOf=tOf;
+window.__qtypeGroups=()=>{
+  const m=new Map();
+  rows().forEach(r=>{ const t=clean(r.qtype); if(t) (m.get(t)||m.set(t,[]).get(t)).push(String(r.id)); });
+  return m;
+};
+function typeList(){
+  return [...window.__qtypeGroups().entries()].map(([name,ids])=>({ name, n:ids.length, ids }))
+    .sort((a,b)=>b.n-a.n||a.name.localeCompare(b.name,'ko'));
+}
+
+let RC=0;
+function changed(){
+  paintBtn();
+  if(POP.on) render();
+  clearTimeout(RC);
+  RC=setTimeout(()=>{
+    try{ window.__pracDupRecompose && window.__pracDupRecompose() }catch(e){}
+    paintBtn(); decorate();
+  },80);
+}
+function applyLocal(){
+  const L=readLocal(); let ch=false;
+  Object.keys(L).forEach(id=>{
+    const r=rowOf(id); if(!r) return;
+    const v=clean(L[id])||null;
+    if((clean(r.qtype)||null)!==v){ r.qtype=v; ch=true; }
+  });
+  if(ch) keepCache();
+  return ch;
+}
+async function sync(force){
+  const s=curSid(), c=client();
+  if(!s || !c || BUSY) return;
+  if(!force && SYNCED===s) return;
+  BUSY=true;
+  try{
+    /* SQL 전에 이 기기에 적어 둔 것 → 서버로 (이름마다 한 번) */
+    const L=readLocal(), ids=Object.keys(L);
+    if(COL!==false && ids.length){
+      const by=new Map();
+      ids.forEach(id=>{ const t=clean(L[id]); (by.get(t)||by.set(t,[]).get(t)).push(id); });
+      let ok=true;
+      for(const [t,g] of by){
+        const up=await c.from('practicals').update({ qtype:t||null }).in('id', g);
+        if(up.error){ ok=false; if(NOCOL(up.error.message)) COL=false; break; }
+      }
+      if(ok){ COL=true; writeLocal({}); say(`🏷 이 기기에만 적어 두었던 유형 ${ids.length}개를 서버로 옮겼습니다`); }
+    }
+    if(COL===false){ SYNCED=s; if(applyLocal()) changed(); return; }
+
+    const q=await c.from('practicals').select('id,qtype').eq('subject_id', s).not('qtype','is',null);
+    if(q.error){
+      if(NOCOL(q.error.message)){ COL=false; SYNCED=s; if(applyLocal()) changed(); }
+      return;                                       /* 오프라인 등 — 다음에 다시 */
+    }
+    COL=true;
+    const srv=new Map((q.data||[]).map(d=>[String(d.id), clean(d.qtype)||null]));
+    let ch=false;
+    rows().forEach(r=>{
+      const v=srv.get(String(r.id))||null;
+      if((clean(r.qtype)||null)!==v){ r.qtype=v; ch=true; }
+    });
+    if(ch){ keepCache(); changed(); }
+    SYNCED=s;
+  }catch(e){}
+  finally{ BUSY=false; }
+}
+/* 여러 문항을 한 번에 — 요청은 한 번(.in) */
+async function setType(ids, name){
+  ids=[...new Set((ids||[]).map(String))].filter(id=>rowOf(id));
+  if(!ids.length) return false;
+  const t=clean(name)||null;
+  const prev=ids.map(id=>[id, rowOf(id).qtype==null?null:rowOf(id).qtype]);
+  ids.forEach(id=>{ rowOf(id).qtype=t; });
+  changed();
+  const c=client();
+  if(COL!==false && c){
+    let err=null;
+    try{ const up=await c.from('practicals').update({ qtype:t }).in('id', ids); err=up.error||null; }
+    catch(e){ err=e; }
+    if(!err){ COL=true; keepCache(); return true; }
+    if(!NOCOL(err.message||err)){
+      prev.forEach(([id,v])=>{ const r=rowOf(id); if(r) r.qtype=v; });
+      changed();
+      say('유형을 저장하지 못했습니다 — '+(err.message||err));
+      return false;
+    }
+    COL=false;
+  }
+  const L=readLocal(); ids.forEach(id=>{ L[id]=t||''; }); writeLocal(L); keepCache();
+  if(!TOLD){ TOLD=true; say('🏷 이 기기에만 저장했습니다 — supabase-qtype.sql 을 돌리면 PC·폰이 같이 봅니다'); }
+  return true;
+}
+window.__qtypeSet=setType;
+window.__qtypeSync=()=>sync(true);
+
+/* ══ 추천 — 이 기기에서만 센다 ══ */
+function nearOf(r, cur){
+  let rel=[]; try{ rel=(window.__pracRel&&window.__pracRel(r.id))||[] }catch(e){}
+  return rel.map(x=>({ o:rowOf(x.id), sim:x.sim }))
+    .filter(x=>x.o && String(x.o.id)!==String(r.id) && (!cur || clean(x.o.qtype)!==cur))
+    .slice(0,5);
+}
+function suggest(r){
+  const cur=clean(r.qtype), out=[], seen=new Set();
+  const have=new Set(typeList().map(t=>t.name));
+  const add=(name,why)=>{
+    name=clean(name); if(!name || name===cur || seen.has(name) || name.length<2) return;
+    seen.add(name); out.push({ name, why, ex:have.has(name) });
+  };
+  /* ① 닮은 문항이 이미 가진 유형 — 가장 믿을 만하다 */
+  let rel=[]; try{ rel=(window.__pracRel&&window.__pracRel(r.id))||[] }catch(e){}
+  rel.forEach(x=>{ const o=rowOf(x.id), t=o&&clean(o.qtype); if(t) add(t, `${short(o)}번과 ${Math.round(x.sim*100)}% 닮음`); });
+  /* ② 문제 글에 유형 이름의 낱말이 거의 다 들어 있는 유형 */
+  const text=String(r.q_md||r.q_text||'').replace(/\s+/g,'');
+  if(text) typeList().forEach(T=>{
+    const ws=T.name.split(/\s+/).filter(w=>w.length>=2);
+    const hit=ws.filter(w=>text.includes(w));
+    if(ws.length && hit.length>=Math.max(1,Math.ceil(ws.length*0.6))) add(T.name, `문제 글에 «${hit.join('·')}»`);
+  });
+  /* ③ 새 이름 후보 — «무엇을 묻는가» 를 글에서 뽑은 것이 제일 쓸 만하다 */
+  let tg=null; try{ tg=window.__pracTag&&window.__pracTag(r.id) }catch(e){}
+  const ncs=tg&&tg.ncs, ask=askedOf(r);
+  if(ask) add(ask+(tg&&tg.type==='계산'?' 계산':''), '문제가 묻는 것');
+  else if(tg&&tg.key&&String(tg.key).length>=3) add(tg.key, '이 문제 주제어');
+  if(ncs&&ncs.sub) add(String(ncs.sub).replace(/\s*하기$/,''), '출제기준 세부항목');
+  if(ncs&&ncs.short) add(ncs.short, '출제기준 주요항목');
+  return out.slice(0,7);
+}
+
+/* 문제가 묻는 대상 — «… 사용탭은 얼마» «… 용량을 구하시오» 의 앞말을 끝에서부터 세 낱말까지.
+   토씨·이음말(…는 · …면 · …때)로 끝나는 말에서 멈춘다. */
+function askedOf(r){
+  const t=String(r.q_md||r.q_text||'')
+    .replace(/!\[[^\]]*\]\([^)]*\)|\[\[[^\]]*\]\]/g,' ').replace(/\$[^$]*\$/g,' ')
+    .replace(/\[[^\]]*\]/g,' ').replace(/[()「」『』"'“”]/g,' ').replace(/\s+/g,' ');
+  const re=/((?:[가-힣A-Za-z0-9·]+\s+){0,4}[가-힣A-Za-z0-9·]+?)\s*(?:은|는|을|를|이|가)\s*(?:약\s*)?(?:얼마|몇|구하|계산|산정|산출|선정|결정|쓰시오|쓰라|무엇)/g;
+  let m, last='';
+  while((m=re.exec(t))) last=m[1];
+  if(!last) return '';
+  const STOP=/(는|면|해서|하고|하며|하여|하기|되어|인데|이고|이며|때|을|를|에|에서|으로|필요한|위한|대한|따른|같은)$|^(이|그|저|위|아래|다음|각|해당|이때|단)$/;
+  const ws=last.replace(/의(?=\s|$)/g,'').split(/\s+/).filter(Boolean), out=[];
+  for(let i=ws.length-1;i>=0 && out.length<3;i--){
+    const w=ws[i];
+    if(/^\d+$/.test(w) || (out.length && STOP.test(w))) break;
+    out.unshift(w);
+  }
+  const p=out.join(' ').trim();
+  return p.length>=2 && p.length<=24 ? p : '';
+}
+
+/* ── AI 추천 — 누를 때만 · 글만 · 싼 모델 · 기기에 남겨 다시 안 부름 ── */
+const AIK='prac:qtai:v1';
+const aiAll=()=>{ try{ return JSON.parse(localStorage.getItem(AIK)||'{}')||{} }catch(e){ return {} } };
+const aiGet=id=>aiAll()[String(id)]||null;
+const aiPut=(id,v)=>{ try{ const o=aiAll(); o[String(id)]=v; const ks=Object.keys(o);
+  if(ks.length>500) ks.slice(0,ks.length-500).forEach(k=>delete o[k]); localStorage.setItem(AIK,JSON.stringify(o)) }catch(e){} };
+let AIBUSY=false;
+const plain=t=>String(t||'').replace(/!\[[^\]]*\]\([^)]*\)|\[\[[^\]]*\]\]/g,' ').replace(/\s+/g,' ').trim();
+async function aiSuggest(r){
+  if(AIBUSY) return;
+  const q=plain(r.q_md||r.q_text).slice(0,700);
+  if(q.length<10){ POP.msg='글자로 옮긴 문제만 AI 추천을 받을 수 있습니다 (그림만 있는 문항)'; return render(); }
+  if(typeof window.askAI!=='function'){ POP.msg='AI 모듈이 아직 안 실렸습니다'; return render(); }
+  const a=plain(r.a_md||r.a_text).slice(0,250);
+  const have=typeList().map(t=>t.name).slice(0,120);
+  const prompt=`전기기사 실기 기출 문항에 «유형» 이름을 붙인다.
+유형은 같은 개념·같은 계산을 묻는 문항끼리 묶는 이름이다. 회차가 달라도 같은 문제면 같은 이름이어야 한다.
+- 한국어 명사구 6~18자 (예: 주상변압기 탭 조정 / 역률 개선 콘덴서 용량 / 축전지 용량 산정)
+- 아래 «있는 유형» 가운데 맞는 것이 있으면 그 이름을 글자 그대로 맨 앞에 쓴다
+- 잘 맞는 순서로 3개까지
+출력: ["이름1","이름2","이름3"]
+
+[있는 유형]
+${have.length?have.join(' / '):'(아직 없음)'}
+
+[문제]
+${q}
+
+[답안]
+${a||'(없음)'}`;
+  AIBUSY=true; POP.msg='AI 추천을 받는 중…'; render();
+  try{ window.__aiKind && window.__aiKind('유형 추천') }catch(e){}
+  let txt='', err='';
+  for(const model of ['claude-haiku-4-5-20251001','claude-sonnet-5']){
+    try{ txt=await window.askAI(prompt, null, 300, { model, json:true }); if(String(txt||'').trim()) break; }
+    catch(e){ err=String(e.message||e); }
+  }
+  try{ window.__aiKind && window.__aiKind('그밖') }catch(e){}
+  AIBUSY=false;
+  let list=[];
+  const raw=String(txt||'').replace(/^```(?:json)?\s*|\s*```$/g,'').trim();
+  try{ const j=JSON.parse(raw); list=Array.isArray(j)?j:(j.types||j.names||j.유형||[]); }
+  catch(e){ list=raw.split(/\n|,|\//); }
+  list=list.map(x=>clean(typeof x==='string'?x:(x&&(x.name||x.이름)))
+            .replace(/^[\s\-•·\d.)"'\[]+|["'\]\s]+$/g,''))
+          .filter(x=>x && x.length>=2 && x.length<=30).slice(0,3);
+  if(!list.length){ POP.msg='추천을 받지 못했습니다'+(err?' — '+err.slice(0,60):''); return render(); }
+  aiPut(r.id, list);
+  POP.msg='AI 추천 3개 — 이 문항은 다음부터 다시 안 부릅니다';
+  render();
+}
+
+/* ══ 번호 찾기 — «12-1 6» · «2012 1 6» · «2012년 1회 6번» · 같은 회차면 «6» ══ */
+function findNo(txt){
+  const me=rowOf(POP.id);
+  const n=(String(txt||'').match(/\d+/g)||[]).map(Number);
+  if(!n.length || !me) return null;
+  let y=null, se=null, no;
+  if(n.length>=3) [y,se,no]=n; else if(n.length===2) [se,no]=n; else no=n[0];
+  const yl=y==null?0:String(n[0]).length;
+  const hit=rows().filter(x=>{
+    if(String(x.no)!==String(no)) return false;
+    if(String(x.session)!==String(se==null?me.session:se)) return false;
+    if(y==null) return String(x.year)===String(me.year);
+    return yl>=3 ? +x.year===y : (isReal(x.year) && (+x.year)%100===y);
+  });
+  return hit.find(x=>String(x.id)!==String(me.id)) || null;
+}
+
+/* ══ 하는 일 ══ */
+async function assign(name){
+  const r=rowOf(POP.id), t=clean(name); if(!r || !t) return;
+  if(clean(r.qtype)===t){ POP.msg='이미 이 유형입니다'; return render(); }
+  if(await setType([r.id], t)){
+    const n=(window.__qtypeGroups().get(t)||[]).length;
+    POP.msg = n>1 ? `«${t}» — ${n}문항이 서로 연동됐습니다` : `«${t}» 새 유형으로 넣었습니다`;
+    POP.q='';
+  }
+  render();
+}
+async function link(oid){
+  const r=rowOf(POP.id), o=rowOf(oid);
+  if(!r || !o || String(r.id)===String(o.id)) return;
+  const A=clean(r.qtype), B=clean(o.qtype);
+  if(A && A===B){ POP.msg=`${full(o)}은 이미 같은 유형입니다`; return render(); }
+  if(A && !B){
+    if(await setType([o.id], A)) POP.msg=`${full(o)} → «${A}» 유형으로 연동했습니다`;
+  }else if(!A && B){
+    if(await setType([r.id], B)) POP.msg=`이 문제 → «${B}» 유형 (${full(o)}과 연동)`;
+  }else if(!A && !B){
+    const def=clean(POP.q) || (suggest(r).find(x=>!x.ex)||{}).name || (suggest(o).find(x=>!x.ex)||{}).name || '';
+    const name=clean(prompt(`${full(r)}과 ${full(o)}을 묶을 유형 이름`, def));
+    if(!name) return;
+    if(await setType([r.id, o.id], name)) POP.msg=`«${name}» — 두 문항을 연동했습니다`;
+  }else{
+    const nb=(window.__qtypeGroups().get(B)||[]);
+    if(confirm(`${full(o)}은 이미 «${B}» 유형입니다 (${nb.length}문항).\n\n[확인] «${B}» ${nb.length}문항을 모두 «${A}» 유형으로 합칩니다\n[취소] 다음 물음으로`)){
+      if(await setType(nb, A)) POP.msg=`«${B}» 유형을 «${A}» 유형으로 합쳤습니다`;
+    }else if(confirm(`그럼 ${full(o)} 한 문항만 «${A}» 유형으로 옮길까요?`)){
+      if(await setType([o.id], A)) POP.msg=`${full(o)}만 «${A}» 유형으로 옮겼습니다`;
+    }else return;
+  }
+  POP.no=''; render();
+}
+async function renameCur(){
+  const r=rowOf(POP.id), cur=clean(r&&r.qtype); if(!cur) return;
+  const nv=clean(prompt(`«${cur}» 의 새 이름`, cur)); if(!nv || nv===cur) return;
+  const G=window.__qtypeGroups();
+  const merge=G.has(nv);
+  if(merge && !confirm(`«${nv}» 유형이 이미 있습니다 (${G.get(nv).length}문항). 두 유형을 하나로 합칠까요?`)) return;
+  if(await setType(G.get(cur)||[], nv)) POP.msg=merge?`«${cur}» 유형을 «${nv}» 유형에 합쳤습니다`:`이름을 바꿨습니다 → «${nv}»`;
+  render();
+}
+
+/* ══ ① 쪽지 ══
+   ★ v269 — 입력칸은 «한 번만» 만든다. 여태 글자 하나 칠 때마다 쪽지를 통째로 다시 그려서
+     입력칸이 새것으로 갈렸다 — 한글은 조합 중에 칸이 바뀌면 «ㅈ주주» 처럼 깨진다.
+     이제 틀(뼈대)은 문항이 바뀔 때만 만들고, 치는 동안에는 목록·미리보기 칸만 고친다. */
+const POP={ on:false, id:null, q:'', no:'', msg:'' };
+let PEL=null, ANCHOR=null, COMPOSING=false;
+function pop(){
+  if(PEL) return PEL;
+  PEL=document.createElement('div'); PEL.className='qtpop'; PEL.id='qtPop';
+  PEL.setAttribute('role','dialog'); PEL.setAttribute('aria-label','문항 유형');
+  document.body.appendChild(PEL);
+  PEL.addEventListener('click', onClick);
+  PEL.addEventListener('compositionstart', ()=>{ COMPOSING=true; });
+  PEL.addEventListener('compositionend', e=>{ COMPOSING=false; onType(e.target); });
+  PEL.addEventListener('input', e=>onType(e.target));
+  PEL.addEventListener('keydown', e=>{
+    e.stopPropagation();                         /* ← → 가 문항 넘기기로 새지 않게 */
+    if(e.key==='Escape'){ e.preventDefault(); return closePop(); }
+    if(e.key!=='Enter' || e.isComposing || COMPOSING) return;
+    if(e.target.id==='qtQ'){ e.preventDefault(); POP.q=e.target.value; const q=clean(POP.q); if(q) assign(q); }
+    if(e.target.id==='qtNo'){ e.preventDefault(); POP.no=e.target.value; const o=findNo(POP.no);
+      if(o) link(o.id); else { POP.msg='그 번호를 이 과목에서 못 찾았습니다'; paintMsg(); } }
+  });
+  return PEL;
+}
+/* 치는 동안 — 입력칸은 건드리지 않고 딸린 칸만 */
+function onType(el){
+  if(!el || !POP.on) return;
+  if(el.id==='qtQ'){ POP.q=el.value; paintList(); }
+  if(el.id==='qtNo'){ POP.no=el.value; paintPv(); }
+}
+function place(){
+  if(!PEL || !ANCHOR) return;
+  const a=ANCHOR.getBoundingClientRect(), w=PEL.offsetWidth || 384;
+  const x=Math.min(Math.max(8, a.left), innerWidth-w-8), y=Math.min(a.bottom+6, innerHeight-240);
+  PEL.style.left=x+'px'; PEL.style.top=Math.max(8,y)+'px';
+  PEL.style.maxHeight=Math.max(240, innerHeight-Math.max(8,y)-10)+'px';
+}
+function openPop(id, anchor){
+  Object.assign(POP,{ on:true, id:String(id), q:'', no:'', msg:'' });
+  ANCHOR=anchor; pop().classList.add('on'); render(); place();
+  anchor && anchor.classList.add('open');
+  setTimeout(()=>{ const i=PEL.querySelector('#qtQ'); if(i && matchMedia('(pointer:fine)').matches) i.focus(); },30);
+}
+function closePop(){
+  POP.on=false; COMPOSING=false; PEL && PEL.classList.remove('on');
+  $('#qtBtn')?.classList.remove('open');
+}
+/* 뼈대 — 문항이 바뀔 때만 */
+function skeleton(){
+  PEL.innerHTML=`
+    <div class="hd"><b id="qtHd"></b><span>유형</span><button type="button" class="x" data-x aria-label="닫기">✕</button></div>
+    <div id="qtCur"></div>
+    <div class="sec"><div class="lb">추천 <small>보라 = 있는 유형(누르면 바로) · 흰색 = 새 이름(누르면 칸에 채움)</small></div>
+      <div class="chips" id="qtSg"></div></div>
+    <div class="sec"><div class="lb">유형 목록 <small id="qtCnt"></small></div>
+      <input type="text" id="qtQ" placeholder="유형 찾기 · 새 이름 쓰고 Enter" autocomplete="off" spellcheck="false">
+      <div class="list" id="qtList"></div></div>
+    <div class="sec"><div class="lb">번호로 연동 <small>그 문제와 같은 유형으로 묶습니다</small></div>
+      <div class="row"><input type="text" id="qtNo" placeholder="12-1 6 · 2012 1 6 · 같은 회차면 6" autocomplete="off" inputmode="numeric">
+        <button type="button" class="go" data-link id="qtLinkBtn" disabled>연동</button></div>
+      <div class="pv" id="qtPv"></div></div>
+    <div id="qtNear"></div>
+    <div id="qtMem"></div>
+    <div class="qtmsg" id="qtMsg" aria-live="polite"></div>
+    <div class="foot">바꿀 때만 Supabase 한 번 · 추천은 이 기기에서 셈 · AI 는 누를 때만 부르고 결과를 남깁니다</div>`;
+  PEL.__for=POP.id;
+}
+const cur_=()=>{ const r=rowOf(POP.id); return r?clean(r.qtype):''; };
+function paintCur(){
+  const r=rowOf(POP.id), cur=cur_(), box=PEL.querySelector('#qtCur'); if(!r||!box) return;
+  PEL.querySelector('#qtHd').textContent=full(r);
+  const n=cur?(window.__qtypeGroups().get(cur)||[]).length:0;
+  box.className='cur'+(cur?'':' none');
+  box.innerHTML=cur
+    ? `<span class="t">🏷 ${esc(cur)}</span><span class="mini" style="cursor:default">${n}문항</span>
+       <button type="button" class="mini" data-ren>✎ 이름</button><button type="button" class="mini" data-unset>빼기</button>`
+    : `<span class="t">아직 유형이 없습니다 — 추천을 누르거나 목록에서 고르세요</span>`;
+}
+function paintSg(){
+  const r=rowOf(POP.id), box=PEL.querySelector('#qtSg'); if(!r||!box) return;
+  const cur=cur_(), have=new Set(typeList().map(t=>t.name));
+  const sg=suggest(r), ai=aiGet(r.id)||[];
+  box.innerHTML=
+      sg.map(x=>`<button type="button" class="sg${x.ex?' ex':''}" data-sg="${esc(x.name)}" data-ex="${x.ex?1:''}">${esc(x.name)}<small>${esc(x.why)}</small></button>`).join('')
+    + ai.filter(n=>n!==cur && !sg.some(x=>x.name===n)).map(n=>`<button type="button" class="sg${have.has(n)?' ex':''}" data-sg="${esc(n)}" data-ex="${have.has(n)?1:''}">${esc(n)}<small>AI 추천</small></button>`).join('')
+    + `<button type="button" class="sg ai" data-ai${AIBUSY?' disabled':''}>${AIBUSY?'🤖 받는 중…':(ai.length?'🤖 AI 다시':'🤖 AI 추천')}<small>누를 때만 · 글만 · 1~2원</small></button>`;
+}
+function paintList(){
+  const box=PEL.querySelector('#qtList'); if(!box) return;
+  const cur=cur_(), all=typeList();
+  const q=clean(POP.q), ql=q.toLowerCase();
+  const list=q ? all.filter(t=>t.name.toLowerCase().includes(ql)) : all;
+  const exact=!!q && all.some(t=>t.name===q);
+  PEL.querySelector('#qtCnt').textContent=`${all.length}개 · 체크하면 이 문제가 그 유형으로`;
+  box.innerHTML=
+      (q&&!exact?`<button type="button" class="it new" data-new="${esc(q)}"><span class="ck">＋</span><span class="nm">«${esc(q)}» 새 유형으로 넣기 <small style="color:var(--muted,#64748b);font-weight:600">Enter</small></span></button>`:'')
+    + list.map(t=>`<button type="button" class="it${t.name===cur?' on':''}" data-t="${esc(t.name)}" aria-pressed="${t.name===cur}"><span class="ck">${t.name===cur?'✓':''}</span><span class="nm">${esc(t.name)}</span><b>${t.n}</b></button>`).join('')
+    + (!list.length&&!q?'<div class="qtempty">아직 만든 유형이 없습니다. 추천을 누르거나 이름을 쓰고 Enter.</div>':'')
+    + (!list.length&&q&&exact?'':'');
+}
+function paintPv(){
+  const pv=PEL.querySelector('#qtPv'), btn=PEL.querySelector('#qtLinkBtn'); if(!pv) return;
+  const t=POP.no.trim(), tgt=t?findNo(POP.no):null;
+  btn.disabled=!tgt;
+  pv.innerHTML=!t?'':(tgt
+    ? `→ <b>${esc(full(tgt))}</b>${clean(tgt.qtype)?` · 유형 «${esc(clean(tgt.qtype))}»`:' · 유형 없음'}`
+    : '이 과목에서 그 번호를 못 찾았습니다');
+}
+function paintNear(){
+  const r=rowOf(POP.id), box=PEL.querySelector('#qtNear'); if(!r||!box) return;
+  const near=nearOf(r, cur_());
+  box.className=near.length?'sec':'';
+  box.innerHTML=!near.length?'':`<div class="lb">닮은 문항 <small>글이 닮은 순 · 연동을 누르면 같은 유형으로</small></div>`
+    + near.map(x=>`<div class="near"><span class="nm" data-go="${x.o.id}">${esc(full(x.o))}${clean(x.o.qtype)?` <small>· ${esc(clean(x.o.qtype))}</small>`:''}</span>
+        <span class="pc">${Math.round(x.sim*100)}%</span><button type="button" class="mini" data-near="${x.o.id}">연동</button></div>`).join('');
+}
+function paintMem(){
+  const r=rowOf(POP.id), box=PEL.querySelector('#qtMem'); if(!r||!box) return;
+  const cur=cur_();
+  const mem=cur ? (window.__qtypeGroups().get(cur)||[]).map(rowOf).filter(Boolean)
+                  .sort((a,b)=>(b.year-a.year)||(b.session-a.session)||(a.no-b.no)) : [];
+  box.className=cur?'sec':'';
+  box.innerHTML=!cur?'':`<div class="lb">«${esc(cur)}» 문항 ${mem.length} <small>눌러서 이동 · ✕ 는 이 유형에서 빼기</small></div>
+      <div class="chips">${mem.map(m=>`<span class="mem${String(m.id)===String(r.id)?' now':''}" data-go="${m.id}" title="${esc(full(m))}">${esc(short(m))}<i data-rm="${m.id}" title="이 유형에서 빼기">✕</i></span>`).join('')}</div>`;
+}
+function paintMsg(){ const m=PEL&&PEL.querySelector('#qtMsg'); if(m) m.textContent=POP.msg; }
+function render(){
+  if(!POP.on || !PEL) return;
+  if(!rowOf(POP.id)){ closePop(); return; }
+  if(PEL.__for!==POP.id) skeleton();
+  /* 입력칸 값은 «바깥에서 바꿨을 때만» 맞춘다 — 조합 중에는 절대 안 건드림 */
+  if(!COMPOSING){
+    const qi=PEL.querySelector('#qtQ'), ni=PEL.querySelector('#qtNo');
+    if(qi && qi.value!==POP.q) qi.value=POP.q;
+    if(ni && ni.value!==POP.no) ni.value=POP.no;
+  }
+  paintCur(); paintSg(); paintList(); paintPv(); paintNear(); paintMem(); paintMsg();
+}
+async function onClick(e){
+  const rm=e.target.closest('[data-rm]');
+  if(rm){ e.stopPropagation(); await setType([rm.dataset.rm], null); POP.msg='유형에서 뺐습니다'; return render(); }
+  const t=e.target.closest('button,[data-go]'); if(!t) return;
+  const r=rowOf(POP.id); if(!r) return;
+  const d=t.dataset;
+  if(d.x!=null) return closePop();
+  if(d.t!=null) return assign(d.t);
+  if(d.new!=null) return assign(d.new);
+  if(d.sg!=null){
+    if(d.ex) return assign(d.sg);
+    POP.q=d.sg; render();
+    const i=PEL.querySelector('#qtQ'); if(i){ i.focus(); try{ i.setSelectionRange(i.value.length,i.value.length) }catch(x){} }
+    return;
+  }
+  if(d.ai!=null) return aiSuggest(r);
+  if(d.unset!=null){ if(await setType([r.id], null)) POP.msg='이 문제를 유형에서 뺐습니다'; return render(); }
+  if(d.ren!=null) return renameCur();
+  if(d.link!=null){ POP.no=PEL.querySelector('#qtNo')?.value||POP.no; const o=findNo(POP.no); if(o) return link(o.id); POP.msg='그 번호를 못 찾았습니다'; return render(); }
+  if(d.near!=null) return link(d.near);
+  if(d.go!=null){ closePop(); try{ window.ovOpen && window.ovOpen(d.go) }catch(x){} }
+}
+
+/* ══ ① 머리줄 단추 — ✂ 바로 오른쪽 ══ */
+function mountBtn(){
+  const oh=$('#ovl .oh'); if(!oh || $('#qtBtn',oh)) return;
+  const cut=oh.querySelector('[data-cutsplit="ov"]'); if(!cut) return;
+  const b=document.createElement('button');
+  b.type='button'; b.className='qtbtn'; b.id='qtBtn';
+  cut.after(b);
+  b.addEventListener('click', e=>{
+    e.preventDefault(); e.stopPropagation();
+    const id=nowOv(); if(!id) return;
+    if(POP.on && POP.id===id) return closePop();
+    openPop(id, b);
+  });
+  paintBtn();
+}
+function paintBtn(){
+  const b=$('#qtBtn'); if(!b) return;
+  const id=nowOv(), t=id?tOf(id):'';
+  const n=t?(window.__qtypeGroups().get(t)||[]).length:0;
+  const html=t ? `<span class="nm">🏷 ${esc(t)}</span>${n>1?`<span class="n">${n}</span>`:''}` : '<span class="nm">🏷 유형</span>';
+  if(b.__h!==html){ b.__h=html; b.innerHTML=html; }
+  b.classList.toggle('has', !!t);
+  b.title = t ? `유형 «${t}» — 같은 유형 ${n}문항 (눌러서 바꾸기 · 번호로 연동)`
+              : '이 문제의 유형을 정합니다 — 같은 유형끼리 서로 연동되고, 중복 묶기에서 한 덩어리가 됩니다';
+}
+/* 판이 다른 문항으로 넘어가면 쪽지도 따라간다 — 연달아 유형을 붙이기 좋게 */
+let LASTOV='';
+function follow(){
+  const id=nowOv();
+  if(id===LASTOV) return; LASTOV=id;
+  paintBtn();
+  if(POP.on){
+    if(!id || !$('#ovl')?.classList.contains('on')) return closePop();
+    Object.assign(POP,{ id, q:'', no:'', msg:'' }); render();
+  }
+}
+
+/* ══ ③ 레일 ▼ ══ */
+function decorate(){
+  const d=dup(), on=!!(d && d.on && d.groups);
+  const sh=shown();
+  [['#ovrS','ovgo'],['#prail','go']].forEach(([sel,k])=>{
+    const rail=$(sel); if(!rail) return;
+    $$(':scope > .grpv', rail).forEach(v=>{            /* 짝 잃은 꼬리 치우기 */
+      const p=v.previousElementSibling; if(!p || !p.classList.contains('pb')) v.remove();
+    });
+    $$(':scope > .pb', rail).forEach(b=>{
+      const i=b.dataset[k]; let r=null, g=null;
+      if(on && i!=null && !/[↤↦]/.test(b.textContent)){ r=sh[+i]; g=r && d.groups.get(String(r.id)); }
+      let v=b.nextElementSibling; if(v && !v.classList.contains('grpv')) v=null;
+      if(!g || g.length<2){ v && v.remove(); return; }
+      if(!v){ v=document.createElement('button'); v.type='button'; v.className='grpv'; v.textContent='▼'; b.after(v); }
+      v.dataset.grp=String(r.id);
+      const mn=d.man && d.man.get(String(r.id));
+      v.title=`${mn?`유형 «${mn}»`:'같은 문제'} ${g.length}문항 펼치기`;
+      v.setAttribute('aria-label', v.title);
+    });
+  });
+}
+/* ★ v269 — 레일이 번호 단추를 그릴 때 이걸 같이 붙인다(나중에 끼우면 뒤 단추들이 옆으로 튄다) */
+window.__grpTail=r=>{
+  const d=dup(); if(!d || !d.on || !d.groups || !r) return '';
+  const g=d.groups.get(String(r.id)); if(!g || g.length<2) return '';
+  const mn=d.man && d.man.get(String(r.id));
+  const t=`${mn?`유형 «${mn}»`:'같은 문제'} ${g.length}문항 펼치기`;
+  return `<button type="button" class="grpv" data-grp="${esc(r.id)}" title="${esc(t)}" aria-label="${esc(t)}">▼</button>`;
+};
+let GP=null, GPA=null;
+function openGrp(anchor, rep){
+  const d=dup(); const g=d && d.groups && d.groups.get(String(rep)); if(!g) return;
+  if(!GP){
+    GP=document.createElement('div'); GP.className='grppop'; GP.setAttribute('role','menu'); document.body.appendChild(GP);
+    GP.addEventListener('click', e=>{
+      const b=e.target.closest('[data-gid]'); if(!b) return;
+      closeGrp(); go(b.dataset.gid);
+    });
+  }
+  const mn=d.man && d.man.get(String(rep)), cur=nowOv();
+  GP.innerHTML=`<div class="t">${mn?`🏷 ${esc(mn)}`:'⧉ 같은 문제'} · ${g.length}문항</div>`
+    + g.map((r,i)=>`<button type="button" class="g${String(r.id)===cur?' now':''}" data-gid="${r.id}" style="--i:${i}" role="menuitem">
+        <span class="dot${r.easy_md?'':' no'}" title="${r.easy_md?'해설 있음':'해설 없음'}"></span>${esc(full(r))}${String(r.id)===String(rep)?'<small>대표</small>':''}</button>`).join('');
+  GP.classList.remove('on'); void GP.offsetWidth; GP.classList.add('on');   /* 다시 누르면 움직임도 다시 */
+  const a=anchor.getBoundingClientRect(), w=GP.offsetWidth;
+  GP.style.left=Math.min(Math.max(8,a.right-w), innerWidth-w-8)+'px';
+  const below=a.bottom+5, h=GP.offsetHeight;
+  GP.style.top=(below+h<innerHeight-8 ? below : Math.max(8,a.top-h-5))+'px';
+  GPA && GPA.classList.remove('open'); GPA=anchor; anchor.classList.add('open');
+}
+function closeGrp(){ GP && GP.classList.remove('on'); GPA && GPA.classList.remove('open'); GPA=null; }
+function go(id){
+  const sh=shown(), i=sh.findIndex(x=>String(x.id)===String(id));
+  const ovOn=!!$('#ovl')?.classList.contains('on');
+  try{
+    if(i>=0 && document.body.classList.contains('oneup') && typeof window.showAt==='function') window.showAt(i);
+    if(ovOn || i<0) window.ovOpen && window.ovOpen(id);   /* 접혀 있는 문항은 목록에 없으니 한눈에로 */
+  }catch(e){}
+}
+
+/* ══ 이벤트 ══ */
+document.addEventListener('click', e=>{
+  const v=e.target.closest && e.target.closest('.grpv');
+  if(v){ e.preventDefault(); e.stopPropagation();
+    if(GPA===v && GP && GP.classList.contains('on')) return closeGrp();
+    return openGrp(v, v.dataset.grp); }
+}, true);
+document.addEventListener('pointerdown', e=>{
+  const t=e.target;
+  if(GP && GP.classList.contains('on') && !GP.contains(t) && !(t.closest && t.closest('.grpv'))) closeGrp();
+  if(POP.on && PEL && !PEL.contains(t) && !(t.closest && t.closest('#qtBtn,#ovrail,#pxPick,.grpv,.grppop'))) closePop();
+}, true);
+addEventListener('keydown', e=>{
+  if(e.key!=='Escape') return;
+  if(GP && GP.classList.contains('on')){ e.preventDefault(); e.stopImmediatePropagation(); return closeGrp(); }
+  if(POP.on){ e.preventDefault(); e.stopImmediatePropagation(); return closePop(); }
+}, true);
+addEventListener('resize', ()=>{ place(); closeGrp(); });
+document.addEventListener('scroll', e=>{ if(GP && GP.classList.contains('on') && e.target && e.target.id==='ovrS') closeGrp(); }, true);
+
+/* 레일은 수시로 다시 그려진다 — 바로 아래 자식이 바뀌면 꼬리를 다시 붙인다 */
+let rafD=0;
+const soon=()=>{ if(rafD) return; rafD=requestAnimationFrame(()=>{ rafD=0; try{ decorate() }catch(e){} }); };
+['#ovrS','#prail'].forEach(sel=>{
+  const w=setInterval(()=>{ const n=$(sel); if(!n) return; clearInterval(w);
+    new MutationObserver(soon).observe(n,{ childList:true }); soon(); }, 400);
+  setTimeout(()=>clearInterval(w), 30000);
+});
+
+setInterval(()=>{
+  const s=curSid();
+  if(s && LOCALSID!==s){ LOCALSID=s; if(applyLocal()) changed(); }
+  if(s && SYNCED!==s) sync();
+  mountBtn(); follow(); paintBtn(); decorate();
+}, 1500);
+/* 다른 기기에서 바꿨을 수 있다 — 탭으로 돌아오면 1분에 한 번까지만 다시 묻는다 */
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden || Date.now()-LASTV<60000) return;
+  LASTV=Date.now(); sync(true);
+});
+setTimeout(()=>{ mountBtn(); paintBtn(); }, 900);
+/* ★ v269 — 쪽지를 연 채 다른 문항으로 가면 «바로» 따라간다.
+   여태 1.5초 시계에만 기대서, 그 사이에 친 유형이 앞 문항에 붙을 수 있었다. */
+(function watchTitle(){
+  const t=$('#ovTitle'); if(!t) return void setTimeout(watchTitle,500);
+  new MutationObserver(()=>{ try{ follow() }catch(e){} })
+    .observe(t,{ childList:true, characterData:true, subtree:true });
+})();
+})();
+</script>
+<!-- ══════════════════════════════════════════════════════════════
+     v269 · 랜덤 네 갈래 · 도구 칸 정리 · v267~268 손보기
+
+     ① 랜덤을 네 갈래로 — 문제 찾기에 «랜덤» 줄을 따로 둔다
+          빈출 랜덤 · 금 랜덤 · 은 랜덤  → 같은 문제·같은 유형(중복 묶기 덩어리)은 하나만
+          전체 랜덤                      → 지금 조건 전체에서 (접혀 있는 것만 뺌)
+          빈출 = 금·은·동에서 뽑되 출제확률이 높을수록 더 자주 걸린다(가중 무작위).
+          걸린 단추를 다시 누르면 새로 뽑고, «✕ 해제» 로 원래 목록.
+          위 거르기(연도·회차·찾기·등급·출제기준)는 그대로 겹쳐 걸린다.
+     ② 뺀 것 — 진행 칸 · 💰 AI 오늘 N회 · 🔥 빈출순 · 💯 기대점수순 · 유형(계산·회로·단답·서술)
+        (코드는 그대로, 화면에서만. 진도 기록 자체는 계속 쌓인다)
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+/* ── ② 진행 칸 빼고 두 칸으로 ── */
+.deck .dcol-progress{display:none!important}
+.deck{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)!important}
+@media(max-width:1024px){ .deck{grid-template-columns:minmax(0,1fr)!important} .deck .dcol-view{grid-column:auto!important} }
+/* 폰에서 «도구 ▾» 단추가 진행 칸에 있었다 — 칸이 없어졌으니 늘 펴 두고, 접기는 위 «▲ 도구 접기» 로 */
+@media(max-width:820px){ .deck .dcol-find,.deck .dcol-view{display:block!important} }
+#aiUseBtn{display:none!important}
+#dFind2 > #fRand{display:none!important}
+/* 등급 줄이 짧아지면서 아래 요약 글이 «↩ 이어서» 옆으로 딸려 올라오던 것 — 한 줄씩 제자리에 */
+.deck #tagRow,.deck #tagNote,.deck #tagNote2{flex:1 1 100%;min-width:0}
+
+/* ── ① 랜덤 줄 ── */
+#dRand .rseg{display:inline-flex;gap:4px;flex-wrap:wrap}
+#dRand .rbtn{white-space:nowrap}
+#dRand .rbtn[data-rand="g"]:not(.on){color:#8a6100;border-color:#e9c46a;background:#fffaf0}
+#dRand .rbtn[data-rand="s"]:not(.on){color:#4a5768;border-color:#c3ccd8}
+#dRand .rx[hidden]{display:none!important}
+#dRand .rnote{flex:1 1 100%;font:500 9.5px/1.3 var(--font-d,system-ui);color:var(--muted,#94a3b8);margin:-1px 0 0 34px}
+@media(max-width:560px){ #dRand .rnote{margin-left:0} }
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const rowsAll=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
+const getRand=()=>{ try{ return RAND }catch(e){ return null } };
+const setRand=v=>{ try{ RAND=v }catch(e){} };
+const tag=id=>{ try{ return window.__pracTag?window.__pracTag(id):null }catch(e){ return null } };
+const dup=()=>{ try{ return window.__pracDup?window.__pracDup():null }catch(e){ return null } };
+const say=m=>{ try{ (window.__pxToast||window.AppUI?.toast||console.log)(m) }catch(e){} };
+
+const MODES={
+  hot:{ nm:'빈출 랜덤', sh:'빈출', tip:'금·은·동에서 — 출제확률이 높을수록 더 자주 뽑힙니다 · 같은 문제·같은 유형은 하나만', tiers:['g','s','b'], dedupe:true, weight:true },
+  g:  { nm:'금 랜덤',   sh:'금',   tip:'금 등급에서 무작위 · 같은 문제·같은 유형은 하나만', tiers:['g'], dedupe:true },
+  s:  { nm:'은 랜덤',   sh:'은',   tip:'은 등급에서 무작위 · 같은 문제·같은 유형은 하나만', tiers:['s'], dedupe:true },
+  all:{ nm:'전체 랜덤', sh:'전체', tip:'지금 조건에 맞는 전체에서 무작위 (중복 묶기로 접혀 있는 것만 뺌)', tiers:null, dedupe:false }
+};
+let MODE=null, LAST='all';
+
+/* 위 거르기를 그대로 겹친다 — 목록이 쓰는 조건과 같아야 뽑은 수만큼 나온다 */
+function basePool(){
+  const y=$('#fYear')?.value||'', s=$('#fSess')?.value||'', q=($('#fQ')?.value||'').trim();
+  let pool=rowsAll();
+  if(y) pool=pool.filter(r=>String(r.year)===y);
+  if(s) pool=pool.filter(r=>String(r.session)===s);
+  if(q) pool=pool.filter(r=>(r.q_text||'').includes(q)||(r.a_text||'').includes(q));
+  try{ if(window.__pracRowPass) pool=pool.filter(window.__pracRowPass); }catch(e){}
+  const d=dup(); if(d && d.on && d.hide) pool=pool.filter(r=>!d.hide.has(String(r.id)));
+  return pool;
+}
+const shuffle=a=>{ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+/* 같은 덩어리(유형·중복)는 하나만 — 섞은 뒤 먼저 나온 것을 남기므로 매번 다른 회차가 걸린다 */
+function dedupe(pool){
+  const d=dup(), key=new Map();
+  if(d && d.groups) d.groups.forEach((list,rep)=>(list||[]).forEach(r=>key.set(String(r.id),'g'+rep)));
+  const seen=new Set(), out=[];
+  shuffle(pool).forEach(r=>{ const k=key.get(String(r.id))||('r'+r.id); if(seen.has(k)) return; seen.add(k); out.push(r); });
+  return out;
+}
+function draw(mode){
+  const M=MODES[mode]; if(!M) return;
+  let pool=basePool();
+  if(M.tiers){
+    if(pool.length && !tag(pool[0].id)) return say('등급을 세는 중입니다 — 잠시 뒤 다시 눌러 주세요');
+    pool=pool.filter(r=>{ const t=tag(r.id); return t && M.tiers.includes(t.tier); });
+  }
+  pool = M.dedupe ? dedupe(pool) : shuffle(pool);
+  if(!pool.length){
+    const tierOn=!!document.querySelector('#tagRow button[data-tier].on');
+    return alert(`지금 조건에 맞는 ${M.sh} 문항이 없습니다.`+(tierOn&&M.tiers?'\n위 «등급» 거르기가 켜져 있으면 풀어 보세요.':''));
+  }
+  const want=$('#fRandN')?.value||'20';
+  const n=want==='all'?pool.length:Math.min(pool.length, +want||20);
+  let pick;
+  if(M.weight){
+    /* 가중 무작위(Efraimidis–Spirakis) — 확률 40% 짜리는 5% 짜리보다 8배 잘 걸린다 */
+    pick=pool.map(r=>[Math.pow(Math.random(), 1/Math.max(1,(tag(r.id)||{}).p||1)), r])
+             .sort((a,b)=>b[0]-a[0]).slice(0,n).map(x=>x[1]);
+  }else pick=pool.slice(0,n);
+
+  setRand(pick.map(r=>r.id)); MODE=mode; LAST=mode;
+  try{ HIDE_ALL=true }catch(e){}                        /* 풀어 보는 용도라 답안을 가린 채로 */
+  const fa=$('#fAns'); if(fa){ fa.classList.add('on'); fa.textContent='답안 모두 가리기'; }
+  paint(); try{ paintRand() }catch(e){}
+  try{ drawList() }catch(e){}
+  try{ if(document.body.classList.contains('oneup') && typeof window.showAt==='function') window.showAt(0) }catch(e){}
+  say(`🎲 ${M.nm} ${pick.length}문항${M.dedupe?' · 중복 제외':''}${pick.length<n?'':''}`);
+}
+function clear(){
+  setRand(null); MODE=null;
+  paint(); try{ paintRand() }catch(e){}
+  try{ drawList() }catch(e){}
+}
+function paint(){
+  if(!getRand()) MODE=null;
+  $$('#dRand [data-rand]').forEach(b=>{
+    const on=b.dataset.rand===MODE;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on?'true':'false');
+    b.title=MODES[b.dataset.rand].tip + (on?' — 다시 누르면 새로 뽑습니다':'');
+  });
+  const x=$('#randClear'), R=getRand();
+  if(x){ x.hidden=!R; const t=R?`✕ 해제 (${R.length})`:'✕ 해제'; if(x.textContent!==t) x.textContent=t; }
+}
+function mount(){
+  const f2=$('#dFind2'); if(!f2 || $('#dRand')) return false;
+  const row=document.createElement('div'); row.className='drow'; row.id='dRand';
+  row.innerHTML=`<span class="tl">랜덤</span><span class="rseg" role="group" aria-label="랜덤 뽑기">`
+    + Object.entries(MODES).map(([k,m])=>`<button type="button" class="chip rbtn" data-rand="${k}" title="${m.tip}">${m.nm}</button>`).join('')
+    + `</span>`;
+  f2.after(row);
+  const n=$('#fRandN'); if(n) row.appendChild(n);
+  const x=document.createElement('button');
+  x.type='button'; x.className='chip rx'; x.id='randClear'; x.hidden=true; x.title='랜덤을 풀고 원래 목록으로';
+  x.textContent='✕ 해제'; row.appendChild(x);
+  const note=document.createElement('span'); note.className='rnote';
+  note.textContent='빈출·금·은은 같은 문제·같은 유형을 하나만 뽑습니다';
+  row.appendChild(note);
+  row.addEventListener('click', e=>{
+    const b=e.target.closest('[data-rand]'); if(b) return draw(b.dataset.rand);
+    if(e.target.closest('#randClear')) clear();
+  });
+
+  /* 예전 🎲 단추로 들어오던 길(거르기를 바꾸면 «그 조건으로 다시 뽑기» 등)을 새 방식으로 잇는다 */
+  const old=$('#fRand');
+  if(old) old.onclick=()=>{ if(getRand()) return clear(); draw(LAST); };
+  if(n) n.onchange=()=>{ if(getRand() && MODE) draw(MODE); };
+  /* «필터 초기화» 가 랜덤을 못 풀던 것(엉뚱한 변수를 비우고 있었다) */
+  $('#filterReset')?.addEventListener('click', ()=>{ if(getRand()) clear(); });
+  paint();
+  return true;
+}
+const t=setInterval(()=>{ if(mount()) clearInterval(t); }, 400);
+setTimeout(()=>clearInterval(t), 30000);
+setInterval(paint, 1000);
+window.__pracRandom={ draw, clear, modes:MODES };
+
+/* 폰 — 예전엔 진행 칸의 «도구 ▾» 로 찾기·보기를 접어 두고 시작했다.
+   진행 칸이 빠졌으니, 폰에서 한 번도 고른 적이 없으면 «▲ 도구 접기» 를 접힌 채로 시작한다
+   (안 그러면 문제까지 도구 800px 을 밀고 내려가야 한다). */
+try{
+  if(matchMedia('(max-width:820px)').matches && localStorage.getItem('prac:deckfold')===null)
+    document.body.classList.add('deck-fold');
+}catch(e){}
 })();
 </script>
 </body>
