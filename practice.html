@@ -20912,7 +20912,9 @@ function solToMd(sol){
       const u = x.unit ? ` · 단위 ${inlineTex(x.unit)}` : "";
       const v = x.val  ? ` · 이 문제: ${inlineTex(x.val)}` : "";
       const sy = HAN.test(String(x.sym||"")) ? String(x.sym||"") : `$${tex(x.sym)||""}$`;
-      L.push(`- ${sy} — ${x.mean || ""}${u}${v}`);
+      /* ★ v277 — 읽는 발음 «브이 에스» 를 기호 옆에 */
+      const pr = x.say ? ` «${String(x.say).replace(/[«»\n]/g, "").trim()}»` : "";
+      L.push(`- ${sy}${pr} — ${x.mean || ""}${u}${v}`);
     });
     L.push("");
   }
@@ -20933,6 +20935,8 @@ function solToMd(sol){
       /* 소문항 번호로 시작하면 «1. (1)» 처럼 번호가 겹치지 않게 둔다 */
       const sy0 = line(s.say);
       L.push(/^\s*(\(\d+\)|[①-⑳]|\d+\s*[).])/.test(sy0) ? `${sy0}` : `${i+1}. ${sy0}`, "");
+      /* ★ v277 — 소문항 답은 그 단계 바로 밑에 먼저 (단답·서술은 «답 → 왜» 순서) */
+      if(s.ans) L.push(`> ${line(s.ans).replace(/\n+/g, " ")}`, "");
       /* 새 판 — 등호로 이은 한 줄(여럿이면 줄마다) */
       /* ★ v260 — 한 단계는 다섯 줄. 순서를 화면에서 못 박는다.
          ①부호식 ②해설식 ③숫자대입식 ④읽기식 ⑤왜 */
@@ -20953,25 +20957,63 @@ function solToMd(sol){
   /* 답에 이미 단위가 붙어 온 경우 또 붙이지 않는다 (70[mm^2]mm^2 처럼 되던 것) */
   const ansT = line(sol.answer).trim();
   const unitT = String(sol.unit || "").trim();
-  const ansLines = ansT.split(/\n+|(?=\s\(\d+\)\s)/).map(x => x.trim()).filter(Boolean);
+  /* ★ v277 — «(2)» 앞에서 줄을 나눈다 (띄어쓰기가 없어도) */
+  const ansLines = ansT.split(/\n+|(?=\(\d{1,2}\))/).map(x => x.trim()).filter(Boolean);
   const many = ansLines.length > 1;                 /* 소문항이 여럿인 답 */
-  const dup = unitT && (ansT.includes(unitT) || ansT.includes(unitT.replace(/[\[\]]/g, "")));
-  L.push("**답**", "");
-  if(many) ansLines.forEach(x => L.push(`> ${x}`, ""));
-  else L.push(`> ${ansT}${unitT && !dup ? " " + unitT : ""}`, "");
+  const dup = unitT && (/[,，·]/.test(unitT) || ansT.includes(unitT) || ansT.includes(unitT.replace(/[\[\]]/g, "")));
+  const stepAns = arr(sol.steps).some(s => s && typeof s === "object" && String(s.ans || "").trim());
+  /* ★ v276 — 나열형 «항목» · 서술형 «채점 포인트» */
+  if(arr(sol.items).length){
+    L.push("**항목**", "");
+    arr(sol.items).forEach(it => {
+      if(typeof it === "string") return void L.push(`- ${line(it)}`);
+      const w = line(it.word || it.name || it.item || "");
+      const m = line(it.mean || it.desc || "");
+      L.push(`- **${w}**${m ? " — " + m : ""}`);
+      if(it.why) L.push(`- 왜: ${line(it.why)}`);
+    });
+    L.push("");
+  }
+  if(arr(sol.keys).length){
+    L.push("**채점 포인트**", "");
+    arr(sol.keys).forEach(k => L.push(`- ${line(k)}`));
+    L.push("");
+  }
+  /* ★ v277 — 소문항 답을 단계마다 적었으면 맨 아래 «답» 몰아 쓰기는 뺀다 */
+  if(!stepAns && ansT){
+    L.push("**답**", "");
+    if(many) ansLines.forEach(x => L.push(`> ${x}`, ""));
+    else L.push(`> ${ansT}${unitT && !dup ? " " + unitT : ""}`, "");
+  }
   if(sol.why_answer) L.push("**왜 이 답인가**", "", line(sol.why_answer), "");
   if(sol.check)      L.push("**검산**", "", line(sol.check), "");
   if(sol.memo)       L.push("**외우기**", "", line(sol.memo), "");
+  /* ★ v276 — 두문자 : 첫 줄 `글자` · 줄마다 «글자 — 항목» (화면에서 고쳐 쓸 수 있음) */
+  const MN = sol.mnemo;
+  if(MN && typeof MN === "object" && (MN.code || arr(MN.map).length)){
+    L.push("**두문자**", "");
+    if(MN.code) L.push("`" + String(MN.code).replace(/[`\n]/g, "").trim() + "`", "");
+    arr(MN.map).forEach(m => {
+      if(typeof m === "string") return void L.push(`- ${line(m)}`);
+      L.push(`- ${String(m.h || m.head || "").replace(/[—\n]/g, "").trim()} — ${line(m.word || m.w || "")}`);
+    });
+    L.push("");
+    if(MN.say) L.push(line(MN.say), "");
+  }
   if(sol.trap)       L.push("**흔한 실수**", "", line(sol.trap), "");
   if(arr(sol.also).length){
     L.push("**같이 알아 두기**", "");
     arr(sol.also).forEach(x => L.push(`- ${x}`));
     L.push("");
   }
-  if(arr(sol.tags).length) L.push("", `\`${arr(sol.tags).join("` `")}\``);
-  return L.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const TG = [sol.kind ? String(sol.kind).replace(/형$/, "") + "형" : null, ...arr(sol.tags)].filter(Boolean);
+  if(TG.length) L.push("", `\`${TG.join("` `")}\``);
+  /* ★ v277 — 형광펜 표시 ==핵심== → 〖핵심〗. «==» 는 글자→수식 바꾸기가 수식 기호로 삼켜 버려서 */
+  return L.map(x => /^\s*\$\$/.test(x) ? x : x.replace(/==([^=\n]{1,120}?)==/g, "〖$1〗"))
+          .join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+try{ window.__pxSolToMd=solToMd; }catch(e){}
 /* ══ 한 문항 해설 뽑기 ══ */
 let OLD_SAID=false;
 const TIMEOUT=180000;
@@ -23119,6 +23161,12 @@ setTimeout(()=>{ mountBtn(); paintBtn(); }, 900);
 /* ── ① 랜덤 줄 ── */
 #dRand .rseg{display:inline-flex;gap:4px;flex-wrap:wrap}
 #dRand .rbtn{white-space:nowrap}
+#dRand .rmods{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center;margin-left:4px;padding-left:8px;border-left:1px dashed var(--line,#e2e8f0)}
+#dRand .rtl{font:700 11px/1 var(--font-d,system-ui);color:#64748b;margin-right:2px}
+#dRand .rmod{white-space:nowrap}
+#dRand .rmod::before{content:'☐ ';opacity:.7}
+#dRand .rmod.on{background:#1f7a4d!important;border-color:#1f7a4d!important;color:#fff!important}
+#dRand .rmod.on::before{content:'☑ ';opacity:1}
 #dRand .rbtn[data-rand="g"]:not(.on){color:#8a6100;border-color:#e9c46a;background:#fffaf0}
 #dRand .rbtn[data-rand="s"]:not(.on){color:#4a5768;border-color:#c3ccd8}
 #dRand .rx[hidden]{display:none!important}
@@ -23141,10 +23189,20 @@ const MODES={
   hot:{ nm:'빈출 랜덤', sh:'빈출', tip:'금·은·동에서 — 출제확률이 높을수록 더 자주 뽑힙니다 · 같은 문제·같은 유형은 하나만', tiers:['g','s','b'], dedupe:true, weight:true },
   g:  { nm:'금 랜덤',   sh:'금',   tip:'금 등급에서 무작위 · 같은 문제·같은 유형은 하나만', tiers:['g'], dedupe:true },
   s:  { nm:'은 랜덤',   sh:'은',   tip:'은 등급에서 무작위 · 같은 문제·같은 유형은 하나만', tiers:['s'], dedupe:true },
-  all:{ nm:'전체 랜덤', sh:'전체', tip:'지금 조건에 맞는 전체에서 무작위 (중복 묶기로 접혀 있는 것만 뺌)', tiers:null, dedupe:false },
-  /* ★ v273 — 오고초려·단답 자료를 빼고 전체에서 */
-  nx: { nm:'오고·단답 빼고', sh:'오고초려·단답 뺀', tip:'오고초려·단답 자료(과 대문항 «단답»)를 빼고 지금 조건 전체에서 무작위', tiers:null, dedupe:false, excl:true }
+  all:{ nm:'전체 랜덤', sh:'전체', tip:'지금 조건에 맞는 전체에서 무작위 (중복 묶기로 접혀 있는 것만 뺌)', tiers:null, dedupe:false }
 };
+/* ★ v277 — 겹치기(여러 개 같이 켬). 위 랜덤 네 가지 어느 것에나 얹힌다
+   예) 빈출 랜덤 + 오고·단답 빼기 + 체크한 것 빼기 + 확률 높은 순 → 확률 높은 것부터 풀고 맞힌 것은 소거 */
+const MODS={
+  nx: { nm:'오고·단답 빼기', tip:'오고초려·단답 자료(과 대문항 «단답»)를 뺍니다' },
+  un: { nm:'체크한 것 빼기', tip:'맞음·틀림을 이미 누른 문항을 뺍니다 — 풀수록 줄어듦' },
+  ord:{ nm:'확률 높은 순',   tip:'무작위 대신 출제확률이 높은 것부터 차례로 (같은 확률끼리는 섞음)' }
+};
+const MKEY='prac:randmod';
+let MOD={}; try{ MOD=JSON.parse(localStorage.getItem(MKEY)||'{}')||{} }catch(e){ MOD={} }
+const saveMod=()=>{ try{ localStorage.setItem(MKEY, JSON.stringify(MOD)) }catch(e){} };
+/* 맞음·틀림 기록 — 진도 칸이 저장하는 곳(prac:prog:v1)을 그대로 읽는다 */
+const progMap=()=>{ try{ return JSON.parse(localStorage.getItem('prac:prog:v1')||'{}')||{} }catch(e){ return {} } };
 /* 오고초려 = 9301년 · 단답 = 94NN년 (가짜 연도 규칙). 이름표를 손으로 바꿔 둔 것도 이름으로 한 번 더 본다. */
 function ylab(y){
   let h='';
@@ -23189,16 +23247,22 @@ function draw(mode){
     if(pool.length && !tag(pool[0].id)) return say('등급을 세는 중입니다 — 잠시 뒤 다시 눌러 주세요');
     pool=pool.filter(r=>{ const t=tag(r.id); return t && M.tiers.includes(t.tier); });
   }
-  if(M.excl) pool=pool.filter(r=>!isExcl(r));
+  if(MOD.nx) pool=pool.filter(r=>!isExcl(r));
+  if(MOD.un){ const P=progMap(); pool=pool.filter(r=>!P[String(r.id)]); }
   pool = M.dedupe ? dedupe(pool) : shuffle(pool);
   if(!pool.length){
     const tierOn=!!document.querySelector('#tagRow button[data-tier].on');
-    return alert(`지금 조건에 맞는 ${M.sh} 문항이 없습니다.`+(tierOn&&M.tiers?'\n위 «등급» 거르기가 켜져 있으면 풀어 보세요.':''));
+    return alert(`지금 조건에 맞는 ${M.sh} 문항이 없습니다.`+(tierOn&&M.tiers?'\n위 «등급» 거르기가 켜져 있으면 풀어 보세요.':'')
+      +(MOD.un?'\n«체크한 것 빼기» 가 켜져 있습니다 — 다 풀었으면 끄고 다시 누르세요.':''));
   }
   const want=$('#fRandN')?.value||'20';
   const n=want==='all'?pool.length:Math.min(pool.length, +want||20);
   let pick;
-  if(M.weight){
+  if(MOD.ord){
+    /* 확률 높은 순 — 섞어 둔 뒤 안정 정렬이라 같은 확률끼리는 매번 순서가 바뀐다 */
+    const pv=r=>{ const t=tag(r.id); return t && isFinite(t.p) ? +t.p : -1; };
+    pick=pool.slice().sort((a,b)=>pv(b)-pv(a)).slice(0,n);
+  }else if(M.weight){
     /* 가중 무작위(Efraimidis–Spirakis) — 확률 40% 짜리는 5% 짜리보다 8배 잘 걸린다 */
     pick=pool.map(r=>[Math.pow(Math.random(), 1/Math.max(1,(tag(r.id)||{}).p||1)), r])
              .sort((a,b)=>b[0]-a[0]).slice(0,n).map(x=>x[1]);
@@ -23210,7 +23274,8 @@ function draw(mode){
   paint(); try{ paintRand() }catch(e){}
   try{ drawList() }catch(e){}
   try{ if(document.body.classList.contains('oneup') && typeof window.showAt==='function') window.showAt(0) }catch(e){}
-  say(`🎲 ${M.nm} ${pick.length}문항${M.dedupe?' · 중복 제외':''}${pick.length<n?'':''}`);
+  const on=Object.keys(MODS).filter(k=>MOD[k]).map(k=>MODS[k].nm);
+  say(`🎲 ${M.nm}${on.length?' + '+on.join(' + '):''} ${pick.length}문항${M.dedupe?' · 중복 제외':''}`);
 }
 function clear(){
   setRand(null); MODE=null;
@@ -23225,6 +23290,10 @@ function paint(){
     b.setAttribute('aria-pressed', on?'true':'false');
     b.title=MODES[b.dataset.rand].tip + (on?' — 다시 누르면 새로 뽑습니다':'');
   });
+  $$('#dRand [data-rmod]').forEach(b=>{
+    const on=!!MOD[b.dataset.rmod];
+    b.classList.toggle('on', on); b.setAttribute('aria-pressed', on?'true':'false');
+  });
   const x=$('#randClear'), R=getRand();
   if(x){ x.hidden=!R; const t=R?`✕ 해제 (${R.length})`:'✕ 해제'; if(x.textContent!==t) x.textContent=t; }
 }
@@ -23233,6 +23302,8 @@ function mount(){
   const row=document.createElement('div'); row.className='drow'; row.id='dRand';
   row.innerHTML=`<span class="tl">랜덤</span><span class="rseg" role="group" aria-label="랜덤 뽑기">`
     + Object.entries(MODES).map(([k,m])=>`<button type="button" class="chip rbtn" data-rand="${k}" title="${m.tip}">${m.nm}</button>`).join('')
+    + `</span><span class="rseg rmods" role="group" aria-label="겹치기"><span class="rtl">+ 겹치기</span>`
+    + Object.entries(MODS).map(([k,m])=>`<button type="button" class="chip rmod" data-rmod="${k}" title="${m.tip}">${m.nm}</button>`).join('')
     + `</span>`;
   f2.after(row);
   const n=$('#fRandN'); if(n) row.appendChild(n);
@@ -23240,10 +23311,12 @@ function mount(){
   x.type='button'; x.className='chip rx'; x.id='randClear'; x.hidden=true; x.title='랜덤을 풀고 원래 목록으로';
   x.textContent='✕ 해제'; row.appendChild(x);
   const note=document.createElement('span'); note.className='rnote';
-  note.textContent='빈출·금·은은 같은 문제·같은 유형을 하나만 · «오고·단답 빼고» 는 오고초려·단답 자료를 뺀 전체에서';
+  note.textContent='랜덤 하나 + 겹치기 여러 개 · 빈출·금·은은 같은 문제·같은 유형을 하나만 · 겹치기를 바꾸면 바로 다시 뽑음';
   row.appendChild(note);
   row.addEventListener('click', e=>{
     const b=e.target.closest('[data-rand]'); if(b) return draw(b.dataset.rand);
+    const mb=e.target.closest('[data-rmod]');
+    if(mb){ const k=mb.dataset.rmod; MOD[k]=!MOD[k]; saveMod(); paint(); if(getRand() && MODE) draw(MODE); return; }
     if(e.target.closest('#randClear')) clear();
   });
 
@@ -23347,10 +23420,42 @@ body:not(.ezx-off):not(.ezx-open) .ezx p.ezf.tog::after,body:not(.ezx-off).ezx-o
 body:not(.ezx-off) .ezx .ezbox{background:#fff;border:1px solid #e3e9f7;border-radius:8px;padding:4px 10px 4px 24px!important;margin:.1em 0 .4em!important}
 body:not(.ezx-off) .ezx p.ezbox{padding:4px 10px!important}
 body:not(.ezx-off) .ezx .ezbox + .ezbox{margin-top:-.3em!important;border-top-left-radius:0;border-top-right-radius:0}
+/* ★ v276 — 나열형 항목 : 항목 | 뜻 */
+body:not(.ezx-off) .ezx ul.ezitems{padding:3px 8px!important;margin-left:0!important;background:#fff;border:1px solid #e3e9f7;border-radius:8px}
+body:not(.ezx-off) .ezx ul.ezitems > li:not(.ezwhy){list-style:none;display:grid;grid-template-columns:minmax(80px,max-content) minmax(0,1fr);column-gap:8px;
+  align-items:baseline;margin:0!important;padding:3px 0 1px;border-top:1px dashed #eef2f9}
+body:not(.ezx-off) .ezx ul.ezitems > li:first-child{border-top:0}
+body:not(.ezx-off) .ezx ul.ezitems .ezs-s{font-weight:800;color:#1e3a8a;text-align:left}
+body:not(.ezx-off) .ezx ul.ezitems .ezdash{display:none}
+body:not(.ezx-off) .ezx ul.ezitems > li.ezwhy{margin:1px 0 4px 0!important}
+/* ★ v276 — 두문자 카드 */
+body:not(.ezx-off) .ezx p.mnc{margin:.15em 0 .2em!important}
+body:not(.ezx-off) .ezx p.mnc code{display:inline-block;padding:3px 12px;border-radius:8px;background:#6b2fb3;color:#fff;
+  font:900 1.35em/1.3 var(--font-d,system-ui);letter-spacing:.18em}
+body:not(.ezx-off) .ezx ul.mnm{margin:0 0 .3em!important;padding:3px 8px!important;background:#faf7fe;border:1px solid #e3d5f5;border-radius:8px}
+body:not(.ezx-off) .ezx ul.mnm > li{list-style:none;display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:8px;align-items:center;
+  margin:0!important;padding:2px 0;border-top:1px dashed #eadff7}
+body:not(.ezx-off) .ezx ul.mnm > li:first-child{border-top:0}
+body:not(.ezx-off) .ezx ul.mnm .ezs-s{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:6px;background:#6b2fb3;color:#fff;font-weight:900}
+body:not(.ezx-off) .ezx ul.mnm .ezdash{display:none}
+body:not(.ezx-off) .ezx p.mnsay{color:#6b2fb3;font-weight:700}
+/* 외우기 — 뜻을 가려 두고 눌러서 확인 */
+body:not(.ezx-off) .ezx ul.mnm.quiz > li:not(.show) .ezs-m{color:transparent!important;background:repeating-linear-gradient(135deg,#eadff7 0 6px,#f4eefc 6px 12px);border-radius:5px;cursor:pointer}
+body:not(.ezx-off) .ezx ul.mnm.quiz > li:not(.show) .ezs-m *{visibility:hidden}
+body:not(.ezx-off) .ezx ul.mnm.quiz > li{cursor:pointer}
+.mnb{margin-left:8px;height:20px;padding:0 8px;border:1px solid #cbb7e6;border-radius:6px;background:#fff;color:#6b2fb3;cursor:pointer;
+  font:800 10px/1 var(--font-d,system-ui);vertical-align:2px;letter-spacing:0}
+.mnb:hover{background:#6b2fb3;color:#fff}
+.mnb.on{background:#6b2fb3;color:#fff}
+.mnb[data-mn="quiz"]::before{content:'🧠 외우기'}
+.mnb[data-mn="quiz"].on::before{content:'👁 다 보기'}
+.mnb[data-mn="edit"]::before{content:'✎ 두문자 바꾸기'}
+.mnb[data-mn="new"]::before{content:'＋ 두문자 만들기'}
+body.ezx-off .mnb{display:none}
 /* ④ 부호 → 세 칸 */
 body:not(.ezx-off) .ezx ul.ezsym{padding:2px 8px!important;margin-left:0!important;background:#fff;border:1px solid #e3e9f7;border-radius:8px;
   display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));column-gap:14px}
-body:not(.ezx-off) .ezx ul.ezsym > li{list-style:none;display:grid;grid-template-columns:44px minmax(0,1fr) auto;column-gap:6px;
+body:not(.ezx-off) .ezx ul.ezsym > li{list-style:none;display:grid;grid-template-columns:minmax(44px,max-content) minmax(0,1fr) auto;column-gap:8px;
   align-items:baseline;margin:0!important;padding:2px 0;border-bottom:1px dashed #eef2f9}
 body:not(.ezx-off) .ezx ul.ezsym .ezs-s{text-align:center}
 body:not(.ezx-off) .ezx ul.ezsym .ezs-m{color:#334155}
@@ -23358,11 +23463,24 @@ body:not(.ezx-off) .ezx ul.ezsym .ezs-v{text-align:right;font-weight:800;color:#
 body:not(.ezx-off) .ezx ul.ezsym .ezdash{display:none}
 body:not(.ezx-off) .ezx ul.ezsym .ezvk{font-weight:600;font-size:.8em;color:#8a94a6;margin-right:3px}
 
-/* ⑤ 답 카드 */
-body:not(.ezx-off) .ezx p.ezans{display:inline-block;margin:.1em 0 .4em!important;padding:3px 14px!important;border-radius:8px;
-  background:#1e3a8a;color:#fff!important;font-weight:800;font-size:1.3em!important}
-body:not(.ezx-off) .ezx p.ezans .katex{color:#fff}
+/* ⑤ 답 — ★ v277 밝은 상자 · 왼쪽 남색 띠 · 이어진 줄은 한 상자 */
+body:not(.ezx-off) .ezx p.ezans{display:block;margin:0!important;padding:2px 10px 2px 12px!important;
+  background:#eef3ff;border-left:4px solid #1e3a8a;color:#0f172a!important;font-weight:700;font-size:1.02em!important}
+body:not(.ezx-off) .ezx p.ezans.ansf{margin-top:.2em!important;padding-top:5px!important;border-radius:0 7px 0 0}
+body:not(.ezx-off) .ezx p.ezans.ansl{margin-bottom:.35em!important;padding-bottom:5px!important;border-radius:0 0 7px 0}
+body:not(.ezx-off) .ezx p.ezans.ansf.ansl{border-radius:0 7px 7px 0}
+body:not(.ezx-off) .ezx p.ezans.ansf::before{content:'답';display:inline-block;margin-right:7px;padding:0 6px;border-radius:4px;
+  background:#1e3a8a;color:#fff;font:800 .78em/1.55 var(--font-d,system-ui);vertical-align:1px}
+body:not(.ezx-off) .ezx p.ezans .katex{color:#0f172a}
 body:not(.ezx-off) .ezx .ezgt{display:none}
+/* ★ v277 — ==핵심== 형광펜 */
+.ezx .ezeq{display:none}
+body.ezx-off .ezx .ezeq{display:none}
+.ezx mark.ezkey{background:linear-gradient(transparent 52%,#ffe27a 52%);color:inherit;padding:0 1px;font-weight:800}
+.ezx .katex.ezkeyk{background:linear-gradient(transparent 55%,#ffe27a 55%)}
+/* 부호 발음 · «이 문제:» 글씨는 감춤 (남색 굵은 값이 곧 이 문제 값) */
+body:not(.ezx-off) .ezx ul.ezsym .ezpr{display:block;font-size:.72em;line-height:1.2;color:#8a94a6;font-weight:600;white-space:nowrap}
+body:not(.ezx-off) .ezx ul.ezsym .ezvk{display:none!important}
 
 /* 이름줄 단추 */
 .ezxb{order:6;margin-left:6px;height:20px;padding:0 8px;border:1px solid var(--line,#e2e8f0);border-radius:6px;
@@ -23386,7 +23504,9 @@ let LASTQ='';
 
 const FOLDSEC=/^(검산|흔한 실수|왜 이 답인가|같이 알아 두기)$/;
 const SYMSEC=/^(부호)$/;
-const BOXSEC=/^(먼저 알아야 할 것|주어진 값|문제를 이렇게 읽음)$/;
+const BOXSEC=/^(먼저 알아야 할 것|주어진 값|문제를 이렇게 읽음|채점 포인트)$/;
+const ITEMSEC=/^(항목)$/;
+const MNSEC=/^(두문자)$/;
 const STEPSEC=/^(풀이|쓰는 식)$/;
 
 /* 굵은 글씨 한 덩어리뿐인 문단 = 소제목 */
@@ -23453,6 +23573,9 @@ function splitSym(li){
     const p=n.nodeValue.indexOf('이 문제:'); if(p<0) continue;
     let v=p>0 ? n.splitText(p) : n;
     const rest=v.splitText('이 문제:'.length);
+    /* 앞에 남는 « · » 도 숨긴다 (이 문제: 를 숨기면 점만 덩그러니 남아서) */
+    if(v!==n){ const mm=n.nodeValue.match(/\s*·\s*$/); if(mm){ const tail=n.splitText(n.nodeValue.length-mm[0].length);
+      const hd=document.createElement('span'); hd.className='ezdash'; tail.parentNode.insertBefore(hd, tail); hd.appendChild(tail); } }
     li.appendChild(V);
     const K=document.createElement('span'); K.className='ezvk'; K.appendChild(v); V.appendChild(K);
     let x=rest; while(x){ const nx=x.nextSibling; V.appendChild(x); x=nx; }
@@ -23472,7 +23595,21 @@ function tidy(box){
   for(let i=0;i<kids.length;i++){
     const el=kids[i];
     const h=headOf(el);
-    if(h){ sec=h; el.classList.add('ezh'); continue; }
+    if(h){
+      sec=h; el.classList.add('ezh');
+      el.classList.toggle('mnhd', MNSEC.test(h));
+      el.classList.toggle('anshd', h==='답');
+      try{ window.__mnHead && window.__mnHead(el, h, box); }catch(e){}
+      continue;
+    }
+    /* ★ v276 — 두문자 */
+    if(MNSEC.test(sec)){
+      if(el.tagName==='P' && el.querySelector(':scope > code') && (el.textContent||'').trim()===(el.querySelector(':scope > code').textContent||'').trim()){
+        el.classList.add('mnc'); continue;
+      }
+      if(el.tagName==='UL'){ el.classList.add('mnm'); $$(':scope > li', el).forEach(li=>splitSym(li)); continue; }
+      if(el.tagName==='P' && !el.querySelector(':scope > code')){ el.classList.add('mnsay'); continue; }
+    }
     /* 식 줄 */
     if(isEqP(el)){
       el.classList.add('eqr');
@@ -23486,12 +23623,19 @@ function tidy(box){
     /* 풀이 단계 머리줄 «1. …» */
     if(el.tagName==='P' && STEPSEC.test(sec) && /^\s*(?:\d{1,2}\s*[.)]|\(\d{1,2}\)|[①-⑳])\s*/.test(el.textContent||'')
        && (el.textContent||'').length<90){ el.classList.add('ezstep'); continue; }
-    /* 답 */
-    if(sec==='답' && el.tagName==='P' && /^\s*>/.test(el.textContent||'')){
-      el.classList.add('ezans'); wrapLead(el, /^\s*>\s*/, 'ezgt'); continue;
+    /* 답 — «> …» 줄. ★ v277 — 단계 밑 소문항 답도 같은 모양. 이어진 줄은 한 상자로 */
+    if(el.tagName==='P' && /^\s*>/.test(el.textContent||'')){
+      el.classList.add('ezans'); wrapLead(el, /^\s*>\s*/, 'ezgt');
+      const isA=x=>x && x.tagName==='P' && /^\s*>/.test(x.textContent||'');
+      el.classList.toggle('ansf', !isA(kids[i-1])); el.classList.toggle('ansl', !isA(kids[i+1]));
+      continue;
     }
     el.classList.toggle('ezbox', BOXSEC.test(sec) && (el.tagName==='UL' || el.tagName==='P'));
     if(el.tagName==='UL'){
+      if(ITEMSEC.test(sec)){
+        el.classList.add('ezitems');
+        $$(':scope > li', el).forEach(li=>{ if(!/^\s*왜\s*[:：]/.test(li.textContent||'')) splitSym(li); });
+      }
       if(SYMSEC.test(sec)){
         const lis=$$(':scope > li', el); let ok=0;
         lis.forEach(li=>{ if(splitSym(li)) ok++; });
@@ -23507,7 +23651,64 @@ function tidy(box){
     }
     if(el.tagName==='P' && FOLDSEC.test(sec) && (el.textContent||'').length>110) el.classList.add('ezfc');
   }
+  try{ keyMarks(box); }catch(e){}
+  try{ $$('ul.ezsym .ezs-s', box).forEach(prSpan); }catch(e){}
   measure(box);
+}
+/* ★ v277 — ==핵심== → 형광펜. «==» 는 지우지 않고 숨긴다(글자 수가 그대로라 형광펜·주석 자리가 안 밀림) */
+function keyMarks(box){
+  const bad=n=>n.parentElement && n.parentElement.closest('.katex,.ezeq,code,script,style');
+  $$('p,li', box).forEach(blk=>{
+    const tc=blk.textContent||'';
+    if(tc.indexOf('〖')<0 && tc.indexOf('==')<0) return;
+    if(blk.querySelector('p,li')) return;                          /* 안쪽 블록이 따로 처리함 */
+    const texts=()=>{ const tw=document.createTreeWalker(blk, NodeFilter.SHOW_TEXT, { acceptNode:n=>bad(n)?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT });
+      const a=[]; let n; while((n=tw.nextNode())) a.push(n); return a; };
+    /* 〖 〗 (새 판) · == == (옛 판) 자리를 순서대로 모아 짝짓는다 —
+       초록 낱말 칠하기가 글을 여러 조각으로 나눠 놔도 짝이 맞는다 */
+    const occ=[];
+    texts().forEach(n=>{
+      const re=/〖|〗|==/g; let m;
+      while((m=re.exec(n.nodeValue))) occ.push([n, m.index, m[0].length, m[0]]);
+    });
+    const pairs=[]; let open=null;
+    occ.forEach(o=>{
+      if(o[3]==='〖'){ open=o; return; }
+      if(o[3]==='〗'){ if(open && open[3]==='〖'){ pairs.push([open,o]); open=null; } return; }
+      if(open && open[3]==='=='){ pairs.push([open,o]); open=null; } else if(!open) open=o;
+    });
+    for(let q=pairs.length-1;q>=0;q--){
+      const [[sn,si,sl],[en,ei,el]]=pairs[q];
+      const hide=t=>{ const sp=document.createElement('span'); sp.className='ezeq'; t.parentNode.insertBefore(sp,t); sp.appendChild(t); return sp; };
+      const eMid=en.splitText(ei); eMid.splitText(el); const eSp=hide(eMid);
+      const sMid=sn.splitText(si); const sAft=sMid.splitText(sl); hide(sMid);
+      let on=false; const mid=[];
+      for(const t of texts()){
+        if(t===sAft) on=true;
+        if(on){ if(eSp.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING) break; if(t.nodeValue) mid.push(t); }
+      }
+      mid.forEach(t=>{ const mk=document.createElement('mark'); mk.className='ezkey'; t.parentNode.insertBefore(mk,t); mk.appendChild(t); });
+      /* 사이에 낀 수식(3000V 처럼 수식으로 바뀐 것)도 같이 칠한다 */
+      const sEnd=sAft.previousSibling || sAft;
+      $$('.katex', blk).forEach(k=>{
+        if(k.parentElement && k.parentElement.closest('.katex')) return;
+        const af=sEnd.compareDocumentPosition(k) & Node.DOCUMENT_POSITION_FOLLOWING;
+        const bf=eSp.compareDocumentPosition(k) & Node.DOCUMENT_POSITION_PRECEDING;
+        if(af && bf) k.classList.add('ezkeyk');
+      });
+    }
+  });
+}
+/* 부호 칸의 «브이 에스» 발음을 작은 글씨로 */
+function prSpan(cell){
+  if(cell.querySelector('.ezpr')) return;
+  [...cell.childNodes].forEach(n=>{
+    if(n.nodeType!==3) return;
+    const i=n.nodeValue.indexOf('«'); if(i<0) return;
+    const j=n.nodeValue.indexOf('»', i); if(j<0) return;
+    let a=i>0 ? n.splitText(i) : n; const rest=a.splitText(j-i+1);
+    const sp=document.createElement('span'); sp.className='ezpr'; cell.insertBefore(sp, rest); sp.appendChild(a);
+  });
 }
 /* 실제로 두 줄을 넘는 것만 접는다 — 짧은 것에 «펼치기» 가 붙지 않게 */
 function measure(box){
@@ -23598,6 +23799,244 @@ document.addEventListener('input', e=>{ if(e.target && e.target.id==='pxFs') rem
 document.addEventListener('click', e=>{ if(e.target.closest && e.target.closest('.ovfs button,[data-fs]')) remeasure(); }, false);
 setInterval(all, 1500);
 window.__ezxTidy=tidy;
+})();
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════
+     v276 · 두문자 — 나열형(몇 가지 쓰시오) 답을 앞 글자로 외운다
+
+     해설 안 «두문자» 칸 :  `가피접`  +  «가 — 가공지선» 줄들  (+ 외우는 문장)
+       🧠 외우기     : 뜻을 가려 두고 한 줄씩 눌러서 확인 (문항마다 기억)
+       ✎ 두문자 바꾸기 : 글자·항목·문장을 내 식으로 고쳐 저장 → 그 뒤로 그대로 외움
+       ＋ 두문자 만들기 : 두문자 칸이 없는 옛 해설에 새로 붙임 (항목·답에서 미리 채움)
+     저장은 해설 글(easy_md)의 «두문자» 칸만 갈아 끼운다 — 나머지 글은 안 건드린다.
+     🔒 고정한 문항이면 AI 가 다시 써도 내 두문자가 안 바뀐다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+.mnpop{position:fixed;inset:0;z-index:100070;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.35)}
+.mnpop.on{display:flex}
+.mnpop .card{width:min(460px,calc(100vw - 20px));max-height:calc(100vh - 30px);overflow:auto;background:var(--surface,#fff);color:var(--ink,#0f172a);
+  border-radius:14px;box-shadow:0 20px 60px rgba(15,23,42,.3);padding:12px 14px;font:600 12.5px/1.45 var(--font-d,system-ui)}
+.mnpop .hd{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.mnpop .hd b{font-size:14px;color:#6b2fb3}
+.mnpop .hd .x{margin-left:auto;border:0;background:none;font-size:17px;cursor:pointer;color:#64748b}
+.mnpop label{display:block;font:800 11px/1.3 var(--font-d,system-ui);color:#475569;margin:8px 0 3px}
+.mnpop input{width:100%;box-sizing:border-box;height:32px;padding:0 9px;border:1px solid var(--line,#e2e8f0);border-radius:8px;
+  font:700 13px/1 var(--font-d,system-ui);background:var(--surface,#fff);color:var(--ink,#0f172a)}
+.mnpop input:focus{outline:2px solid #a97fdd;border-color:#a97fdd}
+.mnpop #mnCode{font-size:18px;letter-spacing:.2em;font-weight:900;color:#6b2fb3}
+.mnpop .rows{display:flex;flex-direction:column;gap:4px}
+.mnpop .row{display:grid;grid-template-columns:34px 1fr;gap:6px;align-items:center}
+.mnpop .row .h{display:grid;place-items:center;height:30px;border-radius:7px;background:#6b2fb3;color:#fff;font:900 14px/1 var(--font-d,system-ui)}
+.mnpop .hint{font-size:10.5px;color:#64748b;font-weight:600;margin-top:3px}
+.mnpop .ft{display:flex;gap:6px;margin-top:12px}
+.mnpop .ft button{height:32px;padding:0 14px;border-radius:8px;border:1px solid var(--line,#e2e8f0);background:var(--surface,#fff);cursor:pointer;font:800 12px/1 var(--font-d,system-ui)}
+.mnpop .ft .ok{background:#6b2fb3;border-color:#6b2fb3;color:#fff;margin-left:auto}
+.mnpop .ft .del{color:#b91c1c}
+.mnpop .msg{min-height:16px;margin-top:6px;font-size:11px;color:#b91c1c}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const say=m=>{ try{ (window.__pxToast||window.AppUI?.toast||console.log)(m) }catch(e){} };
+const rows=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
+const rowOf=id=>rows().find(r=>String(r.id)===String(id))||null;
+const client=()=>{ try{ return sb }catch(e){ return null } };
+const esc=t=>String(t==null?'':t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const QUIZ=new Set();                                      /* 🧠 외우기 켠 문항 (이 창 안에서만) */
+
+function qidOf(el){
+  const c=el && el.closest && el.closest('.pcard'); if(c && c.dataset.id) return String(c.dataset.id);
+  try{ return OVID!=null ? String(OVID) : '' }catch(e){ return '' }
+}
+function btn(head, kind){
+  const host=head.querySelector(':scope > strong') || head;   /* strong 안에 넣어야 소제목 막대 모양이 안 깨진다 */
+  let b=host.querySelector(`:scope > .mnb[data-mn="${kind}"]`);
+  if(!b){ b=document.createElement('button'); b.type='button'; b.className='mnb'; b.dataset.mn=kind; host.appendChild(b); }
+  return b;
+}
+/* ezx 가 소제목을 만날 때마다 부른다 — 단추는 글자 없이(CSS 로만) 붙여 형광펜 자리를 안 민다 */
+window.__mnHead=function(head, h, box){
+  const id=qidOf(box);
+  if(h==='두문자'){
+    const q=btn(head,'quiz'); btn(head,'edit');
+    q.classList.toggle('on', QUIZ.has(id));
+    let ul=head.nextElementSibling;
+    while(ul && ul.tagName!=='UL' && !(ul.tagName==='P' && ul.querySelector(':scope > strong') && !ul.querySelector(':scope > code'))) ul=ul.nextElementSibling;
+    if(ul && ul.tagName==='UL') ul.classList.toggle('quiz', QUIZ.has(id));
+    return;
+  }
+  if(h==='답'){
+    const has=[...box.querySelectorAll('p > strong')].some(s=>(s.textContent||'').trim()==='두문자');
+    const b=head.querySelector('.mnb[data-mn="new"]');
+    if(has){ b && b.remove(); return; }
+    btn(head,'new');
+  }
+};
+
+/* ══ 해설 글에서 «두문자» 칸 찾기·짓기 ══ */
+const HEAD=l=>/^\s*\*\*[^*]+\*\*\s*$/.test(l);
+const TAGLINE=l=>/^\s*`[^`]+`(\s+`[^`]+`)+\s*$/.test(l);
+function parse(md){
+  const L=String(md||'').split('\n');
+  const i=L.findIndex(x=>/^\s*\*\*\s*두문자\s*\*\*\s*$/.test(x));
+  if(i<0) return { L, i:-1, j:-1, code:'', map:[], say:'' };
+  let j=i+1, code='', map=[], sayL=[], first=true;
+  for(; j<L.length; j++){
+    const x=L[j]; if(HEAD(x) || TAGLINE(x)) break;
+    const t=x.trim(); if(!t) continue;
+    const c=t.match(/^`([^`]+)`$/);
+    if(first && c){ code=c[1].trim(); first=false; continue; }
+    first=false;
+    const m=t.match(/^[-*]\s+(.+?)\s+—\s+(.*)$/);
+    if(m){ map.push({ h:m[1].trim(), word:m[2].trim() }); continue; }
+    if(/^`[^`]+`$/.test(t)) break;                         /* 꼬리표 한 개짜리 줄 */
+    sayL.push(t);
+  }
+  return { L, i, j, code, map, say:sayL.join(' ') };
+}
+function build(o){
+  const out=['**두문자**',''];
+  if(o.code) out.push('`'+o.code.replace(/[`\n]/g,'').trim()+'`','');
+  o.map.forEach(m=>{ if(m.word||m.h) out.push(`- ${String(m.h||'').replace(/[—\n]/g,'').trim()} — ${String(m.word||'').replace(/\n/g,' ').trim()}`); });
+  out.push('');
+  if(o.say) out.push(o.say.replace(/\n/g,' ').trim(), '');
+  return out;
+}
+/* 새로 만들 때 미리 채우기 — «항목» 칸이 있으면 그 이름들, 없으면 «답» 줄을 쪼갠다 */
+function guess(md){
+  const L=String(md||'').split('\n');
+  let words=[];
+  const it=L.findIndex(x=>/^\s*\*\*\s*항목\s*\*\*\s*$/.test(x));
+  if(it>=0){
+    for(let k=it+1;k<L.length && !HEAD(L[k]);k++){
+      const m=L[k].trim().match(/^[-*]\s+\*\*(.+?)\*\*/); if(m) words.push(m[1].trim());
+    }
+  }
+  if(!words.length){
+    const a=L.findIndex(x=>/^\s*\*\*\s*답\s*\*\*\s*$/.test(x));
+    if(a>=0){
+      const txt=[]; for(let k=a+1;k<L.length && !HEAD(L[k]);k++){ const t=L[k].trim(); if(t) txt.push(t.replace(/^>\s*/,'')); }
+      words=txt.join(' , ').replace(/\$[^$]*\$/g,' ')
+        .split(/\s*(?:,|，|、|·|\/|;|\(\d{1,2}\)|[①-⑳]|\b\d{1,2}[.)])\s*/).map(x=>x.trim()).filter(x=>x.length>=1 && x.length<=30);
+    }
+  }
+  const first=w=>{ const m=String(w).replace(/^[\s\d.)(①-⑳-]+/,'').match(/[가-힣A-Za-z0-9]/); return m?m[0]:''; };
+  const map=words.slice(0,12).map(w=>({ h:first(w), word:w }));
+  return { code:map.map(m=>m.h).join(''), map, say:'' };
+}
+
+/* ══ 고치는 창 ══ */
+let POP=null, CUR=null;
+function pop(){
+  if(POP) return POP;
+  POP=document.createElement('div'); POP.className='mnpop'; POP.setAttribute('role','dialog'); POP.setAttribute('aria-label','두문자');
+  document.body.appendChild(POP);
+  POP.addEventListener('click', e=>{
+    if(e.target===POP || e.target.closest('[data-x]')) return close();
+    if(e.target.closest('[data-ok]')) return save(false);
+    if(e.target.closest('[data-del]')){ if(confirm('이 문항의 두문자 칸을 지울까요?')) save(true); }
+  });
+  POP.addEventListener('keydown', e=>{
+    e.stopPropagation();
+    if(e.key==='Escape'){ e.preventDefault(); close(); }
+    if(e.key==='Enter' && !e.isComposing && e.target.tagName==='INPUT'){ e.preventDefault(); save(false); }
+  });
+  POP.addEventListener('input', e=>{ if(e.target.id==='mnCode') syncRows(); });
+  return POP;
+}
+function chars(code){ return [...String(code||'').replace(/\s+/g,'')]; }
+function syncRows(){
+  const code=$('#mnCode',POP).value, hs=chars(code);
+  const old=$$('.row input',POP).map(i=>i.value);
+  CUR.words=hs.map((_,k)=> old[k]!=null ? old[k] : (CUR.words[k]||''));
+  $('#mnRows',POP).innerHTML=hs.map((h,k)=>`<div class="row"><span class="h">${esc(h)}</span><input data-k="${k}" value="${esc(CUR.words[k]||'')}" placeholder="«${esc(h)}» 로 외울 항목"></div>`).join('')
+    || '<div class="hint">위에 두문자 글자를 먼저 쓰세요 — 글자 수만큼 줄이 생깁니다</div>';
+}
+function open(id){
+  const r=rowOf(id); if(!r) return say('문항을 찾지 못했습니다');
+  const P=parse(r.easy_md);
+  const base = P.i>=0 ? P : guess(r.easy_md);
+  CUR={ id:String(id), had:P.i>=0, words:base.map.map(m=>m.word) };
+  pop().innerHTML=`<div class="card">
+    <div class="hd"><b>🧠 두문자</b><span style="color:#64748b;font-size:11px">${esc(`${r.year}-${r.session} ${r.no}번`)}</span><button type="button" class="x" data-x aria-label="닫기">✕</button></div>
+    <label for="mnCode">두문자 글자 <span style="font-weight:600;color:#94a3b8">— 내가 외우기 쉬운 글자로 바꿔도 됨</span></label>
+    <input id="mnCode" value="${esc(base.code || base.map.map(m=>m.h).join(''))}" autocomplete="off" spellcheck="false">
+    <label>글자마다 항목</label>
+    <div class="rows" id="mnRows"></div>
+    <label for="mnSay">외우는 문장 <span style="font-weight:600;color:#94a3b8">(없어도 됨)</span></label>
+    <input id="mnSay" value="${esc(base.say||'')}" autocomplete="off" placeholder="예) 가피접 → «가수가 피아노를 접는다»">
+    <div class="msg" id="mnMsg"></div>
+    <div class="ft">${CUR.had?'<button type="button" class="del" data-del>두문자 지우기</button>':''}
+      <button type="button" data-x>취소</button><button type="button" class="ok" data-ok>저장</button></div>
+  </div>`;
+  syncRows();
+  POP.classList.add('on');
+  setTimeout(()=>$('#mnCode',POP)?.focus(),30);
+}
+function close(){ POP && POP.classList.remove('on'); CUR=null; }
+async function save(remove){
+  if(!CUR) return;
+  const r=rowOf(CUR.id); if(!r) return close();
+  const msg=$('#mnMsg',POP);
+  const code=$('#mnCode',POP).value.replace(/\s+/g,'').trim();
+  const hs=chars(code);
+  const map=hs.map((h,k)=>({ h, word:($(`.row input[data-k="${k}"]`,POP)?.value||'').trim() }));
+  const sayT=$('#mnSay',POP).value.trim();
+  if(!remove){
+    if(!hs.length){ msg.textContent='두문자 글자를 한 자 이상 쓰세요'; return; }
+    if(map.some(m=>!m.word)){ msg.textContent='비어 있는 항목이 있습니다 — 글자마다 항목을 채우세요'; return; }
+  }
+  const P=parse(r.easy_md), L=P.L.slice();
+  const block = remove ? [] : build({ code, map, say:sayT });
+  if(P.i>=0) L.splice(P.i, P.j-P.i, ...block);
+  else if(!remove){
+    /* 답 칸 바로 다음 소제목 앞에 — 없으면 꼬리표 줄 앞, 그것도 없으면 맨 끝 */
+    const a=L.findIndex(x=>/^\s*\*\*\s*답\s*\*\*\s*$/.test(x));
+    let at=-1;
+    if(a>=0) for(let k=a+1;k<L.length;k++){ if(HEAD(L[k])||TAGLINE(L[k])){ at=k; break; } }
+    if(at<0){ const t=L.findIndex(TAGLINE); at=t>=0?t:L.length; }
+    L.splice(at, 0, ...block);
+  }
+  const md=L.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+  const c=client();
+  if(!c){ msg.textContent='Supabase 에 닿지 못했습니다'; return; }
+  const okb=$('[data-ok]',POP); if(okb) okb.disabled=true;
+  try{
+    const up=await c.from('practicals').update({ easy_md:md }).eq('id', r.id);
+    if(up.error) throw new Error(up.error.message);
+    r.easy_md=md;
+    try{ cacheSaveRows() }catch(e){}
+    close();
+    say(remove ? '두문자를 지웠습니다' : `🧠 두문자 «${code}» 저장했습니다`);
+    try{ if(typeof ovDraw==='function' && $('#ovl')?.classList.contains('on')) ovDraw(); }catch(e){}
+    try{ (window.__pracRedraw||window.drawList)?.() }catch(e){}
+  }catch(e){
+    msg.textContent='저장 실패 — '+(e.message||e);
+    if(okb) okb.disabled=false;
+  }
+}
+
+document.addEventListener('click', e=>{
+  const b=e.target.closest && e.target.closest('.mnb');
+  if(b){
+    e.preventDefault(); e.stopPropagation();
+    const id=qidOf(b); if(!id) return;
+    if(b.dataset.mn==='quiz'){
+      QUIZ.has(id) ? QUIZ.delete(id) : QUIZ.add(id);
+      const on=QUIZ.has(id); b.classList.toggle('on', on);
+      let ul=b.closest('p')?.nextElementSibling;
+      while(ul && ul.tagName!=='UL') ul=ul.nextElementSibling;
+      if(ul){ ul.classList.toggle('quiz', on); $$(':scope > li.show', ul).forEach(li=>li.classList.remove('show')); }
+      return;
+    }
+    return open(id);
+  }
+  const li=e.target.closest && e.target.closest('ul.mnm.quiz > li');
+  if(li){ e.preventDefault(); e.stopPropagation(); li.classList.toggle('show'); }
+}, true);
+window.__mnOpen=open;
 })();
 </script>
 

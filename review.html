@@ -1463,7 +1463,9 @@ function solToMd(sol){
       const u = x.unit ? ` · 단위 ${inlineTex(x.unit)}` : "";
       const v = x.val  ? ` · 이 문제: ${inlineTex(x.val)}` : "";
       const sy = HAN.test(String(x.sym||"")) ? String(x.sym||"") : `$${tex(x.sym)||""}$`;
-      L.push(`- ${sy} — ${x.mean || ""}${u}${v}`);
+      /* ★ v277 — 읽는 발음 «브이 에스» 를 기호 옆에 */
+      const pr = x.say ? ` «${String(x.say).replace(/[«»\n]/g, "").trim()}»` : "";
+      L.push(`- ${sy}${pr} — ${x.mean || ""}${u}${v}`);
     });
     L.push("");
   }
@@ -1484,6 +1486,8 @@ function solToMd(sol){
       /* 소문항 번호로 시작하면 «1. (1)» 처럼 번호가 겹치지 않게 둔다 */
       const sy0 = line(s.say);
       L.push(/^\s*(\(\d+\)|[①-⑳]|\d+\s*[).])/.test(sy0) ? `${sy0}` : `${i+1}. ${sy0}`, "");
+      /* ★ v277 — 소문항 답은 그 단계 바로 밑에 먼저 (단답·서술은 «답 → 왜» 순서) */
+      if(s.ans) L.push(`> ${line(s.ans).replace(/\n+/g, " ")}`, "");
       /* 새 판 — 등호로 이은 한 줄(여럿이면 줄마다) */
       /* ★ v260 — 한 단계는 다섯 줄. 순서를 화면에서 못 박는다.
          ①부호식 ②해설식 ③숫자대입식 ④읽기식 ⑤왜 */
@@ -1504,23 +1508,60 @@ function solToMd(sol){
   /* 답에 이미 단위가 붙어 온 경우 또 붙이지 않는다 (70[mm^2]mm^2 처럼 되던 것) */
   const ansT = line(sol.answer).trim();
   const unitT = String(sol.unit || "").trim();
-  const ansLines = ansT.split(/\n+|(?=\s\(\d+\)\s)/).map(x => x.trim()).filter(Boolean);
+  /* ★ v277 — «(2)» 앞에서 줄을 나눈다 (띄어쓰기가 없어도) */
+  const ansLines = ansT.split(/\n+|(?=\(\d{1,2}\))/).map(x => x.trim()).filter(Boolean);
   const many = ansLines.length > 1;                 /* 소문항이 여럿인 답 */
-  const dup = unitT && (ansT.includes(unitT) || ansT.includes(unitT.replace(/[\[\]]/g, "")));
-  L.push("**답**", "");
-  if(many) ansLines.forEach(x => L.push(`> ${x}`, ""));
-  else L.push(`> ${ansT}${unitT && !dup ? " " + unitT : ""}`, "");
+  const dup = unitT && (/[,，·]/.test(unitT) || ansT.includes(unitT) || ansT.includes(unitT.replace(/[\[\]]/g, "")));
+  const stepAns = arr(sol.steps).some(s => s && typeof s === "object" && String(s.ans || "").trim());
+  /* ★ v276 — 나열형 «항목» · 서술형 «채점 포인트» */
+  if(arr(sol.items).length){
+    L.push("**항목**", "");
+    arr(sol.items).forEach(it => {
+      if(typeof it === "string") return void L.push(`- ${line(it)}`);
+      const w = line(it.word || it.name || it.item || "");
+      const m = line(it.mean || it.desc || "");
+      L.push(`- **${w}**${m ? " — " + m : ""}`);
+      if(it.why) L.push(`- 왜: ${line(it.why)}`);
+    });
+    L.push("");
+  }
+  if(arr(sol.keys).length){
+    L.push("**채점 포인트**", "");
+    arr(sol.keys).forEach(k => L.push(`- ${line(k)}`));
+    L.push("");
+  }
+  /* ★ v277 — 소문항 답을 단계마다 적었으면 맨 아래 «답» 몰아 쓰기는 뺀다 */
+  if(!stepAns && ansT){
+    L.push("**답**", "");
+    if(many) ansLines.forEach(x => L.push(`> ${x}`, ""));
+    else L.push(`> ${ansT}${unitT && !dup ? " " + unitT : ""}`, "");
+  }
   if(sol.why_answer) L.push("**왜 이 답인가**", "", line(sol.why_answer), "");
   if(sol.check)      L.push("**검산**", "", line(sol.check), "");
   if(sol.memo)       L.push("**외우기**", "", line(sol.memo), "");
+  /* ★ v276 — 두문자 : 첫 줄 `글자` · 줄마다 «글자 — 항목» (화면에서 고쳐 쓸 수 있음) */
+  const MN = sol.mnemo;
+  if(MN && typeof MN === "object" && (MN.code || arr(MN.map).length)){
+    L.push("**두문자**", "");
+    if(MN.code) L.push("`" + String(MN.code).replace(/[`\n]/g, "").trim() + "`", "");
+    arr(MN.map).forEach(m => {
+      if(typeof m === "string") return void L.push(`- ${line(m)}`);
+      L.push(`- ${String(m.h || m.head || "").replace(/[—\n]/g, "").trim()} — ${line(m.word || m.w || "")}`);
+    });
+    L.push("");
+    if(MN.say) L.push(line(MN.say), "");
+  }
   if(sol.trap)       L.push("**흔한 실수**", "", line(sol.trap), "");
   if(arr(sol.also).length){
     L.push("**같이 알아 두기**", "");
     arr(sol.also).forEach(x => L.push(`- ${x}`));
     L.push("");
   }
-  if(arr(sol.tags).length) L.push("", `\`${arr(sol.tags).join("` `")}\``);
-  return L.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const TG = [sol.kind ? String(sol.kind).replace(/형$/, "") + "형" : null, ...arr(sol.tags)].filter(Boolean);
+  if(TG.length) L.push("", `\`${TG.join("` `")}\``);
+  /* ★ v277 — 형광펜 표시 ==핵심== → 〖핵심〗. «==» 는 글자→수식 바꾸기가 수식 기호로 삼켜 버려서 */
+  return L.map(x => /^\s*\$\$/.test(x) ? x : x.replace(/==([^=\n]{1,120}?)==/g, "〖$1〗"))
+          .join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 /* ═══════════════════════════════════════════════════
