@@ -21039,7 +21039,7 @@ function solToMd(sol){
 try{ window.__pxSolToMd=solToMd; }catch(e){}
 /* ══ 한 문항 해설 뽑기 ══ */
 let OLD_SAID=false;
-const TIMEOUT=180000;
+const TIMEOUT=300000;   /* ★ v281 — 워커가 소문항 빠짐·잘림을 보고 한 번 더 받으면 3분을 넘길 수 있다 */
 async function askSol(r, which){
   const ac=new AbortController();
   const t=setTimeout(()=>ac.abort(), TIMEOUT);
@@ -21056,7 +21056,7 @@ async function askSol(r, which){
       })
     });
   }catch(e){
-    if(e.name==='AbortError') throw new Error('3분을 넘겨 끊었습니다 — 워커가 답을 안 줍니다');
+    if(e.name==='AbortError') throw new Error('5분을 넘겨 끊었습니다 — 워커가 답을 안 줍니다');
     throw new Error('워커에 닿지 못했습니다 — '+(e.message||e));
   }finally{ clearTimeout(t); }
   const raw=await res.text();
@@ -21069,6 +21069,13 @@ async function askSol(r, which){
   }
   const md=solToMd(d.sol||{});
   if(!md||md.length<20) throw new Error('해설이 비어서 왔습니다');
+  /* ★ v281 — 잘렸거나 소문항이 빠졌을 수 있으면 알려 준다 */
+  try{
+    const n=Math.max(Number(d.sol&&d.sol.sub_count)||0, 0);
+    const got=new Set((md.match(/^\s*\((\d{1,2})\)/gm)||[]).map(x=>x.replace(/\D/g,''))).size;
+    if(d.stop==='max_tokens') toast('⚠ 해설이 길이 한도에서 잘렸을 수 있습니다 — 한 번 더 뽑아 보세요');
+    else if(n>1 && got<n) toast(`⚠ 소문항 ${n}개 중 ${got}개만 풀이가 왔습니다 — 한 번 더 뽑아 보세요`);
+  }catch(e){}
   return { md, model:d.model||null, depth:d.depth||null };
 }
 

@@ -1247,7 +1247,7 @@ const WORKER = (CFG.CLAUDE_WORKER_URL || CFG.WORKER_URL
                 || "https://gichul-ai.amirbatikunari.workers.dev").replace(/\/$/,"");
 const APPKEY = CFG.CLAUDE_APP_KEY || "";
 let WORKER_OLD_SAID = false;
-const SOL_TIMEOUT = 180000;          /* 3분. 이보다 길면 끊고 «왜 멈췄는지» 를 말함 */
+const SOL_TIMEOUT = 300000;          /* ★ v281 5분. 이보다 길면 끊고 «왜 멈췄는지» 를 말함 */
 
 /* 워커에 한 문항을 물어봄. 성공하면 { md, model, usage }.
    ★ v252 — 예전에는 여기서 답이 안 오면 화면이 «뽑는 중…» 인 채로 영영 멈췄다.

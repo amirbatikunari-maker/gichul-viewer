@@ -502,8 +502,9 @@ const TOOL = {
   description: "전기기사 실기 한 문항의 해설을 정해진 칸에 나눠 적는다. 전기를 배운 적 없는 사람이 혼자 읽고 이해할 만큼 자세히.",
   input_schema: {
     type: "object",
-    required: ["kind", "gist", "steps", "answer"],
+    required: ["kind", "sub_count", "gist", "steps", "answer"],
     properties: {
+      sub_count:  { type: "integer", description: "문제에 있는 소문항 수. (1)(2) 두 개면 2, 소문항이 없으면 1. steps 를 쓰기 «전에» 문제를 보고 센다" },
       kind:       { type: "string", enum: ["계산", "나열", "단답", "서술", "회로·시퀀스", "표·선정"],
                     description: "문제 유형. 계산=숫자로 값을 구함 · 나열=~을 N가지 쓰시오 · 단답=명칭·약호·용어 · 서술=이유·방법을 글로 · 회로·시퀀스=회로·접점·동작 · 표·선정=계산 뒤 표·규격에서 고름" },
       gist:       { type: "string", description: "한 줄 요지 — 무엇을 묻는 문제인가" },
@@ -737,7 +738,8 @@ async function explain(req, env, H){
      답안지가 이미 주어져 있어 생각이 없어도 결과 차이가 거의 없다. */
   /* ★ v252 — 상세도(depth). 화면에서 고른 값이 그대로 온다.
      4000 토큰으로는 배경·기호·단계별 이유까지 담으면 중간에 잘렸다. */
-  const DEPTH = { low: 3000, mid: 6000, full: 12000 };
+  /* ★ v281 — full 12000 → 20000. 표가 큰 문제를 자세히 쓰면 12000 에서 잘려 뒤 소문항이 사라졌다 */
+  const DEPTH = { low: 3000, mid: 6000, full: 20000 };
   const depth = DEPTH[b.depth] ? b.depth : (b.depth ? "full" : "full");
   const maxTok = b.max_tokens || DEPTH[depth];
   const ask = depth === "low"
@@ -751,9 +753,9 @@ async function explain(req, env, H){
   if (b.kind && KINDS.includes(String(b.kind)))
     parts.push({ type: "text", text: `── 정해 준 유형 ──\n이 문항은 «${b.kind}» 유형이다. kind 를 «${b.kind}» 로 하고 그 유형의 칸을 채운다.` });
 
-  const ask1 = async extra => {
+  const ask1 = async (extra, mt) => {
     const res = await call(env, {
-      model, max_tokens: maxTok, system: SYS_SOL,
+      model, max_tokens: mt || maxTok, system: SYS_SOL,
       tools: [TOOL], tool_choice: { type: "tool", name: "write_solution" },
       messages: [{ role: "user", content: extra ? parts.concat([{ type: "text", text: extra }]) : parts }]
     });
@@ -766,17 +768,24 @@ async function explain(req, env, H){
 
   /* ★ v280 — 칸이 깨져 왔거나(steps 를 JSON 글자로) 소문항 수보다 단계가 모자라면 한 번만 다시 받는다 */
   let retried = false;
-  const need = subCount(sol.answer);
-  const short = s => !Array.isArray(s.steps) || !s.steps.length
-    || s.steps.some(x => !x || typeof x !== "object")
-    || (need > 1 && s.steps.length < need);
-  if (short(sol)){
+  /* 소문항 수 — 모델이 센 sub_count 와 답에 적힌 (n) 중 큰 쪽 */
+  const needOf = s => Math.max(Number(s.sub_count) || 0, subCount(s.answer));
+  /* 단계 이름의 (n) 으로 어느 소문항을 다뤘는지 센다 */
+  const covered = s => new Set((Array.isArray(s.steps) ? s.steps : [])
+    .map(x => String((x && x.say) || "").match(/^\s*\(\s*(\d{1,2})\s*\)/)).filter(Boolean).map(m => m[1])).size;
+  const bad = s => {
+    if (!Array.isArray(s.steps) || !s.steps.length || s.steps.some(x => !x || typeof x !== "object")) return "steps 가 빠졌거나 글자(JSON 문자열)로 왔다. steps · symbols · items 는 반드시 «객체 배열» 로 넣는다.";
+    const n = needOf(s);
+    if (n > 1 && covered(s) < n) return `이 문제는 소문항이 ${n}개인데 풀이 단계가 ${covered(s)}개 소문항만 다뤘다. (1)부터 (${n})까지 소문항마다 단계를 빠짐없이 만든다. answer 에도 (1)~(${n}) 을 모두 적는다.`;
+    return "";
+  };
+  const cut = out.stop_reason === "max_tokens";
+  const why1 = cut ? "직전 답이 길이 한도에서 잘렸다. 소문항을 빠뜨리지 말고, background · check · trap 은 짧게 줄여서 끝까지 적는다." : bad(sol);
+  if (why1){
     retried = true;
-    const again = await ask1(`── 주의 ──\n직전 답에서 steps 가 빠졌거나 글자(JSON 문자열)로 왔다. steps · symbols · items 는 반드시 «객체 배열» 로 넣는다.` +
-      (need > 1 ? ` 이 문제는 소문항이 ${need}개이므로 steps 도 ${need}개 이상이어야 한다.` : ""));
-    if (again.sol && (!short(again.sol) || (Array.isArray(again.sol.steps) && again.sol.steps.length > (Array.isArray(sol.steps) ? sol.steps.length : 0)))){
-      sol = again.sol; out = again.out;
-    }
+    const again = await ask1("── 주의 ──\n" + why1, cut ? 32000 : undefined);
+    const score = s => s ? (bad(s) ? 0 : 2) + covered(s) / 100 + (Array.isArray(s.steps) ? s.steps.length / 1000 : 0) : -1;
+    if (again.sol && score(again.sol) >= score(sol)){ sol = again.sol; out = again.out; }
   }
 
   return json({ ok: true, sol, model, depth, retried,
@@ -916,7 +925,7 @@ export default {
         판정: 막힌곳.includes(colo)
           ? `${colo} 기지는 Anthropic 이 막는 지역입니다 — 403 의 원인입니다.`
           : `${colo} 기지는 보통 허용됩니다.`,
-        빌드: "v280"
+        빌드: "v281"
       }, 200, H);
     }
 
@@ -972,7 +981,7 @@ export default {
         keyHead: String(env.ANTHROPIC_API_KEY).slice(0,14) + "…",
         keyLen: String(env.ANTHROPIC_API_KEY).length,
         keyTrimmed: String(env.ANTHROPIC_API_KEY) === String(env.ANTHROPIC_API_KEY).trim(),
-        빌드: "v280",
+        빌드: "v281",
         기지: (req.cf && req.cf.colo) || "?",
         upstream: parsed || body.slice(0,600),
         vision
@@ -980,7 +989,7 @@ export default {
     }
 
     if (path === "/health" || path === "/")
-      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v280" }, 200, H);
+      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v281" }, 200, H);
 
     if (env.APP_KEY && req.headers.get("x-app-key") !== env.APP_KEY)
       return json({ error: "x-app-key 가 맞지 않습니다", detail: "x-app-key 가 맞지 않습니다" }, 401, H);
