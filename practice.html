@@ -22368,6 +22368,18 @@ setTimeout(()=>{ paint(); mountEv(); paintEv(); }, 900);
 .qtpop .it.new{color:#6b2fb3;font-weight:800;background:#faf7fe}
 .qtpop .it.new .ck{border-style:dashed;color:#6b2fb3}
 .qtpop .qtempty{padding:9px;color:var(--muted,#64748b);font-size:11.5px}
+.qtpop .lvseg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:0 0 8px}
+.qtpop .lvseg .lv{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;padding:5px 8px;
+  border:1px solid var(--line,#e2e8f0);border-radius:8px;background:var(--surface,#fff);cursor:pointer;text-align:left;color:var(--muted,#64748b)}
+.qtpop .lvseg .lv b{font:800 11px/1.2 var(--font-d,system-ui)}
+.qtpop .lvseg .lv small{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font:600 9.5px/1.2 var(--font-d,system-ui);color:var(--muted,#94a3b8)}
+.qtpop .lvseg .lv.has small{color:#6b2fb3}
+.qtpop .lvseg .lv:hover{border-color:#a97fdd}
+.qtpop .lvseg .lv.on{background:#6b2fb3;border-color:#6b2fb3;color:#fff}
+.qtpop .lvseg .lv.on small{color:#e9ddfb}
+.qtpop .it.sib .nm::after{content:'같은 윗단계';margin-left:6px;padding:1px 4px;border-radius:4px;background:#f6f1fd;
+  color:#6b2fb3;font:700 9px/1.2 var(--font-d,system-ui)}
 .qtpop .row{display:flex;gap:6px;align-items:center}
 .qtpop .go{height:32px;padding:0 13px;border:0;border-radius:8px;background:#6b2fb3;color:#fff;cursor:pointer;
   font:800 11.5px/1 var(--font-d,system-ui);flex:none}
@@ -22436,20 +22448,30 @@ const full=r=>{
 };
 
 /* ══ ① 유형 자료 — 줄(row) 의 qtype 이 곧 원본 ══ */
-const LK='prac:qtype:v1';                      /* SQL 전 · 이 기기에만 { id: 이름('' = 뺌) } */
-const readLocal=()=>{ try{ return JSON.parse(localStorage.getItem(LK)||'{}')||{} }catch(e){ return {} } };
-const writeLocal=o=>{ try{ Object.keys(o).length?localStorage.setItem(LK,JSON.stringify(o)):localStorage.removeItem(LK) }catch(e){} };
-let COL=null, SYNCED=null, LOCALSID=null, BUSY=false, TOLD=false, LASTV=0;
+/* ★ v273 — 대문항(qtype) · 중문항(qtype2) · 소문항(qtype3) 세 단계.
+   중복 묶기·출제 이력·랜덤 «같은 유형은 하나만» 은 예전처럼 «대문항» 만 본다. */
+const FLD=['qtype','qtype2','qtype3'], LVN=['대문항','중문항','소문항'];
+const LKS=['prac:qtype:v1','prac:qtype2:v1','prac:qtype3:v1'];   /* SQL 전 · 이 기기에만 { id: 이름('' = 뺌) } */
+const LVKEY='prac:qtlv';
+let LV=0; try{ LV=Math.min(2,Math.max(0,+localStorage.getItem(LVKEY)||0)) }catch(e){}
+const readLocal=(lv=0)=>{ try{ return JSON.parse(localStorage.getItem(LKS[lv])||'{}')||{} }catch(e){ return {} } };
+const writeLocal=(lv,o)=>{ try{ Object.keys(o).length?localStorage.setItem(LKS[lv],JSON.stringify(o)):localStorage.removeItem(LKS[lv]) }catch(e){} };
+const COLS=[null,null,null];
+let SYNCED=null, LOCALSID=null, BUSY=false, TOLD=false, LASTV=0;
 
-const tOf=id=>clean(rowOf(id)?.qtype);
+const tv=(r,lv=LV)=>r?clean(r[FLD[lv]]):'';
+const tOf=id=>tv(rowOf(id),0);
 window.__qtypeOf=tOf;
-window.__qtypeGroups=()=>{
+window.__qtypePath=id=>{ const r=rowOf(id); return [0,1,2].map(l=>tv(r,l)); };
+function groupsOf(lv=LV){
   const m=new Map();
-  rows().forEach(r=>{ const t=clean(r.qtype); if(t) (m.get(t)||m.set(t,[]).get(t)).push(String(r.id)); });
+  rows().forEach(r=>{ const t=tv(r,lv); if(t) (m.get(t)||m.set(t,[]).get(t)).push(String(r.id)); });
   return m;
-};
-function typeList(){
-  return [...window.__qtypeGroups().entries()].map(([name,ids])=>({ name, n:ids.length, ids }))
+}
+window.__qtypeGroups=()=>groupsOf(0);
+window.__qtypeGroupsLv=lv=>groupsOf(Math.min(2,Math.max(0,+lv||0)));
+function typeList(lv=LV){
+  return [...groupsOf(lv).entries()].map(([name,ids])=>({ name, n:ids.length, ids }))
     .sort((a,b)=>b.n-a.n||a.name.localeCompare(b.name,'ko'));
 }
 
@@ -22463,12 +22485,16 @@ function changed(){
     paintBtn(); decorate();
   },80);
 }
-function applyLocal(){
-  const L=readLocal(); let ch=false;
-  Object.keys(L).forEach(id=>{
-    const r=rowOf(id); if(!r) return;
-    const v=clean(L[id])||null;
-    if((clean(r.qtype)||null)!==v){ r.qtype=v; ch=true; }
+function applyLocal(only){
+  let ch=false;
+  [0,1,2].forEach(lv=>{
+    if(only!=null && only!==lv) return;
+    const L=readLocal(lv), f=FLD[lv];
+    Object.keys(L).forEach(id=>{
+      const r=rowOf(id); if(!r) return;
+      const v=clean(L[id])||null;
+      if((clean(r[f])||null)!==v){ r[f]=v; ch=true; }
+    });
   });
   if(ch) keepCache();
   return ch;
@@ -22478,61 +22504,69 @@ async function sync(force){
   if(!s || !c || BUSY) return;
   if(!force && SYNCED===s) return;
   BUSY=true;
+  let done=0, any=false;
   try{
-    /* SQL 전에 이 기기에 적어 둔 것 → 서버로 (이름마다 한 번) */
-    const L=readLocal(), ids=Object.keys(L);
-    if(COL!==false && ids.length){
-      const by=new Map();
-      ids.forEach(id=>{ const t=clean(L[id]); (by.get(t)||by.set(t,[]).get(t)).push(id); });
-      let ok=true;
-      for(const [t,g] of by){
-        const up=await c.from('practicals').update({ qtype:t||null }).in('id', g);
-        if(up.error){ ok=false; if(NOCOL(up.error.message)) COL=false; break; }
-      }
-      if(ok){ COL=true; writeLocal({}); say(`🏷 이 기기에만 적어 두었던 유형 ${ids.length}개를 서버로 옮겼습니다`); }
-    }
-    if(COL===false){ SYNCED=s; if(applyLocal()) changed(); return; }
+    for(const lv of [0,1,2]){
+      const f=FLD[lv];
+      try{
+        /* SQL 전에 이 기기에 적어 둔 것 → 서버로 (이름마다 한 번) */
+        const L=readLocal(lv), ids=Object.keys(L);
+        if(COLS[lv]!==false && ids.length){
+          const by=new Map();
+          ids.forEach(id=>{ const t=clean(L[id]); (by.get(t)||by.set(t,[]).get(t)).push(id); });
+          let ok=true;
+          for(const [t,g] of by){
+            const up=await c.from('practicals').update({ [f]:t||null }).in('id', g);
+            if(up.error){ ok=false; if(NOCOL(up.error.message)) COLS[lv]=false; break; }
+          }
+          if(ok){ COLS[lv]=true; writeLocal(lv,{}); say(`🏷 이 기기에만 적어 두었던 ${LVN[lv]} ${ids.length}개를 서버로 옮겼습니다`); }
+        }
+        if(COLS[lv]===false){ if(applyLocal(lv)) any=true; done++; continue; }
 
-    const q=await c.from('practicals').select('id,qtype').eq('subject_id', s).not('qtype','is',null);
-    if(q.error){
-      if(NOCOL(q.error.message)){ COL=false; SYNCED=s; if(applyLocal()) changed(); }
-      return;                                       /* 오프라인 등 — 다음에 다시 */
+        const q=await c.from('practicals').select('id,'+f).eq('subject_id', s).not(f,'is',null);
+        if(q.error){
+          if(NOCOL(q.error.message)){ COLS[lv]=false; if(applyLocal(lv)) any=true; done++; }
+          continue;                                   /* 오프라인 등 — 다음에 다시 */
+        }
+        COLS[lv]=true;
+        const srv=new Map((q.data||[]).map(d=>[String(d.id), clean(d[f])||null]));
+        rows().forEach(r=>{
+          const v=srv.get(String(r.id))||null;
+          if((clean(r[f])||null)!==v){ r[f]=v; any=true; }
+        });
+        done++;
+      }catch(e){}
     }
-    COL=true;
-    const srv=new Map((q.data||[]).map(d=>[String(d.id), clean(d.qtype)||null]));
-    let ch=false;
-    rows().forEach(r=>{
-      const v=srv.get(String(r.id))||null;
-      if((clean(r.qtype)||null)!==v){ r.qtype=v; ch=true; }
-    });
-    if(ch){ keepCache(); changed(); }
-    SYNCED=s;
+    if(any){ keepCache(); changed(); }
+    if(done===3) SYNCED=s;
   }catch(e){}
   finally{ BUSY=false; }
 }
 /* 여러 문항을 한 번에 — 요청은 한 번(.in) */
-async function setType(ids, name){
+async function setType(ids, name, lv){
+  lv=(lv==null)?LV:Math.min(2,Math.max(0,+lv||0));
+  const f=FLD[lv];
   ids=[...new Set((ids||[]).map(String))].filter(id=>rowOf(id));
   if(!ids.length) return false;
   const t=clean(name)||null;
-  const prev=ids.map(id=>[id, rowOf(id).qtype==null?null:rowOf(id).qtype]);
-  ids.forEach(id=>{ rowOf(id).qtype=t; });
+  const prev=ids.map(id=>[id, rowOf(id)[f]==null?null:rowOf(id)[f]]);
+  ids.forEach(id=>{ rowOf(id)[f]=t; });
   changed();
   const c=client();
-  if(COL!==false && c){
+  if(COLS[lv]!==false && c){
     let err=null;
-    try{ const up=await c.from('practicals').update({ qtype:t }).in('id', ids); err=up.error||null; }
+    try{ const up=await c.from('practicals').update({ [f]:t }).in('id', ids); err=up.error||null; }
     catch(e){ err=e; }
-    if(!err){ COL=true; keepCache(); return true; }
+    if(!err){ COLS[lv]=true; keepCache(); return true; }
     if(!NOCOL(err.message||err)){
-      prev.forEach(([id,v])=>{ const r=rowOf(id); if(r) r.qtype=v; });
+      prev.forEach(([id,v])=>{ const r=rowOf(id); if(r) r[f]=v; });
       changed();
-      say('유형을 저장하지 못했습니다 — '+(err.message||err));
+      say(`${LVN[lv]}을 저장하지 못했습니다 — `+(err.message||err));
       return false;
     }
-    COL=false;
+    COLS[lv]=false;
   }
-  const L=readLocal(); ids.forEach(id=>{ L[id]=t||''; }); writeLocal(L); keepCache();
+  const L=readLocal(lv); ids.forEach(id=>{ L[id]=t||''; }); writeLocal(lv,L); keepCache();
   if(!TOLD){ TOLD=true; say('🏷 이 기기에만 저장했습니다 — supabase-qtype.sql 을 돌리면 PC·폰이 같이 봅니다'); }
   return true;
 }
@@ -22543,11 +22577,11 @@ window.__qtypeSync=()=>sync(true);
 function nearOf(r, cur){
   let rel=[]; try{ rel=(window.__pracRel&&window.__pracRel(r.id))||[] }catch(e){}
   return rel.map(x=>({ o:rowOf(x.id), sim:x.sim }))
-    .filter(x=>x.o && String(x.o.id)!==String(r.id) && (!cur || clean(x.o.qtype)!==cur))
+    .filter(x=>x.o && String(x.o.id)!==String(r.id) && (!cur || tv(x.o)!==cur))
     .slice(0,5);
 }
 function suggest(r){
-  const cur=clean(r.qtype), out=[], seen=new Set();
+  const cur=tv(r), out=[], seen=new Set();
   const have=new Set(typeList().map(t=>t.name));
   const add=(name,why)=>{
     name=clean(name); if(!name || name===cur || seen.has(name) || name.length<2) return;
@@ -22555,7 +22589,7 @@ function suggest(r){
   };
   /* ① 닮은 문항이 이미 가진 유형 — 가장 믿을 만하다 */
   let rel=[]; try{ rel=(window.__pracRel&&window.__pracRel(r.id))||[] }catch(e){}
-  rel.forEach(x=>{ const o=rowOf(x.id), t=o&&clean(o.qtype); if(t) add(t, `${short(o)}번과 ${Math.round(x.sim*100)}% 닮음`); });
+  rel.forEach(x=>{ const o=rowOf(x.id), t=o&&tv(o); if(t) add(t, `${short(o)}번과 ${Math.round(x.sim*100)}% 닮음`); });
   /* ② 문제 글에 유형 이름의 낱말이 거의 다 들어 있는 유형 */
   const text=String(r.q_md||r.q_text||'').replace(/\s+/g,'');
   if(text) typeList().forEach(T=>{
@@ -22597,8 +22631,9 @@ function askedOf(r){
 /* ── AI 추천 — 누를 때만 · 글만 · 싼 모델 · 기기에 남겨 다시 안 부름 ── */
 const AIK='prac:qtai:v1';
 const aiAll=()=>{ try{ return JSON.parse(localStorage.getItem(AIK)||'{}')||{} }catch(e){ return {} } };
-const aiGet=id=>aiAll()[String(id)]||null;
-const aiPut=(id,v)=>{ try{ const o=aiAll(); o[String(id)]=v; const ks=Object.keys(o);
+const aiK=id=>String(id)+(LV?':'+LV:'');               /* 대문항은 예전 자리 그대로 */
+const aiGet=id=>{ const v=aiAll()[aiK(id)]; return Array.isArray(v)?v:null; };
+const aiPut=(id,v)=>{ try{ const o=aiAll(); o[aiK(id)]=v; const ks=Object.keys(o);
   if(ks.length>500) ks.slice(0,ks.length-500).forEach(k=>delete o[k]); localStorage.setItem(AIK,JSON.stringify(o)) }catch(e){} };
 let AIBUSY=false;
 const plain=t=>String(t||'').replace(/!\[[^\]]*\]\([^)]*\)|\[\[[^\]]*\]\]/g,' ').replace(/\s+/g,' ').trim();
@@ -22609,8 +22644,11 @@ async function aiSuggest(r){
   if(typeof window.askAI!=='function'){ POP.msg='AI 모듈이 아직 안 실렸습니다'; return render(); }
   const a=plain(r.a_md||r.a_text).slice(0,250);
   const have=typeList().map(t=>t.name).slice(0,120);
-  const prompt=`전기기사 실기 기출 문항에 «유형» 이름을 붙인다.
-유형은 같은 개념·같은 계산을 묻는 문항끼리 묶는 이름이다. 회차가 달라도 같은 문제면 같은 이름이어야 한다.
+  const up=[0,1].filter(l=>l<LV).map(l=>tv(r,l)?`${LVN[l]} «${tv(r,l)}»`:'').filter(Boolean).join(' · ');
+  const lvGuide=['가장 큰 갈래(단원·주제) 이름이다.','대문항 아래 한 단계 좁힌 갈래 이름이다.','가장 좁은 갈래 — 사실상 같은 문제끼리 묶는 이름이다.'][LV];
+  const prompt=`전기기사 실기 기출 문항에 «${LVN[LV]}» 유형 이름을 붙인다. ${lvGuide}
+유형은 같은 개념·같은 계산을 묻는 문항끼리 묶는 이름이다. 회차가 달라도 같은 문제면 같은 이름이어야 한다.${up?`
+이 문항의 윗단계: ${up} — 이것보다 좁은 이름을 붙인다.`:''}
 - 한국어 명사구 6~18자 (예: 주상변압기 탭 조정 / 역률 개선 콘덴서 용량 / 축전지 용량 산정)
 - 아래 «있는 유형» 가운데 맞는 것이 있으면 그 이름을 글자 그대로 맨 앞에 쓴다
 - 잘 맞는 순서로 3개까지
@@ -22642,7 +22680,7 @@ ${a||'(없음)'}`;
           .filter(x=>x && x.length>=2 && x.length<=30).slice(0,3);
   if(!list.length){ POP.msg='추천을 받지 못했습니다'+(err?' — '+err.slice(0,60):''); return render(); }
   aiPut(r.id, list);
-  POP.msg='AI 추천 3개 — 이 문항은 다음부터 다시 안 부릅니다';
+  POP.msg=`AI ${LVN[LV]} 추천 ${list.length}개 — 이 문항은 다음부터 다시 안 부릅니다`;
   render();
 }
 
@@ -22666,10 +22704,10 @@ function findNo(txt){
 /* ══ 하는 일 ══ */
 async function assign(name){
   const r=rowOf(POP.id), t=clean(name); if(!r || !t) return;
-  if(clean(r.qtype)===t){ POP.msg='이미 이 유형입니다'; return render(); }
+  if(tv(r)===t){ POP.msg=`이미 이 ${LVN[LV]}입니다`; return render(); }
   if(await setType([r.id], t)){
-    const n=(window.__qtypeGroups().get(t)||[]).length;
-    POP.msg = n>1 ? `«${t}» — ${n}문항이 서로 연동됐습니다` : `«${t}» 새 유형으로 넣었습니다`;
+    const n=(groupsOf(LV).get(t)||[]).length;
+    POP.msg = n>1 ? `${LVN[LV]} «${t}» — ${n}문항이 서로 연동됐습니다` : `${LVN[LV]} «${t}» 새로 넣었습니다`;
     POP.q='';
   }
   render();
@@ -22677,7 +22715,7 @@ async function assign(name){
 async function link(oid){
   const r=rowOf(POP.id), o=rowOf(oid);
   if(!r || !o || String(r.id)===String(o.id)) return;
-  const A=clean(r.qtype), B=clean(o.qtype);
+  const A=tv(r), B=tv(o);
   if(A && A===B){ POP.msg=`${full(o)}은 이미 같은 유형입니다`; return render(); }
   if(A && !B){
     if(await setType([o.id], A)) POP.msg=`${full(o)} → «${A}» 유형으로 연동했습니다`;
@@ -22689,7 +22727,7 @@ async function link(oid){
     if(!name) return;
     if(await setType([r.id, o.id], name)) POP.msg=`«${name}» — 두 문항을 연동했습니다`;
   }else{
-    const nb=(window.__qtypeGroups().get(B)||[]);
+    const nb=(groupsOf(LV).get(B)||[]);
     if(confirm(`${full(o)}은 이미 «${B}» 유형입니다 (${nb.length}문항).\n\n[확인] «${B}» ${nb.length}문항을 모두 «${A}» 유형으로 합칩니다\n[취소] 다음 물음으로`)){
       if(await setType(nb, A)) POP.msg=`«${B}» 유형을 «${A}» 유형으로 합쳤습니다`;
     }else if(confirm(`그럼 ${full(o)} 한 문항만 «${A}» 유형으로 옮길까요?`)){
@@ -22699,9 +22737,9 @@ async function link(oid){
   POP.no=''; render();
 }
 async function renameCur(){
-  const r=rowOf(POP.id), cur=clean(r&&r.qtype); if(!cur) return;
-  const nv=clean(prompt(`«${cur}» 의 새 이름`, cur)); if(!nv || nv===cur) return;
-  const G=window.__qtypeGroups();
+  const r=rowOf(POP.id), cur=tv(r); if(!cur) return;
+  const nv=clean(prompt(`${LVN[LV]} «${cur}» 의 새 이름`, cur)); if(!nv || nv===cur) return;
+  const G=groupsOf(LV);
   const merge=G.has(nv);
   if(merge && !confirm(`«${nv}» 유형이 이미 있습니다 (${G.get(nv).length}문항). 두 유형을 하나로 합칠까요?`)) return;
   if(await setType(G.get(cur)||[], nv)) POP.msg=merge?`«${cur}» 유형을 «${nv}» 유형에 합쳤습니다`:`이름을 바꿨습니다 → «${nv}»`;
@@ -22760,10 +22798,11 @@ function closePop(){
 function skeleton(){
   PEL.innerHTML=`
     <div class="hd"><b id="qtHd"></b><span>유형</span><button type="button" class="x" data-x aria-label="닫기">✕</button></div>
+    <div class="lvseg" id="qtLv" role="tablist" aria-label="유형 단계"></div>
     <div id="qtCur"></div>
     <div class="sec"><div class="lb">추천 <small>보라 = 있는 유형(누르면 바로) · 흰색 = 새 이름(누르면 칸에 채움)</small></div>
       <div class="chips" id="qtSg"></div></div>
-    <div class="sec"><div class="lb">유형 목록 <small id="qtCnt"></small></div>
+    <div class="sec"><div class="lb"><span id="qtLvNm">유형</span> 목록 <small id="qtCnt"></small></div>
       <input type="text" id="qtQ" placeholder="유형 찾기 · 새 이름 쓰고 Enter" autocomplete="off" spellcheck="false">
       <div class="list" id="qtList"></div></div>
     <div class="sec"><div class="lb">번호로 연동 <small>그 문제와 같은 유형으로 묶습니다</small></div>
@@ -22776,16 +22815,24 @@ function skeleton(){
     <div class="foot">바꿀 때만 Supabase 한 번 · 추천은 이 기기에서 셈 · AI 는 누를 때만 부르고 결과를 남깁니다</div>`;
   PEL.__for=POP.id;
 }
-const cur_=()=>{ const r=rowOf(POP.id); return r?clean(r.qtype):''; };
+const cur_=()=>tv(rowOf(POP.id));
+function paintLv(){
+  const r=rowOf(POP.id), box=PEL.querySelector('#qtLv'); if(!box) return;
+  const html=[0,1,2].map(l=>{ const t=tv(r,l);
+    return `<button type="button" class="lv${l===LV?' on':''}${t?' has':''}" data-lv="${l}" role="tab" aria-selected="${l===LV}" title="${esc(LVN[l]+(t?' — '+t:' — 없음'))}"><b>${LVN[l]}</b><small>${t?esc(t):'없음'}</small></button>`; }).join('');
+  if(box.__h!==html){ box.__h=html; box.innerHTML=html; }
+  const nm=PEL.querySelector('#qtLvNm'); if(nm) nm.textContent=LVN[LV];
+  const qi=PEL.querySelector('#qtQ'); if(qi) qi.placeholder=`${LVN[LV]} 찾기 · 새 이름 쓰고 Enter`;
+}
 function paintCur(){
   const r=rowOf(POP.id), cur=cur_(), box=PEL.querySelector('#qtCur'); if(!r||!box) return;
   PEL.querySelector('#qtHd').textContent=full(r);
-  const n=cur?(window.__qtypeGroups().get(cur)||[]).length:0;
+  const n=cur?(groupsOf(LV).get(cur)||[]).length:0;
   box.className='cur'+(cur?'':' none');
   box.innerHTML=cur
     ? `<span class="t">🏷 ${esc(cur)}</span><span class="mini" style="cursor:default">${n}문항</span>
        <button type="button" class="mini" data-ren>✎ 이름</button><button type="button" class="mini" data-unset>빼기</button>`
-    : `<span class="t">아직 유형이 없습니다 — 추천을 누르거나 목록에서 고르세요</span>`;
+    : `<span class="t">아직 ${LVN[LV]}이 없습니다 — 추천을 누르거나 목록에서 고르세요</span>`;
 }
 function paintSg(){
   const r=rowOf(POP.id), box=PEL.querySelector('#qtSg'); if(!r||!box) return;
@@ -22798,15 +22845,20 @@ function paintSg(){
 }
 function paintList(){
   const box=PEL.querySelector('#qtList'); if(!box) return;
-  const cur=cur_(), all=typeList();
+  const cur=cur_(), r=rowOf(POP.id);
+  /* 중·소문항은 «같은 윗단계» 에서 쓰인 이름을 앞으로 */
+  const par=LV&&r?tv(r,LV-1):'', sib=new Set();
+  if(par) rows().forEach(o=>{ if(tv(o,LV-1)===par){ const t=tv(o); if(t) sib.add(t); } });
+  const all=typeList().map(t=>({ ...t, sib:sib.has(t.name) }))
+    .sort((a,b)=>(b.sib-a.sib)||b.n-a.n||a.name.localeCompare(b.name,'ko'));
   const q=clean(POP.q), ql=q.toLowerCase();
   const list=q ? all.filter(t=>t.name.toLowerCase().includes(ql)) : all;
   const exact=!!q && all.some(t=>t.name===q);
-  PEL.querySelector('#qtCnt').textContent=`${all.length}개 · 체크하면 이 문제가 그 유형으로`;
+  PEL.querySelector('#qtCnt').textContent=`${all.length}개 · 체크하면 이 문제가 그 ${LVN[LV]}으로`+(par&&sib.size?` · 위쪽 ${sib.size}개는 «${par}» 에서 쓴 것`:'');
   box.innerHTML=
-      (q&&!exact?`<button type="button" class="it new" data-new="${esc(q)}"><span class="ck">＋</span><span class="nm">«${esc(q)}» 새 유형으로 넣기 <small style="color:var(--muted,#64748b);font-weight:600">Enter</small></span></button>`:'')
-    + list.map(t=>`<button type="button" class="it${t.name===cur?' on':''}" data-t="${esc(t.name)}" aria-pressed="${t.name===cur}"><span class="ck">${t.name===cur?'✓':''}</span><span class="nm">${esc(t.name)}</span><b>${t.n}</b></button>`).join('')
-    + (!list.length&&!q?'<div class="qtempty">아직 만든 유형이 없습니다. 추천을 누르거나 이름을 쓰고 Enter.</div>':'')
+      (q&&!exact?`<button type="button" class="it new" data-new="${esc(q)}"><span class="ck">＋</span><span class="nm">«${esc(q)}» 새 ${LVN[LV]}으로 넣기 <small style="color:var(--muted,#64748b);font-weight:600">Enter</small></span></button>`:'')
+    + list.map(t=>`<button type="button" class="it${t.name===cur?' on':''}${t.sib?' sib':''}" data-t="${esc(t.name)}" aria-pressed="${t.name===cur}"><span class="ck">${t.name===cur?'✓':''}</span><span class="nm">${esc(t.name)}</span><b>${t.n}</b></button>`).join('')
+    + (!list.length&&!q?'<div class="qtempty">아직 만든 ${LVN[LV]}이 없습니다. 추천을 누르거나 이름을 쓰고 Enter.</div>':'')
     + (!list.length&&q&&exact?'':'');
 }
 function paintPv(){
@@ -22814,7 +22866,7 @@ function paintPv(){
   const t=POP.no.trim(), tgt=t?findNo(POP.no):null;
   btn.disabled=!tgt;
   pv.innerHTML=!t?'':(tgt
-    ? `→ <b>${esc(full(tgt))}</b>${clean(tgt.qtype)?` · 유형 «${esc(clean(tgt.qtype))}»`:' · 유형 없음'}`
+    ? `→ <b>${esc(full(tgt))}</b>${tv(tgt)?` · ${LVN[LV]} «${esc(tv(tgt))}»`:` · ${LVN[LV]} 없음`}`
     : '이 과목에서 그 번호를 못 찾았습니다');
 }
 function paintNear(){
@@ -22822,17 +22874,17 @@ function paintNear(){
   const near=nearOf(r, cur_());
   box.className=near.length?'sec':'';
   box.innerHTML=!near.length?'':`<div class="lb">닮은 문항 <small>글이 닮은 순 · 연동을 누르면 같은 유형으로</small></div>`
-    + near.map(x=>`<div class="near"><span class="nm" data-go="${x.o.id}">${esc(full(x.o))}${clean(x.o.qtype)?` <small>· ${esc(clean(x.o.qtype))}</small>`:''}</span>
+    + near.map(x=>`<div class="near"><span class="nm" data-go="${x.o.id}">${esc(full(x.o))}${tv(x.o)?` <small>· ${esc(tv(x.o))}</small>`:''}</span>
         <span class="pc">${Math.round(x.sim*100)}%</span><button type="button" class="mini" data-near="${x.o.id}">연동</button></div>`).join('');
 }
 function paintMem(){
   const r=rowOf(POP.id), box=PEL.querySelector('#qtMem'); if(!r||!box) return;
   const cur=cur_();
-  const mem=cur ? (window.__qtypeGroups().get(cur)||[]).map(rowOf).filter(Boolean)
+  const mem=cur ? (groupsOf(LV).get(cur)||[]).map(rowOf).filter(Boolean)
                   .sort((a,b)=>(b.year-a.year)||(b.session-a.session)||(a.no-b.no)) : [];
   box.className=cur?'sec':'';
   box.innerHTML=!cur?'':`<div class="lb">«${esc(cur)}» 문항 ${mem.length} <small>눌러서 이동 · ✕ 는 이 유형에서 빼기</small></div>
-      <div class="chips">${mem.map(m=>`<span class="mem${String(m.id)===String(r.id)?' now':''}" data-go="${m.id}" title="${esc(full(m))}">${esc(short(m))}<i data-rm="${m.id}" title="이 유형에서 빼기">✕</i></span>`).join('')}</div>`;
+      <div class="chips">${mem.map(m=>`<span class="mem${String(m.id)===String(r.id)?' now':''}" data-go="${m.id}" title="${esc(full(m))}">${esc(short(m))}<i data-rm="${m.id}" title="이 ${LVN[LV]}에서 빼기">✕</i></span>`).join('')}</div>`;
 }
 function paintMsg(){ const m=PEL&&PEL.querySelector('#qtMsg'); if(m) m.textContent=POP.msg; }
 function render(){
@@ -22845,15 +22897,22 @@ function render(){
     if(qi && qi.value!==POP.q) qi.value=POP.q;
     if(ni && ni.value!==POP.no) ni.value=POP.no;
   }
-  paintCur(); paintSg(); paintList(); paintPv(); paintNear(); paintMem(); paintMsg();
+  paintLv(); paintCur(); paintSg(); paintList(); paintPv(); paintNear(); paintMem(); paintMsg();
 }
 async function onClick(e){
   const rm=e.target.closest('[data-rm]');
-  if(rm){ e.stopPropagation(); await setType([rm.dataset.rm], null); POP.msg='유형에서 뺐습니다'; return render(); }
+  if(rm){ e.stopPropagation(); await setType([rm.dataset.rm], null); POP.msg=`${LVN[LV]}에서 뺐습니다`; return render(); }
   const t=e.target.closest('button,[data-go]'); if(!t) return;
   const r=rowOf(POP.id); if(!r) return;
   const d=t.dataset;
   if(d.x!=null) return closePop();
+  if(d.lv!=null){
+    const n=Math.min(2,Math.max(0,+d.lv||0)); if(n===LV) return;
+    LV=n; try{ localStorage.setItem(LVKEY,String(n)) }catch(x){}
+    POP.q=''; POP.no=''; POP.msg=''; render();
+    const i=PEL.querySelector('#qtQ'); if(i && matchMedia('(pointer:fine)').matches) i.focus();
+    return;
+  }
   if(d.t!=null) return assign(d.t);
   if(d.new!=null) return assign(d.new);
   if(d.sg!=null){
@@ -22863,7 +22922,7 @@ async function onClick(e){
     return;
   }
   if(d.ai!=null) return aiSuggest(r);
-  if(d.unset!=null){ if(await setType([r.id], null)) POP.msg='이 문제를 유형에서 뺐습니다'; return render(); }
+  if(d.unset!=null){ if(await setType([r.id], null)) POP.msg=`이 문제를 ${LVN[LV]}에서 뺐습니다`; return render(); }
   if(d.ren!=null) return renameCur();
   if(d.link!=null){ POP.no=PEL.querySelector('#qtNo')?.value||POP.no; const o=findNo(POP.no); if(o) return link(o.id); POP.msg='그 번호를 못 찾았습니다'; return render(); }
   if(d.near!=null) return link(d.near);
@@ -22888,12 +22947,13 @@ function mountBtn(){
 function paintBtn(){
   const b=$('#qtBtn'); if(!b) return;
   const id=nowOv(), t=id?tOf(id):'';
+  const path=id?window.__qtypePath(id):['','',''], any=path.filter(Boolean);
   const n=t?(window.__qtypeGroups().get(t)||[]).length:0;
-  const html=t ? `<span class="nm">🏷 ${esc(t)}</span>${n>1?`<span class="n">${n}</span>`:''}` : '<span class="nm">🏷 유형</span>';
+  const html=any.length ? `<span class="nm">🏷 ${esc(any.join(' › '))}</span>${n>1?`<span class="n">${n}</span>`:''}` : '<span class="nm">🏷 유형</span>';
   if(b.__h!==html){ b.__h=html; b.innerHTML=html; }
-  b.classList.toggle('has', !!t);
-  b.title = t ? `유형 «${t}» — 같은 유형 ${n}문항 (눌러서 바꾸기 · 번호로 연동)`
-              : '이 문제의 유형을 정합니다 — 같은 유형끼리 서로 연동되고, 중복 묶기에서 한 덩어리가 됩니다';
+  b.classList.toggle('has', any.length>0);
+  b.title = any.length ? path.map((x,i)=>`${LVN[i]}: ${x||'없음'}`).join('\n')+(t?`\n대문항이 같은 문항 ${n}개 (눌러서 바꾸기 · 번호로 연동)`:'')
+              : '이 문제의 유형(대·중·소문항)을 정합니다 — 대문항이 같은 문항끼리 연동되고, 중복 묶기에서 한 덩어리가 됩니다';
 }
 /* 판이 다른 문항으로 넘어가면 쪽지도 따라간다 — 연달아 유형을 붙이기 좋게 */
 let LASTOV='';
@@ -23067,8 +23127,25 @@ const MODES={
   hot:{ nm:'빈출 랜덤', sh:'빈출', tip:'금·은·동에서 — 출제확률이 높을수록 더 자주 뽑힙니다 · 같은 문제·같은 유형은 하나만', tiers:['g','s','b'], dedupe:true, weight:true },
   g:  { nm:'금 랜덤',   sh:'금',   tip:'금 등급에서 무작위 · 같은 문제·같은 유형은 하나만', tiers:['g'], dedupe:true },
   s:  { nm:'은 랜덤',   sh:'은',   tip:'은 등급에서 무작위 · 같은 문제·같은 유형은 하나만', tiers:['s'], dedupe:true },
-  all:{ nm:'전체 랜덤', sh:'전체', tip:'지금 조건에 맞는 전체에서 무작위 (중복 묶기로 접혀 있는 것만 뺌)', tiers:null, dedupe:false }
+  all:{ nm:'전체 랜덤', sh:'전체', tip:'지금 조건에 맞는 전체에서 무작위 (중복 묶기로 접혀 있는 것만 뺌)', tiers:null, dedupe:false },
+  /* ★ v273 — 오고초려·단답 자료를 빼고 전체에서 */
+  nx: { nm:'오고·단답 빼고', sh:'오고초려·단답 뺀', tip:'오고초려·단답 자료(과 대문항 «단답»)를 빼고 지금 조건 전체에서 무작위', tiers:null, dedupe:false, excl:true }
 };
+/* 오고초려 = 9301년 · 단답 = 94NN년 (가짜 연도 규칙). 이름표를 손으로 바꿔 둔 것도 이름으로 한 번 더 본다. */
+function ylab(y){
+  let h='';
+  try{ h=((window.__pracYLabel&&window.__pracYLabel())||{})[String(y)]||'' }catch(e){}
+  if(!h){ try{ h=window.__pracYAuto?window.__pracYAuto(y):'' }catch(e){} }
+  return String(h||'');
+}
+function isExcl(r){
+  if(!r) return true;
+  const y=+r.year;
+  if(y===9301 || (y>=9400 && y<9500)) return true;
+  if(y>3000 && /오고초려|단답/.test(ylab(y))) return true;
+  let t=''; try{ t=window.__qtypeOf?window.__qtypeOf(r.id):String(r.qtype||'') }catch(e){}
+  return /단답/.test(String(t||''));
+}
 let MODE=null, LAST='all';
 
 /* 위 거르기를 그대로 겹친다 — 목록이 쓰는 조건과 같아야 뽑은 수만큼 나온다 */
@@ -23098,6 +23175,7 @@ function draw(mode){
     if(pool.length && !tag(pool[0].id)) return say('등급을 세는 중입니다 — 잠시 뒤 다시 눌러 주세요');
     pool=pool.filter(r=>{ const t=tag(r.id); return t && M.tiers.includes(t.tier); });
   }
+  if(M.excl) pool=pool.filter(r=>!isExcl(r));
   pool = M.dedupe ? dedupe(pool) : shuffle(pool);
   if(!pool.length){
     const tierOn=!!document.querySelector('#tagRow button[data-tier].on');
@@ -23148,7 +23226,7 @@ function mount(){
   x.type='button'; x.className='chip rx'; x.id='randClear'; x.hidden=true; x.title='랜덤을 풀고 원래 목록으로';
   x.textContent='✕ 해제'; row.appendChild(x);
   const note=document.createElement('span'); note.className='rnote';
-  note.textContent='빈출·금·은은 같은 문제·같은 유형을 하나만 뽑습니다';
+  note.textContent='빈출·금·은은 같은 문제·같은 유형을 하나만 · «오고·단답 빼고» 는 오고초려·단답 자료를 뺀 전체에서';
   row.appendChild(note);
   row.addEventListener('click', e=>{
     const b=e.target.closest('[data-rand]'); if(b) return draw(b.dataset.rand);
@@ -23178,5 +23256,13 @@ try{
 }catch(e){}
 })();
 </script>
+<style>
+/* ★ v272 — 한눈에 «쉬운 풀이» 도 목록 화면처럼 파란 테두리 상자 안에.
+   목록은 .ez 안에 .easybox(배경·테두리)가 한 겹 더 있는데, 한눈에는 .ez 에 글만 바로 넣어서 상자가 없었다. */
+#ovl .seg[data-seg="e"] > .ez{
+  margin-top:6px;padding:8px 9px!important;border-radius:9px;
+  background:#f7f9ff;border:1px solid #dce4ff;box-sizing:border-box}
+#ovl .seg[data-seg="e"] > .ez > .miss{margin:0}
+</style>
 </body>
 </html>

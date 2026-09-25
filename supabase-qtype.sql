@@ -19,5 +19,19 @@ comment on column public.practicals.qtype is
 create index if not exists practicals_qtype_idx
   on public.practicals (subject_id, qtype) where qtype is not null;
 
+/* ★ v273 — 중문항 · 소문항 칸 (대문항 = qtype) */
+alter table public.practicals
+  add column if not exists qtype2 text;
+alter table public.practicals
+  add column if not exists qtype3 text;
+
+comment on column public.practicals.qtype2 is '중문항 유형 이름 (대문항 qtype 아래 한 단계)';
+comment on column public.practicals.qtype3 is '소문항 유형 이름 (가장 좁은 갈래)';
+
+create index if not exists practicals_qtype2_idx
+  on public.practicals (subject_id, qtype2) where qtype2 is not null;
+create index if not exists practicals_qtype3_idx
+  on public.practicals (subject_id, qtype3) where qtype3 is not null;
+
 /* API 가 새 칸을 바로 알아보게 */
 notify pgrst, 'reload schema';
