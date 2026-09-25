@@ -336,9 +336,32 @@ function toMd(sol){
     if(!t) return [];
     if(/<\w+[^>]*>/.test(t))
       return unxml(t).split("\n").map(x => x.replace(/^[-·•\s]+/, "").trim()).filter(Boolean);
+    /* ★ v280 — 칸을 «JSON 글자» 로 적어 보내는 일이 있다 (steps 가 '[{"say":…},{…}]' 인 글자).
+       수식의 백슬래시(\\dfrac)·줄바꿈 때문에 JSON.parse 가 깨지면, 예전에는 쉼표로 쪼개다가
+       단계가 통째로 날아갔다 (소문항 둘 중 하나만 남음). 손봐서 다시 읽는다. */
+    const loose = x => {
+      const fixBs = y => y.replace(/\\\\|\\(?:(?=[A-Za-z]{2,})(?!u[0-9a-fA-F]{4})|(?!["\\/bfnrtu]))/g, m => m.length === 2 ? m : "\\\\");   /* \times·\dfrac 처럼 수식 명령 앞 백슬래시를 살림 */
+      for(const y of [x, fixBs(x), fixBs(x).replace(/\r?\n/g, " "), fixBs(x).replace(/\r?\n/g, " ").replace(/,\s*([\]}])/g, "$1")]){
+        try{ return JSON.parse(y); }catch(e){}
+      }
+      return undefined;
+    };
+    if(/^\{[\s\S]*\}$/.test(t)){                     /* {…} 하나, 또는 {…},{…} 여럿 */
+      const j = loose(t); if(j && typeof j === "object") return Array.isArray(j) ? j : [j];
+      const k = loose("[" + t + "]"); if(Array.isArray(k)) return k;
+    }
     if(/^\[[\s\S]*\]$/.test(t)){
-      try{ const j = JSON.parse(t); if(Array.isArray(j)) return j; }catch(e){}
-      try{ const j = JSON.parse(t.replace(/'/g, '"')); if(Array.isArray(j)) return j; }catch(e){}
+      const j = loose(t); if(Array.isArray(j)) return j;
+      try{ const j2 = JSON.parse(t.replace(/'/g, '"')); if(Array.isArray(j2)) return j2; }catch(e){}
+      /* 객체가 들어 있던 글자면 쉼표로 쪼개지 않는다 — 쪼개면 조각난 글자가 화면에 그대로 나온다 */
+      if(/^\[\s*\{/.test(t)){
+        const objs = [];
+        t.slice(1, -1).split(/\}\s*,\s*\{/).forEach((p, i, a) => {
+          const q = (i ? "{" : "") + p + (i < a.length - 1 ? "}" : "");
+          const o = loose(q); if(o && typeof o === "object") objs.push(o);
+        });
+        if(objs.length) return objs;
+      }
       return t.slice(1, -1).split(/['"]\s*,\s*['"]/)
         .map(x => x.replace(/^['"]|['"]$/g, "").trim()).filter(Boolean);
     }

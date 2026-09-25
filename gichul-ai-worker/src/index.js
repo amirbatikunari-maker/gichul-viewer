@@ -502,10 +502,10 @@ const TOOL = {
   description: "전기기사 실기 한 문항의 해설을 정해진 칸에 나눠 적는다. 전기를 배운 적 없는 사람이 혼자 읽고 이해할 만큼 자세히.",
   input_schema: {
     type: "object",
-    required: ["kind", "gist", "answer"],
+    required: ["kind", "gist", "steps", "answer"],
     properties: {
       kind:       { type: "string", enum: ["계산", "나열", "단답", "서술", "회로·시퀀스", "표·선정"],
-                    description: "문제 유형. 계산=숫자로 값을 구함 · 나열=~을 N가지 쓰시오 · 단답=명칭·약어·용어 하나 · 서술=이유·방법을 글로 · 회로·시퀀스=회로·접점·동작 · 표·선정=표·규격에서 골라 정함" },
+                    description: "문제 유형. 계산=숫자로 값을 구함 · 나열=~을 N가지 쓰시오 · 단답=명칭·약호·용어 · 서술=이유·방법을 글로 · 회로·시퀀스=회로·접점·동작 · 표·선정=계산 뒤 표·규격에서 고름" },
       gist:       { type: "string", description: "한 줄 요지 — 무엇을 묻는 문제인가" },
       background: { type: "array", items: { type: "string" },
                     description: "풀기 전에 알아야 할 배경. 전기를 처음 보는 사람 기준으로 3~6개. 한 개가 배열 원소 하나" },
@@ -517,36 +517,36 @@ const TOOL = {
                       mean: { type: "string", description: "무슨 뜻인지 쉬운 말로" },
                       unit: { type: "string", description: "단위" },
                       val:  { type: "string", description: "이 문제에서의 값" },
-                      say:  { type: "string", description: "읽는 발음 한글. 예: V_s → '브이 에스', \\cos\\theta → '코사인 세타', %X → '퍼센트 엑스'" } } } },
-      steps:      { type: "array", description: "풀이 단계. 4~8개. 한 단계는 아래 다섯 줄로 이뤄진다",
+                      say:  { type: "string", description: "읽는 발음 한글. 예: V_s '브이 에스', \\cos\\theta '코사인 세타', \\%Z '퍼센트 제트'" } } } },
+      steps:      { type: "array", description: "풀이 단계. 문제에 (1)(2)(3) 같은 소문항이 있으면 «소문항마다 한 단계» 를 만들고 하나도 빠뜨리지 않는다. 소문항이 없으면 계산 순서대로 4~8개. 한 단계는 아래 다섯 줄로",
                     items: { type: "object", required: ["say"], properties: {
-                      say:   { type: "string", description: "이 단계의 이름. 한글 한 줄. 소문항이면 (1) 처럼 번호로 시작. 예: '(2) MOF의 기능 쓰기'" },
+                      say:   { type: "string", description: "이 단계의 이름. 소문항이면 '(2) 배선 가닥수 구하기' 처럼 소문항 번호로 시작한다" },
                       ans:   { type: "string", description: "이 단계가 소문항 하나를 끝내면 그 소문항의 답(답안지 표기 그대로). 단답·서술·나열형은 단계마다 반드시. 아니면 빈 문자열" },
-                      sym:   { type: "string", description: "①부호식 — 기호만으로 세운 식. 조건 때문에 식이 바뀌면 \\xrightarrow{X=0} 으로 화살표 위에 조건을 얹어 한 줄에 잇는다. KaTeX, $ 없이" },
-                      plain: { type: "string", description: "②해설식 — ①과 똑같은 식인데 기호 자리에 한글 이름을 넣은 것. 한글은 \\text{} 안에. KaTeX, $ 없이" },
-                      num:   { type: "string", description: "③숫자대입식 — 같은 식에 이 문제의 숫자를 넣고 계산해 결과와 단위까지. KaTeX, $ 없이" },
-                      read:  { type: "string", description: "④읽기식 — 그 식을 소리 내 읽은 한글 문장. 발음 그대로" },
-                      why:   { type: "string", description: "⑤왜 — 이 식을 왜 쓰는지 한글 3~6문장. 기호는 $R$ 처럼 달러로 감싼다" } } } },
-      answer:     { type: "string", description: "최종 답. 답안지 표기를 그대로" },
-      unit:       { type: "string", description: "단위. 없으면 빈 문자열" },
-      check:      { type: "string", description: "답이 맞는지 거꾸로 확인하는 법" },
-      trap:       { type: "string", description: "흔한 실수. 왜 틀리는지까지" },
-      memo:       { type: "string", description: "외우는 요령 한 줄. 필요 없으면 빈 문자열" },
-      why_answer: { type: "string", description: "왜 이 답인가 — 단답·서술형에서 뜻 풀이와 근거. 3~6문장" },
+                      sym:   { type: "string", description: "①부호식 — 기호만으로 세운 식. 조건으로 식이 바뀌면 \\xrightarrow{X=0} 으로 잇는다. KaTeX, $ 없이" },
+                      plain: { type: "string", description: "②해설식 — ①과 «생김새가 똑같은 식». 기호 자리에만 한글 이름을 넣는다. ①이 분수면 여기도 \\dfrac, ①이 \\times 면 여기도 \\times, ①이 \\sqrt{} 면 여기도 \\sqrt{}. '나누기'·'곱하기'·'루트3'·'그 다음'·'~를 곱함' 같은 말로 풀어쓴 «문장» 은 절대 금지 — 그건 why 칸이 할 일. 한글은 \\text{} 안에. KaTeX, $ 없이" },
+                      num:   { type: "string", description: "③숫자대입식 — 숫자를 넣고 계산해 결과까지. 단위는 뒤에 \\,[\\text{옴}] 처럼 한글로. KaTeX, $ 없이" },
+                      unit:  { type: "string", description: "④단위계산식 — 숫자 대신 «단위» 만 넣어 결과 단위가 맞는지 보이는 식. 예: [\\text{옴}] = \\dfrac{[\\text{볼트}] \\times [\\text{볼트}]}{[\\text{와트}]}. KaTeX, $ 없이" },
+                      why:   { type: "string", description: "⑤왜 — 이 식을 왜 쓰는지 한글 3~6문장. 수식·기호·달러표시를 넣지 않는다. 값은 '저항 0.945옴' 처럼 글로 쓴다" } } } },
+      answer:     { type: "string", description: "최종 답. 소문항이 있으면 '(1) …' 줄, '(2) …' 줄 처럼 줄을 나눠 모두 적는다. 답안지 표기를 그대로" },
+      unit:       { type: "string", description: "단위. 답이 한 값일 때만. 소문항이 여럿이면 빈 문자열" },
+      check:     { type: "string", description: "답이 맞는지 거꾸로 확인하는 법. 한글 문장으로만. 수식·백슬래시를 쓰지 않고 '70제곱밀리미터로 되짚으면 저항 0.779옴' 처럼 값을 글로 쓴다" },
+      trap:      { type: "string", description: "흔한 실수. 한글 문장으로만. 수식·백슬래시를 쓰지 않는다" },
+      memo:      { type: "string", description: "외우는 요령 한 줄. 한글로만. 필요 없으면 빈 문자열" },
+      why_answer: { type: "string", description: "왜 이 답인가 — 단답·서술형에서 뜻 풀이와 근거. 한글 문장 3~6개" },
       items:      { type: "array", description: "나열형 답의 항목. 답안지 순서대로",
                     items: { type: "object", required: ["word"], properties: {
                       word: { type: "string", description: "항목 이름 (답안지 표기 그대로)" },
                       mean: { type: "string", description: "쉬운 말로 한 줄 뜻" },
                       why:  { type: "string", description: "왜 이것이 답인지 · 무엇을 하는 것인지 2~4문장" } } } },
       keys:       { type: "array", items: { type: "string" }, description: "서술형 채점 포인트 — 답안에 꼭 들어가야 할 핵심어·문장" },
-      mnemo:      { type: "object", description: "두문자. 답이 3개 이상 나열되면 반드시. 아니면 넣지 않는다",
+      mnemo:      { type: "object", description: "두문자. 답이 낱말 3개 이상 나열될 때만. 계산·표·선정 답에는 넣지 않는다",
                     properties: {
-                      code: { type: "string", description: "항목마다 앞 글자 하나씩 이은 것. 예: '가피접'" },
+                      code: { type: "string", description: "항목마다 앞 글자 하나씩 이은 것. 예: '단피엠차'" },
                       map:  { type: "array", description: "code 한 글자마다 한 줄. 순서 = code 순서",
                               items: { type: "object", required: ["h", "word"], properties: {
                                 h:    { type: "string", description: "그 글자 하나" },
                                 word: { type: "string", description: "그 글자가 뜻하는 항목" } } } },
-                      say:  { type: "string", description: "code 를 소리 내 외우기 쉬운 한 문장 (없으면 빈 문자열)" } } },
+                      say:  { type: "string", description: "code 를 외우기 쉬운 한 문장 (없으면 빈 문자열)" } } },
       tags:       { type: "array", items: { type: "string" }, description: "과목·주제 꼬리표 2~4개" }
     }
   }
@@ -555,6 +555,46 @@ const SYS_SOL = [
   "너는 전기기사 실기 채점 기준을 아는 해설 작성자다.",
   "읽는 사람은 전기를 전공하지 않았고, 이 단원을 처음 본다고 여긴다.",
   "",
+  "소문항이 있는 문제 — 이걸 가장 자주 틀린다",
+  "- 문제에 (1) (2) (3) (4) 처럼 물음이 여러 개면, 그 «하나하나» 를 풀이 단계로 만든다. 하나도 건너뛰지 않는다.",
+  "- say 를 소문항 번호로 시작한다. 예: '(1) 기구 그림기호 그리기', '(2) 배선 가닥수 구하기'.",
+  "- 계산이 없는 소문항(기호 그리기·명칭 쓰기 등)은 sym·num·unit 을 비우고 why 에 «무엇을 왜 그렇게 답하는지» 를 자세히 쓴다.",
+  "-   예: 3로 스위치는 검은 동그라미에 아래첨자 3 을 붙여 그림. 단극 스위치와 구분하려고 붙이는 표시임.",
+  "- 계산이 있는 소문항만 sym·plain·num·unit 을 채운다.",
+  "- answer 에는 소문항 번호를 붙여 줄을 나눠 «전부» 적는다.",
+  "- 답안지에 소문항이 넷이면 풀이 단계도 최소 넷이어야 한다. 세면서 확인한다.",
+  "- 소문항 하나를 끝내는 단계에는 ans 에 그 소문항 답을 적는다. 화면은 «단계 이름 → 답 → 식 → 왜» 순서로 보여 준다.",
+  "",
+  "문제 유형(kind) — 먼저 정하고, 그 유형에 «필요한 칸만» 채운다",
+  "- 계산      : background · given · symbols · steps(식 네 줄 + why) · answer · unit · check · trap",
+  "- 표·선정    : background · given · symbols · steps(«계산해서 값 구하기» 단계 + «표에서 바로 위 값 고르기» 단계) · answer · check · trap",
+  "- 회로·시퀀스 : background · symbols(접점·기기 기호와 역할) · steps(동작 순서 — say·ans·why, 식이 있을 때만 식 줄) · answer · trap",
+  "- 단답      : steps(소문항마다 say·ans·why, 식 줄 없음) · answer · memo · trap.  given · symbols · check 는 넣지 않는다",
+  "- 나열      : steps(say·ans·why) · items(항목마다 뜻·왜) · mnemo(두문자) · answer · trap.  symbols · check 는 넣지 않는다",
+  "- 서술      : background · steps(say·ans(모범 답안 문장)·why) · keys(채점 포인트) · answer · trap.  symbols · check 는 넣지 않는다",
+  "- 소문항 유형이 섞이면 가장 비중이 큰 유형으로 정하고, 나머지 소문항도 그 칸들 안에서 푼다.",
+  "",
+  "유형 가르는 법 — 문제 끝말과 답의 생김새로 정한다",
+  "- 답에 계산한 숫자가 하나라도 있으면 «단답» 도 «나열» 도 아니다.",
+  "- '표에서 선정하시오 · 규격을 고르시오' → 표·선정. 계산해서 나온 값으로 표를 고르는 문제도 표·선정이다.",
+  "-   예: 단락전류를 구해 표에서 정격차단전류를 고르고 차단용량을 계산해 표에서 선정 → 표·선정",
+  "- '구하시오 · 계산하시오' 이고 답이 숫자 → 계산",
+  "- '~을 N가지 쓰시오 · 열거하시오 · 종류를 쓰시오' 이고 답이 낱말 여러 개 → 나열",
+  "- '명칭 · 약호 · 용어 · 기호의 이름을 쓰시오' 이고 답이 낱말 하나(소문항마다 하나) → 단답",
+  "- '이유 · 목적 · 방법 · 차이 · 특징을 설명하시오' 이고 답이 문장 → 서술",
+  "- 시퀀스 회로 · 접점 · 타임차트 · 동작 순서 · 논리식 → 회로·시퀀스",
+  "- 사용자가 유형을 정해 보냈으면(아래 «정해 준 유형») 그 유형을 따른다.",
+  "- 답이 낱말 3개 이상 나열되면 mnemo(두문자)를 넣는다. code 는 항목마다 앞 글자 하나 — 답안지 순서 그대로.",
+  "",
+  "형광펜 (==핵심==)",
+  "- 답안에 반드시 들어가야 할 핵심어·문구, 채점에서 점수가 걸리는 표현은 ==이렇게== 감싼다.",
+  "- why · ans · background · trap · why_answer · items 에 쓴다. 한 칸에 1~3곳. 식 네 칸(sym·plain·num·unit)에는 쓰지 않는다.",
+  "",
+  "약어",
+  "- 영문 약어(MOF, SR, OS, VCB, LA, CT, PT, ZCT, OCR, DS, ASS, COS 등)는 처음 나올 때 반드시 «약어(영문 원말, 한글 이름)» 로 푼다.",
+  "-   예: MOF(Metering Out Fit, 계기용 변성기) · SR(Series Reactor, 직렬 리액터) · OS(Oil Switch, 유입 개폐기)",
+  "- 그 뒤로는 약어만 써도 된다. 영문 원말이 확실하지 않으면 지어내지 말고 한글 이름만 적는다.",
+  "",
   "지켜야 할 것",
   "- 답안지에 적힌 최종값·단위·유효숫자를 그대로 따른다. 반올림을 네 판단으로 바꾸지 않는다.",
   "- 답안지에 없는 값을 지어내지 않는다.",
@@ -562,64 +602,31 @@ const SYS_SOL = [
   "- 도구의 칸을 채울 때 <item> · <step> 같은 표를 쓰지 않는다. 목록은 배열 원소 하나에 한 개씩 넣는다.",
   "- 한 칸에 해설 전체를 몰아 넣지 않는다. 칸마다 그 칸의 내용만 넣는다.",
   "",
-  "먼저 kind(문제 유형)를 정하고, 그 유형에 «필요한 칸만» 채운다. 필요 없는 칸은 아예 넣지 않는다.",
-  "- 계산      : background · given · symbols · steps(다섯 줄) · answer · unit · check · trap",
-  "- 나열      : background(짧게) · items(항목마다 뜻·왜) · mnemo(두문자) · answer · trap.  symbols · steps · check 는 넣지 않는다",
-  "- 단답      : answer · why_answer(뜻 풀이) · memo · trap.  given · symbols · steps · check 는 넣지 않는다",
-  "- 서술      : background · keys(채점 포인트) · answer(모범 답안 문장) · why_answer · trap.  symbols · check 는 넣지 않는다",
-  "- 회로·시퀀스 : background · symbols(접점·기기 기호와 역할) · steps(동작 순서 — say 와 why, 식이 있을 때만 식 줄) · answer · trap",
-  "- 표·선정    : background · given · steps(say 와 why, 계산이 있으면 식 줄) · answer · check(고른 규격이 맞는지) · trap",
-  "- 한 문항에 소문항이 섞여 있으면 가장 비중이 큰 유형으로 정하고, 다른 소문항도 그 칸들 안에서 풀어 준다.",
-  "",
-  "유형 가르는 법 — 문제 끝말과 답의 생김새로 정한다",
-  "- 답에 계산한 숫자가 하나라도 있으면 «단답» 도 «나열» 도 아니다.",
-  "- '표에서 선정하시오 · 규격을 고르시오 · 몇 [A] 짜리를 쓰는가' → 표·선정. 계산해서 나온 값으로 표를 고르는 문제도 표·선정이다.",
-  "-   예: 단락전류를 구해 표에서 정격차단전류를 고르고 차단용량을 계산해 표에서 선정 → 표·선정 (계산 단계 + 고르는 단계)",
-  "- '구하시오 · 계산하시오' 이고 답이 숫자 → 계산",
-  "- '~을 N가지 쓰시오 · 열거하시오 · 종류를 쓰시오' 이고 답이 낱말 여러 개 → 나열",
-  "- '명칭 · 약호 · 용어 · 기호의 이름을 쓰시오' 이고 답이 낱말 하나(소문항마다 하나) → 단답",
-  "- '이유 · 목적 · 방법 · 차이 · 특징을 설명하시오' 이고 답이 문장 → 서술",
-  "- 시퀀스 회로 · 접점 · 타임차트 · 동작 순서 · 논리식 → 회로·시퀀스",
-  "- 사용자가 유형을 정해 보냈으면(아래 «정해 준 유형») 그 유형을 따른다.",
-  "",
-  "칸을 꼭 채울 것",
-  "- 계산 · 표·선정 · 회로·시퀀스는 steps 를 반드시 넣는다. 계산이 들어간 단계는 sym · plain · num 식 줄까지 채운다.",
-  "- 표·선정은 «계산해서 값 구하기» 단계와 «표에서 바로 위 값을 고르는» 단계를 나눈다. 고르는 단계의 why 에 왜 그 값을 고르는지(바로 위 규격 · 여유) 적는다.",
-  "- 답이 3개 이상 나열되면(어느 유형이든) mnemo 를 넣는다. code 는 항목마다 앞 글자 하나 — 외우기 좋게 순서를 바꾸지 않는다(답안지 순서).",
-  "",
-  "답의 자리",
-  "- 소문항이 있는 문제는 소문항마다 한 단계를 두고, 그 단계의 ans 에 그 소문항 답을 적는다. 화면은 «단계 이름 → 답 → 식 → 왜» 순서로 보여 준다.",
-  "- 단답·서술·나열형은 모든 단계에 ans 를 넣는다 (답을 먼저 보고 왜를 읽게).",
-  "- answer 에는 전체 답을 한 번 더 적는다 (소문항 답을 단계마다 적었으면 화면은 answer 를 따로 안 보여 준다).",
-  "",
-  "형광펜 (==핵심==)",
-  "- 답안에 반드시 들어가야 할 핵심어·문구, 채점에서 점수가 걸리는 표현은 ==이렇게== 감싼다.",
-  "- why · ans · background · trap · why_answer · items 에 쓴다. 한 칸에 1~3곳. 수식($...$) 안에는 쓰지 않는다.",
-  "",
-  "약어",
-  "- 영문 약어(MOF, SR, OS, VCB, LA, CT, PT, ZCT, OCR, DS, ASS, COS 등)는 처음 나올 때 반드시 «약어(영문 원말, 한글 이름)» 로 푼다.",
-  "-   예: MOF(Metering Out Fit, 계기용 변성기) · SR(Series Reactor, 직렬 리액터) · OS(Oil Switch, 유입 개폐기)",
-  "- 그 뒤로는 약어만 써도 된다. 영문 원말이 확실하지 않으면 지어내지 말고 한글 이름만 적는다.",
-  "",
-  "부호 발음",
-  "- symbols 마다 say 에 읽는 발음을 한글로 적는다. 예: V_s '브이 에스', I_s '아이 에스', \\theta '세타', \\%Z '퍼센트 제트'.",
-  "",
-  "주어진 값",
-  "- given 에는 문제에 나온 숫자·조건을 하나도 빼지 않는다. 역률·전압·저항·리액턴스·거리·용량 등 전부.",
-  "",
   "풀이 한 단계 — 이름 하나에 다섯 줄. 순서를 지킨다",
-  "- say   : 그 단계의 이름. 한글 한 줄. 예: '전압강하 근사식으로 저항 R 구하기'",
-  "- sym   : ①부호식. 기호만으로 세운 식.",
-  "-   조건 때문에 식이 바뀌면 화살표 위에 조건을 얹는다.",
+  "- say   : 그 단계의 이름. 한글 한 줄.",
+  "- sym   : ①부호식. 기호만으로 세운 식. 조건으로 식이 바뀌면 화살표 위에 조건을 얹는다.",
   "-   예: e = \\dfrac{P}{V_{r}}(R + X\\tan\\theta) \\xrightarrow{X=0} e = \\dfrac{P}{V_{r}}R",
-  "- plain : ②해설식. ①과 똑같은 식인데 기호 자리에 한글 이름을 넣은 것. 한글은 \\text{} 안에.",
-  "-   예: \\text{전압강하} = \\dfrac{\\text{3상부하전력}}{\\text{수전단전압}}(\\text{1선당저항} + \\text{1선당리액턴스}\\tan\\theta)",
-  "- num   : ③숫자대입식. 같은 식에 숫자를 넣고 결과와 단위까지.",
-  "-   예: R = \\dfrac{e V_{r}}{P} = \\dfrac{300 \\times 6300}{2000 \\times 10^{3}} = 0.945\\,[\\Omega]",
-  "- read  : ④읽기식. 그 식을 소리 내 읽은 한글 문장.",
-  "-   예: '이는 피 나누기 브이알 곱하기 괄호 알 플러스 엑스 탄젠트 세타 괄호 닫고'",
-  "- why   : ⑤왜 이 식을 쓰는지. 한글 3~6문장. 기호는 $R$ 처럼 달러로 감싼다.",
-  "- 계산이 없는 단계(표에서 규격 고르기 등)는 say 와 why 만 채운다.",
+  "- plain : ②해설식. ①과 «생김새가 똑같은 식». 기호 자리에만 한글 이름을 갈아 끼운다.",
+  "-   ★ 이것은 «식» 이지 «문장» 이 아니다. 이 말들을 쓰면 틀린 것이다 —",
+  "-     '나누기' '곱하기' '루트3' '그 다음' '~를 곱함' '~로 나눈 값'.",
+  "-     나누기는 \\dfrac 으로, 곱하기는 \\times 로, 루트는 \\sqrt{} 로 ①에 있던 모양 그대로 둔다.",
+  "-     ①에 분수가 둘이면 ②에도 분수가 둘이어야 한다. 하나로 뭉치거나 줄글로 풀지 않는다.",
+  "-     말로 풀어쓴 설명은 why 칸에서 한다. 여기에 겹쳐 쓰지 않는다.",
+  "-   예(분수 하나): \\text{전선저항} = \\dfrac{\\text{전압강하} \\times \\text{수전단전압}}{\\text{부하전력}}",
+  "-   예(분수 둘) ① i_{p} = \\dfrac{P}{\\sqrt{3} V_{1}} \\times \\dfrac{1}{n_{1}}",
+  "-   예(분수 둘) ② \\text{변류기1차전류} = \\dfrac{\\text{변압기정격용량}}{\\sqrt{3} \\times \\text{1차전압}} \\times \\dfrac{1}{\\text{변류비}}",
+  "-   나쁜 예(이렇게 오면 틀린 것): \\text{변류기1차전류} = \\text{변압기정격용량 나누기 (루트3 곱하기 1차전압) 그 다음 변류비의 2차전류를 곱함}",
+  "- num   : ③숫자대입식. 숫자를 넣고 결과까지. 단위는 뒤에 한글로.",
+  "-   예: R = \\dfrac{300 \\times 6300}{2000 \\times 10^{3}} = 0.945\\,[\\text{옴}]",
+  "- unit  : ④단위계산식. 숫자 대신 «단위» 만 넣어 결과 단위가 맞는지 보인다.",
+  "-   예: [\\text{옴}] = \\dfrac{[\\text{볼트}] \\times [\\text{볼트}]}{[\\text{와트}]}",
+  "-   예: [\\text{제곱밀리미터}] = [\\text{옴}\\cdot\\text{제곱밀리미터}/\\text{미터}] \\times \\dfrac{[\\text{미터}]}{[\\text{옴}]}",
+  "- why   : ⑤왜 이 식을 쓰는지. 한글 3~6문장.",
+  "",
+  "글 칸에는 수식을 넣지 않는다 — 이걸 어기면 화면이 깨진다",
+  "- why · check · trap · memo · background · given 은 «글» 칸이다. 여기에는 백슬래시(\\)도 달러($)도 쓰지 않는다.",
+  "- 값을 말할 때는 글로 쓴다. '저항 0.945옴', '단면적 57.72제곱밀리미터', '전압강하 300볼트'.",
+  "- 수식은 오직 sym · plain · num · unit 네 칸에만 넣는다.",
   "",
   "수식(KaTeX) 쓰는 법 — 어기면 화면이 깨진다",
   "- 분수는 \\dfrac{위}{아래}. (1/58) 처럼 빗금으로 쓰지 않는다.",
@@ -631,6 +638,10 @@ const SYS_SOL = [
   "",
   "부호 칸",
   "- symbols 에는 식에 나온 기호를 빠짐없이. 뜻·단위·이 문제에서의 값까지.",
+  "- symbols 마다 say 에 읽는 발음을 한글로. 예: V_s '브이 에스', I_s '아이 에스', \\theta '세타', \\%Z '퍼센트 제트'.",
+  "",
+  "주어진 값",
+  "- given 에는 문제에 나온 숫자·조건을 하나도 빼지 않는다. 역률·전압·저항·리액턴스·거리·용량 등 전부.",
   "",
   "말투",
   "- 개조식. '~함', '~임', '~됨'. '~합니다' 는 쓰지 않는다.",
@@ -740,18 +751,71 @@ async function explain(req, env, H){
   if (b.kind && KINDS.includes(String(b.kind)))
     parts.push({ type: "text", text: `── 정해 준 유형 ──\n이 문항은 «${b.kind}» 유형이다. kind 를 «${b.kind}» 로 하고 그 유형의 칸을 채운다.` });
 
-  const res = await call(env, {
-    model, max_tokens: maxTok, system: SYS_SOL,
-    tools: [TOOL], tool_choice: { type: "tool", name: "write_solution" },
-    messages: [{ role: "user", content: parts }]
-  });
-  const out = await res.json();
-  const call_ = (out.content || []).find(c => c.type === "tool_use" && c.name === "write_solution");
-  if (!call_) return json({ error: "정해진 틀로 답하지 않았습니다", said: textOf(out).slice(0, 400) }, 502, H);
+  const ask1 = async extra => {
+    const res = await call(env, {
+      model, max_tokens: maxTok, system: SYS_SOL,
+      tools: [TOOL], tool_choice: { type: "tool", name: "write_solution" },
+      messages: [{ role: "user", content: extra ? parts.concat([{ type: "text", text: extra }]) : parts }]
+    });
+    const out = await res.json();
+    const c = (out.content || []).find(x => x.type === "tool_use" && x.name === "write_solution");
+    return { out, sol: c ? fixSol(c.input) : null };
+  };
+  let { out, sol } = await ask1();
+  if (!sol) return json({ error: "정해진 틀로 답하지 않았습니다", said: textOf(out).slice(0, 400) }, 502, H);
 
-  return json({ ok: true, sol: call_.input, model, depth,
+  /* ★ v280 — 칸이 깨져 왔거나(steps 를 JSON 글자로) 소문항 수보다 단계가 모자라면 한 번만 다시 받는다 */
+  let retried = false;
+  const need = subCount(sol.answer);
+  const short = s => !Array.isArray(s.steps) || !s.steps.length
+    || s.steps.some(x => !x || typeof x !== "object")
+    || (need > 1 && s.steps.length < need);
+  if (short(sol)){
+    retried = true;
+    const again = await ask1(`── 주의 ──\n직전 답에서 steps 가 빠졌거나 글자(JSON 문자열)로 왔다. steps · symbols · items 는 반드시 «객체 배열» 로 넣는다.` +
+      (need > 1 ? ` 이 문제는 소문항이 ${need}개이므로 steps 도 ${need}개 이상이어야 한다.` : ""));
+    if (again.sol && (!short(again.sol) || (Array.isArray(again.sol.steps) && again.sol.steps.length > (Array.isArray(sol.steps) ? sol.steps.length : 0)))){
+      sol = again.sol; out = again.out;
+    }
+  }
+
+  return json({ ok: true, sol, model, depth, retried,
                 effort: b.effort || "low", stop: out.stop_reason || null,
                 usage: out.usage || null }, 200, H);
+}
+
+/* 답에 적힌 소문항 수 — (1)(2)(3) · ①②③ */
+function subCount(ans){
+  const t = String(ans || "");
+  const a = new Set((t.match(/\(\s*(\d{1,2})\s*\)/g) || []).map(x => x.replace(/\D/g, "")));
+  const c = new Set(t.match(/[①-⑳]/g) || []);
+  return Math.max(a.size, c.size);
+}
+/* 모델이 배열 칸을 «JSON 글자» 로 적어 보낼 때 풀어 준다.
+   수식 백슬래시(\dfrac · \times)나 줄바꿈 때문에 그냥은 안 읽히는 것을 손봐서 읽는다. */
+function looseJson(x){
+  const fixBs = y => y.replace(/\\\\|\\(?:(?=[A-Za-z]{2,})(?!u[0-9a-fA-F]{4})|(?!["\\/bfnrtu]))/g, m => m.length === 2 ? m : "\\\\");
+  for (const y of [x, fixBs(x), fixBs(x).replace(/\r?\n/g, " "), fixBs(x).replace(/\r?\n/g, " ").replace(/,\s*([\]}])/g, "$1")]){
+    try { return JSON.parse(y); } catch (e) {}
+  }
+  return undefined;
+}
+function fixSol(sol){
+  if (!sol || typeof sol !== "object") return sol;
+  const toArr = v => {
+    if (Array.isArray(v)) return v.flatMap(e => (typeof e === "string" && /^\s*\{[\s\S]*\}\s*$/.test(e)) ? toArr(e) : [e]);
+    if (typeof v !== "string") return v;
+    const t = v.trim();
+    if (/^\[[\s\S]*\]$/.test(t)){ const j = looseJson(t); if (Array.isArray(j)) return j; }
+    if (/^\{[\s\S]*\}$/.test(t)){
+      const j = looseJson(t); if (j && typeof j === "object") return Array.isArray(j) ? j : [j];
+      const k = looseJson("[" + t + "]"); if (Array.isArray(k)) return k;
+    }
+    return v;
+  };
+  for (const k of ["steps", "symbols", "items", "given", "background", "keys", "tags"]) if (k in sol) sol[k] = toArr(sol[k]);
+  if (typeof sol.mnemo === "string" && /^\s*\{/.test(sol.mnemo)){ const j = looseJson(sol.mnemo.trim()); if (j && typeof j === "object") sol.mnemo = j; }
+  return sol;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -852,7 +916,7 @@ export default {
         판정: 막힌곳.includes(colo)
           ? `${colo} 기지는 Anthropic 이 막는 지역입니다 — 403 의 원인입니다.`
           : `${colo} 기지는 보통 허용됩니다.`,
-        빌드: "v262"
+        빌드: "v280"
       }, 200, H);
     }
 
@@ -908,7 +972,7 @@ export default {
         keyHead: String(env.ANTHROPIC_API_KEY).slice(0,14) + "…",
         keyLen: String(env.ANTHROPIC_API_KEY).length,
         keyTrimmed: String(env.ANTHROPIC_API_KEY) === String(env.ANTHROPIC_API_KEY).trim(),
-        빌드: "v262",
+        빌드: "v280",
         기지: (req.cf && req.cf.colo) || "?",
         upstream: parsed || body.slice(0,600),
         vision
@@ -916,7 +980,7 @@ export default {
     }
 
     if (path === "/health" || path === "/")
-      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v262" }, 200, H);
+      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v280" }, 200, H);
 
     if (env.APP_KEY && req.headers.get("x-app-key") !== env.APP_KEY)
       return json({ error: "x-app-key 가 맞지 않습니다", detail: "x-app-key 가 맞지 않습니다" }, 401, H);
