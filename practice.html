@@ -5285,6 +5285,20 @@ async function ezMake(id, force, quiet){
   /* ★ v267 — 문항별 «쉬운해설 고정». 전체 자물쇠와 같은 자리에서 막는다 */
   try{ if(window.__ezFixed && window.__ezFixed(r.id)) return; }catch(e){}
 
+  /* ★ v275 — 자동 해설 진행 · 다시 해석 · 2.5초 자동 생성도 «상세 Opus» 와 같은 길(/explain)로.
+     그래야 어느 단추로 만들든 식 네 줄 · 자세한 «왜» · 부호 · 검산 · 흔한 실수가 같은 틀로 나온다.
+     답(그림·글)이 없는 문항만 예전 방식으로 쓴다 — /explain 은 답을 근거로 쓰기 때문. */
+  if(typeof window.__pxSolOne === "function" && (r.a_url || r.a_text || r.a_md)){
+    try{ await window.__pxSolOne(r.id, "opus"); }
+    catch(e){
+      const bx = document.querySelector(`.pcard[data-id="${id}"] .easybox`);
+      if(bx) bx.innerHTML = `<span class="wait">해설을 쓰지 못했습니다 — ${esc(e.message || e)}
+        <button class="zb" type="button" style="margin-left:8px" onclick="ezMake('${id}', true)">다시 시도</button></span>`;
+      if(!quiet) try{ toast("해설 실패 — " + (e.message || e)); }catch(x){}
+    }
+    return;
+  }
+
   const card = document.querySelector(`.pcard[data-id="${id}"]`);
   let box = card?.querySelector(".easybox");
   if(card && !box){
@@ -23264,5 +23278,328 @@ try{
   background:#f7f9ff;border:1px solid #dce4ff;box-sizing:border-box}
 #ovl .seg[data-seg="e"] > .ez > .miss{margin:0}
 </style>
+<!-- ══════════════════════════════════════════════════════════════
+     v274 · 쉬운 풀이 «정리 보기» — 글은 그대로, 보이는 모양만 정리
+
+     해설 글(easy_md)과 저장된 자료는 한 글자도 안 바꾼다. 화면에 그린 뒤 겉모양만 손본다.
+     글자를 새로 끼워 넣지 않으므로(이름표·단추 글씨는 CSS 로만) 형광펜·주석 자리도 안 밀린다.
+       ① 식 네 줄(기호식·말로 쓴 식·대입식·단위식)을 한 상자로 묶고 줄마다 이름표
+       ② «왜:» 설명은 두 줄만 보이고 눌러서 펼침 — 쉬운 풀이 이름줄 «⇣ 모두 펼치기» 로 한꺼번에
+       ③ 검산·흔한 실수·왜 이 답인가·같이 알아 두기 — 길면 같은 방식으로 접힘
+       ④ 부호 목록 → 기호 | 뜻 | 이 문제 값 세 칸
+       ⑤ 풀이 단계 머리줄 · 답 카드 · 줄간격 좁힘
+     «◫ 원래대로» 를 누르면 전부 꺼지고 예전 화면 그대로 (고른 것은 기기에 남음).
+     고치기 창(미리보기)에는 안 씌운다 — 거기서는 원래 글 모양 그대로 고친다.
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+body:not(.ezx-off) .ezx{line-height:1.42!important}
+body:not(.ezx-off) .ezx p{margin:0 0 .3em!important}
+body:not(.ezx-off) .ezx ul{margin:.1em 0 .35em!important}
+body:not(.ezx-off) .ezx li{margin:0 0 .12em!important}
+body:not(.ezx-off) .ezx p.ezh{margin:.7em 0 .3em!important}
+body:not(.ezx-off) .ezx > p.ezh:first-child{margin-top:0!important}
+
+/* ① 식 상자 */
+body:not(.ezx-off) .ezx p.eqr{position:relative;margin:0!important;padding:2px 8px 2px 50px!important;background:#fff;
+  border-left:1px solid #d6e0f6;border-right:1px solid #d6e0f6}
+body:not(.ezx-off) .ezx p.eqr.eqf{margin-top:.25em!important;border-top:1px solid #d6e0f6;border-radius:8px 8px 0 0}
+body:not(.ezx-off) .ezx p.eqr.eql{margin-bottom:.4em!important;border-bottom:1px solid #d6e0f6;border-radius:0 0 8px 8px}
+body:not(.ezx-off) .ezx p.eqr.eqf.eql{border-radius:8px}
+body:not(.ezx-off) .ezx p.eqr:not(.eqf){border-top:1px dashed #e8edf8}
+body:not(.ezx-off) .ezx p.eqr .katex-display{margin:1px 0!important;text-align:left!important}
+body:not(.ezx-off) .ezx p.eqr .katex-display > .katex{text-align:left!important}
+body:not(.ezx-off) .ezx p.eqr[data-k]::before{content:attr(data-k);position:absolute;left:6px;top:50%;transform:translateY(-50%);
+  font:800 9.5px/1.25 var(--font-d,system-ui);padding:1px 0;width:36px;text-align:center;border-radius:4px;letter-spacing:0;
+  background:#e9efff;color:#2f4fc4}
+body:not(.ezx-off) .ezx p.eqr[data-k="말로"]::before{background:#e6f5ec;color:#18794e}
+body:not(.ezx-off) .ezx p.eqr[data-k="대입"]::before{background:#fff1d6;color:#9a5b00}
+body:not(.ezx-off) .ezx p.eqr[data-k="단위"]::before{background:#eef1f5;color:#56657a}
+
+/* ⑤ 풀이 단계 머리줄 */
+body:not(.ezx-off) .ezx p.ezstep{margin:.65em 0 .1em!important;padding:2px 8px!important;border-radius:6px;
+  background:#eef3ff;color:#1e3a8a;font-weight:800}
+
+/* ② 왜 · 읽기 */
+body:not(.ezx-off) .ezx li.ezwhy{list-style:none;margin:.15em 0 .45em -14px!important;padding:4px 9px!important;
+  background:#fffaf0;border:1px solid #f1dcae;border-radius:8px}
+body:not(.ezx-off) .ezx li.ezwhy .ezwk{display:inline-block;margin-right:5px;padding:0 6px;border-radius:4px;
+  background:#e89b00;color:#fff;font-weight:800;font-size:.86em;line-height:1.5}
+body:not(.ezx-off) .ezx li.ezread{list-style:none;margin-left:-14px!important;padding:0 9px!important;color:#5b6678;font-size:.95em}
+
+/* ②③ 접기 — 두 줄만 보이고, 누르면 펼침 */
+body:not(.ezx-off) .ezx .ezf{position:relative;cursor:pointer}
+body:not(.ezx-off):not(.ezx-open) .ezx .ezf:not(.tog),
+body:not(.ezx-off).ezx-open .ezx .ezf.tog{max-height:var(--ezmh,calc(2.84em + 9px));overflow:hidden}
+body:not(.ezx-off):not(.ezx-open) .ezx .ezf:not(.tog)::after,
+body:not(.ezx-off).ezx-open .ezx .ezf.tog::after{content:'▾ 펼치기';position:absolute;right:0;bottom:0;padding:1px 9px 1px 40px;
+  font:800 10.5px/1.6 var(--font-d,system-ui);color:#9a5b00;
+  background:linear-gradient(90deg,rgba(255,250,240,0),#fffaf0 38%)}
+body:not(.ezx-off):not(.ezx-open) .ezx .ezf.tog::after,
+body:not(.ezx-off).ezx-open .ezx .ezf:not(.tog)::after{content:'▴ 접기';display:block;text-align:right;
+  font:800 10.5px/1.4 var(--font-d,system-ui);color:#9a5b00;margin-top:1px}
+body:not(.ezx-off) .ezx p.ezfc{padding:3px 8px!important;background:#fafbff;border:1px solid #e3e9f7;border-radius:7px}
+body:not(.ezx-off):not(.ezx-open) .ezx p.ezf:not(.tog)::after,
+body:not(.ezx-off).ezx-open .ezx p.ezf.tog::after{background:linear-gradient(90deg,rgba(250,251,255,0),#fafbff 38%)}
+body:not(.ezx-off):not(.ezx-open) .ezx p.ezf:not(.tog)::after,body:not(.ezx-off).ezx-open .ezx p.ezf.tog::after,
+body:not(.ezx-off):not(.ezx-open) .ezx p.ezf.tog::after,body:not(.ezx-off).ezx-open .ezx p.ezf:not(.tog)::after{color:#2f4fc4}
+
+/* ★ v275 — 먼저 알아야 할 것 · 주어진 값 · 문제를 이렇게 읽음 → 상자 */
+body:not(.ezx-off) .ezx .ezbox{background:#fff;border:1px solid #e3e9f7;border-radius:8px;padding:4px 10px 4px 24px!important;margin:.1em 0 .4em!important}
+body:not(.ezx-off) .ezx p.ezbox{padding:4px 10px!important}
+body:not(.ezx-off) .ezx .ezbox + .ezbox{margin-top:-.3em!important;border-top-left-radius:0;border-top-right-radius:0}
+/* ④ 부호 → 세 칸 */
+body:not(.ezx-off) .ezx ul.ezsym{padding:2px 8px!important;margin-left:0!important;background:#fff;border:1px solid #e3e9f7;border-radius:8px;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));column-gap:14px}
+body:not(.ezx-off) .ezx ul.ezsym > li{list-style:none;display:grid;grid-template-columns:44px minmax(0,1fr) auto;column-gap:6px;
+  align-items:baseline;margin:0!important;padding:2px 0;border-bottom:1px dashed #eef2f9}
+body:not(.ezx-off) .ezx ul.ezsym .ezs-s{text-align:center}
+body:not(.ezx-off) .ezx ul.ezsym .ezs-m{color:#334155}
+body:not(.ezx-off) .ezx ul.ezsym .ezs-v{text-align:right;font-weight:800;color:#1e3a8a;white-space:nowrap}
+body:not(.ezx-off) .ezx ul.ezsym .ezdash{display:none}
+body:not(.ezx-off) .ezx ul.ezsym .ezvk{font-weight:600;font-size:.8em;color:#8a94a6;margin-right:3px}
+
+/* ⑤ 답 카드 */
+body:not(.ezx-off) .ezx p.ezans{display:inline-block;margin:.1em 0 .4em!important;padding:3px 14px!important;border-radius:8px;
+  background:#1e3a8a;color:#fff!important;font-weight:800;font-size:1.3em!important}
+body:not(.ezx-off) .ezx p.ezans .katex{color:#fff}
+body:not(.ezx-off) .ezx .ezgt{display:none}
+
+/* 이름줄 단추 */
+.ezxb{order:6;margin-left:6px;height:20px;padding:0 8px;border:1px solid var(--line,#e2e8f0);border-radius:6px;
+  background:var(--surface,#fff);color:var(--ink,#0f172a);cursor:pointer;flex:0 0 auto;white-space:nowrap;
+  font:700 9.5px/1 var(--font-d,system-ui);letter-spacing:0;text-transform:none}
+.ezxb:hover{border-color:var(--accent,#2563eb);color:var(--accent,#2563eb)}
+.ezxb.on{background:#eef3ff;border-color:#b9c8f3;color:#1e3a8a}
+body.ezx-off .ezxb[data-ezx="open"]{display:none}
+</style>
+<script>
+(function(){
+'use strict';
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const B=document.body;
+const KOFF='prac:ezx', KOPEN='prac:ezxopen';
+try{
+  if(localStorage.getItem(KOFF)==='0') B.classList.add('ezx-off');
+  localStorage.removeItem(KOPEN);                /* ★ v275 — 펼침은 기억 안 함: 늘 접힌 채로 시작 */
+}catch(e){}
+let LASTQ='';
+
+const FOLDSEC=/^(검산|흔한 실수|왜 이 답인가|같이 알아 두기)$/;
+const SYMSEC=/^(부호)$/;
+const BOXSEC=/^(먼저 알아야 할 것|주어진 값|문제를 이렇게 읽음)$/;
+const STEPSEC=/^(풀이|쓰는 식)$/;
+
+/* 굵은 글씨 한 덩어리뿐인 문단 = 소제목 */
+function headOf(el){
+  if(!el || el.tagName!=='P') return '';
+  const s=el.querySelector(':scope > strong'); if(!s) return '';
+  const t=(el.textContent||'').trim();
+  return t && t===(s.textContent||'').trim() ? t : '';
+}
+/* 수식만 있는 문단 */
+function isEqP(p){
+  if(!p || p.tagName!=='P') return false;
+  const d=[...p.querySelectorAll('.katex-display')]; if(!d.length) return false;
+  const sq=t=>String(t||'').replace(/\s+/g,'');
+  return sq(p.textContent).length === d.reduce((n,x)=>n+sq(x.textContent).length,0);
+}
+function texOf(p){
+  const a=p.querySelector('annotation[encoding="application/x-tex"]');
+  return a ? a.textContent : (p.textContent||'');
+}
+/* 줄 종류 — 단위식 → 대입식 → 말로 쓴 식 → 기호식 */
+function kindOf(src){
+  const s=String(src||'');
+  const U=/\[\s*(?:\\(?:text|mathrm)\{\s*[^{}]{1,12}\}|k?W|kVA|VA|V|A|\\Omega|Ω|Hz|kWh|m\^?\{?2\}?|mm\^?\{?2\}?|%)\s*\]/g;
+  if((s.match(U)||[]).length>=2) return '단위';
+  const noExp=s.replace(/10\s*\^\s*\{?\s*-?\s*\d+\s*\}?/g,' ').replace(/\\sqrt\s*\{?\s*\d\s*\}?/g,' ');
+  if(/\d{2,}|\d\.\d|\d\s*\\times|\\times\s*\d/.test(noExp)) return '대입';
+  if(/[가-힣]/.test(s)) return '말로';
+  return '기호';
+}
+/* 글자는 그대로 두고 앞머리 «왜:» 만 감싼다 */
+function wrapLead(li, re, cls){
+  if(li.querySelector(':scope > .'+cls)) return;
+  const n=li.firstChild; if(!n || n.nodeType!==3) return;
+  const m=n.nodeValue.match(re); if(!m) return;
+  const rest=n.splitText(m[0].length);
+  const sp=document.createElement('span'); sp.className=cls;
+  li.insertBefore(sp, rest); sp.appendChild(n);
+}
+/* 부호 줄 «기호 — 뜻 · 단위 · 이 문제: 값» → 세 칸 (글자 순서는 그대로) */
+function splitSym(li){
+  if(li.querySelector(':scope > .ezs-s')) return true;
+  const kids=[...li.childNodes];
+  let di=-1, dpos=-1;
+  for(let i=0;i<kids.length;i++){
+    if(kids[i].nodeType===3){ const p=kids[i].nodeValue.indexOf(' — '); if(p>=0){ di=i; dpos=p; break; } }
+  }
+  if(di<0) return false;
+  let t=kids[di];
+  if(dpos>0){ t=t.splitText(dpos); }
+  const after=t.splitText(3);                         /* t = « — » */
+  const S=document.createElement('span'); S.className='ezs-s';
+  const M=document.createElement('span'); M.className='ezs-m';
+  const V=document.createElement('span'); V.className='ezs-v';
+  const D=document.createElement('span'); D.className='ezdash';
+  li.insertBefore(S, li.firstChild);
+  while(S.nextSibling && S.nextSibling!==t) S.appendChild(S.nextSibling);
+  li.insertBefore(M, t); D.appendChild(t); M.appendChild(D);
+  while(M.nextSibling) M.appendChild(M.nextSibling);
+  /* «이 문제:» 부터는 값 칸 */
+  const walk=[...M.childNodes];
+  for(let i=0;i<walk.length;i++){
+    const n=walk[i]; if(n.nodeType!==3) continue;
+    const p=n.nodeValue.indexOf('이 문제:'); if(p<0) continue;
+    let v=p>0 ? n.splitText(p) : n;
+    const rest=v.splitText('이 문제:'.length);
+    li.appendChild(V);
+    const K=document.createElement('span'); K.className='ezvk'; K.appendChild(v); V.appendChild(K);
+    let x=rest; while(x){ const nx=x.nextSibling; V.appendChild(x); x=nx; }
+    break;
+  }
+  return true;
+}
+
+function tidy(box){
+  if(!box || box.closest('.edw,.prev,.mkb')) return;
+  const sig=(box.textContent||'').length+':'+box.querySelectorAll('.katex').length;
+  if(box.__ezxSig===sig && box.querySelector('.ezh,.eqr,.ezwhy,.ezstep,.ezans,.ezbox')) return;
+  box.__ezxSig=sig;
+  box.classList.add('ezx');
+  let sec='';
+  const kids=[...box.children];
+  for(let i=0;i<kids.length;i++){
+    const el=kids[i];
+    const h=headOf(el);
+    if(h){ sec=h; el.classList.add('ezh'); continue; }
+    /* 식 줄 */
+    if(isEqP(el)){
+      el.classList.add('eqr');
+      el.dataset.k=kindOf(texOf(el));
+      const pv=kids[i-1], nx=kids[i+1];
+      el.classList.toggle('eqf', !(pv && isEqP(pv)));
+      el.classList.toggle('eql', !(nx && isEqP(nx)));
+      continue;
+    }
+    el.classList.remove('eqr','eqf','eql');
+    /* 풀이 단계 머리줄 «1. …» */
+    if(el.tagName==='P' && STEPSEC.test(sec) && /^\s*(?:\d{1,2}\s*[.)]|\(\d{1,2}\)|[①-⑳])\s*/.test(el.textContent||'')
+       && (el.textContent||'').length<90){ el.classList.add('ezstep'); continue; }
+    /* 답 */
+    if(sec==='답' && el.tagName==='P' && /^\s*>/.test(el.textContent||'')){
+      el.classList.add('ezans'); wrapLead(el, /^\s*>\s*/, 'ezgt'); continue;
+    }
+    el.classList.toggle('ezbox', BOXSEC.test(sec) && (el.tagName==='UL' || el.tagName==='P'));
+    if(el.tagName==='UL'){
+      if(SYMSEC.test(sec)){
+        const lis=$$(':scope > li', el); let ok=0;
+        lis.forEach(li=>{ if(splitSym(li)) ok++; });
+        el.classList.toggle('ezsym', ok>0 && ok>=lis.length*0.6);
+      }
+      $$(':scope > li', el).forEach(li=>{
+        const t=(li.textContent||'').trim();
+        if(/^왜\s*[:：]/.test(t)){ li.classList.add('ezwhy','ezfc'); wrapLead(li, /^\s*왜\s*[:：]\s*/, 'ezwk'); }
+        else if(/^읽기\s*[:：]/.test(t)) li.classList.add('ezread');
+        else if(FOLDSEC.test(sec) && t.length>110) li.classList.add('ezfc');
+      });
+      continue;
+    }
+    if(el.tagName==='P' && FOLDSEC.test(sec) && (el.textContent||'').length>110) el.classList.add('ezfc');
+  }
+  measure(box);
+}
+/* 실제로 두 줄을 넘는 것만 접는다 — 짧은 것에 «펼치기» 가 붙지 않게 */
+function measure(box){
+  $$('.ezfc', box).forEach(el=>{
+    if(el.dataset.ezm==='1' || !el.offsetParent) return;
+    const cs=getComputedStyle(el);
+    const lh=parseFloat(cs.lineHeight) || parseFloat(cs.fontSize)*1.42 || 18;
+    const was=el.classList.contains('ezf');
+    el.classList.remove('ezf');
+    const h=el.scrollHeight;
+    const pad=(parseFloat(cs.paddingTop)||0)+(parseFloat(cs.paddingBottom)||0);
+    el.style.setProperty('--ezmh', Math.round(lh*2 + pad + 1)+'px');   /* 딱 두 줄 */
+    el.classList.toggle('ezf', h > lh*2.6 + pad + 4);
+    if(!was && !el.classList.contains('ezf')) el.classList.remove('tog');
+    el.dataset.ezm='1';
+  });
+}
+function boxes(){
+  return [...$$('#ovl .seg[data-seg="e"] > .ez'), ...$$('#list .pcard .easybox'), ...$$('#list .pcard .ez:not(:has(.easybox))')];
+}
+function all(){
+  /* 다른 문항으로 넘어가면 다시 접힌 상태로 */
+  let q=''; try{ q=(typeof OVID!=='undefined' && OVID!=null) ? String(OVID) : '' }catch(e){}
+  if(q!==LASTQ){ LASTQ=q; if(B.classList.contains('ezx-open')) B.classList.remove('ezx-open'); resetTog(); }
+  boxes().forEach(b=>{ try{ tidy(b) }catch(e){} }); paintBtns();
+}
+
+/* ── 이름줄 단추 ── */
+const isEzLab=lab=>String(lab.childNodes[0]?.textContent||'').trim()==='쉬운 풀이';
+function paintBtns(){
+  const labs=[...$$('#ovl .plab'), ...$$('#list .pcard .plabel')].filter(isEzLab);
+  const off=B.classList.contains('ezx-off'), open=B.classList.contains('ezx-open');
+  labs.forEach(lab=>{
+    [['open', open?'⇡ 모두 접기':'⇣ 모두 펼치기', open?'«왜» 설명을 모두 두 줄로 접습니다':'«왜» 설명·검산·흔한 실수를 모두 펼칩니다'],
+     ['off',  off?'◫ 정리 보기':'◫ 원래대로', off?'식 상자·접기·부호 표로 정리해서 봅니다':'정리를 끄고 예전 모양 그대로 봅니다']
+    ].forEach(([k,txt,tip])=>{
+      let b=lab.querySelector(`:scope > .ezxb[data-ezx="${k}"]`);
+      if(!b){
+        b=document.createElement('button'); b.type='button'; b.className='ezxb'; b.dataset.ezx=k;
+        const before=lab.querySelector(':scope > .ezsol, :scope > .ezfix, :scope > .edb');
+        before ? lab.insertBefore(b, before) : lab.appendChild(b);
+      }
+      if(b.textContent!==txt) b.textContent=txt;
+      b.title=tip;
+      b.classList.toggle('on', k==='open' ? open : off);
+    });
+  });
+}
+function resetTog(){ $$('.ezx .ezf.tog').forEach(el=>el.classList.remove('tog')); }
+
+document.addEventListener('click', e=>{
+  const b=e.target.closest && e.target.closest('.ezxb');
+  if(b){
+    e.preventDefault(); e.stopPropagation();
+    if(b.dataset.ezx==='open'){
+      const on=!B.classList.contains('ezx-open'); B.classList.toggle('ezx-open', on); resetTog();
+    }else{
+      const off=!B.classList.contains('ezx-off'); B.classList.toggle('ezx-off', off);
+      try{ localStorage.setItem(KOFF, off?'0':'1') }catch(x){}
+      if(!off){ $$('.ezx .ezfc').forEach(el=>{ el.dataset.ezm=''; }); boxes().forEach(x=>{ x.__ezxSig=''; }); all(); }
+    }
+    paintBtns();
+    return;
+  }
+  if(B.classList.contains('ezx-off')) return;
+  const f=e.target.closest && e.target.closest('.ezx .ezf'); if(!f) return;
+  if(e.target.closest('a,button,input,textarea,select')) return;
+  try{ if(String(getSelection()||'').trim()) return; }catch(x){}   /* 글을 긁는 중이면 형광펜에 양보 */
+  f.classList.toggle('tog');
+}, true);
+
+/* 화면이 다시 그려지면 다시 정리 — 스스로 바꾼 것에는 서명이 같아 건너뛴다 */
+let raf=0;
+const soon=()=>{ if(raf) return; raf=requestAnimationFrame(()=>{ raf=0; all(); }); };
+['#ovl','#list'].forEach(sel=>{
+  const w=setInterval(()=>{
+    const n=document.querySelector(sel); if(!n) return; clearInterval(w);
+    new MutationObserver(soon).observe(n,{ childList:true, subtree:true });
+    soon();
+  },300);
+  setTimeout(()=>clearInterval(w), 20000);
+});
+/* 글자 크기(가− 가+)·창 크기가 바뀌면 접힘 여부를 다시 잰다 */
+let rz=0;
+const remeasure=()=>{ clearTimeout(rz); rz=setTimeout(()=>{ $$('.ezx .ezfc').forEach(el=>{ el.dataset.ezm=''; }); boxes().forEach(measure); },200); };
+addEventListener('resize', remeasure);
+document.addEventListener('input', e=>{ if(e.target && e.target.id==='pxFs') remeasure(); }, true);
+document.addEventListener('click', e=>{ if(e.target.closest && e.target.closest('.ovfs button,[data-fs]')) remeasure(); }, false);
+setInterval(all, 1500);
+window.__ezxTidy=tidy;
+})();
+</script>
+
 </body>
 </html>
