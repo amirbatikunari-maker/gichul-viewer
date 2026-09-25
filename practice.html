@@ -21028,7 +21028,8 @@ async function askSol(r, which){
       body:JSON.stringify({
         q_url:r.q_url, q_text:r.q_text||r.q_md, a_url:r.a_url, a_text:r.a_text||r.a_md,
         year:r.year, session:r.session, no:r.no, points:r.points,
-        depth:'full', effort:'high', model:MODEL[which]||MODEL.opus
+        depth:'full', effort:'high', model:MODEL[which]||MODEL.opus,
+        kind:(window.__ezKindFor && window.__ezKindFor(r.id)) || undefined
       })
     });
   }catch(e){
@@ -23488,6 +23489,9 @@ body:not(.ezx-off) .ezx ul.ezsym .ezvk{display:none!important}
   font:700 9.5px/1 var(--font-d,system-ui);letter-spacing:0;text-transform:none}
 .ezxb:hover{border-color:var(--accent,#2563eb);color:var(--accent,#2563eb)}
 .ezxb.on{background:#eef3ff;border-color:#b9c8f3;color:#1e3a8a}
+select.ezkind{order:6;margin-left:6px;height:20px!important;min-height:0!important;width:auto!important;max-width:118px;min-width:0!important;flex:0 0 auto!important;padding:0 4px!important;box-sizing:border-box;border:1px solid var(--line,#e2e8f0);border-radius:6px;cursor:pointer;
+  background:var(--surface,#fff);color:var(--ink,#0f172a);font:700 9.5px/1 var(--font-d,system-ui);flex:0 0 auto}
+select.ezkind.set{background:#f6f1fd;border-color:#a97fdd;color:#6b2fb3}
 body.ezx-off .ezxb[data-ezx="open"]{display:none}
 </style>
 <script>
@@ -23742,6 +23746,7 @@ function paintBtns(){
   const labs=[...$$('#ovl .plab'), ...$$('#list .pcard .plabel')].filter(isEzLab);
   const off=B.classList.contains('ezx-off'), open=B.classList.contains('ezx-open');
   labs.forEach(lab=>{
+    try{ kindSel(lab) }catch(e){}
     [['open', open?'⇡ 모두 접기':'⇣ 모두 펼치기', open?'«왜» 설명을 모두 두 줄로 접습니다':'«왜» 설명·검산·흔한 실수를 모두 펼칩니다'],
      ['off',  off?'◫ 정리 보기':'◫ 원래대로', off?'식 상자·접기·부호 표로 정리해서 봅니다':'정리를 끄고 예전 모양 그대로 봅니다']
     ].forEach(([k,txt,tip])=>{
@@ -23758,6 +23763,34 @@ function paintBtns(){
   });
 }
 function resetTog(){ $$('.ezx .ezf.tog').forEach(el=>el.classList.remove('tog')); }
+/* ★ v278 — 해설 유형 고르기. 자동(AI 가 판단)이 기본, 틀리게 잡으면 여기서 고르고 다시 뽑는다.
+   문항마다 기기에 기억 — 해설 돌리기(여러 문항)도 이 값을 따른다. */
+const KINDS=['자동','계산','표·선정','나열','단답','서술','회로·시퀀스'];
+const KKEY='prac:ezkind';
+const kindAll=()=>{ try{ return JSON.parse(localStorage.getItem(KKEY)||'{}')||{} }catch(e){ return {} } };
+window.__ezKindFor=id=>{ const v=kindAll()[String(id)]; return v && v!=='자동' ? v : ''; };
+function kindSel(lab){
+  let s=lab.querySelector(':scope > select.ezkind');
+  const id=(()=>{ const c=lab.closest('.pcard'); if(c&&c.dataset.id) return c.dataset.id; try{ return OVID!=null?String(OVID):'' }catch(e){ return '' } })();
+  if(!s){
+    s=document.createElement('select'); s.className='ezkind'; s.title='해설 유형 — 다음에 해설을 뽑을 때 이 틀로 씁니다 (자동 = AI 가 판단)';
+    s.innerHTML=KINDS.map(k=>`<option value="${k}">${k==='자동'?'유형: 자동':'유형: '+k}</option>`).join('');
+    ['click','pointerdown','mousedown'].forEach(ev=>s.addEventListener(ev, e=>e.stopPropagation()));
+    s.addEventListener('change', ()=>{
+      const o=kindAll(), k=s.dataset.for; if(!k) return;
+      if(s.value==='자동') delete o[k]; else o[k]=s.value;
+      try{ localStorage.setItem(KKEY, JSON.stringify(o)) }catch(e){}
+      s.classList.toggle('set', s.value!=='자동');
+      try{ (window.__pxToast||console.log)(s.value==='자동' ? '유형: 자동 — AI 가 판단합니다' : `유형: ${s.value} — «상세 Opus/Sonnet» 으로 다시 뽑으면 이 틀로 씁니다`) }catch(e){}
+    });
+    const before=lab.querySelector(':scope > .ezsol, :scope > .ezfix, :scope > .edb');
+    before ? lab.insertBefore(s, before) : lab.appendChild(s);
+  }
+  if(s.dataset.for!==id){ s.dataset.for=id; }
+  const v=kindAll()[id]||'자동';
+  if(s.value!==v) s.value=v;
+  s.classList.toggle('set', v!=='자동');
+}
 
 document.addEventListener('click', e=>{
   const b=e.target.closest && e.target.closest('.ezxb');
@@ -23870,11 +23903,27 @@ window.__mnHead=function(head, h, box){
   if(h==='답'){
     const has=[...box.querySelectorAll('p > strong')].some(s=>(s.textContent||'').trim()==='두문자');
     const b=head.querySelector('.mnb[data-mn="new"]');
-    if(has){ b && b.remove(); return; }
+    /* ★ v278 — «＋ 두문자 만들기» 는 답이 «여러 개를 늘어놓는» 꼴일 때만.
+       계산·선정 문제의 (1)(2) 소문항 답에는 안 붙인다. */
+    if(has || !listy(box)){ b && b.remove(); return; }
     btn(head,'new');
   }
 };
 
+/* 나열형 답인가 — 유형 꼬리표 «나열형» · «항목» 칸 · 답이 짧은 낱말 3개 이상 늘어놓은 꼴 */
+function listy(box){
+  const tags=[...box.querySelectorAll('code')].map(c=>(c.textContent||'').trim());
+  if(tags.includes('나열형')) return true;
+  if(tags.some(t=>/^(계산|표·선정|서술|회로·시퀀스|단답)형$/.test(t))) return false;
+  if([...box.querySelectorAll('p > strong')].some(s=>(s.textContent||'').trim()==='항목')) return true;
+  const ans=[...box.querySelectorAll('p.ezans')].map(p=>(p.textContent||'').replace(/^\s*>\s*/,'')).join(' , ');
+  if(!ans) return false;
+  const parts=ans.split(/\s*(?:,|，|、|·|\/|;|[①-⑳])\s*/).map(x=>x.trim()).filter(Boolean);
+  if(parts.length<3) return false;
+  const numy=parts.filter(x=>/\d/.test(x) || /[→=]/.test(x)).length;     /* 숫자·계산 결과가 섞이면 나열이 아님 */
+  const longy=parts.filter(x=>x.length>24).length;
+  return numy===0 && longy<=1;
+}
 /* ══ 해설 글에서 «두문자» 칸 찾기·짓기 ══ */
 const HEAD=l=>/^\s*\*\*[^*]+\*\*\s*$/.test(l);
 const TAGLINE=l=>/^\s*`[^`]+`(\s+`[^`]+`)+\s*$/.test(l);
