@@ -22027,6 +22027,13 @@ setTimeout(mount, 600);
 .ezfix.on{background:#fef2f2;border-color:#f0a9a9;color:#b91c1c}
 .ezfix[disabled]{opacity:.55;cursor:progress}
 .ezfix:focus-visible{outline:2px solid var(--accent,#2563eb);outline-offset:1px}
+.ezsol{order:7;margin-left:6px;height:20px;padding:0 8px;border:1px solid var(--line,#e2e8f0);border-radius:6px;
+  background:var(--surface,#fff);color:var(--ink,#0f172a);cursor:pointer;flex:0 0 auto;white-space:nowrap;
+  font:700 9.5px/1 var(--font-d,system-ui);letter-spacing:0;text-transform:none}
+.ezsol b{font-weight:800}
+.ezsol+.ezsol{margin-left:4px}
+.ezsol:hover{border-color:var(--accent,#2563eb);color:var(--accent,#2563eb)}
+.ezsol[disabled]{opacity:.6;cursor:progress}
 /* 해설 돌리기 번호판 — 고정은 빗금 · 자물쇠 */
 .pxrun .no.fix{background:repeating-linear-gradient(135deg,#f1f5f9 0 4px,var(--surface,#fff) 4px 8px);
   color:#94a3b8;border-style:dashed;cursor:not-allowed}
@@ -22171,9 +22178,26 @@ function btnFor(lab, id){
     ? '쉬운해설 고정 중 — AI 가 새로 만들거나 다시 쓰지 않습니다. 누르면 풉니다'
     : '이 문항의 쉬운 풀이를 고정합니다 — 자동 생성·해설 돌리기·다시 해석·꾸미기에서 모두 빠집니다 (✎ 고치기는 됩니다)';
 }
+/* ★ v271 — 한눈에 쉬운 풀이 칸 이름줄에 «✎ 상세 Opus / Sonnet» (고정 바로 왼쪽) */
+function solFor(lab, id){
+  id=String(id);
+  ['opus','sonnet'].forEach(w=>{
+    let b=lab.querySelector(`:scope > .ezsol[data-w="${w}"]`);
+    if(!b){
+      b=document.createElement('button'); b.type='button'; b.className='ezsol'; b.dataset.w=w;
+      b.innerHTML = w==='opus' ? '✎ 상세 <b>Opus</b>' : '✎ 상세 <b>Sonnet</b>';
+      b.title = w==='opus' ? '비전공자용 상세 해설 — Opus (문항당 약 80원)' : '비전공자용 상세 해설 — Sonnet (문항당 약 30원)';
+      const fx=lab.querySelector(':scope > .ezfix');
+      fx ? fx.before(b) : lab.appendChild(b);
+    }
+    if(b.disabled) return;                          /* 뽑는 중엔 건드리지 않는다 */
+    const v=id+'|'+w;
+    if(b.dataset.pxsol2!==v) b.dataset.pxsol2=v;
+  });
+}
 function paint(){
   const oid=nowOv();
-  if(oid) $$('#ovl .plab').forEach(lab=>{ if(isEzLab(lab)) btnFor(lab, oid); });
+  if(oid) $$('#ovl .plab').forEach(lab=>{ if(isEzLab(lab)){ btnFor(lab, oid); solFor(lab, oid); } });
   $$('#list .pcard .plabel').forEach(lab=>{
     if(!isEzLab(lab)) return;
     const card=lab.closest('.pcard'); if(card && card.dataset.id) btnFor(lab, card.dataset.id);
