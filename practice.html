@@ -1562,6 +1562,21 @@ const RCACHE = (() => {
 })();
 
 let CACHE_SID = null;          /* 지금 메모리에 올라와 있는 과목 */
+/* ★ v287 — 북마크 한 곳 { id: {on, at} }. 처음 한 번, 예전 거르기별 북마크를 모아 옮긴다 */
+window.__favAll = () => {
+  try{
+    const raw = localStorage.getItem('prac:fav:v1');
+    if(raw) return JSON.parse(raw) || {};
+    const F = {}, now = Date.now();
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i); if(!/^pracux:|^prac:ux:/.test(k || '')) continue;
+      try{ const o = JSON.parse(localStorage.getItem(k) || '{}'); Object.keys((o && o.fav) || {}).forEach(id => { if(o.fav[id]) F[String(id)] = { on:true, at:now }; }); }catch(e){}
+    }
+    localStorage.setItem('prac:fav:v1', JSON.stringify(F));
+    return F;
+  }catch(e){ return {}; }
+};
+window.__favSave = F => { try{ localStorage.setItem('prac:fav:v1', JSON.stringify(F)) }catch(e){} };
 function cacheSaveRows(){      /* 이 화면에서 고친 것을 캐시에도 반영 */
   if(!CACHE_SID || !Array.isArray(ROWS) || !ROWS.length) return;
   try{ RCACHE.put("rows:" + CACHE_SID, { at:Date.now(), rows:ROWS }); }catch(e){}
@@ -6868,8 +6883,12 @@ sb?.auth?.onAuthStateChange?.((evt, session) => setTimeout(() => {
     try{return Array.isArray(window.SHOWN)&&window.SHOWN[window.ONEAT]||null}catch{return null}
   }
   function markVisited(id){if(!id)return;state=store.get();state.visited=state.visited||{};state.visited[id]=Date.now();store.set(state)}
-  function fav(id){state=store.get();state.fav=state.fav||{};state.fav[id]=!state.fav[id];if(!state.fav[id])delete state.fav[id];store.set(state);refreshCards();refreshHUD();toast(state.fav[id]?'북마크 추가':'북마크 해제')}
-  function isFav(id){state=store.get();return !!state.fav?.[id]}
+  /* ★ v287 — 북마크를 «문항 하나에 하나» 로. 예전엔 연도·회차 거르기마다 따로 적혀서
+     2024 로 거른 채 찍은 북마크가 «모든 연도» 에선 안 보였다. 이제 기기끼리도 맞춘다(Supabase fav 칸). */
+  function fav(id){ id=String(id); const F=window.__favAll(); const on=!(F[id]&&F[id].on); F[id]={on,at:Date.now()};
+    window.__favSave(F); try{ window.__studyMark&&window.__studyMark('fav',id,F[id]) }catch(e){}
+    refreshCards();refreshHUD();toast(on?'북마크 추가':'북마크 해제') }
+  function isFav(id){ const F=window.__favAll(); const v=F[String(id)]; return !!(v&&v.on) }
   function injectCardTools(){
     $$('#list > .pcard').forEach(card=>{
       const id=card.dataset.id;if(!id)return;
@@ -6882,7 +6901,7 @@ sb?.auth?.onAuthStateChange?.((evt, session) => setTimeout(() => {
   }
   function refreshCards(){injectCardTools()}
   function refreshHUD(){
-    state=store.get(); const rows=Array.isArray(window.SHOWN)?window.SHOWN:[]; const total=rows.length; const visited=Object.keys(state.visited||{}).filter(id=>rows.some(r=>String(r.id)===String(id))).length; const favs=Object.keys(state.fav||{}).filter(id=>rows.some(r=>String(r.id)===String(id))).length;
+    state=store.get(); const rows=Array.isArray(window.SHOWN)?window.SHOWN:[]; const total=rows.length; const visited=Object.keys(state.visited||{}).filter(id=>rows.some(r=>String(r.id)===String(id))).length; const favs=rows.filter(r=>isFav(r.id)).length;
     const done=$('#studyDone'),fav=$('#studyFav'),rem=$('#studyRemain'),bar=$('#studyBar'),sum=$('#filterSummary'),title=$('#studyTitle'),sub=$('#studySub');
     if(done)done.textContent=visited;if(fav)fav.textContent=favs;if(rem)rem.textContent=Math.max(0,total-visited);if(bar)bar.style.width=(total?Math.round(visited/total*100):0)+'%';
     const subj=$('#fSub')?.selectedOptions?.[0]?.textContent||'실기 기출';if(title)title.textContent=subj;
@@ -6959,10 +6978,12 @@ body.exam-mode .pcard{box-shadow:0 0 0 2px rgba(29,78,216,.08),var(--shadow)}
   function rows(){try{return Array.isArray(window.SHOWN)?window.SHOWN:[]}catch{return[]}}
   function current(){const rs=rows(); try{return rs[window.ONEAT]||null}catch{return null}}
   function mark(id,val){if(!id)return;S.results=S.results||{};S.results[id]=val;S.updated=Date.now();set(S)}
+  /* ★ v288 — 맞음·틀림은 진도 기록(같은 문제 연동 · 기기 동기화) 하나만 본다. 예전 세션 기록(S.results)은 안 읽음 */
+  const RES=id=>{ try{ const p=(window.__pracProg&&window.__pracProg())[String(id)]; return p&&p.r||'' }catch(e){ return '' } };
   function rebuild(){
-    const rs=rows(), done=rs.filter(r=>S.results?.[r.id]).length, ok=rs.filter(r=>S.results?.[r.id]==='ok').length, no=rs.filter(r=>S.results?.[r.id]==='no').length;
+    const rs=rows(), done=rs.filter(r=>RES(r.id)).length, ok=rs.filter(r=>RES(r.id)==='ok').length, no=rs.filter(r=>RES(r.id)==='no').length;
     const chip=$('#sessMeta'); if(chip) chip.textContent=`세션 ${done}/${rs.length} · 정답 ${ok} · 오답 ${no}`;
-    $$('.pcard').forEach(c=>{const id=c.dataset.id, v=S.results?.[id]; c.dataset.result=v||''; c.classList.toggle('result-ok',v==='ok'); c.classList.toggle('result-no',v==='no')});
+    $$('.pcard').forEach(c=>{const id=c.dataset.id, v=RES(id); c.dataset.result=v||''; c.classList.toggle('result-ok',v==='ok'); c.classList.toggle('result-no',v==='no')});
   }
   function inject(){
     if($('.sessionbar')||!$('.filters')) return;
@@ -7001,8 +7022,8 @@ body.exam-mode .pcard{box-shadow:0 0 0 2px rgba(29,78,216,.08),var(--shadow)}
   }
   function review(mode){
     const rs=rows().filter(r=>{
-      if(mode==='no') return S.results?.[r.id]==='no';
-      return S.results?.[r.id]==='no' && window.__isFav?.(r.id);
+      if(mode==='no') return RES(r.id)==='no';
+      return RES(r.id)==='no' && window.__isFav?.(r.id);
     });
     if(!rs.length){toast('복습할 문제가 없습니다');return}
     $$('#list>.pcard').forEach(c=>c.hidden=!rs.some(r=>String(r.id)===String(c.dataset.id)));
@@ -7033,7 +7054,7 @@ body.exam-mode .pcard{box-shadow:0 0 0 2px rgba(29,78,216,.08),var(--shadow)}
     if(e.key==='2' && current() && window.__gkey?.matches('p-no',e)){mark(current().id,'no');rebuild();toast('오답 기록')}
   });
   // Existing favorite state is stored by the prior UX layer. Expose it safely.
-  window.__isFav=(id)=>{try{return !!JSON.parse(localStorage.getItem('prac:ux:'+location.pathname)||'{}').fav?.[id]}catch{return false}};
+  window.__isFav=(id)=>{ try{ const v=window.__favAll()[String(id)]; return !!(v&&v.on) }catch{ return false } };
   const boot=setInterval(()=>{if($('#list')&&$('.filters')){clearInterval(boot);inject();addResultButtons();rebuild();
     new MutationObserver(()=>{addResultButtons();rebuild()}).observe($('#list'),{childList:true,subtree:true});
   }},180);
@@ -7147,6 +7168,12 @@ body.oneup .railwrap{display:block}
 .railwrap .pb.done{border-color:#93b4f7;background:#eef4ff;color:#1d4ed8}
 .railwrap .pb.done.now{background:var(--ink);border-color:var(--ink);color:#fff}
 .railwrap .pb.wrong{border-color:#f0a3ab}
+/* ★ v288 — 레일 색 = 미니맵 색 (맞음 초록 · 틀림 빨강 · 푼 기록만 파랑) · 회독 숫자 */
+.railwrap .pb,.ovrail .pb{position:relative}
+.railwrap .pb.rok:not(.now),.ovrail .pb.rok:not(.now){border-color:#8fd0aa;background:#ecf8f1;color:#18794e}
+.railwrap .pb.wrong:not(.now),.ovrail .pb.wrong:not(.now){border-color:#f0a3ab;background:#fdeff0;color:#b42331}
+.pb sup.rdn{position:absolute;top:-6px;right:-4px;min-width:12px;padding:0 3px;border-radius:7px;background:#0f172a;color:#fff;
+  font:800 8.5px/12px var(--font-m,monospace);text-align:center;pointer-events:none}
 
 /* «한눈에» 판이 이동줄 밑에 깔려서 위쪽 단추가 안 보이던 것을 고친다 */
 .ovl{z-index:2000!important}
@@ -7219,36 +7246,57 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
   const PKEY='prac:prog:v1';
   let PROG=(()=>{try{return JSON.parse(localStorage.getItem(PKEY)||'{}')}catch(e){return{}}})();
   const psave=()=>{try{localStorage.setItem(PKEY,JSON.stringify(PROG))}catch(e){}};
+  /* ★ v288 — «같은 문제» 끼리 확실히 연동.
+     같은 문제 = 소문항 이름이 같음 · 글이 90% 이상 같음 · 책이 적은 출제 연도 목록이 같음 (__pracSame)
+     맞음·틀림·회독 −/+ 를 누르면 그 묶음 «모두» 에 같은 기록을 적는다.
+     (묶음 안 기록이 전에 서로 달랐으면 먼저 가장 큰 값으로 합친 뒤 적는다)
+     그래서 레일·카드·뱃지·답안·미니맵·랜덤 거르기가 전부 같은 숫자를 본다. */
+  const sameOf=id=>{ try{ const g=window.__pracSame?window.__pracSame(id):null; if(g&&g.length) return g.map(String); }catch(e){} return [String(id)]; };
+  const norm=p=>{ p=Object.assign({n:0},p||{}); if(p.ok==null) p.ok=p.r==='ok'?1:0; if(p.no==null) p.no=p.r==='no'?1:0; return p; };
+  function merged(ids){
+    let m=null;
+    ids.forEach(k=>{ const p=PROG[k]; if(!p) return; const q=norm(p);
+      if(!m){ m=Object.assign({},q); return; }
+      m.n=Math.max(m.n|0,q.n|0); m.ok=Math.max(m.ok|0,q.ok|0); m.no=Math.max(m.no|0,q.no|0);
+      if((+q.at||0)>(+m.at||0)){ m.at=q.at; m.r=q.r; } });
+    m=norm(m||{n:0,r:null});
+    m.n=Math.max(m.n|0,(m.ok|0)+(m.no|0));      /* 맞힘+틀림이 회독보다 많을 수는 없다 */
+    return m;
+  }
+  function writeAll(ids,p){
+    const alive=(p.n|0)>0;
+    ids.forEach(k=>{ if(alive) PROG[k]=Object.assign({},p); else delete PROG[k]; });
+    psave(); paint(); ids.forEach(smark);
+  }
   function bump(id,r){
     if(!id)return; id=String(id);
-    const p=PROG[id]||{n:0};
-    /* ★ v284 — 맞힌 횟수·틀린 횟수를 따로 센다 (회독 판단용). 예전 기록은 마지막 결과 1번으로 친다 */
-    if(p.ok==null) p.ok=p.r==='ok'?1:0;
-    if(p.no==null) p.no=p.r==='no'?1:0;
+    const ids=sameOf(id), p=merged(ids);
     p.n=(p.n|0)+1; p.r=r; p.at=Date.now();
     if(r==='ok') p.ok++; else if(r==='no') p.no++;
-    PROG[id]=p; psave(); paint();
+    writeAll(ids,p);
   }
-  function clearOne(id){ id=String(id); delete PROG[id]; psave(); paint(); }
+  function clearOne(id){ id=String(id); writeAll(sameOf(id),{n:0,at:Date.now()}); }
+  /* ★ v287 — 바뀐 문항을 서버로 (없어진 것은 n:0 으로 알려 다른 기기에서도 지운다) */
+  function smark(id){ try{ window.__studyMark && window.__studyMark('prog', String(id), PROG[String(id)] || { n:0, at:Date.now() }) }catch(e){} }
+  window.__pracProgPut=(id,v)=>{ id=String(id); if(v && (v.n|0)>0) PROG[id]=v; else delete PROG[id]; };
+  window.__pracProgSave=()=>{ psave(); try{ paint() }catch(e){} };
   window.__pracProg=()=>PROG;
   /* ★ v284 — 맞힌 횟수 (예전 기록: 마지막이 맞음이면 1) */
   window.__pracOkN=id=>{ const p=PROG[String(id)]; if(!p) return 0; return p.ok!=null?(p.ok|0):(p.r==='ok'?1:0); };
   /* ★ v285 — 체크(푼) 횟수 = 회독. 손으로 −/+ (답안 «고치기» 옆 · 미니맵).
      + 는 «한 번 더 풂» 만 올린다 (맞음·틀림은 안 건드림). − 로 줄이면 맞힘·틀림 수도 넘지 않게 줄인다. */
   window.__pracChkN=id=>{ const p=PROG[String(id)]; return p?(p.n|0):0; };
-  window.__pracChkAdj=(id,d)=>{ id=String(id); const p=PROG[id]||{n:0,r:null};
-    if(p.ok==null) p.ok=p.r==='ok'?1:0; if(p.no==null) p.no=p.r==='no'?1:0;
-    p.n=Math.max(0,(p.n|0)+d); if(d>0) p.at=Date.now();
+  window.__pracChkAdj=(id,d)=>{ id=String(id); const ids=sameOf(id), p=merged(ids);
+    p.n=Math.max(0,(p.n|0)+d); p.at=Date.now();
     while((p.ok|0)+(p.no|0)>p.n){ if(p.no>0) p.no--; else p.ok--; }
-    if(!p.n){ delete PROG[id]; }
-    else { if(p.r==='ok'&&!p.ok) p.r=p.no?'no':null; if(p.r==='no'&&!p.no) p.r=p.ok?'ok':null; PROG[id]=p; }
-    psave(); paint(); return p.n|0; };
+    if(p.r==='ok'&&!p.ok) p.r=p.no?'no':null; if(p.r==='no'&&!p.no) p.r=p.ok?'ok':null;
+    writeAll(ids,p); return p.n|0; };
   /* 한 문항 맞힌 횟수를 손으로 고침 (미니맵 −/+) */
-  window.__pracOkAdj=(id,d)=>{ id=String(id); const p=PROG[id]||{n:0,r:null};
-    if(p.ok==null) p.ok=p.r==='ok'?1:0; if(p.no==null) p.no=p.r==='no'?1:0;
-    p.ok=Math.max(0,(p.ok|0)+d); if(d>0){ p.n=Math.max((p.n|0)+1,p.ok+(p.no|0)); p.r='ok'; p.at=Date.now(); }
-    if(!p.ok && !p.no && !(p.n|0)){ delete PROG[id]; } else { if(!p.ok && p.r==='ok') p.r=p.no?'no':null; PROG[id]=p; }
-    psave(); paint(); return p.ok|0; };
+  window.__pracOkAdj=(id,d)=>{ id=String(id); const ids=sameOf(id), p=merged(ids);
+    p.ok=Math.max(0,(p.ok|0)+d); p.at=Date.now(); if(d>0){ p.n=Math.max((p.n|0)+1,p.ok+(p.no|0)); p.r='ok'; }
+    if(!p.ok && p.r==='ok') p.r=p.no?'no':null;
+    writeAll(ids,p); return p.ok|0; };
+  window.__pracSameOf=sameOf;
 
   /* ── 3칸 도구 만들기 ── */
   let attic;
@@ -7355,8 +7403,10 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
     /* 더보기 · 이어풀기 · 오답만 */
     $('#dpMore',deck).onclick=e=>{
       e.stopPropagation();
-      if(!confirm('이 기기에 저장된 실기 진도(맞음/틀림·푼 횟수)를 모두 지울까요?')) return;
+      if(!confirm('실기 진도(맞음/틀림·푼 횟수)를 모두 지울까요?\n다른 기기(PC·노트북·태블릿)에서도 같이 지워집니다.')) return;
+      const ids=Object.keys(PROG);
       PROG={}; psave(); $('#sessionClear')?.click(); paint();
+      try{ window.__studyReset && window.__studyReset(ids) }catch(e){}
     };
     $('#dpMore',deck).title='진도 초기화';
     $('#dpResume',deck).onclick=()=>{
@@ -7424,6 +7474,11 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
       const p=PROG[String(r.id)];
       b.classList.toggle('done',!!p);
       b.classList.toggle('wrong',p?.r==='no');
+      b.classList.toggle('rok',p?.r==='ok');
+      /* ★ v288 — 회독 2번 이상이면 번호 위에 숫자 (미니맵과 같은 모양) */
+      const n=p?(p.n|0):0; let sp=b.querySelector(':scope > .rdn');
+      if(n>=2){ if(!sp){ sp=document.createElement('sup'); sp.className='rdn'; b.appendChild(sp); } if(sp.textContent!==String(n)) sp.textContent=String(n); }
+      else if(sp) sp.remove();
     });
   }
 
@@ -7488,7 +7543,7 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
     const W=45, a=Math.max(0,now-W), b=Math.min(rs.length,now+W+1);
     const html=rs.slice(a,b).map((r,k)=>{
       const i=a+k, p=PROG[String(r.id)];
-      return `<button class="pb ${i===now?'now':''} ${p?'done':''}" type="button" data-ovgo="${i}" data-y="${r.year}">${r.year%100}-${r.session} ${r.no}</button>`
+      return `<button class="pb ${i===now?'now':''} ${p?'done':''} ${p?.r==='ok'?'rok':p?.r==='no'?'wrong':''}" type="button" data-ovgo="${i}" data-y="${r.year}">${r.year%100}-${r.session} ${r.no}${p&&(p.n|0)>=2?`<sup class="rdn">${p.n|0}</sup>`:''}</button>`
         + (window.__grpTail ? window.__grpTail(r) : '');
     }).join('');
     /* ① 내용이 그대로면 손대지 않는다 */
@@ -7534,8 +7589,8 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
         h.__guard=1;
       }
       const p=PROG[id];
-      n.textContent=p?`${p.n}회 풂`:'';
-      n.title=p?'다시 누르면 횟수가 올라갑니다':'';
+      n.textContent=p?`${p.n|0}회독 · ✓${norm(p).ok|0}`:'';
+      n.title=p?'맞음·틀림을 누를 때마다 회독 +1 — 같은 문제끼리 함께 셉니다':'';
       card.dataset.result=p?.r||'';
       card.classList.toggle('result-ok',p?.r==='ok');
       card.classList.toggle('result-no',p?.r==='no');
@@ -13651,6 +13706,9 @@ paint();
 .ovacts{display:flex;align-items:center;gap:5px;margin-left:6px}
 /* ★ v284 — 맞힌 횟수 */
 .ovacts button[data-ova="ok"]{position:relative}
+.pxhd.r [data-hd="ok"]{position:relative}
+.pxhd.r [data-hd="ok"][data-cnt]::after{content:attr(data-cnt);position:absolute;top:-7px;right:-5px;padding:1px 4px;border-radius:7px;
+  background:#1f7a4d;color:#fff;font:800 9px/1.3 var(--font-m,monospace);box-shadow:0 0 0 1.5px var(--surface,#fff);white-space:nowrap}
 .ovacts button[data-ova="ok"][data-cnt]::after{content:attr(data-cnt);position:absolute;top:-6px;right:-5px;padding:1px 4px;border-radius:7px;
   background:#1f7a4d;color:#fff;font:800 9px/1.3 var(--font-m,monospace);box-shadow:0 0 0 1.5px var(--surface,#fff)}
 .ovacts button{flex:none;height:32px;min-width:34px;padding:0 9px;cursor:pointer;
@@ -20731,7 +20789,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=266").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=288").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -23427,7 +23485,7 @@ window.__pracCkN=ckN;
    빈출·금·은 «같은 유형은 하나만» 은 예전처럼 대문항으로 — 그래서 소문항이 다른 비슷한 문제는
    다음 뽑기에 또 나온다(따로 연습해야 하니까). */
 const SCOPES={ same:'같은 문제만', mid:'중문항까지', big:'대문항까지', row:'문항 하나만' };
-const scope=()=>SCOPES[MOD.scope]?MOD.scope:'same';
+const scope=()=>'same';   /* ★ v288 — 범위 고르기 뺌: 기록 자체를 같은 문제끼리 함께 적으므로 하나로 고정 */
 let KIN=null, KSIG='', KT=0, KSC='';
 function kinMap(){
   const R=rowsAll(), sc=scope();
@@ -23458,6 +23516,7 @@ const kinOf=id=>(kinMap().get(String(id))||[String(id)]);
 const chkK=id=>Math.max(...kinOf(id).map(chkN));
 const okK =id=>Math.max(...kinOf(id).map(okN));
 window.__pracKin=kinOf;
+window.__pracSame=kinOf;
 window.__pracKinScope=()=>SCOPES[scope()];
 const okN=id=>{ try{ if(window.__pracOkN) return window.__pracOkN(id); }catch(e){}
   const p=progMap()[String(id)]; return p?(p.ok!=null?(p.ok|0):(p.r==='ok'?1:0)):0; };
@@ -23574,13 +23633,6 @@ function mount(){
     + `</span>`;
   f2.after(row);
   const n=$('#fRandN'); if(n) row.appendChild(n);
-  /* ★ v286 — 회독을 같이 셀 범위 */
-  const sc=document.createElement('select'); sc.id='randScope'; sc.className='rscope';
-  sc.title='체크·맞힘 횟수를 어디까지 같이 셀지 — 같은 문제만: 소문항 이름·글 90%↑·책의 출제연도가 같은 것';
-  sc.innerHTML=Object.entries(SCOPES).map(([k,v])=>`<option value="${k}">회독 범위 · ${v}</option>`).join('');
-  sc.value=scope();
-  sc.addEventListener('change',()=>{ MOD.scope=sc.value; saveMod(); KIN=null; if(getRand() && MODE && (MOD.ck||MOD.un)) draw(MODE); });
-  (row.querySelector('.rmods')||row).appendChild(sc);
   const x=document.createElement('button');
   x.type='button'; x.className='chip rx'; x.id='randClear'; x.hidden=true; x.title='랜덤을 풀고 원래 목록으로';
   x.textContent='✕ 해제'; row.appendChild(x);
@@ -24614,20 +24666,20 @@ window.__mnOpen=open;
      기록은 진도 칸이 쓰는 이 기기의 맞음·틀림(prac:prog:v1) 그대로 읽는다.
      ══════════════════════════════════════════════════════════════ -->
 <style>
-.ovl .plab .mmb{order:9;margin-left:auto;height:20px;padding:0 8px;border:1px solid #bfe3cf;border-radius:6px;
+.ovl .plab .mmb,.plabel .mmb{order:9;margin-left:auto;height:20px;padding:0 8px;border:1px solid #bfe3cf;border-radius:6px;
   background:#f0faf4;color:#18794e;cursor:pointer;font:700 9.5px/1 var(--font-d,system-ui);letter-spacing:0;flex:0 0 auto;white-space:nowrap}
-.ovl .plab .mmb:hover,.ovl .plab .mmb.open{background:#18794e;color:#fff;border-color:#18794e}
-.ovl .plab .mmb + .edb{margin-left:6px}
+.ovl .plab .mmb:hover,.ovl .plab .mmb.open,.plabel .mmb:hover,.plabel .mmb.open{background:#18794e;color:#fff;border-color:#18794e}
+.ovl .plab .mmb + .edb,.plabel .mmb + .edb{margin-left:6px}
 /* ★ v285 — 답안 회독 −/+ */
-.ovl .plab .rdk{order:9;margin-left:auto;display:inline-flex;align-items:center;height:20px;border:1px solid var(--line,#e2e8f0);border-radius:6px;
+.ovl .plab .rdk,.plabel .rdk{order:9;margin-left:auto;display:inline-flex;align-items:center;height:20px;border:1px solid var(--line,#e2e8f0);border-radius:6px;
   overflow:hidden;background:var(--surface,#fff);flex:0 0 auto;letter-spacing:0}
-.ovl .plab .rdk + .edb{margin-left:6px}
-.ovl .plab .rdk button{width:20px;height:100%;border:0;background:none;cursor:pointer;padding:0;font:800 12px/1 var(--font-d,system-ui);color:#475569}
-.ovl .plab .rdk button:hover{background:#eef3ff;color:#1e3a8a}
-.ovl .plab .rdk b{padding:0 6px;height:100%;display:inline-flex;align-items:center;border-left:1px solid var(--line,#e2e8f0);border-right:1px solid var(--line,#e2e8f0);
+.ovl .plab .rdk + .edb,.plabel .rdk + .edb{margin-left:6px}
+.ovl .plab .rdk button,.plabel .rdk button{width:20px;height:100%;border:0;background:none;cursor:pointer;padding:0;font:800 12px/1 var(--font-d,system-ui);color:#475569}
+.ovl .plab .rdk button:hover,.plabel .rdk button:hover{background:#eef3ff;color:#1e3a8a}
+.ovl .plab .rdk b,.plabel .rdk b{padding:0 6px;height:100%;display:inline-flex;align-items:center;border-left:1px solid var(--line,#e2e8f0);border-right:1px solid var(--line,#e2e8f0);
   font:800 9.5px/1 var(--font-m,monospace);color:var(--muted,#64748b);white-space:nowrap}
-.ovl .plab .rdk.has{border-color:#b9c8f3}
-.ovl .plab .rdk.has b{color:#1e3a8a;background:#eef3ff}
+.ovl .plab .rdk.has,.plabel .rdk.has{border-color:#b9c8f3}
+.ovl .plab .rdk.has b,.plabel .rdk.has b{color:#1e3a8a;background:#eef3ff}
 .mmpop{position:fixed;z-index:100058;width:min(680px,calc(100vw - 16px));max-height:min(74vh,720px);display:none;flex-direction:column;
   background:var(--surface,#fff);color:var(--ink,#0f172a);border:1px solid var(--line,#e2e8f0);border-radius:14px;
   box-shadow:0 18px 50px rgba(15,23,42,.24);font:600 12px/1.4 var(--font-d,system-ui)}
@@ -24661,6 +24713,8 @@ window.__mnOpen=open;
 .mmpop .c:not(.ok):not(.no).rep::after{background:#64748b}
 .mmpop .c.dim{opacity:.18}
 .mmpop .c:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(15,23,42,.18)}
+.rdk i.lk{font-style:normal;padding:0 5px;height:100%;display:inline-flex;align-items:center;border-right:1px solid var(--line,#e2e8f0);
+  font:800 9.5px/1 var(--font-d,system-ui);color:#6b2fb3;background:#f6f1fd;cursor:help}
 .mmpop .emp{padding:18px;text-align:center;color:var(--muted,#64748b)}
 /* ★ v284 — 맞힌 횟수 · 지금 문항 −/+ */
 .mmpop .c sup{position:absolute;top:-5px;right:-4px;min-width:11px;padding:0 2px;border-radius:6px;background:#0f172a;color:#fff;font:800 8px/11px var(--font-m,monospace);text-align:center}
@@ -24689,7 +24743,25 @@ function exName(y,s){
   let h=''; try{ h=((window.__pracYLabel&&window.__pracYLabel())||{})[String(y)]||(window.__pracYAuto?window.__pracYAuto(y):'') }catch(e){}
   return `${h||('자료'+y)}${s>1?'-'+s:''}`;
 }
-let EL=null, ANC=null, SIG='';
+let EL=null, ANC=null, SIG='', MMID='';
+/* ★ v288 — 한눈에든 일반 보기든 «지금 문항» */
+const curId=()=>{
+  if($('#ovl')?.classList.contains('on')) return nowOv();
+  if(MMID) return MMID;
+  try{ const r=window.SHOWN && window.SHOWN[window.ONEAT|0]; if(r) return String(r.id); }catch(e){}
+  return nowOv();
+};
+function goTo(id){
+  const ovOn=!!$('#ovl')?.classList.contains('on');
+  try{
+    if(ovOn){ window.ovOpen && window.ovOpen(id); return; }
+    const sh=window.SHOWN||[], i=sh.findIndex(x=>String(x.id)===String(id));
+    if(i>=0 && document.body.classList.contains('oneup') && typeof window.showAt==='function'){ window.showAt(i); MMID=String(id); return; }
+    const c=document.querySelector(`#list > .pcard[data-id="${CSS.escape(String(id))}"]`);
+    if(c && !c.hidden){ c.scrollIntoView({ block:'start', behavior:'smooth' }); MMID=String(id); return; }
+    window.ovOpen && window.ovOpen(id);                 /* 목록에 없으면(거르기·접힘) 한눈에로 */
+  }catch(e){}
+}
 function pop(){
   if(EL) return EL;
   EL=document.createElement('div'); EL.className='mmpop'; EL.setAttribute('role','dialog'); EL.setAttribute('aria-label','맞음 미니맵');
@@ -24699,23 +24771,23 @@ function pop(){
     const f=e.target.closest('[data-f]');
     if(f){ FIL=f.dataset.f; try{ localStorage.setItem(FK,FIL) }catch(x){} SIG=''; return paint(); }
     const aj=e.target.closest('[data-adj]');
-    if(aj){ const id=nowOv(); if(id && window.__pracOkAdj){ window.__pracOkAdj(id, +aj.dataset.adj); SIG=''; paint(); } return; }
+    if(aj){ const id=curId(); if(id && window.__pracOkAdj){ window.__pracOkAdj(id, +aj.dataset.adj); SIG=''; paint(); } return; }
     const cj=e.target.closest('[data-cadj]');
-    if(cj){ const id=nowOv(); if(id && window.__pracChkAdj){ window.__pracChkAdj(id, +cj.dataset.cadj); SIG=''; paint(); } return; }
+    if(cj){ const id=curId(); if(id && window.__pracChkAdj){ window.__pracChkAdj(id, +cj.dataset.cadj); SIG=''; paint(); } return; }
     const c=e.target.closest('[data-id]');
-    if(c){ try{ window.ovOpen && window.ovOpen(c.dataset.id) }catch(x){} setTimeout(()=>{ SIG=''; paint(); },60); }
+    if(c){ goTo(c.dataset.id); setTimeout(()=>{ SIG=''; paint(); },120); }
   });
   EL.addEventListener('keydown', e=>{ e.stopPropagation(); if(e.key==='Escape') close(); });
   return EL;
 }
 function paint(){
   if(!EL || !EL.classList.contains('on')) return;
-  const R=rows(), P=prog(), me=nowOv();
+  const R=rows(), P=prog(), me=curId();
   const TH=(window.__pracUnN&&window.__pracUnN())||1, CK=(window.__pracCkN&&window.__pracCkN())||1;
   const sig=R.length+'|'+JSON.stringify(P)+'|'+me+'|'+FIL+'|'+TH+'|'+CK+'|'+((window.__pracKinScope&&window.__pracKinScope())||'');
   if(sig===SIG) return; SIG=sig;
   /* 같은 대문항 유형에서 맞힌 것이 있나 */
-  /* ★ v286 — 연두 빗금 = 같은 문제(회독 범위) 안에서 푼 기록이 있음 */
+  /* ★ v288 — 연두 빗금 = 같은 문제 안에서 푼 기록이 있음 */
   const kinOf=id=>{ try{ return window.__pracKin?window.__pracKin(id):[String(id)] }catch(e){ return [String(id)] } };
   const kinN=id=>Math.max(0,...kinOf(id).filter(k=>k!==String(id)).map(k=>(P[k]&&(P[k].n|0))||0));
   const ex=new Map();
@@ -24765,58 +24837,234 @@ function openMM(anchor){
   $$('.mmb').forEach(b=>b.classList.add('open'));
 }
 function close(){ EL && EL.classList.remove('on'); $$('.mmb').forEach(b=>b.classList.remove('open')); }
+const labName=lab=>String(lab.textContent||'').replace(/🗺.*|✎.*|[−＋].*$/,'').replace(/[▾▸\s]+/g,' ').trim();
 function mount(){
-  $$('#ovLeft .plab').forEach(lab=>{               /* 왼쪽 칸 = 문제 */
+  /* ★ v288 — 한눈에 왼쪽 칸 + 일반 보기 카드의 «문제» 칸 이름줄 */
+  [...$$('#ovLeft .plab'), ...$$('#list > .pcard .plabel').filter(l=>/^문제/.test(labName(l)))].forEach(lab=>{
     if(lab.querySelector('.mmb')) return;
     const b=document.createElement('button');
     b.type='button'; b.className='mmb'; b.textContent='🗺 미니맵';
     b.title='회차·번호별로 맞음·틀림을 색으로 봅니다';
-    b.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation(); EL&&EL.classList.contains('on') ? close() : openMM(b); });
+    b.addEventListener('click', ev=>{ ev.preventDefault(); ev.stopPropagation();
+      const card=b.closest('.pcard'); MMID=card?String(card.dataset.id):'';
+      EL&&EL.classList.contains('on') ? close() : openMM(b); });
     const ed=lab.querySelector('.edb');
     ed ? lab.insertBefore(b, ed) : lab.appendChild(b);
   });
 }
 (function watch(){
-  const L=$('#ovLeft'); if(!L) return void setTimeout(watch,500);
-  new MutationObserver(()=>{ try{ mount() }catch(e){} }).observe(L,{ childList:true, subtree:true });
+  const L=$('#ovLeft'), LS=$('#list'); if(!L || !LS) return void setTimeout(watch,500);
+  const mo=new MutationObserver(()=>{ try{ mount(); mountAns() }catch(e){} });
+  mo.observe(L,{ childList:true, subtree:true }); mo.observe(LS,{ childList:true, subtree:true });
   mount();
 })();
-setInterval(()=>{ try{ mount(); if(EL&&EL.classList.contains('on')){ if(!$('#ovl')?.classList.contains('on')) close(); else paint(); } }catch(e){} }, 1000);
+setInterval(()=>{ try{ mount(); if(EL&&EL.classList.contains('on')){
+  /* 한눈에에서 연 것은 한눈에가 닫히면 같이 닫음 · 일반 보기에서 연 것은 그대로 */
+  if(!MMID && !$('#ovl')?.classList.contains('on')) close(); else paint(); } }catch(e){} }, 1000);
 document.addEventListener('pointerdown', e=>{ if(EL && EL.classList.contains('on') && !EL.contains(e.target) && !e.target.closest('.mmb')) close(); }, true);
 addEventListener('resize', place);
 window.__pracMinimap={ open:()=>{ const b=$('#ovl .mmb'); b&&openMM(b); }, close };
 
 /* ★ v285 — 답안 «✎ 고치기» 옆 회독 −/+  (지금 문항을 몇 번 풀었나 = 체크 횟수) */
+/* ★ v288 — 한눈에 답안 칸 + 일반 보기 카드의 답안 칸 이름줄, 모두 같은 것 */
+function rdkId(w){ const c=w.closest('.pcard'); return c ? String(c.dataset.id) : nowOv(); }
 function mountAns(){
-  const lab=$('#ovRight .seg[data-seg="a"] > .plab'); if(!lab) return;
-  let w=lab.querySelector('.rdk');
-  if(!w){
-    w=document.createElement('span'); w.className='rdk';
-    w.innerHTML='<button type="button" data-rd="-1" aria-label="회독 줄이기">−</button><b></b><button type="button" data-rd="1" aria-label="회독 늘리기">＋</button>';
-    w.addEventListener('click', e=>{
-      const b=e.target.closest('[data-rd]'); if(!b) return;
-      e.preventDefault(); e.stopPropagation();
-      const id=nowOv(); if(!id || !window.__pracChkAdj) return;
-      window.__pracChkAdj(id, +b.dataset.rd); paintAns(); SIG=''; paint();
-    });
-    const ed=lab.querySelector('.edb'); ed ? lab.insertBefore(w, ed) : lab.appendChild(w);
-  }
+  const labs=[...$$('#ovRight .seg[data-seg="a"] > .plab'), ...$$('#list > .pcard .plabel').filter(l=>/^답안/.test(labName(l)))];
+  labs.forEach(lab=>{
+    let w=lab.querySelector('.rdk');
+    if(!w){
+      w=document.createElement('span'); w.className='rdk';
+      w.innerHTML='<i class="lk" hidden></i><button type="button" data-rd="-1" aria-label="회독 줄이기">−</button><b></b><button type="button" data-rd="1" aria-label="회독 늘리기">＋</button>';
+      w.addEventListener('click', e=>{
+        const b=e.target.closest('[data-rd]'); if(!b) return;
+        e.preventDefault(); e.stopPropagation();
+        const id=rdkId(w); if(!id || !window.__pracChkAdj) return;
+        window.__pracChkAdj(id, +b.dataset.rd); paintAns(); SIG=''; paint();
+      });
+      ['pointerdown','mousedown'].forEach(ev=>w.addEventListener(ev,e=>e.stopPropagation()));
+      const ed=lab.querySelector('.edb'); ed ? lab.insertBefore(w, ed) : lab.appendChild(w);
+    }
+  });
   paintAns();
 }
+function fullNm(r){ return r ? `${exName(r.year,r.session)} ${r.no}번` : ''; }
 function paintAns(){
-  const w=$('#ovRight .rdk'); if(!w) return;
-  const id=nowOv(), p=id?prog()[id]:null, n=p?(p.n|0):0, o=id?okN(id):0;
-  const t=n?`${n}회독 · ✓${o}`:'0회독';
-  const b=w.querySelector('b'); if(b.textContent!==t) b.textContent=t;
-  w.classList.toggle('has', n>0);
-  w.title=`이 문항 ${n}번 풂 (맞힘 ${o}) — ＋ 한 번 더 풂 · − 잘못 센 것 빼기\n맞음·틀림 단추를 누르면 저절로 +1`;
+  const P=prog();
+  $$('.rdk').forEach(w=>{
+    const id=rdkId(w); if(!id) return;
+    const p=P[id], n=p?(p.n|0):0, o=okN(id);
+    const t=n?`${n}회독 · ✓${o}`:'0회독';
+    const b=w.querySelector('b'); if(b.textContent!==t) b.textContent=t;
+    w.classList.toggle('has', n>0);
+    /* 같은 문제로 묶인 문항 수 — 누르면 다 같이 기록된다 */
+    let g=[]; try{ g=(window.__pracSame?window.__pracSame(id):[]).filter(x=>String(x)!==String(id)); }catch(e){}
+    const lk=w.querySelector('.lk');
+    if(lk){ lk.hidden=!g.length; const lt=g.length?`🔗${g.length}`:''; if(lk.textContent!==lt) lk.textContent=lt;
+      const R=rows(); lk.title=g.length?`같은 문제 ${g.length}개와 함께 기록됩니다:\n`+g.map(x=>fullNm(R.find(r=>String(r.id)===String(x)))).filter(Boolean).join('\n'):''; }
+    w.title=`이 문항 ${n}번 풂 (맞힘 ${o}) — ＋ 한 번 더 풂 · − 잘못 센 것 빼기\n맞음·틀림 단추를 누르면 저절로 +1${g.length?`\n같은 문제 ${g.length}개도 똑같이 바뀝니다`:''}`;
+  });
 }
 (function watchR(){
   const R=$('#ovRight'); if(!R) return void setTimeout(watchR,500);
   new MutationObserver(()=>{ try{ mountAns() }catch(e){} }).observe(R,{ childList:true, subtree:true });
   mountAns();
 })();
-setInterval(()=>{ try{ if($('#ovl')?.classList.contains('on')){ mountAns(); paintAns(); } }catch(e){} }, 800);
+setInterval(()=>{ try{ mount(); mountAns(); } catch(e){} }, 900);
+/* ★ v288 — 일반 보기 머리 «✓ 맞음» 에도 한눈에와 같은 뱃지 */
+setInterval(()=>{ try{
+  $$('#list > .pcard .pxhd.r [data-hd="ok"]').forEach(b=>{
+    const id=String(b.closest('.pcard')?.dataset.id||''); if(!id) return;
+    const p=prog()[id], n=p?(p.n|0):0, t=n?`${n}회·✓${okN(id)}`:'';
+    if(t) { if(b.dataset.cnt!==t) b.dataset.cnt=t; } else if(b.dataset.cnt) delete b.dataset.cnt;
+  });
+}catch(e){} }, 900);
+})();
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════
+     v287 · 🔄 공부 기록 기기끼리 맞추기 — 회독·맞힘·틀림 · 북마크
+
+     저장 : practicals.prog (jsonb {n, ok, no, r, at}) · practicals.fav (jsonb {on, at})
+            → supabase-study.sql 한 번 (여러 번 돌려도 안전)
+     규칙 : 문항마다 «나중에 바꾼 쪽(at)» 이 이긴다. 지운 것도 n:0 · on:false 로 남겨서
+            다른 기기가 옛 기록을 되살리지 않게 한다.
+     보내기 : 누를 때마다 모아 두었다가 0.8초 뒤 한 번에. 오프라인이면 쌓아 두고 다시 연결되면 보냄.
+     받기   : 과목을 열 때 · 탭으로 돌아올 때(20초에 한 번까지) · 켜 둔 동안 1분마다 —
+              «기록이 있는 줄의 id·prog·fav» 만.
+     SQL 전 : 이 기기에만 쌓이고, SQL 뒤 처음 열 때 그동안 것을 서버로 올린다.
+     ══════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+'use strict';
+const say=m=>{ try{ (window.__pxToast||window.AppUI?.toast||console.log)(m) }catch(e){} };
+const client=()=>{ try{ return sb }catch(e){ return null } };
+const curSid=()=>{ try{ return CACHE_SID }catch(e){ return null } };
+const rows=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
+const NOCOL=m=>/prog|fav|column|schema cache|42703|PGRST204/i.test(String(m||''));
+const PK='prac:sync:pend:v1';
+let PEND=(()=>{ try{ const o=JSON.parse(localStorage.getItem(PK)||'{}')||{}; return { prog:o.prog||{}, fav:o.fav||{} }; }catch(e){ return { prog:{}, fav:{} } } })();
+const psv=()=>{ try{ localStorage.setItem(PK, JSON.stringify(PEND)) }catch(e){} };
+const COL={ prog:null, fav:null };
+let TOLD=false, FT=0, BUSY=false, PULLING=false, LASTP=0, SYNCED='';
+const progAll=()=>{ try{ return (window.__pracProg&&window.__pracProg())||{} }catch(e){ return {} } };
+const at=v=>+(v&&v.at)||0;
+
+function mark(kind, id, rec){
+  PEND[kind][String(id)]=rec; psv();
+  clearTimeout(FT); FT=setTimeout(flush, 800);
+}
+window.__studyMark=mark;
+
+async function flush(){
+  const c=client(); if(!c || BUSY || !navigator.onLine) return;
+  BUSY=true;
+  try{
+    for(const kind of ['prog','fav']){
+      if(COL[kind]===false) continue;
+      const ent=Object.entries(PEND[kind]); if(!ent.length) continue;
+      /* 같은 값이면 한 번에 (.in) — 초기화처럼 여러 줄이 같을 때 */
+      const by=new Map();
+      ent.forEach(([id,v])=>{ const k=JSON.stringify(v); (by.get(k)||by.set(k,[]).get(k)).push(id); });
+      const jobs=[...by.entries()];
+      let stop=false;
+      for(let i=0;i<jobs.length && !stop;i+=6){
+        await Promise.all(jobs.slice(i,i+6).map(async ([k,ids])=>{
+          for(let j=0;j<ids.length;j+=300){
+            const part=ids.slice(j,j+300);
+            try{
+              const up=await c.from('practicals').update({ [kind]:JSON.parse(k) }).in('id', part.map(x=>isNaN(+x)?x:+x));
+              if(up.error){
+                if(NOCOL(up.error.message)){ COL[kind]=false; stop=true;
+                  if(!TOLD){ TOLD=true; say('🔄 회독·북마크가 이 기기에만 저장됩니다 — supabase-study.sql 을 한 번 돌리면 기기끼리 맞춥니다'); } }
+                return;
+              }
+              COL[kind]=true;
+              part.forEach(id=>{ if(JSON.stringify(PEND[kind][id])===k) delete PEND[kind][id]; });
+            }catch(e){ stop=true; }
+          }
+        }));
+      }
+    }
+  }finally{ BUSY=false; psv(); }
+  if(Object.keys(PEND.prog).length+Object.keys(PEND.fav).length && navigator.onLine) setTimeout(flush, 15000);
+}
+
+/* 서버 → 이 기기. 나중에 바꾼 쪽이 이긴다 */
+async function pull(force){
+  const s=curSid(), c=client(); if(!s || !c || PULLING) return;
+  if(!force && Date.now()-LASTP<20000 && SYNCED===s) return;
+  PULLING=true; LASTP=Date.now();
+  try{
+    const got=[];
+    let colOK=true;
+    for(let from=0; from<20000; from+=1000){
+      const q=await c.from('practicals').select('id,prog,fav').eq('subject_id', s)
+        .or('prog.not.is.null,fav.not.is.null').range(from, from+999);
+      if(q.error){ if(NOCOL(q.error.message)){ COL.prog=COL.fav=false; colOK=false; } return; }
+      got.push(...(q.data||[]));
+      if(!q.data || q.data.length<1000) break;
+    }
+    if(!colOK) return;
+    COL.prog=COL.fav=true;
+    const P=progAll(), F=window.__favAll ? window.__favAll() : {};
+    const seen=new Set();
+    let chP=false, chF=false;
+    got.forEach(d=>{
+      const id=String(d.id); seen.add(id);
+      /* 진도 */
+      const sp=d.prog, lp=P[id], pp=PEND.prog[id];
+      if(sp && typeof sp==='object'){
+        if(pp){ if(at(sp)>at(pp)){ delete PEND.prog[id]; window.__pracProgPut(id, sp); chP=true; } }
+        else if(!lp || at(sp)>at(lp)){ if((sp.n|0)>0 || lp){ window.__pracProgPut(id, sp); chP=true; } }
+        else if(at(lp)>at(sp)) PEND.prog[id]=lp;
+      }else if(lp && !pp) PEND.prog[id]=lp;
+      /* 북마크 */
+      const sf=d.fav, lf=F[id], pf=PEND.fav[id];
+      if(sf && typeof sf==='object'){
+        if(pf){ if(at(sf)>at(pf)){ delete PEND.fav[id]; F[id]=sf; chF=true; } }
+        else if(!lf || at(sf)>at(lf)){ F[id]=sf; chF=true; }
+        else if(at(lf)>at(sf)) PEND.fav[id]=lf;
+      }else if(lf && !pf) PEND.fav[id]=lf;
+    });
+    /* 이 과목에서 서버엔 없고 이 기기에만 있는 것 → 올림 (SQL 뒤 처음 한 번 옮기기도 이것) */
+    rows().forEach(r=>{
+      const id=String(r.id); if(seen.has(id)) return;
+      if(P[id] && !PEND.prog[id]) PEND.prog[id]=Object.assign({ at:Date.now() }, P[id]);
+      if(F[id] && !PEND.fav[id]) PEND.fav[id]=Object.assign({ at:Date.now() }, F[id]);
+    });
+    psv();
+    if(chP){ try{ window.__pracProgSave() }catch(e){} }
+    if(chF){ try{ window.__favSave(F) }catch(e){} }
+    if(chP||chF){
+      try{ (window.__pracRedraw||window.drawList)?.() }catch(e){}
+      try{ window.__pracMinimap && document.querySelector('.mmpop.on') && window.__pracMinimap.open() }catch(e){}
+    }
+    if(SYNCED!==s && (chP||chF)) say('🔄 다른 기기의 회독·북마크를 맞췄습니다');
+    SYNCED=s;
+    flush();
+  }catch(e){}
+  finally{ PULLING=false; }
+}
+window.__studySync=()=>pull(true);
+
+/* 진도 초기화 — 모든 기기에서 지우기 */
+window.__studyReset=async ids=>{
+  const now=Date.now(), z={ n:0, at:now };
+  (ids||[]).forEach(id=>{ PEND.prog[String(id)]=z; });
+  psv();
+  const c=client();
+  if(c && COL.prog!==false){
+    try{ const up=await c.from('practicals').update({ prog:z }).not('prog','is',null); if(!up.error){ (ids||[]).forEach(id=>{ delete PEND.prog[String(id)]; }); psv(); } }catch(e){}
+  }
+  flush();
+};
+
+setInterval(()=>{ const s=curSid(); if(s && SYNCED!==s) pull(true); }, 1500);
+setInterval(()=>{ if(!document.hidden) pull(true); }, 60000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) pull(false); });
+addEventListener('online', ()=>{ flush(); pull(true); });
+addEventListener('pagehide', ()=>{ try{ psv() }catch(e){} });
+setTimeout(flush, 2500);
 })();
 </script>
 
