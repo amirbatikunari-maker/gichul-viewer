@@ -7264,6 +7264,7 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
     return m;
   }
   function writeAll(ids,p){
+    p.okb=1;                                   /* ★ v306 — 새로 적는 기록은 «맞음→회독» 옮김 대상이 아님 */
     const alive=(p.n|0)>0;
     ids.forEach(k=>{ if(alive) PROG[k]=Object.assign({},p); else delete PROG[k]; });
     psave(); paint(); ids.forEach(smark);
@@ -7299,23 +7300,35 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
   window.__pracSameOf=sameOf;
   window.__pracBump=(id,r)=>bump(id,r);          /* ★ v304 — 카드가 목록에 없어도 기록 (한눈에 ✓/✕) */
   /* ★ v304 — «맞음» 표시된 문항 회독 +1 (한 번만). 같은 문제 묶음은 한 번 · 기록에 okb 를 남겨 다른 기기에서 또 올리지 않음 */
+  const OKB_CUT=Date.UTC(2026,8,26,15,30);     /* 2026-09-27 00:30 (한국) */
   function okBumpTargets(){
     const seen=new Set(), out=[];
     Object.keys(PROG).forEach(id=>{
       if(seen.has(id)) return;
       const ids=sameOf(id); ids.forEach(k=>seen.add(k));
       const p=merged(ids);
-      if(p.r==='ok' && !ids.some(k=>PROG[k]&&PROG[k].okb)) out.push(ids);
+      if(p.r==='ok' && !ids.some(k=>PROG[k]&&PROG[k].okb) && (+p.at||0) < OKB_CUT) out.push(ids);
     });
     return out;
   }
   window.__pracOkBumpCount=()=>okBumpTargets().length;
+  /* ★ v306 — «맞음» 단추를 «회독» 단추로 바꾸면서, 예전에 맞음으로 표시된 기록은 과목을 열 때 저절로 회독 +1
+     OKB_CUT(v306 배포 시각) 이전 기록만 — 옛 판 앱이 켜진 기기에서 나중에 생긴 기록이 또 +1 되지 않게 */
   window.__pracOkBump=()=>{
     const T=okBumpTargets();
     T.forEach(ids=>{ const p=merged(ids); p.n=(p.n|0)+1; p.okb=1; p.at=Date.now(); ids.forEach(k=>{ PROG[k]=Object.assign({},p); }); });
     psave(); paint(); T.forEach(ids=>ids.forEach(smark));
-    return T.length;
+    return T.reduce((n,ids)=>n+ids.filter(k=>PROG[k]).length,0);      /* 문항 수 (같은 문제 묶음은 묶음째) */
   };
+  const T0=Date.now();
+  setInterval(()=>{ try{
+    if(!rows().length) return;
+    /* 다른 기기에서 이미 옮긴 것을 또 올리지 않게 — 서버 기록을 한 번 받아 합친 뒤에만 (서버를 못 쓰면 20초 뒤) */
+    if(!window.__studyPulled && Date.now()-T0<20000) return;
+    const c=okBumpTargets().length; if(!c) return;
+    const n=window.__pracOkBump();
+    if(n) (window.__pxToast||console.log)(`예전 «맞음» ${n}문항을 회독 +1 로 옮겼습니다`);
+  }catch(e){} }, 4000);
 
   /* ── 3칸 도구 만들기 ── */
   let attic;
@@ -7595,7 +7608,7 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
       const id=String(card.dataset.id||''); if(!id) return;
       const a=card.querySelector('.result-actions'); if(!a) return;
       const ok=a.querySelector('[data-result="ok"]'), no=a.querySelector('[data-result="no"]');
-      if(ok&&ok.textContent.trim()==='✓') ok.textContent='✓ 맞음';
+      if(ok&&/^(✓|✓ 맞음)$/.test(ok.textContent.trim())) ok.textContent='＋ 회독';
       if(no&&no.textContent.trim()==='✕') no.textContent='✕ 틀림';
       let n=a.querySelector('.done-n');
       if(!n){ n=document.createElement('span'); n.className='done-n'; a.insertBefore(n,a.firstChild); }
@@ -13760,7 +13773,7 @@ const ACTS=[
   { k:'pen',  ico:'✍', t:'필기',   title:'필기 켜기 / 끄기' },
   { k:'ai',   ico:'🤖', t:'AI',    title:'AI 에게 묻기' },
   { k:'fav',  ico:'☆',  t:'북마크', title:'이 문항 북마크' },
-  { k:'ok',   ico:'✓',  t:'맞음',   title:'맞음으로 기록하고 다음 문항' },
+  { k:'ok',   ico:'＋',  t:'회독',   title:'회독 +1 (풀었음) 하고 다음 문항 — 틀렸으면 옆 ✕ 틀림' },
   { k:'no',   ico:'✕',  t:'틀림',   title:'틀림으로 기록하고 다음 문항' },
   { k:'lab',  ico:'⛶',  t:'기능',   title:'한눈에 겹 켜기 · 검증' }
 ];
@@ -20829,7 +20842,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=305").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=306").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -22032,7 +22045,7 @@ function cardHead(){
       L.innerHTML=`<span class="pxsel"><select data-k="y" title="년도"></select><select data-k="s" title="회차"></select><select data-k="n" title="번호"></select></span>
         <span class="meta"></span><span class="pxinfo"></span>`;
       R=document.createElement('div'); R.className='pxhd r';
-      R.innerHTML=`<button type="button" data-hd="ov">⛶ 한눈에</button><button type="button" class="ok" data-hd="ok">✓ 맞음</button><button type="button" class="no" data-hd="no">✕ 틀림</button>`;
+      R.innerHTML=`<button type="button" data-hd="ov">⛶ 한눈에</button><button type="button" class="ok" data-hd="ok" title="회독 +1 (풀었음)">＋ 회독</button><button type="button" class="no" data-hd="no">✕ 틀림</button>`;
       head.appendChild(L); head.appendChild(R);
       /* 머리 전체가 «한눈에 열기» 라, 여기서 누른 것이 새어 나가지 않게 막는다 */
       [L,R].forEach(x=>['click','pointerdown','mousedown','keydown'].forEach(ev=>x.addEventListener(ev,e=>e.stopPropagation())));
@@ -25427,7 +25440,6 @@ function paint(){
   }).join('');
   EL.innerHTML=`<div class="hd"><b>🗺 맞음 미니맵</b><span class="sum">${R.length}문항 <i class="o">✓ ${O}</i><i class="x">✕ ${X}</i><i class="u">아직 ${U}</i></span>
       <button type="button" class="cl" data-cl aria-label="닫기">✕</button></div>
-    ${(()=>{ const c=window.__pracOkBumpCount?window.__pracOkBumpCount():0; return c?`<div class="okb"><span>«맞음» 표시된 <b>${c}</b>문항(같은 문제는 하나로)</span><button type="button" data-okb>회독 +1 한 번에</button></div>`:''; })()}
     <div class="tb">${[['all','전체'],['no','틀림만'],['un','아직만'],['ckleft',`체크 ${CK}번↑ 흐리게`],['left',`맞힘 ${TH}번↑ 흐리게`]].map(([k,n])=>`<button type="button" data-f="${k}" class="${FIL===k?'on':''}">${n}</button>`).join('')}
       <span class="lg"><span style="--c:#22a060">맞음</span><span style="--c:#e5484d">틀림</span><span style="--c:#dbe7fb">푼 기록만</span><span style="--c:#f1f4f8;">아직</span><span style="--c:#bfe8cf">같은 문제 풂</span></span></div>
     <div class="bd">${html||'<div class="emp">문항이 없습니다</div>'}</div>
@@ -25612,7 +25624,7 @@ async function pull(force){
     for(let from=0; from<20000; from+=1000){
       const q=await c.from('practicals').select('id,prog,fav').eq('subject_id', s)
         .or('prog.not.is.null,fav.not.is.null').range(from, from+999);
-      if(q.error){ if(NOCOL(q.error.message)){ COL.prog=COL.fav=false; colOK=false; } return; }
+      if(q.error){ if(NOCOL(q.error.message)){ COL.prog=COL.fav=false; colOK=false; window.__studyPulled=true; } return; }
       got.push(...(q.data||[]));
       if(!q.data || q.data.length<1000) break;
     }
@@ -25652,7 +25664,7 @@ async function pull(force){
       try{ window.__pracMinimap && document.querySelector('.mmpop.on') && window.__pracMinimap.open() }catch(e){}
     }
     if(SYNCED!==s && (chP||chF)) say('🔄 다른 기기의 회독·북마크를 맞췄습니다');
-    SYNCED=s;
+    SYNCED=s; window.__studyPulled=true;
     flush();
   }catch(e){}
   finally{ PULLING=false; }
