@@ -20808,7 +20808,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=293").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=294").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -22714,6 +22714,7 @@ setTimeout(()=>{ paint(); mountEv(); paintEv(); }, 900);
 .qtbd .qk .sim{border-color:#b9c8f3;color:#2f4fc4;background:#f3f6ff}
 .qtbd .qk .mini{height:28px;font-size:11px;font-weight:800}
 .deck #tagRow .duplv.on{background:#0f172a!important;border-color:#0f172a!important;color:#fff!important}
+.qtbd .orph{padding:6px 10px;background:#fff7ed;border-bottom:1px solid #fed7aa;color:#9a3412;font-size:11.5px;display:flex;align-items:center;gap:6px}
 .qtbd .emp{padding:24px;text-align:center;color:#94a3b8}
 .qtbd .bf{display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid var(--line,#e2e8f0);background:#fcfaff}
 .qtbd .bf .to{flex:1;min-width:0;font-size:11.5px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -22868,7 +22869,7 @@ async function sync(force){
   finally{ BUSY=false; }
 }
 /* 여러 문항을 한 번에 — 요청은 한 번(.in) */
-async function setType(ids, name, lv){
+async function setType0(ids, name, lv){
   lv=(lv==null)?LV:Math.min(2,Math.max(0,+lv||0));
   const f=FLD[lv];
   ids=[...new Set((ids||[]).map(String))].filter(id=>rowOf(id));
@@ -22895,6 +22896,75 @@ async function setType(ids, name, lv){
   if(!TOLD){ TOLD=true; say('🏷 이 기기에만 저장했습니다 — supabase-qtype.sql 을 돌리면 PC·폰이 같이 봅니다'); }
   return true;
 }
+/* ★ v294 — 나무 규칙: 중·소문항이 있으면 윗단계도 반드시 있다
+   · 중·소문항을 넣는데 윗단계가 빈 문항 → 그 이름이 이미 쓰인 곳의 윗단계(가장 많이 쓰인 것)로 채움
+     그런 곳이 없으면 같이 넣는 다른 문항 · 쪽지로 보고 있는 문항의 윗단계 → 그래도 없으면 이름을 물음
+   · 윗단계가 이미 있는 문항은 그대로 둠 (옮기는 것은 분류판·쪽지에서 사람이 하는 일)
+   · 어떤 단계를 비우면 그 아래 단계도 비움 (대문항을 빼면 중·소도, 중문항을 빼면 소도) */
+function parentOf(name, lv, skip){
+  const cnt=new Map();
+  rows().forEach(r=>{ if(skip.has(String(r.id)) || tv(r,lv)!==name) return;
+    const up=[0,1].slice(0,lv).map(l=>tv(r,l)); if(up.some(x=>!x)) return;
+    const k=up.join('\u0001'); cnt.set(k,(cnt.get(k)||0)+1); });
+  const best=[...cnt.entries()].sort((a,b)=>b[1]-a[1])[0];
+  return best ? best[0].split('\u0001') : null;
+}
+async function setType(ids, name, lv){
+  lv=(lv==null)?LV:Math.min(2,Math.max(0,+lv||0));
+  ids=[...new Set((ids||[]).map(String))].filter(id=>rowOf(id));
+  if(!ids.length) return false;
+  const t=clean(name)||null;
+  if(t && lv>0){
+    const miss=ids.filter(id=>[0,1].slice(0,lv).some(l=>!tv(rowOf(id),l)));
+    if(miss.length){
+      const skip=new Set(ids);
+      let up=parentOf(t, lv, skip);
+      if(!up){ const d=ids.map(rowOf).find(r=>[0,1].slice(0,lv).every(l=>tv(r,l))); if(d) up=[0,1].slice(0,lv).map(l=>tv(d,l)); }
+      if(!up && POP.id && !skip.has(String(POP.id))){ const d=rowOf(POP.id); if(d && [0,1].slice(0,lv).every(l=>tv(d,l))) up=[0,1].slice(0,lv).map(l=>tv(d,l)); }
+      if(!up){
+        up=[];
+        for(let l=0;l<lv;l++){
+          const have=ids.map(rowOf).map(r=>tv(r,l)).find(Boolean);
+          const v=have || clean(prompt(`${LVN[lv]} «${t}» 의 ${LVN[l]} 이름 — ${LVN[lv]}이 있으면 ${LVN[l]}도 있어야 합니다`, l===0?((suggest(rowOf(ids[0])).find(x=>x.ex)||{}).name||''):t));
+          if(!v){ say(`${LVN[l]}이 없어 ${LVN[lv]}을 넣지 않았습니다`); return false; }
+          up.push(v);
+        }
+      }
+      for(let l=0;l<lv;l++){
+        const need=miss.filter(id=>!tv(rowOf(id),l));
+        if(need.length && !(await setType0(need, up[l], l))) return false;
+      }
+    }
+  }
+  if(!(await setType0(ids, t, lv))) return false;
+  if(!t) for(let l=lv+1;l<=2;l++){
+    const sub=ids.filter(id=>tv(rowOf(id),l));
+    if(sub.length) await setType0(sub, null, l);
+  }
+  return true;
+}
+/* 과목을 열 때 한 번 — 윗단계가 빠진 문항을 이름이 같은 곳의 윗단계로 메움 (모호한 것은 그대로, 분류판에 알림) */
+let FIXSID=null;
+async function repairTree(){
+  const s=curSid(); if(!s || FIXSID===s || BUSY || !rows().length) return;
+  if(SYNCED!==s) return;                                   /* 서버 값을 받은 뒤에 */
+  FIXSID=s;
+  const plan=new Map();                                    /* 'lv|이름' → ids */
+  rows().forEach(r=>{
+    for(let lv=2;lv>=1;lv--){
+      const t=tv(r,lv); if(!t) continue;
+      for(let l=0;l<lv;l++){ if(tv(r,l)) continue;
+        const up=parentOf(t, lv, new Set([String(r.id)])); if(!up) continue;
+        const k=l+'\u0001'+up[l]; (plan.get(k)||plan.set(k,[]).get(k)).push(String(r.id)); }
+      break;
+    }
+  });
+  let n=0;
+  for(const [k,ids] of plan){ const [l,nm]=k.split('\u0001'); const u=ids.filter(id=>!tv(rowOf(id),+l)); if(u.length && await setType0(u, nm, +l)) n+=u.length; }
+  if(n) say(`🏷 윗단계가 빠져 있던 ${n}칸을 같은 이름이 쓰인 곳에 맞춰 채웠습니다`);
+}
+setInterval(()=>{ repairTree().catch(()=>{}); }, 3000);
+window.__qtypeOrphans=()=>rows().filter(r=>(tv(r,1)&&!tv(r,0)) || (tv(r,2)&&(!tv(r,1)||!tv(r,0))));
 window.__qtypeSet=setType;
 window.__qtypeSync=()=>sync(true);
 
@@ -23441,6 +23511,7 @@ function bdRows(){
   if(BD.b) L=L.filter(r=>mt(tv(r,0),BD.b));
   if(BD.b && BD.b!==NONE && BD.m) L=L.filter(r=>mt(tv(r,1),BD.m));
   if(BD.m && BD.m!==NONE && BD.s) L=L.filter(r=>mt(tv(r,2),BD.s));
+  if(BD.only==='orph') return (window.__qtypeOrphans?window.__qtypeOrphans():[]).slice();
   if(!BD.b) L=L.filter(r=>tv(r,0));                  /* 아무것도 안 골랐으면 대문항 붙은 것 전부 */
   if(BD.only==='no3') L=L.filter(r=>!tv(r,2));
   return L.slice().sort((a,b)=>(b.year-a.year)||(b.session-a.session)||(a.no-b.no));
@@ -23474,7 +23545,8 @@ function bdList(){
   const [b,m,s]=bdPath();
   const tgt=[b,m,s].filter(Boolean);
   const q=BD.q.trim();
-  const head=`<div class="lh"><button type="button" class="mini" data-bckall>${allOn?'☑ 전체 풀기':'☐ 전체 고르기'}</button>
+  const orph=window.__qtypeOrphans?window.__qtypeOrphans():[];
+  const head=(orph.length?`<div class="orph">⚠ 윗단계가 빠진 문항 ${orph.length}개 — <button type="button" class="mini" data-borph>보기</button> 골라서 왼쪽 칸을 정하고 «넣기»</div>`:'')+`<div class="lh"><button type="button" class="mini" data-bckall>${allOn?'☑ 전체 풀기':'☐ 전체 고르기'}</button>
       <span class="cnt">${q?`찾은 ${L.length}문항`:`이 칸 ${L.length}문항`}${L.length>MAX?` · 위 ${MAX}개`:''}</span>
       <label class="only"><input type="checkbox" data-bonly${BD.only==='no3'?' checked':''}> 소문항 없는 것만</label></div>`;
   const body=show.map(r=>{
@@ -23586,6 +23658,7 @@ function openBoard(id){
       if(d.bckall!=null){ const ids=bdRows().slice(0,300).map(r=>String(r.id)); const all=ids.every(x=>BD.ck.has(x));
         BD.ck=all?new Set():new Set(ids); return bdPaint(true); }
       if(d.bput!=null) return bdPut();
+      if(d.borph!=null){ BD.only=BD.only==='orph'?'':'orph'; BD.q=''; BD.el.querySelector('.bq').value=''; return bdPaint(); }
       if(d.brel!=null) return bdRel(d.brel);
       if(d.bout!=null) return bdOut();
       if(d.open!=null){ closeBoard(); try{ window.ovOpen && window.ovOpen(d.open) }catch(x){} }
