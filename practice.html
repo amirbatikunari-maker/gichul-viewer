@@ -14628,8 +14628,7 @@ function meas(a,b){
 /* ★ v292 — «동일 −» 소문항이 같은 것(동일 문제)만 · «유사 −» 중문항이 같은 것(유사 문제)까지 */
 const LEVELS={
   same:  { nm:'동일', lb:'동일 − (소문항)', d:'소문항이 같은 문항 = 동일 문제만 하나로 접습니다' },
-  sim:   { nm:'유사', lb:'유사 − (중문항)', d:'중문항이 같은 문항 = 유사 문제까지 하나로 접습니다' },
-  manual:{ nm:'수동', lb:'대문항 −', d:'대문항이 같은 문항을 하나로 접습니다 (예전 «수동 · 유형만»)' },
+  manual:{ nm:'유사', lb:'유사 − (대문항)', d:'대문항이 같은 문항 = 유사 문제까지 하나로 접습니다' },
   strict:{ nm:'엄격', lb:'유형 + 엄격', j:0.92, c:0,    r:0,    d:'유형 + 글자까지 거의 같은 것을 저절로' },
   normal:{ nm:'보통', lb:'유형 + 보통', j:0.85, c:0,    r:0,    d:'유형 + 그림·빈칸·부호만 다른 것을 저절로' },
   loose: { nm:'느슨', lb:'유형 + 느슨', j:0.72, c:0.90, r:0.55, d:'유형 + 뒤에 단서가 붙은 정도까지 저절로' }
@@ -14990,7 +14989,7 @@ function mountChip(){
     const cnt=!READY||!HIDE.size ? '' : (auto ? `유형 ${man} · 자동 ${auto}문항 접힘` : `${man}문항 접힘`);
     b.textContent=`⧉ 중복 묶기` + (off?' · 회차 볼 땐 끔':'');           /* ★ v292 — «(유형 N)» 빼고 설명으로 */
     b.dataset.cnt=cnt;
-    try{ $$('[data-duplv]',row).forEach(x=>{ const on=x.dataset.duplv===LV; x.classList.toggle('on',on); x.setAttribute('aria-pressed',on); }); }catch(e){}
+    try{ $$('[data-duplv]',row).forEach(x=>{ const on=FOLD && x.dataset.duplv===LV; x.classList.toggle('on',on); x.setAttribute('aria-pressed',on); }); }catch(e){}
     b.classList.toggle('on',FOLD&&!off);
     b.title = off
       ? '회차를 하나 골라 놓아서 지금은 접지 않습니다 — 그 회차를 통째로 보여 줍니다'
@@ -15016,12 +15015,13 @@ function mountChip(){
   const put=el=>clear?row.insertBefore(el,clear):row.appendChild(el);
   put(sep); put(b);
   /* ★ v292 — 빠른 단추: 동일 − · 유사 − (누른 것을 다시 누르면 대문항 − 로) */
-  [['same','동일 −','소문항이 같은 동일 문제만 접기'],['sim','유사 −','중문항이 같은 유사 문제까지 접기']].forEach(([k,t,tt])=>{
+  /* ★ v296 — 동일 − = 대·중·소 모두 같은 것만 접기 · 유사 − = 대문항이 같은 것까지 접기 · 켜진 것을 다시 누르면 접기 끔 */
+  [['same','동일 −','대·중·소문항이 모두 같은 동일 문제만 하나로 접기'],['manual','유사 −','대문항이 같은 유사 문제까지 하나로 접기']].forEach(([k,t,tt])=>{
     const q=document.createElement('button'); q.type='button'; q.dataset.duplv=k; q.className='duplv'; q.textContent=t; q.title=tt;
     q.addEventListener('click',e=>{ e.stopPropagation();
-      sel.value = LV===k ? 'manual' : k;
-      if(!FOLD){ FOLD=true; try{ localStorage.setItem(KEY,'1') }catch(x){} }
-      sel.dispatchEvent(new Event('change'));
+      if(LV===k && FOLD){ FOLD=false; try{ localStorage.setItem(KEY,'0') }catch(x){} paint(); try{ drawList() }catch(x){} return; }
+      FOLD=true; try{ localStorage.setItem(KEY,'1') }catch(x){}
+      sel.value=k; sel.dispatchEvent(new Event('change'));
       try{ drawList() }catch(x){} });
     put(q);
   });
@@ -20808,7 +20808,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=294").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=299").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -21160,7 +21160,7 @@ function solToMd(sol){
 try{ window.__pxSolToMd=solToMd; }catch(e){}
 /* ══ 한 문항 해설 뽑기 ══ */
 let OLD_SAID=false;
-const TIMEOUT=300000;   /* ★ v281 — 워커가 소문항 빠짐·잘림을 보고 한 번 더 받으면 3분을 넘길 수 있다 */
+const TIMEOUT=600000;   /* ★ v297 — 원칙 미달이면 워커가 두 번까지 더 받는다 → 10분 */
 async function askSol(r, which){
   const ac=new AbortController();
   const t=setTimeout(()=>ac.abort(), TIMEOUT);
@@ -21177,7 +21177,7 @@ async function askSol(r, which){
       })
     });
   }catch(e){
-    if(e.name==='AbortError') throw new Error('5분을 넘겨 끊었습니다 — 워커가 답을 안 줍니다');
+    if(e.name==='AbortError') throw new Error('10분을 넘겨 끊었습니다 — 워커가 답을 안 줍니다');
     throw new Error('워커에 닿지 못했습니다 — '+(e.message||e));
   }finally{ clearTimeout(t); }
   const raw=await res.text();
@@ -21197,7 +21197,38 @@ async function askSol(r, which){
     if(d.stop==='max_tokens') toast('⚠ 해설이 길이 한도에서 잘렸을 수 있습니다 — 한 번 더 뽑아 보세요');
     else if(n>1 && got<n) toast(`⚠ 소문항 ${n}개 중 ${got}개만 풀이가 왔습니다 — 한 번 더 뽑아 보세요`);
   }catch(e){}
-  return { md, model:d.model||null, depth:d.depth||null };
+  /* ★ v297 — 원칙 검사 결과 (워커가 옛 판이면 여기서 같은 검사) */
+  const problems=Array.isArray(d.problems) ? d.problems : solProbs(d.sol||{});
+  /* ★ v299 — 미달인 채 저장되면 해설 맨 위에 표시를 남김 (다시 뽑아 통과하면 사라짐) */
+  const md2 = problems.length
+    ? ['**⚠ 원칙 미달 — 다시 뽑기 권장**', '', ...problems.slice(0,8).map(x=>'- '+String(x).replace(/\n/g,' ')), '', md].join('\n')
+    : md;
+  return { md:md2, model:d.model||null, depth:d.depth||null, problems };
+}
+/* 유형마다 반드시 있어야 할 칸 — 워커 probs() 와 같은 규칙 */
+function solProbs(s){
+  const P=[], A=k=>Array.isArray(s[k])?s[k]:[], kind=String(s.kind||''), calc=kind==='계산'||kind==='표·선정';
+  const steps=A('steps').filter(x=>x&&typeof x==='object');
+  if(!steps.length) P.push('풀이 단계가 없음');
+  if(!String(s.answer||'').trim()) P.push('답이 없음');
+  if(calc){
+    if(A('given').length<2) P.push('주어진 값이 모자람');
+    if(!A('symbols').length) P.push('부호 목록이 없음');
+    if(!steps.some(x=>['sym','plain','num','unit'].every(k=>String(x[k]||'').trim()))) P.push('식 네 줄(부호식·해설식·대입식·단위식)을 갖춘 단계가 없음');
+    if(!String(s.check||'').trim()) P.push('검산이 없음');
+  }
+  /* ★ v299 */
+  if(A('symbols').some(x=>!x||typeof x!=='object'||!String(x.sym||'').trim()||!String(x.mean||'').trim())) P.push('부호가 글자로 왔거나 뜻이 없음');
+  if(kind==='회로·시퀀스'){
+    const n=Math.max(2,(String(s.answer||'').match(/\(\s*\d{1,2}\s*\)/g)||[]).length);
+    if(steps.length<n) P.push(`회로 풀이 단계가 ${steps.length}개뿐 (소문항·가지마다 필요)`);
+    if(A('symbols').length<3) P.push('기기·접점 부호가 모자람');
+    if(A('given').length<2) P.push('동작설명·조건이 빠짐');
+    if(steps.some(x=>!String(x.ans||'').trim())) P.push('그려 넣을 것(ans)이 빈 단계가 있음');
+    if(!String(s.check||'').trim()) P.push('검산이 없음');
+  }
+  if(steps.some(x=>!String(x.why||'').trim())) P.push('«왜» 가 빈 단계가 있음');
+  return P;
 }
 
 let SOLBUSY=false;
@@ -21222,6 +21253,13 @@ async function makeSol(id, which, btn){
 
   try{
     const got=await askSol(r, which);
+    /* ★ v297 — 원칙 미달이면 있던 해설을 말없이 덮지 않는다 */
+    if(got.problems && got.problems.length){
+      const list=got.problems.slice(0,6).map(x=>'· '+x).join('\n');
+      if(r.easy_md && !confirm(`${NAME[which]} 해설이 원칙에 못 미칩니다 (두 번 더 받아도):\n${list}\n\n지금 있는 해설을 이걸로 바꿀까요? (취소 = 그대로 둠)`))
+        throw new Error('원칙 미달 — 있던 해설을 그대로 둠 · '+got.problems[0]);
+      toast(`⚠ 원칙 미달 ${got.problems.length}곳 — ${got.problems[0]} (다시 뽑기 권장)`);
+    }
     const patch={ easy_md:got.md, st_sol:'raw', sol_by:got.model, sol_ver:(r.sol_ver||0)+1 };
     let up=await sbx.from('practicals').update(patch).eq('id', r.id);
     if(up.error && /st_sol|sol_ver|sol_by|column|schema cache/i.test(up.error.message))
@@ -21233,7 +21271,9 @@ async function makeSol(id, which, btn){
   }catch(e){
     const why=String(e.message||e);
     toast(`해설 실패 — ${why}`);
-    if(box) box.innerHTML=`<span class="wait">해설을 쓰지 못했습니다 — ${why}</span>`;
+    /* ★ v297 — 있던 해설이 있으면 «쓰는 중» 자리를 원래 해설로 되돌림 */
+    if(r.easy_md){ try{ repaint(id) }catch(x){} }
+    else if(box) box.innerHTML=`<span class="wait">해설을 쓰지 못했습니다 — ${why}</span>`;
   }finally{
     SOLBUSY=false;
     if(tick) clearInterval(tick);
@@ -21251,6 +21291,8 @@ async function solOne(id, which){
   const box=document.querySelector(`.pcard[data-id="${id}"] .easybox`);
   if(box){ box.classList.remove('empty'); box.innerHTML='<span class="wait">상세 해설을 쓰는 중…</span>'; }
   const got=await askSol(r, which);
+  /* ★ v297 — 여럿 돌릴 때: 원칙 미달이면 있던 해설은 그대로 두고 «실패» 로 셈 (다시 돌리면 됨) */
+  if(got.problems && got.problems.length && r.easy_md){ repaint(id); throw new Error('원칙 미달 · 있던 해설 유지 — '+got.problems[0]); }
   const patch={ easy_md:got.md, st_sol:'raw', sol_by:got.model, sol_ver:(r.sol_ver||0)+1 };
   let up=await sbx.from('practicals').update(patch).eq('id', r.id);
   if(up.error && /st_sol|sol_ver|sol_by|column|schema cache/i.test(up.error.message))
@@ -21258,6 +21300,7 @@ async function solOne(id, which){
   if(up.error) throw new Error('저장 실패 — '+up.error.message);
   Object.assign(r, patch);
   repaint(id);
+  if(got.problems && got.problems.length) throw new Error('원칙 미달(저장은 함) — '+got.problems[0]);
   return got.md.length;
 }
 
@@ -22715,6 +22758,15 @@ setTimeout(()=>{ paint(); mountEv(); paintEv(); }, 900);
 .qtbd .qk .mini{height:28px;font-size:11px;font-weight:800}
 .deck #tagRow .duplv.on{background:#0f172a!important;border-color:#0f172a!important;color:#fff!important}
 .qtbd .orph{padding:6px 10px;background:#fff7ed;border-bottom:1px solid #fed7aa;color:#9a3412;font-size:11.5px;display:flex;align-items:center;gap:6px}
+.qtbd .simplan{padding:8px 10px;border-bottom:1px solid #b9c8f3;background:#f3f6ff;display:flex;flex-direction:column;gap:5px;max-height:48%;overflow:auto}
+.qtbd .simplan .sh{font-size:11.5px;color:#1e3a8a}
+.qtbd .simplan .sp{display:grid;grid-template-columns:62px minmax(0,1fr);gap:2px 8px;align-items:center}
+.qtbd .simplan .sp b{font:800 12px/1 var(--font-m,monospace)}
+.qtbd .simplan .sp input{height:28px;padding:0 8px;border:1px solid #b9c8f3;border-radius:7px;font:700 12px/1 var(--font-d,system-ui);background:#fff;color:var(--ink,#0f172a)}
+.qtbd .simplan .sp small{grid-column:2;color:#64748b;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qtbd .simplan .sf{display:flex;align-items:center;gap:6px}
+.qtbd .simplan .sf small{flex:1;color:#64748b;font-size:10.5px}
+.qtbd .simplan .go{height:28px;padding:0 14px;border:0;border-radius:7px;background:#2f4fc4;color:#fff;cursor:pointer;font:800 11.5px/1 var(--font-d,system-ui)}
 .qtbd .emp{padding:24px;text-align:center;color:#94a3b8}
 .qtbd .bf{display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid var(--line,#e2e8f0);background:#fcfaff}
 .qtbd .bf .to{flex:1;min-width:0;font-size:11.5px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -23479,15 +23531,15 @@ const BD={ el:null, b:'', m:'', s:'', q:'', ck:new Set(), pv:'', only:'', from:'
 const NONE='∅';                                       /* ∅ = 그 단계 없음 */
 const p3=r=>[0,1,2].map(l=>tv(r,l));
 /* ★ v292 — 기준 문항과의 사이: 소문항이 같으면 «동일» · 중문항만 같으면 «유사» · 대문항만 같으면 «같은 단원» */
+/* ★ v296 — 동일 = 대·중·소 모두 같음 · 유사 = 대문항만 같음(중문항 = 문제 특성이 다름) */
 function relOf(a,b){
   if(!a||!b||String(a.id)===String(b.id)) return '';
   const A=p3(a), B=p3(b);
-  if(A[2] && A[2]===B[2]) return 'same';
-  if(A[1] && A[1]===B[1]) return 'sim';
-  if(A[0] && A[0]===B[0]) return 'unit';
+  if(A[0] && A[0]===B[0] && A[1]===B[1] && A[2] && A[2]===B[2]) return 'same';
+  if(A[0] && A[0]===B[0]) return 'sim';
   return '';
 }
-const REL_NM={ same:'동일', sim:'유사', unit:'같은 단원' };
+const REL_NM={ same:'동일', sim:'유사' };
 const relTag=(a,b)=>{ const k=relOf(a,b); return k?`<em class="rl ${k}">${REL_NM[k]}</em>`:''; };
 function bdRows(){
   const R=rows();
@@ -23531,9 +23583,9 @@ function bdCol(lv, sel, filt, title){
       ${none?`<button type="button" class="bi none${sel===NONE?' on':''}" data-bsel="${lv}" data-v="${NONE}"><span>∅ ${LVN[lv]} 없음</span><b>${none}</b></button>`:''}</div></div>`;
 }
 function bdTree(){
-  const c0=bdCol(0, BD.b, ()=>true, '대문항 <em class="k">단원</em>');
-  const c1= BD.b && BD.b!==NONE ? bdCol(1, BD.m, r=>tv(r,0)===BD.b, `중문항 <em class="k sim">유사 문제</em><em>«${esc(BD.b)}» 안</em>`) : `<div class="bcol off"><div class="bt">중문항 <em class="k sim">유사 문제</em></div><div class="bh">대문항을 고르면 그 안의 중문항이 나옴<br>중문항이 같으면 «유사 문제» — 값·조건만 다른 같은 갈래</div></div>`;
-  const c2= BD.m && BD.m!==NONE && BD.b && BD.b!==NONE ? bdCol(2, BD.s, r=>tv(r,0)===BD.b && tv(r,1)===BD.m, `소문항 <em class="k same">동일 문제</em><em>«${esc(BD.m)}» 안</em>`) : `<div class="bcol off"><div class="bt">소문항 <em class="k same">동일 문제</em></div><div class="bh">중문항을 고르면 그 안의 소문항이 나옴<br>소문항이 같으면 «동일 문제» — 회차만 다른 같은 문제 (회독도 같이 셈)</div></div>`;
+  const c0=bdCol(0, BD.b, ()=>true, '대문항 <em class="k sim">유사 묶음</em>');
+  const c1= BD.b && BD.b!==NONE ? bdCol(1, BD.m, r=>tv(r,0)===BD.b, `중문항 <em class="k">문제 특성</em><em>«${esc(BD.b)}» 안</em>`) : `<div class="bcol off"><div class="bt">중문항 <em class="k">문제 특성</em></div><div class="bh">대문항을 고르면 그 안의 중문항이 나옴<br>대문항만 같고 중문항이 다르면 «유사 문제» — 무엇을 묻는지(특성)가 다름</div></div>`;
+  const c2= BD.m && BD.m!==NONE && BD.b && BD.b!==NONE ? bdCol(2, BD.s, r=>tv(r,0)===BD.b && tv(r,1)===BD.m, `소문항 <em class="k same">동일 문제</em><em>«${esc(BD.m)}» 안</em>`) : `<div class="bcol off"><div class="bt">소문항 <em class="k same">동일 문제</em></div><div class="bh">중문항을 고르면 그 안의 소문항이 나옴<br>대·중·소가 모두 같으면 «동일 문제» — 회차만 다른 같은 문제 (회독·해설 같이)</div></div>`;
   return c0+c1+c2;
 }
 function bdPath(){ return [BD.b,BD.m,BD.s].map(x=>x===NONE?'':x); }
@@ -23565,9 +23617,13 @@ function bdList(){
     <button type="button" class="mini" data-bout${nSel&&tgt.length?'':' disabled'} title="고른 문항에서 ${tgt.length?LVN[tgt.length-1]:''}(과 그 아래)를 비움">빼기</button></div>`;
   const me=BD.from?rowOf(BD.from):null;
   const quick=me?`<div class="qk"><span>기준 <b>${esc(short(me))}</b>${p3(me).some(Boolean)?` <small>${p3(me).filter(Boolean).map(esc).join(' › ')}</small>`:' <small>유형 없음</small>'}</span>
-      <button type="button" class="mini same" data-brel="same" title="고른 문항을 기준 문항과 대·중·소 모두 같게 = 동일 문제 (회독도 같이 셈)">＝ 이 문제와 동일로</button>
-      <button type="button" class="mini sim" data-brel="sim" title="고른 문항을 기준 문항과 대·중문항만 같게, 소문항은 따로 = 유사 문제">≈ 이 문제와 유사로</button></div>`:'';
-  return quick+head+`<div class="rows">${body||`<div class="emp">${q?'찾은 문항이 없습니다':'이 칸에 문항이 없습니다 — 위 찾기 칸에 낱말을 쳐서 찾아 넣으세요'}</div>`}</div>`+foot;
+      <button type="button" class="mini same" data-brel="same" title="고른 문항을 기준과 대·중·소 모두 같게 = 동일 문제 (회독·해설 같이)">＝ 이 문제와 동일로</button>
+      <button type="button" class="mini sim" data-brel="sim" title="고른 문항을 기준과 대문항만 같게, 중문항은 그 문제 특성으로 = 유사 문제 (이름을 추천하고 고칠 수 있음)">≈ 이 문제와 유사로</button></div>`:'';
+  const plan=BD.plan&&BD.plan.length?`<div class="simplan"><div class="sh">≈ 유사 문제 — 대문항 <b>${esc(BD.plan.b)}</b> 는 같게, 중문항은 문제마다 <b>특성</b>으로 (기준 «${esc(BD.plan.m)}» 과 달라야 함)</div>
+      <datalist id="bdMids">${bdCount(1, r=>tv(r,0)===BD.plan.b).list.map(([n])=>`<option value="${esc(n)}">`).join('')}</datalist>
+      ${BD.plan.map((x,i)=>{ const r=rowOf(x.id); return `<div class="sp"><b>${esc(short(r))}</b><input type="text" list="bdMids" data-plan="${i}" value="${esc(x.name)}" placeholder="이 문제의 특성 (중문항)"><small>${esc(plain(r.q_md||r.q_text).replace(/\$+/g,'').slice(0,60))}</small></div>`; }).join('')}
+      <div class="sf"><small>중문항 이름 = 소문항 이름으로 같이 적음 (그 문제만의 동일 묶음)</small><button type="button" class="mini" data-bplanai${BD.planBusy?' disabled':''} title="기준 문제와 무엇이 다른지를 이름으로 — 글만 보내고 싼 모델, 한 번에">${BD.planBusy?'🤖 받는 중…':'🤖 AI 추천'}</button><button type="button" class="mini" data-bplanx>취소</button><button type="button" class="go" data-bplan>적용</button></div></div>`:'';
+  return quick+plan+head+`<div class="rows">${body||`<div class="emp">${q?'찾은 문항이 없습니다':'이 칸에 문항이 없습니다 — 위 찾기 칸에 낱말을 쳐서 찾아 넣으세요'}</div>`}</div>`+foot;
 }
 function bdPaint(keep){
   if(!BD.el) return;
@@ -23597,23 +23653,94 @@ async function bdPut(){
   bdPaint(true);
 }
 /* ★ v292 — 기준 문항(분류판을 연 문항)과 «동일» 또는 «유사» 로 */
+/* ★ v296 — 기준 문항(분류판을 연 문항)과 동일 / 유사
+   동일 : 대·중·소 모두 기준과 같게. 기준에 빈 칸이 있으면 윗칸 이름을 그대로 씀(대문항만 없으면 물음)
+   유사 : 대문항만 같게, 중문항은 문제마다 «특성» 이름을 추천 → 고쳐서 적용. 소문항 = 그 중문항 이름 */
+async function bdBase(me){
+  let [b,m,s]=p3(me);
+  if(!b){ b=clean(prompt(`기준 문항 ${short(me)} 에 대문항이 없습니다 — 대문항 이름`, (suggest(me).find(x=>x.ex)||{}).name||askedOf(me)||'')); if(!b) return null; await setType([me.id], b, 0); }
+  if(!m){ m=b; await setType([me.id], m, 1); }
+  if(!s){ s=m; await setType([me.id], s, 2); }
+  return [b,m,s];
+}
+/* 문제 글 첫 물음에서 «무엇을» 만 — «방폭형 전동기에 대하여 설명하시오» → «방폭형 전동기» */
+function headPhrase(r){
+  let t=plain(r.q_md||r.q_text).replace(/\$[^$]*\$/g,' ').replace(/[#*_>`|▶]/g,' ');
+  t=t.split(/\(\s*1\s*\)|①|\n/)[0] || t;
+  t=t.replace(/^\s*\d+\s*[.)]\s*/,'').replace(/^(다음|아래|그림)[^,.]*?(에서|의|을|를)\s*/,'');
+  t=t.replace(/\s*(에\s*대하여|에\s*관하여|에\s*대해)?\s*(을|를|은|는|이|가)?\s*(간단히\s*)?(쓰시오|설명하시오|구하시오|계산하시오|답하시오|무엇인가|그리시오|적으시오|쓰라|나열하시오).*$/,'');
+  t=t.replace(/\s+/g,' ').trim();
+  if(t.length>18){ const w=t.slice(0,18).split(' '); if(w.length>1) w.pop(); t=w.join(' '); }
+  return t.length>=2 ? t : '';
+}
+function simName(r, b, m){
+  const bad=new Set([m, b].filter(Boolean));
+  const own=tv(r,0)===b ? tv(r,1) : '';
+  const cand=[own, askedOf(r), headPhrase(r), ...suggest(r).map(x=>x.name)].map(clean).filter(x=>x && !bad.has(x));
+  return cand[0] || `${m} — ${short(r)}`;
+}
 async function bdRel(kind){
   const me=rowOf(BD.from); if(!me) return;
   const ids=[...BD.ck].filter(id=>id!==String(me.id)); if(!ids.length){ BD.msg='오른쪽에서 ☑ 로 문항을 고르세요'; return bdPaint(true); }
-  let [b,m,s]=p3(me);
-  const ask=(lv,def)=>clean(prompt(`기준 문항 ${short(me)} 에 ${LVN[lv]}이 없습니다 — 이름을 정하세요 (${lv===2?'동일 문제 이름':lv===1?'유사 묶음 이름':'단원 이름'})`, def||''));
-  if(!b){ b=ask(0, (suggest(me).find(x=>x.ex)||{}).name); if(!b) return; await setType([me.id], b, 0); }
-  if(!m){ m=ask(1, (suggest(me).find(x=>!x.ex)||{}).name); if(!m) return; await setType([me.id], m, 1); }
-  if(kind==='same' && !s){ s=ask(2, m); if(!s) return; await setType([me.id], s, 2); }
-  await setType(ids, b, 0); await setType(ids, m, 1);
-  if(kind==='same') await setType(ids, s, 2);
-  else{
-    /* 유사 — 기준과 같은 소문항이 붙어 있던 것만 비움 (그 문항 나름의 소문항은 둠) */
-    const cl=ids.filter(id=>{ const r=rowOf(id); return r && (!tv(r,2) || tv(r,2)===s); });
-    if(cl.length) await setType(cl, null, 2);
+  const base=await bdBase(me); if(!base) return;
+  const [b,m,s]=base;
+  if(kind==='same'){
+    await setType(ids, b, 0); await setType(ids, m, 1); await setType(ids, s, 2);
+    BD.msg=`${ids.length}문항 → 기준과 동일 (${[b,m,s].join(' › ')})`;
+    Object.assign(BD,{ b, m, s, plan:null }); BD.ck=new Set([String(me.id)]);
+    return bdPaint(true);
   }
-  BD.msg=`${ids.length}문항 → 기준과 ${kind==='same'?'동일':'유사'} (${[b,m,kind==='same'?s:''].filter(Boolean).join(' › ')})`;
-  Object.assign(BD,{ b, m, s:kind==='same'?s:'' }); BD.ck=new Set([String(me.id)]);
+  BD.plan=ids.map(id=>({ id, name:simName(rowOf(id), b, m) })); BD.plan.b=b; BD.plan.m=m;
+  BD.msg='중문항 이름을 확인하고 «적용»'; bdPaint(true);
+  setTimeout(()=>BD.el.querySelector('[data-plan="0"]')?.focus(),30);
+}
+/* 유사 이름 AI 추천 — 기준 문제와 견주어 «무엇이 다른가» 를 중문항 이름으로. 한 번 부름 */
+async function bdPlanAI(){
+  const P=BD.plan; if(!P || BD.planBusy) return;
+  if(typeof window.askAI!=='function'){ BD.msg='AI 모듈이 아직 안 실렸습니다'; return bdPaint(true); }
+  const me=rowOf(BD.from);
+  const have=bdCount(1, r=>tv(r,0)===P.b).list.map(([n])=>n).slice(0,60);
+  const q=r=>plain(r.q_md||r.q_text).replace(/\$+/g,'').slice(0,260);
+  const prompt=`전기기사 실기 기출. 대문항(단원) «${P.b}» 안에서 문항마다 «중문항» 이름을 붙인다.
+중문항 = 그 문제가 무엇을 묻는지(문제 특성). 기준 문제와 같은 단원이지만 묻는 것이 다른 «유사 문제» 들이다.
+- 기준 문제의 중문항은 «${P.m}» — 이것과 달라야 한다. 무엇이 다른지가 이름에 드러나게
+- 한국어 명사구 6~18자 (예: 방폭구조 종류 · 방폭형 전동기 특징 · 전선 식별 색상)
+- 이미 있는 중문항 가운데 맞는 것이 있으면 그 이름을 글자 그대로 쓴다
+- 서로 같은 것을 묻는 문항은 같은 이름
+출력: ["이름1","이름2",…] (아래 문항 순서대로 ${P.length}개)
+
+[이미 있는 중문항]
+${have.length?have.join(' / '):'(없음)'}
+
+[기준 문제 — 중문항 «${P.m}»]
+${me?q(me):''}
+
+[문항]
+${P.map((x,i)=>`${i+1}. ${q(rowOf(x.id))}`).join('\n')}`;
+  BD.planBusy=true; BD.msg='AI 추천을 받는 중…'; bdPaint(true);
+  let txt='', err='';
+  try{ window.__aiKind && window.__aiKind('유형 추천') }catch(e){}
+  for(const model of ['claude-haiku-4-5-20251001','claude-sonnet-5']){
+    try{ txt=await window.askAI(prompt, null, 400, { model, json:true }); if(String(txt||'').trim()) break; }catch(e){ err=String(e.message||e); }
+  }
+  try{ window.__aiKind && window.__aiKind('그밖') }catch(e){}
+  BD.planBusy=false;
+  let list=[];
+  try{ const j=JSON.parse(String(txt||'').replace(/^```(?:json)?\s*|\s*```$/g,'').trim()); list=Array.isArray(j)?j:(j.names||j.list||[]); }catch(e){}
+  list=list.map(x=>clean(typeof x==='string'?x:(x&&x.name))).slice(0,P.length);
+  if(!list.length){ BD.msg='추천을 받지 못했습니다'+(err?' — '+err.slice(0,60):''); return bdPaint(true); }
+  list.forEach((n,i)=>{ if(n && n!==P.m && P[i]) P[i].name=n; });
+  BD.msg=`AI 추천 ${list.length}개 — 고쳐서 «적용»`; bdPaint(true);
+}
+async function bdPlanApply(){
+  const P=BD.plan; if(!P) return;
+  const bad=P.find(x=>!clean(x.name) || clean(x.name)===P.m);
+  if(bad){ BD.msg=`${short(rowOf(bad.id))} — 중문항이 비었거나 기준(«${P.m}»)과 같습니다. 같으면 «동일로» 를 쓰세요`; return bdPaint(true); }
+  const by=new Map(); P.forEach(x=>{ const n=clean(x.name); (by.get(n)||by.set(n,[]).get(n)).push(x.id); });
+  await setType(P.map(x=>x.id), P.b, 0);
+  for(const [n,ids] of by){ await setType(ids, n, 1); await setType(ids, n, 2); }
+  BD.msg=`${P.length}문항 → 기준과 유사 (${P.b} › ${[...by.keys()].join(' / ')})`;
+  Object.assign(BD,{ b:P.b, m:'', s:'', plan:null }); BD.ck=new Set([String(BD.from)]);
   bdPaint(true);
 }
 async function bdOut(){
@@ -23634,6 +23761,7 @@ function openBoard(id){
     document.body.appendChild(el); BD.el=el;
     let T=0;
     el.addEventListener('input', e=>{
+      if(e.target.dataset.plan!=null && BD.plan){ BD.plan[+e.target.dataset.plan].name=e.target.value; return; }
       if(e.target.classList.contains('bq')){ clearTimeout(T); T=setTimeout(()=>{ BD.q=e.target.value; BD.pv=''; bdPaint(); },160); return; }
       const nv=e.target.dataset.bnew;
       if(nv!=null){ const q=e.target.value.trim().toLowerCase();
@@ -23660,12 +23788,15 @@ function openBoard(id){
       if(d.bput!=null) return bdPut();
       if(d.borph!=null){ BD.only=BD.only==='orph'?'':'orph'; BD.q=''; BD.el.querySelector('.bq').value=''; return bdPaint(); }
       if(d.brel!=null) return bdRel(d.brel);
+      if(d.bplan!=null) return bdPlanApply();
+      if(d.bplanx!=null){ BD.plan=null; return bdPaint(true); }
+      if(d.bplanai!=null) return bdPlanAI();
       if(d.bout!=null) return bdOut();
       if(d.open!=null){ closeBoard(); try{ window.ovOpen && window.ovOpen(d.open) }catch(x){} }
     });
   }
   const P=r?p3(r):['','',''];
-  Object.assign(BD,{ b:P[0]||'', m:P[1]||'', s:P[2]||'', q:'', pv:'', msg:'', from:r?String(r.id):'', ck:new Set(r?[String(r.id)]:[]) });
+  Object.assign(BD,{ b:P[0]||'', m:P[1]||'', s:P[2]||'', q:'', pv:'', msg:'', plan:null, from:r?String(r.id):'', ck:new Set(r?[String(r.id)]:[]) });
   BD.el.querySelector('.bq').value='';
   BD.el.classList.add('on'); bdPaint();
   setTimeout(()=>BD.el.querySelector('.bq')?.focus(),40);
@@ -25644,10 +25775,10 @@ function chip(){
     }
     c.dataset.id=id;
     const diff=kinds.size>1;
-    const t=diff ? `🔗 동일 ${g.length} · 해설 ${kinds.size}가지 → 이걸로 맞추기` : `🔗 동일 ${g.length} · 해설 연동`;
+    const t=diff ? `해설통일(${g.length})` : `해설연동(${g.length})`;      /* ★ v295 — 짧게 · 자세한 건 올리면 */
     if(c.textContent!==t) c.textContent=t;
     c.classList.toggle('diff', diff);
-    c.title = diff ? '동일 문제끼리 해설이 서로 다릅니다 — 누르면 지금 보는 해설로 모두 맞춥니다 (🔒 고정 문항 제외)'
+    c.title = diff ? `동일 문제 ${g.length}개 · 해설 ${kinds.size}가지 — 누르면 지금 보는 해설로 모두 맞춥니다 (🔒 고정 문항 제외)`
                    : '동일 문제(대·중·소문항이 같음) — 해설을 뽑거나 고치면 나머지에도 같이 적힙니다\n'
                      + g.filter(o=>String(o.id)!==id).map(o=>`${o.year%100}-${o.session} ${o.no}`).join(' · ');
   });

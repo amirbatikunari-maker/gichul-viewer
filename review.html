@@ -1247,7 +1247,7 @@ const WORKER = (CFG.CLAUDE_WORKER_URL || CFG.WORKER_URL
                 || "https://gichul-ai.amirbatikunari.workers.dev").replace(/\/$/,"");
 const APPKEY = CFG.CLAUDE_APP_KEY || "";
 let WORKER_OLD_SAID = false;
-const SOL_TIMEOUT = 300000;          /* ★ v281 5분. 이보다 길면 끊고 «왜 멈췄는지» 를 말함 */
+const SOL_TIMEOUT = 600000;          /* ★ v297 10분 (v281 5분) — 원칙 미달이면 워커가 두 번까지 더 받음 */
 
 /* 워커에 한 문항을 물어봄. 성공하면 { md, model, usage }.
    ★ v252 — 예전에는 여기서 답이 안 오면 화면이 «뽑는 중…» 인 채로 영영 멈췄다.
@@ -1294,13 +1294,18 @@ async function askSol(r, depth){
   }
   const md = solToMd(d.sol || {});
   if(!md || md.length < 20) throw new Error("해설이 비어서 왔습니다");
-  return { md, model: d.model || null, usage: d.usage || null, depth: d.depth || null };
+  return { md, model: d.model || null, usage: d.usage || null, depth: d.depth || null,
+           problems: Array.isArray(d.problems) ? d.problems : [] };
 }
 
 /* 한 문항을 뽑아 저장까지. 배치·단독이 같이 씀 */
 async function solveOne(r, depth){
   if(ezFixed(r)){ const e = new Error("쉬운해설 고정 — 실기 화면에서 🔒 를 풀어야 다시 씁니다"); e.skip = true; throw e; }
   const got = await askSol(r, depth);
+  /* ★ v297 — 원칙 미달이면 있던 해설을 덮지 않음 */
+  if(got.problems && got.problems.length && r.easy_md){
+    throw new Error("원칙 미달 · 있던 해설 유지 — " + got.problems[0]);
+  }
   const obj = { easy_md: got.md, st_sol:"raw", sol_by: got.model,
                 sol_ver: (r.sol_ver || 0) + 1 };
   const up = await updateRow(r.id, obj);

@@ -602,6 +602,9 @@ async function one(r){
 
   const md = toMd(d.sol || {});
   if(!md || md.length < 20) throw new Error("해설이 비어서 왔습니다");
+  /* ★ v297 — 워커가 두 번 더 받아도 원칙 미달이면: 있던 해설은 그대로 두고 실패로 셈 */
+  const probs = Array.isArray(d.problems) ? d.problems : [];
+  if(probs.length && r.easy_md) throw new Error("원칙 미달 · 있던 해설 유지 — " + probs[0]);
 
   /* v204 — 해설 칸이 생겼으므로 상태·판번호도 같이 남긴다.
      st_sol 은 raw — 기계가 만든 것이라 사람이 검수 화면에서 한 번 봐야 draft 가 된다.
@@ -616,7 +619,7 @@ async function one(r){
   if(up.error) throw new Error("저장 실패 — " + up.error.message);
 
   N.done++;
-  log(`${tag} 완료  ${(d.sol.answer||"")}${d.sol.unit ? " "+d.sol.unit : ""}`, "ok");
+  log(`${tag} 완료  ${(d.sol.answer||"")}${d.sol.unit ? " "+d.sol.unit : ""}` + (probs.length ? `  ⚠ 원칙 미달 ${probs.length}곳 — ${probs[0]}` : ""), probs.length ? "bad" : "ok");
 }
 
 /* ── 동시 처리 ────────────────────────────────────── */
