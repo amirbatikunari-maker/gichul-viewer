@@ -783,7 +783,16 @@ async function explain(req, env, H){
     const c = (out.content || []).find(x => x.type === "tool_use" && x.name === "write_solution");
     return { c, sol: c ? fixSol(c.input) : null };
   };
-  const ask1 = async (extra, mt, prev) => {
+  const DIAG = [];
+  const diagOf = (out, tag) => {
+    const c = (out.content || []).find(x => x.type === "tool_use");
+    const inp = (c && c.input) || {};
+    const st = inp.steps;
+    DIAG.push({ tag, stop: out.stop_reason || null, out_tokens: (out.usage && out.usage.output_tokens) || null,
+      keys: Object.keys(inp).join(","),
+      steps: Array.isArray(st) ? `배열 ${st.length}` : st == null ? "없음" : typeof st === "string" ? `글자 ${st.length}자: ${st.slice(0, 80)}` : `${typeof st}: ${JSON.stringify(st).slice(0, 80)}` });
+  };
+  const ask1 = async (extra, mt, prev, mdl) => {
     const first = { role: "user", content: parts.concat([{ type: "text", text: ONCE }]) };
     let messages;
     if (prev && prev.c){
@@ -794,12 +803,36 @@ async function explain(req, env, H){
       messages = [{ role: "user", content: first.content.concat(extra ? [{ type: "text", text: extra }] : []) }];
     }
     const res = await call(env, {
-      model, max_tokens: mt || maxTok, system: SYS_SOL,
+      model: mdl || model, max_tokens: mt || maxTok, system: SYS_SOL,
       tools: [TOOL], tool_choice: { type: "tool", name: "write_solution" }, messages
     });
     const out = await res.json();
+    diagOf(out, (mdl || model) + (prev ? " · 이어서" : extra ? " · 다시" : ""));
     const { c, sol } = pull(out);
     return { out, sol, c };
+  };
+  /* ★ v301 — 풀이만 따로: 틀이 크면 steps 를 통째로 빼먹는 모델이 있어, 작은 틀로 풀이·부호·검산만 받아 합친다 */
+  const STEP_TOOL = { name: "write_steps", description: "이미 적은 해설에 빠진 «풀이 단계» 와 부호·주어진 값·검산을 채운다.",
+    input_schema: { type: "object", required: ["steps"], properties: {
+      steps: TOOL.input_schema.properties.steps, symbols: TOOL.input_schema.properties.symbols,
+      given: TOOL.input_schema.properties.given, check: TOOL.input_schema.properties.check } } };
+  const askSteps = async (base, why) => {
+    const res = await call(env, {
+      model, max_tokens: maxTok, system: SYS_SOL,
+      tools: [STEP_TOOL], tool_choice: { type: "tool", name: "write_steps" },
+      messages: [{ role: "user", content: parts.concat([{ type: "text", text:
+        "── 이미 적은 것 ──\n요지: " + (base.gist || "") + "\n유형: " + (base.kind || "") + "\n답:\n" + (base.answer || "") +
+        "\n\n── 빠진 것 ──\n" + why + "\n\nwrite_steps 로 풀이 단계(소문항마다 · 회로는 가지마다)와 부호·주어진 값·검산을 «객체 배열» 로 모두 채운다. 자리표시 금지." }]) }]
+    });
+    const out = await res.json();
+    diagOf(out, model + " · 풀이만");
+    const c = (out.content || []).find(x => x.type === "tool_use" && x.name === "write_steps");
+    if (!c) return null;
+    const add = fixSol(c.input || {});
+    const m = Object.assign({}, base);
+    for (const k of ["steps", "symbols", "given"]) if (Array.isArray(add[k]) && add[k].length && !(Array.isArray(m[k]) && m[k].length >= add[k].length)) m[k] = add[k];
+    if (!String(m.check || "").trim() && add.check) m.check = add.check;
+    return m;
   };
   const T0 = Date.now();
   let { out, sol, c: lastC } = await ask1();
@@ -880,9 +913,22 @@ async function explain(req, env, H){
     if (again.sol){ lastOut = again.out; lastC = again.c; }
     if (again.sol && score(again.sol) >= score(sol)){ sol = again.sol; out = again.out; }
   }
+  /* ★ v301 — 그래도 풀이가 비었으면 풀이만 따로 받아 합침 */
+  let used = model, fallback = false;
+  if (probs(sol).length && Date.now() - T0 < 330000 && !(Array.isArray(sol.steps) && sol.steps.length)){
+    try{ const m = await askSteps(sol, probs(sol).map(x => "- " + x).join("\n")); if (m && score(m) > score(sol)) sol = m; }catch(e){}
+  }
+  /* ★ v301 — Opus 가 끝내 틀을 못 지키면 Sonnet 으로 한 번 (통과하면 그것을 씀) */
+  if (probs(sol).length && /opus/i.test(model) && Date.now() - T0 < 390000){
+    try{
+      const alt = T.mid && !/opus/i.test(T.mid) ? T.mid : "claude-sonnet-5";
+      const r2 = await ask1(undefined, undefined, undefined, alt);
+      if (r2.sol && score(r2.sol) > score(sol)){ sol = r2.sol; out = r2.out; used = alt; fallback = true; }
+    }catch(e){}
+  }
   const problems = probs(sol);
 
-  return json({ ok: true, sol, model, depth, retried, problems,
+  return json({ ok: true, sol, model: used, asked: model, fallback, diag: DIAG, depth, retried, problems,
                 effort: b.effort || "low", stop: out.stop_reason || null,
                 usage: out.usage || null }, 200, H);
 }
@@ -909,8 +955,17 @@ function fixSol(sol){
   if (!sol || typeof sol !== "object") return sol;
   const toArr = v => {
     if (Array.isArray(v)) return v.flatMap(e => (typeof e === "string" && /^\s*\{[\s\S]*\}\s*$/.test(e)) ? toArr(e) : [e]);
+    /* ★ v301 — 배열 대신 «객체» 로 온 것: {say:…} 하나면 [그것], {"(1)":{…},"(2)":{…}} 처럼 번호를 열쇠로 쓴 것이면 값들을 차례로 */
+    if (v && typeof v === "object"){
+      if ("say" in v || "sym" in v || "word" in v) return [v];
+      const vals = Object.values(v);
+      if (vals.length && vals.every(x => x && (typeof x === "object" || typeof x === "string"))) return toArr(vals);
+      return v;
+    }
     if (typeof v !== "string") return v;
-    const t = v.trim();
+    /* ★ v301 — ```json … ``` 으로 감싸 왔거나 앞뒤에 말이 붙은 것: 처음 [ 부터 마지막 ] 까지 */
+    let t = v.trim().replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+    if (!/^[\[{]/.test(t)){ const a = t.indexOf("["), z = t.lastIndexOf("]"); if (a >= 0 && z > a) t = t.slice(a, z + 1); }
     if (/^\[[\s\S]*\]$/.test(t)){ const j = looseJson(t); if (Array.isArray(j)) return j; }
     if (/^\{[\s\S]*\}$/.test(t)){
       const j = looseJson(t); if (j && typeof j === "object") return Array.isArray(j) ? j : [j];
@@ -1021,7 +1076,7 @@ export default {
         판정: 막힌곳.includes(colo)
           ? `${colo} 기지는 Anthropic 이 막는 지역입니다 — 403 의 원인입니다.`
           : `${colo} 기지는 보통 허용됩니다.`,
-        빌드: "v300"
+        빌드: "v301"
       }, 200, H);
     }
 
@@ -1077,7 +1132,7 @@ export default {
         keyHead: String(env.ANTHROPIC_API_KEY).slice(0,14) + "…",
         keyLen: String(env.ANTHROPIC_API_KEY).length,
         keyTrimmed: String(env.ANTHROPIC_API_KEY) === String(env.ANTHROPIC_API_KEY).trim(),
-        빌드: "v300",
+        빌드: "v301",
         기지: (req.cf && req.cf.colo) || "?",
         upstream: parsed || body.slice(0,600),
         vision
@@ -1085,7 +1140,7 @@ export default {
     }
 
     if (path === "/health" || path === "/")
-      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v300" }, 200, H);
+      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v301" }, 200, H);
 
     if (env.APP_KEY && req.headers.get("x-app-key") !== env.APP_KEY)
       return json({ error: "x-app-key 가 맞지 않습니다", detail: "x-app-key 가 맞지 않습니다" }, 401, H);

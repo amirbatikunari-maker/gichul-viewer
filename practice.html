@@ -20808,7 +20808,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=300").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=301").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -21203,7 +21203,10 @@ async function askSol(r, which){
   const md2 = problems.length
     ? ['**⚠ 원칙 미달 — 다시 뽑기 권장**', '', ...problems.slice(0,8).map(x=>'- '+String(x).replace(/\n/g,' ')), '', md].join('\n')
     : md;
-  return { md:md2, model:d.model||null, depth:d.depth||null, problems };
+  /* ★ v301 — Opus 가 끝내 틀을 못 지켜 Sonnet 으로 대신 뽑았으면 알림 */
+  if(d.fallback) toast(`⚠ ${d.asked||'Opus'} 가 틀을 못 지켜 ${d.model} 로 대신 뽑았습니다`);
+  const diag=Array.isArray(d.diag)?d.diag.map(x=>`${x.tag}: steps ${x.steps} · 멈춤 ${x.stop||'-'}`):[];
+  return { md:md2, model:d.model||null, depth:d.depth||null, problems, diag };
 }
 /* 유형마다 반드시 있어야 할 칸 — 워커 probs() 와 같은 규칙 */
 function solProbs(s){
@@ -21258,7 +21261,8 @@ async function makeSol(id, which, btn){
     const got=await askSol(r, which);
     /* ★ v297 — 원칙 미달이면 있던 해설을 말없이 덮지 않는다 */
     if(got.problems && got.problems.length){
-      const list=got.problems.slice(0,6).map(x=>'· '+x).join('\n');
+      const list=got.problems.slice(0,6).map(x=>'· '+x).join('\n')
+        + (got.diag&&got.diag.length?'\n\n[진단 — 받은 모양]\n'+got.diag.slice(-4).join('\n'):'');
       if(r.easy_md && !confirm(`${NAME[which]} 해설이 원칙에 못 미칩니다 (두 번 더 받아도):\n${list}\n\n지금 있는 해설을 이걸로 바꿀까요? (취소 = 그대로 둠)`))
         throw new Error('원칙 미달 — 있던 해설을 그대로 둠 · '+got.problems[0]);
       toast(`⚠ 원칙 미달 ${got.problems.length}곳 — ${got.problems[0]} (다시 뽑기 권장)`);
