@@ -774,18 +774,36 @@ async function explain(req, env, H){
   if (b.kind && KINDS.includes(String(b.kind)))
     parts.push({ type: "text", text: `── 정해 준 유형 ──\n이 문항은 «${b.kind}» 유형이다. kind 를 «${b.kind}» 로 하고 그 유형의 칸을 채운다.` });
 
-  const ask1 = async (extra, mt) => {
+  /* ★ v300 — 한 번에 완성본으로. Opus 는 도구를 «임시» 값으로 먼저 부르고 결과를 받아 다시 부르려는 버릇이 있다.
+     그래서 ① 처음부터 «한 번뿐 · 자리표시 금지» 를 못 박고
+     ② 다시 받을 때는 처음부터 새로 묻지 않고, 그 대화를 이어 «방금 것은 미완성 — 이것들을 채운 완성본으로 다시 호출» 로 돌려준다
+        (모델이 기대하는 흐름이라 같은 임시본을 되풀이하지 않는다) */
+  const ONCE = "── 도구 쓰는 법 ──\nwrite_solution 은 «딱 한 번», 모든 칸을 끝까지 채운 완성본으로 호출한다. 이 호출이 그대로 저장되며 고칠 기회는 없다.\n'임시' · 'TBD' · '작성 예정' · '…' 같은 자리표시를 절대 쓰지 않는다.";
+  const pull = out => {
+    const c = (out.content || []).find(x => x.type === "tool_use" && x.name === "write_solution");
+    return { c, sol: c ? fixSol(c.input) : null };
+  };
+  const ask1 = async (extra, mt, prev) => {
+    const first = { role: "user", content: parts.concat([{ type: "text", text: ONCE }]) };
+    let messages;
+    if (prev && prev.c){
+      messages = [ first, { role: "assistant", content: prev.out.content },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: prev.c.id, is_error: true,
+          content: "저장하지 않았다 — 원칙에 못 미친 미완성본이다.\n" + (extra || "") + "\n\n빠진 칸을 모두 채운 «완성본» 으로 write_solution 을 다시 호출하라. 앞의 내용 중 맞는 것은 그대로 살려도 된다." }] } ];
+    } else {
+      messages = [{ role: "user", content: first.content.concat(extra ? [{ type: "text", text: extra }] : []) }];
+    }
     const res = await call(env, {
       model, max_tokens: mt || maxTok, system: SYS_SOL,
-      tools: [TOOL], tool_choice: { type: "tool", name: "write_solution" },
-      messages: [{ role: "user", content: extra ? parts.concat([{ type: "text", text: extra }]) : parts }]
+      tools: [TOOL], tool_choice: { type: "tool", name: "write_solution" }, messages
     });
     const out = await res.json();
-    const c = (out.content || []).find(x => x.type === "tool_use" && x.name === "write_solution");
-    return { out, sol: c ? fixSol(c.input) : null };
+    const { c, sol } = pull(out);
+    return { out, sol, c };
   };
   const T0 = Date.now();
-  let { out, sol } = await ask1();
+  let { out, sol, c: lastC } = await ask1();
+  let lastOut = out;
   if (!sol) return json({ error: "정해진 틀로 답하지 않았습니다", said: textOf(out).slice(0, 400) }, 502, H);
 
   /* ★ v280 — 칸이 깨져 왔거나(steps 를 JSON 글자로) 소문항 수보다 단계가 모자라면 한 번만 다시 받는다 */
@@ -809,6 +827,12 @@ async function explain(req, env, H){
     else if (steps.length < n) P.push(`소문항이 ${n}개인데 풀이 단계가 ${steps.length}개뿐이다`);
     if (n > 1 && covered(s) < n) P.push(`단계 이름(say)이 (1)~(${n}) 소문항을 다 다루지 않았다 — ${covered(s)}개만`);
     if (!String(s.answer || "").trim()) P.push("answer 가 비었다");
+    /* ★ v300 — 자리표시(임시·TBD·…)로 채운 칸 */
+    const PH = /^\s*(임시|미정|작성\s*예정|추후|tbd|todo|placeholder|\.{2,}|…+)\s*[.。]?\s*$/i;
+    const phs = ["gist", "answer", "check", "trap"].filter(k => PH.test(String(s[k] || "")) && String(s[k] || "").trim());
+    if (phs.length || A("steps").some(x => x && ["say", "ans", "why"].some(k => String(x[k] || "").trim() && PH.test(String(x[k]))))
+        || A("given").concat(A("background")).some(x => PH.test(String(x || ""))))
+      P.push("«임시» 같은 자리표시로 채운 칸이 있다 (" + (phs.join(", ") || "steps·given") + ") — 실제 내용으로 모두 채운다");
     if (calc){
       if (A("given").length < 2) P.push("given(주어진 값)이 모자란다 — 문제에 나온 숫자·조건(용량·역률·전압·거리 등)을 하나도 빼지 말고 전부");
       if (!A("symbols").length) P.push("symbols(부호)가 비었다 — 식에 나온 기호를 뜻·단위·이 문제 값·읽는 법까지");
@@ -849,7 +873,11 @@ async function explain(req, env, H){
     retried = true;
     const why = (cut ? ["직전 답이 길이 한도에서 잘렸다. background · check · trap 은 짧게 줄이고, steps 는 끝까지 적는다."] : [])
       .concat(P.map(x => "- " + x)).join("\n");
-    const again = await ask1("── 직전 답에서 원칙을 어긴 곳 — 이번엔 모두 고쳐서 처음부터 다시 적는다 ──\n" + why, cut ? 32000 : undefined);
+    /* 잘린 것은 대화를 잇지 않고 새로(잘린 도구 호출은 이어 붙일 수 없음) · 미완성은 대화를 이어서 */
+    const again = cut
+      ? await ask1("── 직전 답에서 원칙을 어긴 곳 — 이번엔 모두 고쳐서 처음부터 다시 적는다 ──\n" + why, 32000)
+      : await ask1("원칙을 어긴 곳:\n" + why, undefined, { out: lastOut, c: lastC });
+    if (again.sol){ lastOut = again.out; lastC = again.c; }
     if (again.sol && score(again.sol) >= score(sol)){ sol = again.sol; out = again.out; }
   }
   const problems = probs(sol);
@@ -993,7 +1021,7 @@ export default {
         판정: 막힌곳.includes(colo)
           ? `${colo} 기지는 Anthropic 이 막는 지역입니다 — 403 의 원인입니다.`
           : `${colo} 기지는 보통 허용됩니다.`,
-        빌드: "v299"
+        빌드: "v300"
       }, 200, H);
     }
 
@@ -1049,7 +1077,7 @@ export default {
         keyHead: String(env.ANTHROPIC_API_KEY).slice(0,14) + "…",
         keyLen: String(env.ANTHROPIC_API_KEY).length,
         keyTrimmed: String(env.ANTHROPIC_API_KEY) === String(env.ANTHROPIC_API_KEY).trim(),
-        빌드: "v299",
+        빌드: "v300",
         기지: (req.cf && req.cf.colo) || "?",
         upstream: parsed || body.slice(0,600),
         vision
@@ -1057,7 +1085,7 @@ export default {
     }
 
     if (path === "/health" || path === "/")
-      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v299" }, 200, H);
+      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v300" }, 200, H);
 
     if (env.APP_KEY && req.headers.get("x-app-key") !== env.APP_KEY)
       return json({ error: "x-app-key 가 맞지 않습니다", detail: "x-app-key 가 맞지 않습니다" }, 401, H);

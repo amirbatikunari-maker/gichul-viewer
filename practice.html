@@ -20808,7 +20808,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=299").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=300").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -21217,6 +21217,9 @@ function solProbs(s){
     if(!steps.some(x=>['sym','plain','num','unit'].every(k=>String(x[k]||'').trim()))) P.push('식 네 줄(부호식·해설식·대입식·단위식)을 갖춘 단계가 없음');
     if(!String(s.check||'').trim()) P.push('검산이 없음');
   }
+  /* ★ v300 — «임시» 같은 자리표시 */
+  const PH=/^\s*(임시|미정|작성\s*예정|추후|tbd|todo|placeholder|\.{2,}|…+)\s*[.。]?\s*$/i;
+  if(['gist','answer','check','trap'].some(k=>PH.test(String(s[k]||''))&&String(s[k]||'').trim()) || steps.some(x=>['say','ans','why'].some(k=>String(x[k]||'').trim()&&PH.test(String(x[k]))))) P.push('«임시» 같은 자리표시로 채운 칸이 있음');
   /* ★ v299 */
   if(A('symbols').some(x=>!x||typeof x!=='object'||!String(x.sym||'').trim()||!String(x.mean||'').trim())) P.push('부호가 글자로 왔거나 뜻이 없음');
   if(kind==='회로·시퀀스'){
