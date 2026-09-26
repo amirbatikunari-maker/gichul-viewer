@@ -20808,7 +20808,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=302").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=303").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -21205,6 +21205,9 @@ async function askSol(r, which){
     : md;
   /* ★ v301 — Opus 가 끝내 틀을 못 지켜 Sonnet 으로 대신 뽑았으면 알림 */
   if(d.fallback) toast(`⚠ ${d.asked||'Opus'} 가 틀을 못 지켜 ${d.model} 로 대신 뽑았습니다`);
+  /* ★ v303 — 보충 권장(먼저 알아야 할 것·검산 등)은 묻지 않고 알림만 */
+  else if(Array.isArray(d.notes) && d.notes.length && !(Array.isArray(d.problems)&&d.problems.length))
+    setTimeout(()=>toast(`ℹ 보충하면 좋은 곳 ${d.notes.length} — ${String(d.notes[0]).split(' — ')[0]}`), 1800);
   const diag=Array.isArray(d.diag)?d.diag.map(x=>`${x.tag}: steps ${x.steps} · 멈춤 ${x.stop||'-'}`):[];
   return { md:md2, model:d.model||null, depth:d.depth||null, problems, diag };
 }
@@ -21218,7 +21221,6 @@ function solProbs(s){
     if(A('given').length<2) P.push('주어진 값이 모자람');
     if(!A('symbols').length) P.push('부호 목록이 없음');
     if(!steps.some(x=>['sym','plain','num','unit'].every(k=>String(x[k]||'').trim()))) P.push('식 네 줄(부호식·해설식·대입식·단위식)을 갖춘 단계가 없음');
-    if(!String(s.check||'').trim()) P.push('검산이 없음');
   }
   /* ★ v300 — «임시» 같은 자리표시 */
   const PH=/^\s*(임시|미정|작성\s*예정|추후|tbd|todo|placeholder|\.{2,}|…+)\s*[.。]?\s*$/i;
@@ -21228,12 +21230,10 @@ function solProbs(s){
   if(kind==='회로·시퀀스'){
     const n=Math.max(2,(String(s.answer||'').match(/\(\s*\d{1,2}\s*\)/g)||[]).length);
     if(steps.length<n) P.push(`회로 풀이 단계가 ${steps.length}개뿐 (소문항·가지마다 필요)`);
-    if(A('symbols').length<3) P.push('기기·접점 부호가 모자람');
-    if(A('given').length<2) P.push('동작설명·조건이 빠짐');
-    if(steps.some(x=>!String(x.ans||'').trim())) P.push('그려 넣을 것(ans)이 빈 단계가 있음');
-    if(!String(s.check||'').trim()) P.push('검산이 없음');
+
+    /* ★ v303 — 모든 단계가 아니라, 답을 적은 단계가 하나는 있으면 됨 (설명 단계는 ans 가 비는 게 정상) */
+    if(steps.length && !steps.some(x=>String(x.ans||'').trim())) P.push('답(ans)을 적은 단계가 없음');
   }
-  if(steps.some(x=>!String(x.why||'').trim())) P.push('«왜» 가 빈 단계가 있음');
   return P;
 }
 

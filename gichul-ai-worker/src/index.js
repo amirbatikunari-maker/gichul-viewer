@@ -830,11 +830,13 @@ async function explain(req, env, H){
     const c = (out.content || []).find(x => x.type === "tool_use" && x.name === "write_steps");
     if (!c) return null;
     const add = fixSol(c.input || {});
-    const m = Object.assign({}, base);
-    /* 원래 칸이 비었거나 글자(태그로 샌 것)면 새것으로 · 둘 다 배열이면 긴 쪽 */
+    /* ★ v303 — 칸마다 «바꿨을 때 검사가 나아지면» 새것으로 (길이만 보던 것 → 같은 길이로 고쳐 온 것을 버리던 문제) */
+    let m = Object.assign({}, base);
     for (const k of ["steps", "symbols", "given", "background"]){
       if (!Array.isArray(add[k]) || !add[k].length) continue;
-      if (!Array.isArray(m[k]) || m[k].length < add[k].length) m[k] = add[k];
+      if (!Array.isArray(m[k]) || !m[k].length){ m[k] = add[k]; continue; }
+      const t = Object.assign({}, m, { [k]: add[k] });
+      if (score(t) > score(m) || (score(t) === score(m) && add[k].length > m[k].length)) m = t;
     }
     for (const k of ["check", "trap"]) if (!String(m[k] || "").trim() && add[k]) m[k] = add[k];
     return m;
@@ -853,9 +855,12 @@ async function explain(req, env, H){
     .map(x => String((x && x.say) || "").match(/^\s*\(\s*(\d{1,2})\s*\)/)).filter(Boolean).map(m => m[1])).size;
   /* ★ v297 — 원칙 검사: 유형마다 «반드시 있어야 할 칸» 을 하나하나 본다.
      여태는 «steps 가 아예 없나» 만 봤다 — 풀이·주어진 값·식 네 줄이 빠져도 그대로 저장됐다. */
-  const probs = s => {
-    const P = [];
-    if (!s) return ["답을 정해진 틀로 주지 않았다"];
+  /* ★ v303 — 검사를 둘로: «필수»(빠지면 다시 받음·Sonnet 대체·확인 창) 와 «보충»(작은 틀로 한 번 채워 보고 끝, 저장은 함)
+     v302 까지 회로형에 «모든 단계에 ans» 를 걸었는데, 틀 설명은 «소문항을 끝내는 단계만 ans» 라 서로 부딪혀
+     설명 단계(동작 원리 등) 하나 때문에 Opus 세 번 + Sonnet 까지 불렀다 → 소문항마다 ans 가 있는 단계가 하나면 됨 */
+  const check2 = s => {
+    const P = [], S = [];
+    if (!s) return { hard: ["답을 정해진 틀로 주지 않았다"], soft: [] };
     const A = k => Array.isArray(s[k]) ? s[k] : [];
     const kind = String(s.kind || "");
     const calc = kind === "계산" || kind === "표·선정";
@@ -865,45 +870,54 @@ async function explain(req, env, H){
     else if (steps.length < n) P.push(`소문항이 ${n}개인데 풀이 단계가 ${steps.length}개뿐이다`);
     if (n > 1 && covered(s) < n) P.push(`단계 이름(say)이 (1)~(${n}) 소문항을 다 다루지 않았다 — ${covered(s)}개만`);
     if (!String(s.answer || "").trim()) P.push("answer 가 비었다");
-    /* ★ v300 — 자리표시(임시·TBD·…)로 채운 칸 */
+    /* 자리표시(임시·TBD·…)로 채운 칸 */
     const PH = /^\s*(임시|미정|작성\s*예정|추후|tbd|todo|placeholder|\.{2,}|…+)\s*[.。]?\s*$/i;
     const phs = ["gist", "answer", "check", "trap"].filter(k => PH.test(String(s[k] || "")) && String(s[k] || "").trim());
     if (phs.length || A("steps").some(x => x && ["say", "ans", "why"].some(k => String(x[k] || "").trim() && PH.test(String(x[k]))))
         || A("given").concat(A("background")).some(x => PH.test(String(x || ""))))
       P.push("«임시» 같은 자리표시로 채운 칸이 있다 (" + (phs.join(", ") || "steps·given") + ") — 실제 내용으로 모두 채운다");
-    if (calc){
-      if (A("given").length < 2) P.push("given(주어진 값)이 모자란다 — 문제에 나온 숫자·조건(용량·역률·전압·거리 등)을 하나도 빼지 말고 전부");
-      if (!A("symbols").length) P.push("symbols(부호)가 비었다 — 식에 나온 기호를 뜻·단위·이 문제 값·읽는 법까지");
-      if (!A("background").length) P.push("background(먼저 알아야 할 것)가 비었다");
-      const four = steps.filter(x => ["sym", "plain", "num", "unit"].every(k => String(x[k] || "").trim()));
-      /* 표·선정의 «표에서 바로 위 값 고르기» 단계는 식이 없는 게 정상 — 네 줄 빈칸 검사는 계산형만 */
-      const half = kind !== "계산" ? [] : steps.filter(x => String(x.num || "").trim() && !["sym", "plain", "unit"].every(k => String(x[k] || "").trim()));
-      if (!four.length) P.push("계산 문제인데 식 네 줄(sym 부호식 · plain 해설식 · num 숫자대입식 · unit 단위식)을 다 갖춘 단계가 하나도 없다 — 계산하는 단계마다 네 줄을 모두");
-      else if (half.length) P.push(`숫자를 넣은 단계 ${half.length}개에 부호식·해설식·단위식 중 빈 줄이 있다 — 네 줄을 모두`);
-      if (!String(s.check || "").trim()) P.push("check(검산)가 비었다");
-    }
-    /* ★ v299 — 부호는 «객체» 여야 뜻이 붙는다 («G, R, Y» 글자 한 줄로 오던 것) */
     const syms = A("symbols");
     if (syms.some(x => !x || typeof x !== "object" || !String(x.sym || "").trim() || !String(x.mean || "").trim()))
       P.push("symbols 가 글자로 왔거나 뜻(mean)이 빠졌다 — 기호 하나마다 {sym, mean, unit, val, say} 객체 하나");
-    /* ★ v299 — 회로·시퀀스: 도면 완성 문제는 소문항마다, 회로의 가지마다 풀어서 */
+    /* 소문항마다 «답(ans)이 적힌 단계» 가 하나는 있어야 — 단답·서술·나열·회로 */
+    if (["단답", "서술", "나열", "회로·시퀀스"].includes(kind) && steps.length){
+      const hasAns = x => String(x.ans || "").trim();
+      if (n > 1){
+        const miss = [];
+        for (let k = 1; k <= n; k++){
+          const mine = steps.filter(x => new RegExp("^\\s*\\(\\s*" + k + "\\s*\\)").test(String(x.say || "")));
+          if (mine.length && !mine.some(hasAns)) miss.push(`(${k})`);
+        }
+        if (miss.length) P.push(`소문항 ${miss.join("·")} 에 답(ans)을 적은 단계가 없다 — 그 소문항을 끝내는 단계에 답을`);
+      } else if (!steps.some(hasAns)) P.push("답(ans)을 적은 단계가 하나도 없다 — 소문항을 끝내는 단계에 답을");
+    }
+    if (calc){
+      if (A("given").length < 2) P.push("given(주어진 값)이 모자란다 — 문제에 나온 숫자·조건(용량·역률·전압·거리 등)을 하나도 빼지 말고 전부");
+      if (!syms.length) P.push("symbols(부호)가 비었다 — 식에 나온 기호를 뜻·단위·이 문제 값·읽는 법까지");
+      const four = steps.filter(x => ["sym", "plain", "num", "unit"].every(k => String(x[k] || "").trim()));
+      const half = kind !== "계산" ? [] : steps.filter(x => String(x.num || "").trim() && !["sym", "plain", "unit"].every(k => String(x[k] || "").trim()));
+      if (!four.length) P.push("계산 문제인데 식 네 줄(sym 부호식 · plain 해설식 · num 숫자대입식 · unit 단위식)을 다 갖춘 단계가 하나도 없다 — 계산하는 단계마다 네 줄을 모두");
+      else if (half.length) P.push(`숫자를 넣은 단계 ${half.length}개에 부호식·해설식·단위식 중 빈 줄이 있다 — 네 줄을 모두`);
+      if (!A("background").length) S.push("background(먼저 알아야 할 것)가 비었다");
+      if (!String(s.check || "").trim()) S.push("check(검산)가 비었다");
+    }
     if (kind === "회로·시퀀스"){
       const need = Math.max(2, n);
-      if (steps.length < need) P.push(`회로·시퀀스인데 풀이 단계가 ${steps.length}개뿐이다 — 소문항마다, 그리고 보조회로는 가지(정지·기동·자기유지·인터록·표시등·보호)마다 한 단계씩 (최소 ${need}개)`);
-      if (syms.length < 3) P.push("symbols(기기·접점 기호)가 모자란다 — 문제·답안 그림에 나온 기기와 접점(MCCB·MC·THR·PB·a/b 접점·표시등 등)을 하나마다 뜻·역할까지");
-      if (A("given").length < 2) P.push("given 에 문제의 [동작설명]·조건(보조접점 수 등)을 한 줄씩 빠짐없이 옮기지 않았다");
-      if (!A("background").length) P.push("background(먼저 알아야 할 것)가 비었다 — 자기유지·인터록·a/b 접점 같은 기본 개념");
-      if (steps.some(x => !String(x.ans || "").trim())) P.push("회로·시퀀스인데 ans(그 단계에서 그려 넣을 것 · 연결)가 빈 단계가 있다");
-      if (!String(s.check || "").trim()) P.push("check(검산)가 비었다 — 문제의 동작설명·조건을 하나씩 대어 보며 회로가 그대로 동작하는지 확인");
-      if (String(s.answer || "").length > 700 && steps.length < need + 1) P.push("풀이를 answer 한 칸에 몰아 넣었다 — answer 는 소문항별 요약만, 설명은 steps 에 나눠서");
+      if (steps.length && steps.length < need) P.push(`회로·시퀀스인데 풀이 단계가 ${steps.length}개뿐이다 — 소문항마다, 보조회로는 가지(정지·기동·자기유지·인터록·표시등·보호)마다 한 단계씩 (최소 ${need}개)`);
+      if (syms.length < 3) S.push("symbols(기기·접점 기호)가 모자란다 — 그림에 나온 기기·접점(MCCB·MC·THR·PB·a/b 접점·표시등·게이트 등)을 하나마다 뜻·역할까지");
+      if (A("given").length < 2) S.push("given 에 문제의 [동작설명]·조건을 한 줄씩 옮기지 않았다");
+      if (!A("background").length) S.push("background(먼저 알아야 할 것)가 비었다 — 자기유지·인터록·a/b 접점·논리 게이트 같은 기본 개념");
+      if (!String(s.check || "").trim()) S.push("check(검산)가 비었다 — 동작설명·조건(또는 진리표)을 하나씩 대어 보며 확인");
+      if (String(s.answer || "").length > 700 && steps.length < need + 1) S.push("풀이를 answer 한 칸에 몰아 넣었다 — answer 는 소문항별 요약만, 설명은 steps 에");
     }
-    if (steps.some(x => !String(x.why || "").trim())) P.push("why(왜)가 빈 단계가 있다 — 단계마다 3~6문장");
-    if (["단답", "서술", "나열"].includes(kind) && steps.some(x => !String(x.ans || "").trim())) P.push("단답·서술·나열형인데 ans(그 소문항 답)가 빈 단계가 있다");
-    return P;
+    if (steps.some(x => !String(x.why || "").trim())) S.push("why(왜)가 빈 단계가 있다 — 단계마다 3~6문장");
+    return { hard: P, soft: S };
   };
+  const probs = s => check2(s).hard;
+  const softs = s => check2(s).soft;
   /* ★ v302 — Opus 가 배열 칸에 «<parameter name="say">…» 태그 글자를 넣어 첫 조각만 남는 것 (진단으로 확인) */
   const leak = s => !!s && ["steps", "symbols", "given", "background"].some(k => typeof s[k] === "string" && /<\/?parameter|<\/?invoke|name="(say|sym|mean)"/.test(s[k]));
-  const score = s => s ? -probs(s).length * 10 + covered(s) / 100 + (Array.isArray(s.steps) ? s.steps.length / 1000 : 0) : -999;
+  const score = s => s ? -probs(s).length * 10 - softs(s).length + covered(s) / 100 + (Array.isArray(s.steps) ? s.steps.length / 1000 : 0) : -999;
   /* 최대 두 번 더 — 빠진 것을 짚어서. 화면이 10분에 끊으므로 3분 30초가 지났으면 더 받지 않음 */
   for (let k = 0; k < 2; k++){
     if (Date.now() - T0 > 210000) break;
@@ -924,8 +938,9 @@ async function explain(req, env, H){
   /* ★ v301 — 그래도 풀이가 비었으면 풀이만 따로 받아 합침 */
   let used = model, fallback = false;
   /* ★ v302 — 풀이가 비었을 때만이 아니라, 무엇이든 빠졌으면 작은 틀로 채움 (최대 두 번) */
-  for (let k = 0; k < 2 && probs(sol).length && Date.now() - T0 < 330000; k++){
-    try{ const m = await askSteps(sol, probs(sol).map(x => "- " + x).join("\n")); if (m && score(m) > score(sol)) sol = m; else break; }catch(e){ break; }
+  /* 필수가 빠졌으면 두 번까지, 보충만 빠졌으면 한 번만 */
+  for (let k = 0; k < (probs(sol).length ? 2 : 1) && (probs(sol).length || softs(sol).length) && Date.now() - T0 < 330000; k++){
+    try{ const m = await askSteps(sol, probs(sol).concat(softs(sol)).map(x => "- " + x).join("\n")); if (m && score(m) > score(sol)) sol = m; else break; }catch(e){ break; }
   }
   /* ★ v301 — Opus 가 끝내 틀을 못 지키면 Sonnet 으로 한 번 (통과하면 그것을 씀) */
   if (probs(sol).length && /opus/i.test(model) && Date.now() - T0 < 390000){
@@ -935,9 +950,9 @@ async function explain(req, env, H){
       if (r2.sol && score(r2.sol) > score(sol)){ sol = r2.sol; out = r2.out; used = alt; fallback = true; }
     }catch(e){}
   }
-  const problems = probs(sol);
+  const problems = probs(sol), notes = softs(sol);
 
-  return json({ ok: true, sol, model: used, asked: model, fallback, diag: DIAG, depth, retried, problems,
+  return json({ ok: true, sol, notes, model: used, asked: model, fallback, diag: DIAG, depth, retried, problems,
                 effort: b.effort || "low", stop: out.stop_reason || null,
                 usage: out.usage || null }, 200, H);
 }
@@ -1085,7 +1100,7 @@ export default {
         판정: 막힌곳.includes(colo)
           ? `${colo} 기지는 Anthropic 이 막는 지역입니다 — 403 의 원인입니다.`
           : `${colo} 기지는 보통 허용됩니다.`,
-        빌드: "v302"
+        빌드: "v303"
       }, 200, H);
     }
 
@@ -1141,7 +1156,7 @@ export default {
         keyHead: String(env.ANTHROPIC_API_KEY).slice(0,14) + "…",
         keyLen: String(env.ANTHROPIC_API_KEY).length,
         keyTrimmed: String(env.ANTHROPIC_API_KEY) === String(env.ANTHROPIC_API_KEY).trim(),
-        빌드: "v302",
+        빌드: "v303",
         기지: (req.cf && req.cf.colo) || "?",
         upstream: parsed || body.slice(0,600),
         vision
@@ -1149,7 +1164,7 @@ export default {
     }
 
     if (path === "/health" || path === "/")
-      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v302" }, 200, H);
+      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v303" }, 200, H);
 
     if (env.APP_KEY && req.headers.get("x-app-key") !== env.APP_KEY)
       return json({ error: "x-app-key 가 맞지 않습니다", detail: "x-app-key 가 맞지 않습니다" }, 401, H);
