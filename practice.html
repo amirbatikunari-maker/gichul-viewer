@@ -20789,7 +20789,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=288").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=289").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -23464,10 +23464,10 @@ const MODES={
 /* ★ v277 — 겹치기(여러 개 같이 켬). 위 랜덤 네 가지 어느 것에나 얹힌다
    예) 빈출 랜덤 + 오고·단답 빼기 + 체크한 것 빼기 + 확률 높은 순 → 확률 높은 것부터 풀고 맞힌 것은 소거 */
 const MODS={
-  nx: { nm:'오고·단답 빼기', tip:'오고초려·단답 자료(과 대문항 «단답»)를 뺍니다' },
-  ck: { nm:'체크 N번↑ 빼기', tip:'회독용 — 맞음·틀림 상관없이 N번 푼 문항을 뺍니다. 남은 게 없으면 N회독 끝 (− + 로 N)' },
-  un: { nm:'맞힘 N번↑ 빼기', tip:'숙달용 — N번 이상 맞힌 문항을 뺍니다. 틀린 것·안 푼 것은 남음 (− + 로 N)' },
-  ord:{ nm:'확률 높은 순',   tip:'무작위 대신 출제확률이 높은 것부터 차례로 (같은 확률끼리는 섞음)' }
+  nx: { nm:'회차外 −', tip:'진짜 기출 회차가 아닌 문제집 자료를 뺍니다 — 오고초려 · 핵심빈출 · 단답 · 소방 등' },
+  ck: { nm:'체크 −', tip:'회독용 — 맞음·틀림 상관없이 N번 푼 문항을 뺍니다. 남은 게 없으면 N회독 끝 (− + 로 N)' },
+  un: { nm:'맞힘 −', tip:'숙달용 — N번 이상 맞힌 문항을 뺍니다. 틀린 것·안 푼 것은 남음 (− + 로 N)' },
+  ord:{ nm:'확률순',   tip:'무작위 대신 출제확률이 높은 것부터 차례로 (같은 확률끼리는 섞음)' }
 };
 const MKEY='prac:randmod';
 let MOD={}; try{ MOD=JSON.parse(localStorage.getItem(MKEY)||'{}')||{} }catch(e){ MOD={} }
@@ -23530,13 +23530,12 @@ function ylab(y){
   if(!h){ try{ h=window.__pracYAuto?window.__pracYAuto(y):'' }catch(e){} }
   return String(h||'');
 }
+/* ★ v289 — «회차外 −» : 진짜 기출 회차(연도 1~2999)가 아닌 것은 전부 뺀다.
+   가짜 연도 = 문제집 자료 — 9301 오고초려 · 9302 핵심빈출 · 94NN 단답 · 95NN 소방 … 새로 생겨도 같이 빠짐 */
 function isExcl(r){
   if(!r) return true;
   const y=+r.year;
-  if(y===9301 || (y>=9400 && y<9500)) return true;
-  if(y>3000 && /오고초려|단답/.test(ylab(y))) return true;
-  let t=''; try{ t=window.__qtypeOf?window.__qtypeOf(r.id):String(r.qtype||'') }catch(e){}
-  return /단답/.test(String(t||''));
+  return !(y>0 && y<3000);
 }
 let MODE=null, LAST='all';
 
@@ -23574,8 +23573,8 @@ function draw(mode){
   if(!pool.length){
     const tierOn=!!document.querySelector('#tagRow button[data-tier].on');
     return alert(`지금 조건에 맞는 ${M.sh} 문항이 없습니다.`+(tierOn&&M.tiers?'\n위 «등급» 거르기가 켜져 있으면 풀어 보세요.':'')
-      +(MOD.ck?`\n«체크 ${ckN()}번↑ 빼기» — 이 조건에서 ${ckN()}회독 끝. + 로 올리면 다음 회독.`:'')
-      +(MOD.un?`\n«맞힘 ${unN()}번↑ 빼기» — 다 맞혔으면 + 로 올리세요.`:''));
+      +(MOD.ck?`\n«체크 − (${ckN()})» — 이 조건에서 ${ckN()}회독 끝. + 로 올리면 다음 회독.`:'')
+      +(MOD.un?`\n«맞힘 − (${unN()})» — 다 맞혔으면 + 로 올리세요.`:''));
   }
   const want=$('#fRandN')?.value||'20';
   const n=want==='all'?pool.length:Math.min(pool.length, +want||20);
@@ -23615,8 +23614,8 @@ function paint(){
   $$('#dRand [data-rmod]').forEach(b=>{
     const on=!!MOD[b.dataset.rmod];
     b.classList.toggle('on', on); b.setAttribute('aria-pressed', on?'true':'false');
-    if(b.dataset.rmod==='un'){ const t=`맞힘 ${unN()}번↑ 빼기`; if(b.textContent!==t) b.textContent=t; }
-    if(b.dataset.rmod==='ck'){ const t=`체크 ${ckN()}번↑ 빼기`; if(b.textContent!==t) b.textContent=t; }
+    if(b.dataset.rmod==='un') b.title=`맞힘 −  : ${unN()}번 이상 맞힌 문항을 뺍니다 (숙달) — 옆 − + 로 N`;
+    if(b.dataset.rmod==='ck') b.title=`체크 −  : ${ckN()}번 이상 푼 문항을 뺍니다 (회독) — 옆 − + 로 N`;
   });
   [['un',unN],['ck',ckN]].forEach(([k,f])=>{ const nv=$('#'+k+'Nv'); if(nv){ const t=String(f()); if(nv.textContent!==t) nv.textContent=t; nv.parentElement.classList.toggle('on', !!MOD[k]); } });
   const x=$('#randClear'), R=getRand();
@@ -23626,8 +23625,8 @@ function mount(){
   const f2=$('#dFind2'); if(!f2 || $('#dRand')) return false;
   const row=document.createElement('div'); row.className='drow'; row.id='dRand';
   row.innerHTML=`<span class="tl">랜덤</span><span class="rseg" role="group" aria-label="랜덤 뽑기">`
-    + Object.entries(MODES).map(([k,m])=>`<button type="button" class="chip rbtn" data-rand="${k}" title="${m.tip}">${m.nm}</button>`).join('')
-    + `</span><span class="rseg rmods" role="group" aria-label="겹치기"><span class="rtl">+ 겹치기</span>`
+    + Object.entries(MODES).map(([k,m])=>`<button type="button" class="chip rbtn" data-rand="${k}" title="${m.nm} — ${m.tip}">${m.sh}</button>`).join('')
+    + `</span><span class="rseg rmods" role="group" aria-label="겹치기"><span class="rtl" title="겹치기 — 여러 개 같이 켤 수 있음">＋</span>`
     + Object.entries(MODS).map(([k,m])=>`<button type="button" class="chip rmod" data-rmod="${k}" title="${m.tip}">${m.nm}</button>`
         + (k==='un'||k==='ck'?`<span class="rstep" data-for="${k}" title="N 조절"><button type="button" data-stp="${k}" data-d="-1" aria-label="줄이기">−</button><b id="${k}Nv">1</b><button type="button" data-stp="${k}" data-d="1" aria-label="늘리기">＋</button></span>`:'')).join('')
     + `</span>`;
@@ -23638,6 +23637,7 @@ function mount(){
   x.textContent='✕ 해제'; row.appendChild(x);
   const note=document.createElement('span'); note.className='rnote';
   note.textContent='랜덤 하나 + 겹치기 여러 개 · 빈출·금·은은 같은 문제·같은 유형을 하나만 · 겹치기를 바꾸면 바로 다시 뽑음';
+  row.title=note.textContent;               /* ★ v289 — 설명 줄은 숨기고 올리면 보이게 */
   row.appendChild(note);
   row.addEventListener('click', e=>{
     const b=e.target.closest('[data-rand]'); if(b) return draw(b.dataset.rand);
@@ -25068,5 +25068,29 @@ setTimeout(flush, 2500);
 })();
 </script>
 
+
+<style>
+/* ══ v289 · 랜덤 줄 · 등급 줄 — 작게, 한 줄로 ══
+   넘치면 줄바꿈 대신 가로로 밀어서 봄 (폰) */
+.deck #dRand,.deck #tagRow{display:flex!important;flex-wrap:nowrap!important;align-items:center;gap:4px!important;
+  overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;padding-bottom:2px}
+.deck #dRand .rseg,.deck #dRand .rmods{flex-wrap:nowrap!important;gap:3px!important}
+.deck #dRand .rmods{margin-left:2px!important;padding-left:5px!important}
+.deck #dRand .rnote,.deck #tagRow .tl2{display:none!important}
+.deck #dRand > *,.deck #tagRow > *{flex:0 0 auto}
+.deck #dRand .tl,.deck #tagRow .tl{font-size:11px!important;margin-right:1px!important;white-space:nowrap}
+.deck #dRand .rtl{margin:0!important;font-size:12px!important}
+.deck #dRand button,.deck #dRand select,.deck #tagRow button,.deck #tagRow select{
+  height:26px!important;min-height:0!important;padding:0 8px!important;font-size:11px!important;line-height:1!important;
+  letter-spacing:0!important;border-radius:7px!important;white-space:nowrap;box-sizing:border-box}
+.deck #dRand select,.deck #tagRow select{padding:0 4px!important;width:auto!important;max-width:118px}
+.deck #dRand .rstep{height:26px!important;border-radius:7px!important;margin-left:-1px!important}
+.deck #dRand .rstep button{width:20px!important;padding:0!important;height:100%!important;border:0!important;font-size:13px!important}
+.deck #dRand .rstep b{min-width:14px!important;font-size:11px!important}
+.deck #dRand .rmod::before{content:'☐'!important;margin-right:3px}
+.deck #dRand .rmod.on::before{content:'☑'!important}
+.deck #tagRow button[data-tier]{min-width:0!important;padding:0 7px!important}
+.deck #tagRow .sep{margin:0 2px!important;height:16px}
+</style>
 </body>
 </html>
