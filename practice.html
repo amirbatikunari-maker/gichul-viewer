@@ -14034,7 +14034,8 @@ function paint(){
   if(!build()) return;
   /* «금 248 · 은 276 …» 셈줄은 고르기 띠의 «초기화» 바로 옆이 제자리다 */
   const note=document.getElementById('tagNote'), row=document.getElementById('tagRow');
-  if(note&&row&&note.parentElement!==row){ note.classList.add('inline'); row.appendChild(note); }
+  /* ★ v290 — 등급 줄을 한 줄로 묶은 뒤로는 셈줄이 줄 «안» 에 있으면 가로로 밀려 잘린다 → 줄 바로 아래로 */
+  if(note&&row&&note.previousElementSibling!==row){ note.classList.remove('inline'); row.after(note); }
   prune();
   const c=counts();
   ['cv','ez'].forEach(k=>{
@@ -14624,8 +14625,11 @@ function meas(a,b){
    글이 닮은 것을 저절로 묶으니 엉뚱하게 묶이거나 빠지는 게 많았다.
    이제 한눈에 머리줄의 «🏷 유형» 으로 사람이 묶은 것이 곧 중복 묶기다.
    자동 셋(엄격·보통·느슨)은 남겨 두되, 고르면 «유형 + 자동» 으로 돈다 — 손으로 묶은 것이 늘 먼저. */
+/* ★ v292 — «동일 −» 소문항이 같은 것(동일 문제)만 · «유사 −» 중문항이 같은 것(유사 문제)까지 */
 const LEVELS={
-  manual:{ nm:'수동', lb:'수동 · 유형만', d:'내가 «🏷 유형» 으로 묶은 것만 접습니다' },
+  same:  { nm:'동일', lb:'동일 − (소문항)', d:'소문항이 같은 문항 = 동일 문제만 하나로 접습니다' },
+  sim:   { nm:'유사', lb:'유사 − (중문항)', d:'중문항이 같은 문항 = 유사 문제까지 하나로 접습니다' },
+  manual:{ nm:'수동', lb:'대문항 −', d:'대문항이 같은 문항을 하나로 접습니다 (예전 «수동 · 유형만»)' },
   strict:{ nm:'엄격', lb:'유형 + 엄격', j:0.92, c:0,    r:0,    d:'유형 + 글자까지 거의 같은 것을 저절로' },
   normal:{ nm:'보통', lb:'유형 + 보통', j:0.85, c:0,    r:0,    d:'유형 + 그림·빈칸·부호만 다른 것을 저절로' },
   loose: { nm:'느슨', lb:'유형 + 느슨', j:0.72, c:0.90, r:0.55, d:'유형 + 뒤에 단서가 붙은 정도까지 저절로' }
@@ -14812,14 +14816,15 @@ function build(){
 function compose(){
   const rows=rowsAll(), byId=new Map(rows.map(r=>[String(r.id),r]));
   const reps=[], inM=new Set();
-  let man=null; try{ man=window.__qtypeGroups && window.__qtypeGroups() }catch(e){}
+  let man=null;
+  try{ man = LV==='same' ? window.__qtypeGroupsLv(2) : LV==='sim' ? window.__qtypeGroupsLv(1) : (window.__qtypeGroups && window.__qtypeGroups()); }catch(e){}
   (man||new Map()).forEach((ids,name)=>{
     const all=ids.map(id=>byId.get(String(id))).filter(Boolean);
     if(all.length<2) return;
     all.forEach(x=>inM.add(String(x.id)));
     reps.push({ rep:all.reduce(better), all, name });
   });
-  if(LV!=='manual') AUTO.forEach(({all})=>{
+  if(['strict','normal','loose'].includes(LV)) AUTO.forEach(({all})=>{
     const rest=all.filter(x=>byId.has(String(x.id)) && !inM.has(String(x.id)));
     if(rest.length>=2) reps.push({ rep:rest.reduce(better), all:rest });
   });
@@ -14982,12 +14987,15 @@ function mountChip(){
     const off=FOLD&&READY&&HIDE.size>0&&oneSheet();   /* 켜 뒀지만 지금은 안 접는 중 */
     let man=0; MANNM.forEach((_,rep)=>{ const g=GROUPS.get(rep); if(g) man+=g.length-1; });
     const auto=Math.max(0,HIDE.size-man);
-    const cnt=!READY||!HIDE.size ? '' : (auto ? ` (유형 ${man} · 자동 ${auto})` : ` (유형 ${man})`);
-    b.textContent=`⧉ 중복 묶기${cnt}` + (off?' · 회차 볼 땐 끔':'');
+    const cnt=!READY||!HIDE.size ? '' : (auto ? `유형 ${man} · 자동 ${auto}문항 접힘` : `${man}문항 접힘`);
+    b.textContent=`⧉ 중복 묶기` + (off?' · 회차 볼 땐 끔':'');           /* ★ v292 — «(유형 N)» 빼고 설명으로 */
+    b.dataset.cnt=cnt;
+    try{ $$('[data-duplv]',row).forEach(x=>{ const on=x.dataset.duplv===LV; x.classList.toggle('on',on); x.setAttribute('aria-pressed',on); }); }catch(e){}
     b.classList.toggle('on',FOLD&&!off);
     b.title = off
       ? '회차를 하나 골라 놓아서 지금은 접지 않습니다 — 그 회차를 통째로 보여 줍니다'
       : '묻는 글이 같은 문항을 한 덩어리로 접습니다 (그림이 조금 달라도)';
+    if(b.dataset.cnt) b.title+=' — 지금 '+b.dataset.cnt;
   };
   b.addEventListener('click',()=>{
     FOLD=!FOLD; try{ localStorage.setItem(KEY,FOLD?'1':'0') }catch(e){}
@@ -15006,7 +15014,18 @@ function mountChip(){
   });
   const clear=row.querySelector('[data-clear]');
   const put=el=>clear?row.insertBefore(el,clear):row.appendChild(el);
-  put(sep); put(b); put(sel);
+  put(sep); put(b);
+  /* ★ v292 — 빠른 단추: 동일 − · 유사 − (누른 것을 다시 누르면 대문항 − 로) */
+  [['same','동일 −','소문항이 같은 동일 문제만 접기'],['sim','유사 −','중문항이 같은 유사 문제까지 접기']].forEach(([k,t,tt])=>{
+    const q=document.createElement('button'); q.type='button'; q.dataset.duplv=k; q.className='duplv'; q.textContent=t; q.title=tt;
+    q.addEventListener('click',e=>{ e.stopPropagation();
+      sel.value = LV===k ? 'manual' : k;
+      if(!FOLD){ FOLD=true; try{ localStorage.setItem(KEY,'1') }catch(x){} }
+      sel.dispatchEvent(new Event('change'));
+      try{ drawList() }catch(x){} });
+    put(q);
+  });
+  put(sel);
   paint();
   setInterval(paint,2000);
 }
@@ -20789,7 +20808,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=289").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=292").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -22589,6 +22608,15 @@ setTimeout(()=>{ paint(); mountEv(); paintEv(); }, 900);
 /* ★ v282 — 본문 찾기 결과 · 제자리 미리보기 */
 .qtpop .hn{margin:2px 0 4px;font:800 10.5px/1.3 var(--font-d,system-ui);color:#6b2fb3}
 .qtpop .hn small{font-weight:600;color:var(--muted,#94a3b8);margin-left:4px}
+.qtpop .hn{display:flex;align-items:center;gap:4px}
+.qtpop .hck{flex:none;width:15px;height:15px;margin:0 0 0 3px;accent-color:#6b2fb3;cursor:pointer}
+.qtpop .hck0{flex:none;width:18px}
+.qtpop .hn .all[disabled]{opacity:.45;cursor:default}
+.qtpop .it.more2{justify-content:center;color:#6b2fb3;font-weight:800;font-size:11px;background:#faf7fe}
+.qtpop .hd .bdb{margin-left:auto;border-color:#cbb7e6;color:#6b2fb3}
+.qtpop .hd .bdb + .x{margin-left:4px}
+.qtpop .hn .all{margin-left:auto;border-color:#cbb7e6;color:#6b2fb3;background:#faf7fe}
+.qtpop .hn .all:hover{background:#6b2fb3;color:#fff}
 .qtpop .hits{border:1px solid var(--line,#e2e8f0);border-radius:9px;overflow:hidden}
 .qtpop .hit{border-bottom:1px solid var(--line,#e2e8f0);background:var(--surface,#fff)}
 .qtpop .hit:last-child{border-bottom:0}
@@ -22615,6 +22643,84 @@ setTimeout(()=>{ paint(); mountEv(); paintEv(); }, 900);
 .qtpop .qtmini .ma b{display:inline-block;padding:1px 5px;margin-right:3px;border-radius:4px;background:#e6f5ec;font-size:9.5px}
 .qtpop .qtmini .mb{margin-top:6px;text-align:right}
 .qtpop .more{margin-top:5px;width:100%}
+/* ★ v292 — 분류판 */
+.qtbd{position:fixed;inset:0;z-index:100060;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.38)}
+.qtbd.on{display:flex}
+.qtbd .card{width:min(1180px,calc(100vw - 16px));height:min(88vh,860px);display:flex;flex-direction:column;background:var(--surface,#fff);
+  color:var(--ink,#0f172a);border-radius:14px;box-shadow:0 24px 70px rgba(15,23,42,.32);overflow:hidden;font:600 12px/1.4 var(--font-d,system-ui)}
+.qtbd .top{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line,#e2e8f0)}
+.qtbd .top b{font-size:14px;color:#6b2fb3;white-space:nowrap}
+.qtbd .bq{flex:1;min-width:0;height:32px;padding:0 10px;border:1px solid #cbb7e6;border-radius:8px;font:600 12.5px/1 var(--font-d,system-ui);background:var(--surface,#fff);color:var(--ink,#0f172a)}
+.qtbd .bq:focus{outline:2px solid #a97fdd;border-color:#a97fdd}
+.qtbd .bmsg{font-size:11px;color:#18794e;white-space:nowrap;max-width:32%;overflow:hidden;text-overflow:ellipsis}
+.qtbd .x{border:0;background:none;font-size:18px;cursor:pointer;color:#64748b}
+.qtbd .bd{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)}
+.qtbd .tree{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border-right:1px solid var(--line,#e2e8f0);overflow:hidden;min-height:0}
+.qtbd .bcol{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line,#eef1f5);padding:7px 6px}
+.qtbd .bcol:last-child{border-right:0}
+.qtbd .bcol.off{background:#fafbfd}
+.qtbd .bt{display:flex;align-items:baseline;gap:5px;font:800 12px/1.3 var(--font-d,system-ui);margin:0 2px 5px}
+.qtbd .bt small{font:700 10px/1 var(--font-m,monospace);color:#94a3b8}
+.qtbd .bt em{font-style:normal;font-weight:700;font-size:10px;color:#6b2fb3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.qtbd .bh{color:#94a3b8;font-size:11px;padding:6px 3px}
+.qtbd .bnew{height:28px;padding:0 8px;margin-bottom:5px;border:1px dashed #cbb7e6;border-radius:7px;font:600 11.5px/1 var(--font-d,system-ui);background:#fcfaff;color:var(--ink,#0f172a)}
+.qtbd .bl{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:2px}
+.qtbd .bi{display:flex;align-items:center;gap:6px;width:100%;padding:6px 7px;border:1px solid transparent;border-radius:7px;background:none;cursor:pointer;
+  text-align:left;font:700 12px/1.3 var(--font-d,system-ui);color:var(--ink,#0f172a)}
+.qtbd .bi span{flex:1;min-width:0;word-break:keep-all}
+.qtbd .bi b{flex:none;font:800 10px/1 var(--font-m,monospace);color:#94a3b8}
+.qtbd .bi:hover{background:#faf7fe;border-color:#eadff7}
+.qtbd .bi.on{background:#6b2fb3;color:#fff}
+.qtbd .bi.on b{color:#e9ddfb}
+.qtbd .bi.none{color:#94a3b8;font-weight:600}
+.qtbd .bi.none.on{background:#475569;color:#fff}
+.qtbd .bi.newv{border:1px dashed #a97fdd}
+.qtbd .list{display:flex;flex-direction:column;min-height:0}
+.qtbd .lh{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line,#e2e8f0)}
+.qtbd .lh .cnt{font:700 11px/1 var(--font-m,monospace);color:#475569}
+.qtbd .lh .only{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:11px;color:#64748b;cursor:pointer}
+.qtbd .mini{height:24px;padding:0 8px;border:1px solid var(--line,#e2e8f0);border-radius:6px;background:var(--surface,#fff);cursor:pointer;font:700 10.5px/1 var(--font-d,system-ui);color:#475569}
+.qtbd .mini[disabled]{opacity:.4;cursor:default}
+.qtbd .rows{flex:1;min-height:0;overflow:auto}
+.qtbd .br{padding:5px 10px 6px;border-bottom:1px solid var(--line,#eef1f5)}
+.qtbd .br.sel{background:#f6f1fd}
+.qtbd .br.me{box-shadow:inset 3px 0 0 #6b2fb3}
+.qtbd .rh{display:flex;align-items:center;gap:6px}
+.qtbd .rh input{width:16px;height:16px;accent-color:#6b2fb3;cursor:pointer;flex:none}
+.qtbd .eye{flex:none;width:24px;height:22px;border:0;border-radius:6px;background:none;cursor:pointer;color:#6b2fb3}
+.qtbd .eye:hover{background:#efe6fb}
+.qtbd .no{flex:none;font:800 12px/1 var(--font-m,monospace);cursor:pointer}
+.qtbd .pth{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:10.5px;color:#94a3b8}
+.qtbd .pth i{font-style:normal;padding:1px 5px;border-radius:4px;background:#f1f5f9;color:#475569}
+.qtbd .pth i.l0{background:#f6f1fd;color:#6b2fb3}.qtbd .pth i.l1{background:#e9efff;color:#2f4fc4}.qtbd .pth i.l2{background:#e6f5ec;color:#18794e}
+.qtbd .pth u{text-decoration:none;margin:0 2px}
+.qtbd .tx{margin:3px 0 0 52px;font-size:11px;line-height:1.45;color:#64748b;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all}
+.qtbd .tx mark,.qtbd mark{background:#fde68a;color:inherit;border-radius:2px}
+.qtbd .qtmini{margin:5px 0 2px 52px;padding:7px;border:1px solid #e3d5f5;border-radius:8px}
+.qtbd .qtmini img{display:block;width:100%;max-height:260px;object-fit:contain;object-position:left top}
+.qtbd .qtmini .mq{font-size:11px;white-space:pre-wrap;max-height:140px;overflow:auto}
+.qtbd .qtmini .ma{margin-top:5px;padding-top:5px;border-top:1px dashed var(--line,#e2e8f0);color:#18794e;font-size:11px;max-height:80px;overflow:auto}
+.qtbd .qtmini .mb{margin-top:5px;text-align:right}
+.qtbd em.rl,.qtpop em.rl{font-style:normal;font:800 9.5px/1 var(--font-d,system-ui);padding:2px 5px;border-radius:4px;margin-left:4px;vertical-align:1px}
+.qtbd em.rl.same,.qtpop em.rl.same{background:#dcf3e5;color:#18794e}
+.qtbd em.rl.sim,.qtpop em.rl.sim{background:#e9efff;color:#2f4fc4}
+.qtbd em.rl.unit,.qtpop em.rl.unit{background:#f1f5f9;color:#64748b}
+.qtbd .bt em.k{flex:none;padding:1px 5px;border-radius:4px;background:#f6f1fd;color:#6b2fb3;font-size:9.5px}
+.qtbd .bt em.k.sim{background:#e9efff;color:#2f4fc4}.qtbd .bt em.k.same{background:#dcf3e5;color:#18794e}
+.qtbd .qk{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:7px 10px;border-bottom:1px solid var(--line,#e2e8f0);background:#fcfaff;font-size:11.5px}
+.qtbd .qk span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qtbd .qk small{color:#94a3b8}
+.qtbd .qk .same{border-color:#9fd6b5;color:#18794e;background:#f0faf4}
+.qtbd .qk .sim{border-color:#b9c8f3;color:#2f4fc4;background:#f3f6ff}
+.qtbd .qk .mini{height:28px;font-size:11px;font-weight:800}
+.deck #tagRow .duplv.on{background:#0f172a!important;border-color:#0f172a!important;color:#fff!important}
+.qtbd .emp{padding:24px;text-align:center;color:#94a3b8}
+.qtbd .bf{display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid var(--line,#e2e8f0);background:#fcfaff}
+.qtbd .bf .to{flex:1;min-width:0;font-size:11.5px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qtbd .bf .to b{color:#6b2fb3}
+.qtbd .bf .go{height:32px;padding:0 14px;border:0;border-radius:8px;background:#6b2fb3;color:#fff;cursor:pointer;font:800 12px/1 var(--font-d,system-ui)}
+.qtbd .bf .go[disabled]{opacity:.4;cursor:default}
+@media(max-width:820px){ .qtbd .bd{grid-template-columns:1fr;grid-template-rows:minmax(0,.9fr) minmax(0,1.1fr)} .qtbd .tree{border-right:0;border-bottom:1px solid var(--line,#e2e8f0)} }
 .qtpop .qtmsg{display:block;min-height:15px;margin-top:8px;font-size:11px;color:#6b2fb3}
 .qtpop .foot{margin-top:6px;padding-top:7px;border-top:1px solid var(--line,#e2e8f0);font-size:10px;color:var(--muted,#64748b);line-height:1.5}
 
@@ -22986,11 +23092,11 @@ function mini(o){
     + (!o.q_url&&!q?`<div class="mq">문제 그림·글이 없습니다</div>`:'')
     + `<div class="mb"><button type="button" class="mini" data-open="${esc(o.id)}">↗ 이 문항으로 이동</button></div></div>`;
 }
-function hitRow(o, extra, sub){
+function hitRow(o, extra, sub, ck){
   const same=!!cur_() && tv(o)===cur_(), t=tv(o), on=POP.pv===String(o.id);
   return `<div class="hit${on?' on':''}">
-      <div class="hh"><button type="button" class="eye" data-pv="${esc(o.id)}" aria-expanded="${on}" title="제자리 미리보기">${on?'▾':'👁'}</button>
-        <span class="nm" data-pv="${esc(o.id)}">${esc(short(o))}${extra||''}${t?` <small>· ${esc(t)}</small>`:''}</span>
+      <div class="hh">${ck&&!same?`<input type="checkbox" class="hck" data-ck="${esc(o.id)}"${POP.ck.has(String(o.id))?' checked':''} aria-label="고르기">`:ck?'<span class="hck0"></span>':''}<button type="button" class="eye" data-pv="${esc(o.id)}" aria-expanded="${on}" title="제자리 미리보기">${on?'▾':'👁'}</button>
+        <span class="nm" data-pv="${esc(o.id)}">${esc(short(o))}${relTag(rowOf(POP.id),o)}${extra||''}${t?` <small>· ${esc(t)}</small>`:''}</span>
         <button type="button" class="mini${same?'':' lk'}" data-lk="${esc(o.id)}"${same?' disabled title="이미 같은 유형"':''}>${same?'같음':'연동'}</button></div>
       ${sub&&!on?`<div class="sn">${sub}</div>`:''}${on?mini(o):''}</div>`;
 }
@@ -23028,7 +23134,30 @@ async function link(oid){
       if(await setType([o.id], A)) POP.msg=`${full(o)}만 «${A}» 유형으로 옮겼습니다`;
     }else return;
   }
-  POP.no=''; POP.pv=''; POP.more=false; render();
+  /* ★ v291 — 글자로 찾는 중이면 찾은 목록을 그대로 둔다 → 아래를 보면서 연달아 «연동» */
+  if(!POP.no.trim() || isNoQ(POP.no)){ POP.no=''; POP.pv=''; POP.more=false; }
+  render();
+}
+/* ★ v291 — 찾은 것 중 «같음» 아닌 것을 한 번에. 다른 유형이 이미 붙은 문항은 건너뛴다(말없이 합치지 않음) */
+async function linkMany(ids){
+  const r=rowOf(POP.id); if(!r) return;
+  let A=tv(r);
+  const tg=ids.map(rowOf).filter(o=>o && String(o.id)!==String(r.id) && !(A && tv(o)===A));
+  if(!tg.length){ POP.msg='연동할 문항이 없습니다'; return render(); }
+  const other=tg.filter(o=>tv(o) && tv(o)!==A), free=tg.filter(o=>!tv(o));
+  if(!A){
+    const pick=[...new Set(other.map(o=>tv(o)))];
+    const def=pick.length===1 ? pick[0] : (clean(POP.no) || (suggest(r).find(x=>!x.ex)||{}).name || '');
+    const name=clean(prompt(`이 문제와 ${tg.length}문항을 묶을 ${LVN[LV]} 이름`, def)); if(!name) return;
+    A=name;
+  }
+  const move=other.filter(o=>tv(o)!==A);
+  if(tv(r) && !free.length && move.length===tg.length){
+    POP.msg=`남은 ${move.length}문항은 다른 유형이 붙어 있어 건너뜁니다 — 하나씩 «연동» 을 누르면 합칠지 묻습니다`; return render(); }
+  if(!confirm(`«${A}» 로 ${free.length+(tv(r)?0:1)}문항 연동합니다.`+(move.length?`\n다른 유형이 붙은 ${move.length}문항은 건너뜁니다 (하나씩 «연동» 으로 합칠지 고르세요)`:'')+'\n\n계속할까요?')) return;
+  const ids2=[...(tv(r)?[]:[r.id]), ...free.map(o=>o.id), ...other.filter(o=>tv(o)===A).map(o=>o.id)];
+  if(ids2.length && await setType(ids2, A)) POP.msg=`«${A}» — ${ids2.length}문항 연동${move.length?` · ${move.length}문항 건너뜀`:''}`;
+  render();
 }
 async function renameCur(){
   const r=rowOf(POP.id), cur=tv(r); if(!cur) return;
@@ -23044,7 +23173,7 @@ async function renameCur(){
    ★ v269 — 입력칸은 «한 번만» 만든다. 여태 글자 하나 칠 때마다 쪽지를 통째로 다시 그려서
      입력칸이 새것으로 갈렸다 — 한글은 조합 중에 칸이 바뀌면 «ㅈ주주» 처럼 깨진다.
      이제 틀(뼈대)은 문항이 바뀔 때만 만들고, 치는 동안에는 목록·미리보기 칸만 고친다. */
-const POP={ on:false, id:null, q:'', no:'', msg:'', pv:'', more:false };
+const POP={ on:false, id:null, q:'', no:'', msg:'', pv:'', more:false, ck:new Set(), lvall:false };
 let PEL=null, ANCHOR=null, COMPOSING=false;
 function pop(){
   if(PEL) return PEL;
@@ -23083,7 +23212,7 @@ function place(){
   PEL.style.maxHeight=Math.max(240, innerHeight-Math.max(8,y)-10)+'px';
 }
 function openPop(id, anchor){
-  Object.assign(POP,{ on:true, id:String(id), q:'', no:'', msg:'', pv:'', more:false });
+  Object.assign(POP,{ on:true, id:String(id), q:'', no:'', msg:'', pv:'', more:false, ck:new Set(), lvall:false });
   ANCHOR=anchor; pop().classList.add('on'); render(); place();
   anchor && anchor.classList.add('open');
   setTimeout(()=>{ const i=PEL.querySelector('#qtQ'); if(i && matchMedia('(pointer:fine)').matches) i.focus(); },30);
@@ -23095,7 +23224,7 @@ function closePop(){
 /* 뼈대 — 문항이 바뀔 때만 */
 function skeleton(){
   PEL.innerHTML=`
-    <div class="hd"><b id="qtHd"></b><span>유형</span><button type="button" class="x" data-x aria-label="닫기">✕</button></div>
+    <div class="hd"><b id="qtHd"></b><span>유형</span><button type="button" class="mini bdb" data-board title="대 › 중 › 소 를 나무처럼 보면서 여러 문항을 골라 한 번에 넣기">🗂 분류판</button><button type="button" class="x" data-x aria-label="닫기">✕</button></div>
     <div class="lvseg" id="qtLv" role="tablist" aria-label="유형 단계"></div>
     <div id="qtCur"></div>
     <div class="sec"><div class="lb">추천 <small>보라 = 있는 유형(누르면 바로) · 흰색 = 새 이름(누르면 칸에 채움)</small></div>
@@ -23150,14 +23279,20 @@ function paintList(){
   const all=typeList().map(t=>({ ...t, sib:sib.has(t.name) }))
     .sort((a,b)=>(b.sib-a.sib)||b.n-a.n||a.name.localeCompare(b.name,'ko'));
   const q=clean(POP.q), ql=q.toLowerCase();
-  const list=q ? all.filter(t=>t.name.toLowerCase().includes(ql)) : all;
+  /* ★ v292 — 중·소문항은 «윗단계 안에서» 고른다: 대문항이 같은 문항들이 쓴 중문항만 · 중문항이 같은 것들이 쓴 소문항만.
+     찾는 말을 치면 전부에서 찾고, «다른 것도» 를 누르면 전부 보임 */
+  const scoped = LV>0 && par && !q && !POP.lvall;
+  const base = scoped ? all.filter(t=>t.sib || t.name===cur) : all;
+  const list=q ? all.filter(t=>t.name.toLowerCase().includes(ql)) : base;
   const exact=!!q && all.some(t=>t.name===q);
-  PEL.querySelector('#qtCnt').textContent=`${all.length}개 · 체크하면 이 문제가 그 ${LVN[LV]}으로`+(par&&sib.size?` · 위쪽 ${sib.size}개는 «${par}» 에서 쓴 것`:'');
+  PEL.querySelector('#qtCnt').textContent = LV>0 && !par
+    ? `⚠ ${LVN[LV-1]}을 먼저 정하세요 — 그 안에서 고르게 됩니다`
+    : (scoped ? `«${par}» 안의 ${base.length}개` : `${all.length}개`) + ` · 체크하면 이 문제가 그 ${LVN[LV]}으로`;
   box.innerHTML=
       (q&&!exact?`<button type="button" class="it new" data-new="${esc(q)}"><span class="ck">＋</span><span class="nm">«${esc(q)}» 새 ${LVN[LV]}으로 넣기 <small style="color:var(--muted,#64748b);font-weight:600">Enter</small></span></button>`:'')
     + list.map(t=>`<button type="button" class="it${t.name===cur?' on':''}${t.sib?' sib':''}" data-t="${esc(t.name)}" aria-pressed="${t.name===cur}"><span class="ck">${t.name===cur?'✓':''}</span><span class="nm">${esc(t.name)}</span><b>${t.n}</b></button>`).join('')
-    + (!list.length&&!q?'<div class="qtempty">아직 만든 ${LVN[LV]}이 없습니다. 추천을 누르거나 이름을 쓰고 Enter.</div>':'')
-    + (!list.length&&q&&exact?'':'');
+    + (!list.length&&!q?`<div class="qtempty">${scoped?`«${esc(par)}» 안에 아직 ${LVN[LV]}이 없습니다 — 이름을 쓰고 Enter`:`아직 만든 ${LVN[LV]}이 없습니다. 추천을 누르거나 이름을 쓰고 Enter.`}</div>`:'')
+    + (LV>0 && par && !q ? `<button type="button" class="it more2" data-lvall>${POP.lvall?`▴ «${esc(par)}» 안의 것만`:`▾ 다른 ${LVN[LV-1]}의 ${LVN[LV]}도 보기 (${all.length-base.length})`}</button>`:'');
 }
 function paintPv(){
   const pv=PEL.querySelector('#qtPv'), btn=PEL.querySelector('#qtLinkBtn'); if(!pv) return;
@@ -23178,8 +23313,13 @@ function paintPv(){
   if(POP.pv && !list.some(h=>String(h.o.id)===POP.pv)) POP.pv='';
   pv.innerHTML = !all.length
     ? (squash(t).length<2?'두 글자 이상 쳐 주세요':'본문에서 못 찾았습니다 — 낱말을 줄이거나 띄어서 쳐 보세요')
-    : `<div class="hn">${all.length}문항${all.length>MAX?` · 위 ${MAX}개`:''} <small>문제 › 답안 › 유형 › 풀이 순</small></div>
-       <div class="hits">${list.map(h=>hitRow(h.o, ` <em class="w${h.where}">${WHERE[h.where]}</em>`, snip(h.o,t,h.where))).join('')}</div>`
+    : `<div class="hn">${all.length}문항${all.length>MAX?` · 위 ${MAX}개`:''} <small>👁 로 보고 ☑ 골라서</small>${(()=>{
+        const cur=cur_(), cand=list.filter(h=>!(cur && tv(h.o)===cur)).map(h=>String(h.o.id));
+        POP.ck=new Set([...POP.ck].filter(id=>cand.includes(id)));
+        const n=POP.ck.size;
+        return cand.length?`<button type="button" class="mini" data-ckall="${esc(cand.join(','))}">${n===cand.length?'☑ 전체 풀기':'☐ 전체 고르기'}</button>
+          <button type="button" class="mini all" data-lksel${n?'':' disabled'} title="고른 것을 한 번에 연동 — 다른 유형이 붙은 것은 건너뜀">선택 ${n}개 연동</button>`:''; })()}</div>
+       <div class="hits">${list.map(h=>hitRow(h.o, ` <em class="w${h.where}">${WHERE[h.where]}</em>`, snip(h.o,t,h.where), true)).join('')}</div>`
       + (all.length>MAX?`<button type="button" class="mini more" data-more>더 보기 (${Math.min(all.length,40)-MAX}개 더)</button>`:'');
 }
 function paintNear(){
@@ -23203,6 +23343,8 @@ function paintMsg(){ const m=PEL&&PEL.querySelector('#qtMsg'); if(m) m.textConte
 function render(){
   if(!POP.on || !PEL) return;
   if(!rowOf(POP.id)){ closePop(); return; }
+  const keepY=PEL.scrollTop;                 /* ★ v291 — 연동해도 보던 자리 그대로 */
+  requestAnimationFrame(()=>{ if(PEL && PEL.__for===POP.id) PEL.scrollTop=keepY; });
   if(PEL.__for!==POP.id) skeleton();
   /* 입력칸 값은 «바깥에서 바꿨을 때만» 맞춘다 — 조합 중에는 절대 안 건드림 */
   if(!COMPOSING){
@@ -23213,6 +23355,8 @@ function render(){
   paintLv(); paintCur(); paintSg(); paintList(); paintPv(); paintNear(); paintMem(); paintMsg();
 }
 async function onClick(e){
+  const ckb=e.target.closest('[data-ck]');
+  if(ckb){ const id=String(ckb.dataset.ck); ckb.checked?POP.ck.add(id):POP.ck.delete(id); return paintPv(); }
   const rm=e.target.closest('[data-rm]');
   if(rm){ e.stopPropagation(); await setType([rm.dataset.rm], null); POP.msg=`${LVN[LV]}에서 뺐습니다`; return render(); }
   const t=e.target.closest('button,[data-go],[data-pv]'); if(!t) return;
@@ -23222,7 +23366,7 @@ async function onClick(e){
   if(d.lv!=null){
     const n=Math.min(2,Math.max(0,+d.lv||0)); if(n===LV) return;
     LV=n; try{ localStorage.setItem(LVKEY,String(n)) }catch(x){}
-    POP.q=''; POP.no=''; POP.msg=''; POP.pv=''; POP.more=false; render();
+    POP.q=''; POP.no=''; POP.msg=''; POP.pv=''; POP.more=false; POP.ck=new Set(); POP.lvall=false; render();
     const i=PEL.querySelector('#qtQ'); if(i && matchMedia('(pointer:fine)').matches) i.focus();
     return;
   }
@@ -23242,10 +23386,235 @@ async function onClick(e){
   /* ★ v282 */
   if(d.pv!=null){ POP.pv = POP.pv===String(d.pv) ? '' : String(d.pv); paintPv(); paintNear(); return; }
   if(d.lk!=null) return link(d.lk);
+  if(d.lkall!=null) return linkMany(String(d.lkall).split(',').filter(Boolean));
+  if(d.ckall!=null){ const ids=String(d.ckall).split(',').filter(Boolean); const all=ids.every(id=>POP.ck.has(id));
+    POP.ck=all?new Set():new Set(ids); return paintPv(); }
+  if(d.lksel!=null){ const ids=[...POP.ck]; POP.ck=new Set(); return linkMany(ids); }
+  if(d.board!=null){ const id=POP.id; closePop(); return openBoard(id); }
+  if(d.lvall!=null){ POP.lvall=!POP.lvall; return paintList(); }
   if(d.more!=null){ POP.more=true; return paintPv(); }
   if(d.open!=null){ closePop(); try{ window.ovOpen && window.ovOpen(d.open) }catch(x){} return; }
   if(d.go!=null){ closePop(); try{ window.ovOpen && window.ovOpen(d.go) }catch(x){} }
 }
+
+/* ══ ★ v292 · 🗂 유형 분류판 ══════════════════════════════════════
+   왼쪽 나무 : 대문항 → (고른 대문항 안의) 중문항 → (고른 중문항 안의) 소문항 · 칸마다 «∅ 없음» 과 «＋ 새 이름»
+   오른쪽    : 고른 칸의 문항들 — 또는 위 찾기 칸(본문 낱말 · 12-1 6 번호)으로 찾은 문항들
+               ☑ 로 여러 개 고르고 → 아래 «넣기» 한 번에 대 › 중 › 소 를 같이 적음
+   규칙      : 대문항이 바뀌는 문항은 원래 중·소문항을 비움(다른 갈래 것이라) · 중문항이 바뀌면 소문항을 비움
+   같은 문제(진짜 같음)   → 소문항까지 같게
+   비슷한 문제            → 중문항만 같게, 소문항은 따로 (또는 비움)
+   ══════════════════════════════════════════════════════════════════ */
+const BD={ el:null, b:'', m:'', s:'', q:'', ck:new Set(), pv:'', only:'', from:'' };
+const NONE='∅';                                       /* ∅ = 그 단계 없음 */
+const p3=r=>[0,1,2].map(l=>tv(r,l));
+/* ★ v292 — 기준 문항과의 사이: 소문항이 같으면 «동일» · 중문항만 같으면 «유사» · 대문항만 같으면 «같은 단원» */
+function relOf(a,b){
+  if(!a||!b||String(a.id)===String(b.id)) return '';
+  const A=p3(a), B=p3(b);
+  if(A[2] && A[2]===B[2]) return 'same';
+  if(A[1] && A[1]===B[1]) return 'sim';
+  if(A[0] && A[0]===B[0]) return 'unit';
+  return '';
+}
+const REL_NM={ same:'동일', sim:'유사', unit:'같은 단원' };
+const relTag=(a,b)=>{ const k=relOf(a,b); return k?`<em class="rl ${k}">${REL_NM[k]}</em>`:''; };
+function bdRows(){
+  const R=rows();
+  const q=BD.q.trim();
+  if(q){
+    if(isNoQ(q)){
+      const n=(q.match(/\d+/g)||[]).map(Number); let y=null,se=null,no;
+      if(n.length>=3) [y,se,no]=n; else if(n.length===2) [se,no]=n; else no=n[0];
+      return R.filter(x=>String(x.no)===String(no) && (se==null||String(x.session)===String(se))
+        && (y==null || (String(y).length>=3 ? +x.year===y : (isReal(x.year) && (+x.year)%100===y))));
+    }
+    const ws=q.split(/\s+/).map(squash).filter(Boolean);
+    if(!ws.length || ws.join('').length<2) return [];
+    return R.map(o=>{ const h=hay(o); let sc=0;
+        for(const w of ws){ if(h.q.includes(w)) sc+=3; else if(h.a.includes(w)) sc+=2; else if(h.t.includes(w)) sc+=2; else if(h.e.includes(w)) sc+=1; else return null; }
+        return { o, sc }; }).filter(Boolean)
+      .sort((a,b)=>b.sc-a.sc||(b.o.year-a.o.year)||(b.o.session-a.o.session)).map(x=>x.o);
+  }
+  const mt=(v,sel)=> sel===NONE ? !v : v===sel;
+  let L=R;
+  if(BD.b) L=L.filter(r=>mt(tv(r,0),BD.b));
+  if(BD.b && BD.b!==NONE && BD.m) L=L.filter(r=>mt(tv(r,1),BD.m));
+  if(BD.m && BD.m!==NONE && BD.s) L=L.filter(r=>mt(tv(r,2),BD.s));
+  if(!BD.b) L=L.filter(r=>tv(r,0));                  /* 아무것도 안 골랐으면 대문항 붙은 것 전부 */
+  if(BD.only==='no3') L=L.filter(r=>!tv(r,2));
+  return L.slice().sort((a,b)=>(b.year-a.year)||(b.session-a.session)||(a.no-b.no));
+}
+function bdCount(lv, filt){
+  const m=new Map(); let none=0;
+  rows().forEach(r=>{ if(!filt(r)) return; const t=tv(r,lv); if(t) m.set(t,(m.get(t)||0)+1); else none++; });
+  return { list:[...m.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'ko')), none };
+}
+function bdCol(lv, sel, filt, title){
+  const { list, none }=bdCount(lv, filt);
+  const has=list.some(([n])=>n===sel);
+  return `<div class="bcol"><div class="bt">${title}<small>${list.length}</small></div>
+    <input type="text" class="bnew" data-bnew="${lv}" placeholder="찾기 · 새 이름 Enter" autocomplete="off" spellcheck="false">
+    <div class="bl">${sel && sel!==NONE && !has ? `<button type="button" class="bi on newv" data-bsel="${lv}" data-v="${esc(sel)}"><span>＋ ${esc(sel)}</span><b>새</b></button>`:''}
+      ${list.map(([n,c])=>`<button type="button" class="bi${n===sel?' on':''}" data-bsel="${lv}" data-v="${esc(n)}"><span>${esc(n)}</span><b>${c}</b></button>`).join('')}
+      ${none?`<button type="button" class="bi none${sel===NONE?' on':''}" data-bsel="${lv}" data-v="${NONE}"><span>∅ ${LVN[lv]} 없음</span><b>${none}</b></button>`:''}</div></div>`;
+}
+function bdTree(){
+  const c0=bdCol(0, BD.b, ()=>true, '대문항 <em class="k">단원</em>');
+  const c1= BD.b && BD.b!==NONE ? bdCol(1, BD.m, r=>tv(r,0)===BD.b, `중문항 <em class="k sim">유사 문제</em><em>«${esc(BD.b)}» 안</em>`) : `<div class="bcol off"><div class="bt">중문항 <em class="k sim">유사 문제</em></div><div class="bh">대문항을 고르면 그 안의 중문항이 나옴<br>중문항이 같으면 «유사 문제» — 값·조건만 다른 같은 갈래</div></div>`;
+  const c2= BD.m && BD.m!==NONE && BD.b && BD.b!==NONE ? bdCol(2, BD.s, r=>tv(r,0)===BD.b && tv(r,1)===BD.m, `소문항 <em class="k same">동일 문제</em><em>«${esc(BD.m)}» 안</em>`) : `<div class="bcol off"><div class="bt">소문항 <em class="k same">동일 문제</em></div><div class="bh">중문항을 고르면 그 안의 소문항이 나옴<br>소문항이 같으면 «동일 문제» — 회차만 다른 같은 문제 (회독도 같이 셈)</div></div>`;
+  return c0+c1+c2;
+}
+function bdPath(){ return [BD.b,BD.m,BD.s].map(x=>x===NONE?'':x); }
+function bdList(){
+  const L=bdRows(), MAX=300, show=L.slice(0,MAX);
+  const ids=show.map(r=>String(r.id));
+  BD.ck=new Set([...BD.ck].filter(id=>rowOf(id)));
+  const nSel=BD.ck.size, allOn=ids.length && ids.every(id=>BD.ck.has(id));
+  const [b,m,s]=bdPath();
+  const tgt=[b,m,s].filter(Boolean);
+  const q=BD.q.trim();
+  const head=`<div class="lh"><button type="button" class="mini" data-bckall>${allOn?'☑ 전체 풀기':'☐ 전체 고르기'}</button>
+      <span class="cnt">${q?`찾은 ${L.length}문항`:`이 칸 ${L.length}문항`}${L.length>MAX?` · 위 ${MAX}개`:''}</span>
+      <label class="only"><input type="checkbox" data-bonly${BD.only==='no3'?' checked':''}> 소문항 없는 것만</label></div>`;
+  const body=show.map(r=>{
+    const id=String(r.id), p=p3(r), on=BD.pv===id;
+    const txt=plain(r.q_md||r.q_text).replace(/\$+/g,'').slice(0,110);
+    const sn=q && !isNoQ(q) ? (snip(r,q,(()=>{ const h=hay(r), w=squash(q.split(/\s+/)[0]||''); return h.q.includes(w)?'q':h.a.includes(w)?'a':h.t.includes(w)?'t':'e'; })())||esc(txt)) : esc(txt);
+    return `<div class="br${BD.ck.has(id)?' sel':''}${id===BD.from?' me':''}">
+      <div class="rh"><input type="checkbox" data-bck="${esc(id)}"${BD.ck.has(id)?' checked':''} aria-label="고르기">
+        <button type="button" class="eye" data-bpv="${esc(id)}">${on?'▾':'👁'}</button>
+        <b class="no" data-bpv="${esc(id)}">${esc(short(r))}</b>${BD.from?relTag(rowOf(BD.from),r):''}
+        <span class="pth">${p.map((x,i)=>x?`<i class="l${i}">${esc(x)}</i>`:'').join('<u>›</u>')||'<i class="nn">유형 없음</i>'}</span></div>
+      ${on?mini(r):`<div class="tx">${sn}</div>`}</div>`;
+  }).join('');
+  const foot=`<div class="bf"><span class="to">${tgt.length?`넣을 곳 <b>${tgt.map(esc).join(' › ')}</b>`:'왼쪽에서 넣을 칸을 고르세요'}</span>
+    <button type="button" class="go" data-bput${nSel&&b?'':' disabled'}>☑ ${nSel}개 ${s?'동일 문제로':m?'유사 문제로':'대문항에'} 넣기</button>
+    <button type="button" class="mini" data-bout${nSel&&tgt.length?'':' disabled'} title="고른 문항에서 ${tgt.length?LVN[tgt.length-1]:''}(과 그 아래)를 비움">빼기</button></div>`;
+  const me=BD.from?rowOf(BD.from):null;
+  const quick=me?`<div class="qk"><span>기준 <b>${esc(short(me))}</b>${p3(me).some(Boolean)?` <small>${p3(me).filter(Boolean).map(esc).join(' › ')}</small>`:' <small>유형 없음</small>'}</span>
+      <button type="button" class="mini same" data-brel="same" title="고른 문항을 기준 문항과 대·중·소 모두 같게 = 동일 문제 (회독도 같이 셈)">＝ 이 문제와 동일로</button>
+      <button type="button" class="mini sim" data-brel="sim" title="고른 문항을 기준 문항과 대·중문항만 같게, 소문항은 따로 = 유사 문제">≈ 이 문제와 유사로</button></div>`:'';
+  return quick+head+`<div class="rows">${body||`<div class="emp">${q?'찾은 문항이 없습니다':'이 칸에 문항이 없습니다 — 위 찾기 칸에 낱말을 쳐서 찾아 넣으세요'}</div>`}</div>`+foot;
+}
+function bdPaint(keep){
+  if(!BD.el) return;
+  const tr=BD.el.querySelector('.tree'), ls=BD.el.querySelector('.list');
+  const y1=tr.scrollTop, y2=ls.querySelector('.rows')?.scrollTop||0;
+  const fx=document.activeElement && document.activeElement.dataset && document.activeElement.dataset.bnew;
+  tr.innerHTML=bdTree(); ls.innerHTML=bdList();
+  tr.scrollTop=y1; const rr=ls.querySelector('.rows'); if(rr && keep) rr.scrollTop=y2;
+  if(fx!=null) tr.querySelector(`[data-bnew="${fx}"]`)?.focus();
+  BD.el.querySelector('.bmsg').textContent=BD.msg||'';
+}
+/* 넣기 — 대 › 중 › 소 를 같이 적고, 갈래가 바뀐 문항의 아래 단계는 비운다 */
+async function bdPut(){
+  const ids=[...BD.ck]; const [b,m,s]=bdPath(); if(!ids.length || !b) return;
+  const R=ids.map(rowOf).filter(Boolean);
+  const clr1=R.filter(r=>tv(r,0)!==b && tv(r,1) && !m).map(r=>r.id);
+  const clr2=R.filter(r=>(tv(r,0)!==b || (m && tv(r,1)!==m)) && tv(r,2) && !s).map(r=>r.id);
+  const nb=R.filter(r=>tv(r,0)!==b).length;
+  if(nb && R.some(r=>tv(r,0) && tv(r,0)!==b) &&
+     !confirm(`고른 것 중 다른 대문항이 붙은 문항이 있습니다 — «${b}» 로 옮기고 그 문항의 중·소문항은 비웁니다. 계속할까요?`)) return;
+  let ok=await setType(ids, b, 0);
+  if(ok && m) ok=await setType(ids, m, 1);
+  if(ok && s) ok=await setType(ids, s, 2);
+  if(ok && clr1.length) await setType(clr1, null, 1);
+  if(ok && clr2.length) await setType(clr2, null, 2);
+  if(ok){ BD.msg=`${ids.length}문항 → ${[b,m,s].filter(Boolean).join(' › ')}`; BD.ck=new Set(); }
+  bdPaint(true);
+}
+/* ★ v292 — 기준 문항(분류판을 연 문항)과 «동일» 또는 «유사» 로 */
+async function bdRel(kind){
+  const me=rowOf(BD.from); if(!me) return;
+  const ids=[...BD.ck].filter(id=>id!==String(me.id)); if(!ids.length){ BD.msg='오른쪽에서 ☑ 로 문항을 고르세요'; return bdPaint(true); }
+  let [b,m,s]=p3(me);
+  const ask=(lv,def)=>clean(prompt(`기준 문항 ${short(me)} 에 ${LVN[lv]}이 없습니다 — 이름을 정하세요 (${lv===2?'동일 문제 이름':lv===1?'유사 묶음 이름':'단원 이름'})`, def||''));
+  if(!b){ b=ask(0, (suggest(me).find(x=>x.ex)||{}).name); if(!b) return; await setType([me.id], b, 0); }
+  if(!m){ m=ask(1, (suggest(me).find(x=>!x.ex)||{}).name); if(!m) return; await setType([me.id], m, 1); }
+  if(kind==='same' && !s){ s=ask(2, m); if(!s) return; await setType([me.id], s, 2); }
+  await setType(ids, b, 0); await setType(ids, m, 1);
+  if(kind==='same') await setType(ids, s, 2);
+  else{
+    /* 유사 — 기준과 같은 소문항이 붙어 있던 것만 비움 (그 문항 나름의 소문항은 둠) */
+    const cl=ids.filter(id=>{ const r=rowOf(id); return r && (!tv(r,2) || tv(r,2)===s); });
+    if(cl.length) await setType(cl, null, 2);
+  }
+  BD.msg=`${ids.length}문항 → 기준과 ${kind==='same'?'동일':'유사'} (${[b,m,kind==='same'?s:''].filter(Boolean).join(' › ')})`;
+  Object.assign(BD,{ b, m, s:kind==='same'?s:'' }); BD.ck=new Set([String(me.id)]);
+  bdPaint(true);
+}
+async function bdOut(){
+  const ids=[...BD.ck]; const t=bdPath().filter(Boolean); if(!ids.length || !t.length) return;
+  const lv=t.length-1;
+  if(!confirm(`고른 ${ids.length}문항에서 ${LVN[lv]}${lv<2?'(과 그 아래)':''}을 비울까요?`)) return;
+  for(let l=lv;l<=2;l++) await setType(ids, null, l);
+  BD.msg=`${ids.length}문항에서 ${LVN[lv]} 뺌`; BD.ck=new Set(); bdPaint(true);
+}
+function openBoard(id){
+  const r=id?rowOf(id):null;
+  if(!BD.el){
+    const el=document.createElement('div'); el.className='qtbd'; el.setAttribute('role','dialog'); el.setAttribute('aria-label','유형 분류판');
+    el.innerHTML=`<div class="card"><div class="top"><b>🗂 유형 분류판</b>
+        <input type="text" class="bq" placeholder="본문 낱말(방폭 구조) · 번호(12-1 6) 로 찾기 — 비우면 왼쪽 칸의 문항" autocomplete="off" spellcheck="false">
+        <span class="bmsg" aria-live="polite"></span><button type="button" class="x" data-bx aria-label="닫기">✕</button></div>
+      <div class="bd"><div class="tree"></div><div class="list"></div></div></div>`;
+    document.body.appendChild(el); BD.el=el;
+    let T=0;
+    el.addEventListener('input', e=>{
+      if(e.target.classList.contains('bq')){ clearTimeout(T); T=setTimeout(()=>{ BD.q=e.target.value; BD.pv=''; bdPaint(); },160); return; }
+      const nv=e.target.dataset.bnew;
+      if(nv!=null){ const q=e.target.value.trim().toLowerCase();
+        e.target.closest('.bcol').querySelectorAll('.bi').forEach(b=>{ b.hidden=!!q && !String(b.dataset.v||'').toLowerCase().includes(q); }); }
+    });
+    el.addEventListener('keydown', e=>{
+      e.stopPropagation();
+      if(e.key==='Escape'){ e.preventDefault(); return closeBoard(); }
+      if(e.key==='Enter' && !e.isComposing && e.target.dataset.bnew!=null){
+        e.preventDefault(); const v=clean(e.target.value); if(!v) return;
+        const lv=+e.target.dataset.bnew; bdSel(lv, v); }
+    });
+    el.addEventListener('click', e=>{
+      if(e.target===el || e.target.closest('[data-bx]')) return closeBoard();
+      const t=e.target;
+      if(t.dataset.bck!=null){ const id=String(t.dataset.bck); t.checked?BD.ck.add(id):BD.ck.delete(id); t.closest('.br')?.classList.toggle('sel',t.checked); return bdFoot(); }
+      if(t.dataset.bonly!=null){ BD.only=t.checked?'no3':''; return bdPaint(); }
+      const b=t.closest('button,[data-bpv]'); if(!b) return;
+      const d=b.dataset;
+      if(d.bsel!=null) return bdSel(+d.bsel, d.v);
+      if(d.bpv!=null){ BD.pv=BD.pv===String(d.bpv)?'':String(d.bpv); return bdPaint(true); }
+      if(d.bckall!=null){ const ids=bdRows().slice(0,300).map(r=>String(r.id)); const all=ids.every(x=>BD.ck.has(x));
+        BD.ck=all?new Set():new Set(ids); return bdPaint(true); }
+      if(d.bput!=null) return bdPut();
+      if(d.brel!=null) return bdRel(d.brel);
+      if(d.bout!=null) return bdOut();
+      if(d.open!=null){ closeBoard(); try{ window.ovOpen && window.ovOpen(d.open) }catch(x){} }
+    });
+  }
+  const P=r?p3(r):['','',''];
+  Object.assign(BD,{ b:P[0]||'', m:P[1]||'', s:P[2]||'', q:'', pv:'', msg:'', from:r?String(r.id):'', ck:new Set(r?[String(r.id)]:[]) });
+  BD.el.querySelector('.bq').value='';
+  BD.el.classList.add('on'); bdPaint();
+  setTimeout(()=>BD.el.querySelector('.bq')?.focus(),40);
+}
+function bdSel(lv, v){
+  if(lv===0){ const nv=BD.b===v?'':v; if(nv!==BD.b){ BD.m=''; BD.s=''; } BD.b=nv; }
+  if(lv===1){ const nv=BD.m===v?'':v; if(nv!==BD.m) BD.s=''; BD.m=nv; }
+  if(lv===2){ BD.s=BD.s===v?'':v; }
+  BD.pv=''; bdPaint();
+}
+function bdFoot(){
+  const n=BD.ck.size, [b]=bdPath(), t=bdPath().filter(Boolean);
+  const g=BD.el.querySelector('[data-bput]'); if(g){ g.disabled=!(n&&b); g.textContent=`☑ ${n}개 넣기`; }
+  const o=BD.el.querySelector('[data-bout]'); if(o) o.disabled=!(n&&t.length);
+}
+function closeBoard(){ BD.el && BD.el.classList.remove('on'); }
+window.__qtBoard=openBoard;
+/* 일반 보기에서도 — 등급 줄 끝에 «🗂 분류판» */
+setInterval(()=>{ try{ const row=$('#tagRow'); if(row && !$('#qtBoardBtn')){ const b=document.createElement('button'); b.type='button'; b.id='qtBoardBtn';
+  b.textContent='🗂 분류판'; b.title='대 › 중 › 소 유형을 나무처럼 보면서 여러 문항을 골라 한 번에 넣기';
+  b.addEventListener('click', e=>{ e.stopPropagation(); let id=nowOv(); if(!$('#ovl')?.classList.contains('on')){ try{ const r=window.SHOWN&&window.SHOWN[window.ONEAT|0]; id=r?String(r.id):''; }catch(x){} } openBoard(id); });
+  row.appendChild(b); } }catch(e){} }, 1500);
 
 /* ══ ① 머리줄 단추 — ✂ 바로 오른쪽 ══ */
 function mountBtn(){
@@ -23281,7 +23650,7 @@ function follow(){
   paintBtn();
   if(POP.on){
     if(!id || !$('#ovl')?.classList.contains('on')) return closePop();
-    Object.assign(POP,{ id, q:'', no:'', msg:'', pv:'', more:false }); render();
+    Object.assign(POP,{ id, q:'', no:'', msg:'', pv:'', more:false, ck:new Set(), lvall:false }); render();
   }
 }
 
@@ -25091,6 +25460,8 @@ setTimeout(flush, 2500);
 .deck #dRand .rmod.on::before{content:'☑'!important}
 .deck #tagRow button[data-tier]{min-width:0!important;padding:0 7px!important}
 .deck #tagRow .sep{margin:0 2px!important;height:16px}
+.deck #tagNote{display:block!important;margin:4px 0 0!important;white-space:normal!important;overflow:visible!important;max-width:none!important;
+  font-size:11px!important;line-height:1.45!important}
 </style>
 </body>
 </html>
