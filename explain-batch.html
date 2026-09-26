@@ -537,16 +537,29 @@ function toMd(sol){
   if(sol.check)      L.push("**검산**", "", line(sol.check), "");
   if(sol.memo)       L.push("**외우기**", "", line(sol.memo), "");
   /* ★ v276 — 두문자 : 첫 줄 `글자` · 줄마다 «글자 — 항목» (화면에서 고쳐 쓸 수 있음) */
-  const MN = sol.mnemo;
-  if(MN && typeof MN === "object" && (MN.code || arr(MN.map).length)){
+  /* ★ v283 — 소문항마다 두문자 묶음 (mnemos 배열). 예전 mnemo 하나도 그대로 받음.
+     묶음이 둘 이상이면 «(1) 장점» 같은 이름 줄을 앞에 붙인다 */
+  const MNS = (Array.isArray(sol.mnemos) && sol.mnemos.length) ? sol.mnemos
+            : (Array.isArray(sol.mnemo) ? sol.mnemo : (sol.mnemo && typeof sol.mnemo === "object" ? [sol.mnemo] : []));
+  const MNG = MNS.filter(M => M && typeof M === "object" && (M.code || arr(M.map).length));
+  if(MNG.length){
     L.push("**두문자**", "");
-    if(MN.code) L.push("`" + String(MN.code).replace(/[`\n]/g, "").trim() + "`", "");
-    arr(MN.map).forEach(m => {
-      if(typeof m === "string") return void L.push(`- ${line(m)}`);
-      L.push(`- ${String(m.h || m.head || "").replace(/[—\n]/g, "").trim()} — ${line(m.word || m.w || "")}`);
+    MNG.forEach((MN, gi) => {
+      let lb = String(MN.label || MN.q || "").replace(/[\n`*]/g, " ").replace(/\s+/g, " ").trim();
+      if(MNG.length > 1 || lb){
+        if(!lb) lb = `(${gi + 1})`;
+        else if(!/^\(\d{1,2}\)/.test(lb)) lb = `(${gi + 1}) ${lb.replace(/^\d{1,2}[.)]\s*/, "")}`;
+        L.push(lb, "");
+      }
+      const code = String(MN.code || arr(MN.map).map(m => (m && (m.h || m.head)) || "").join("")).replace(/[`\n]/g, "").trim();
+      if(code) L.push("`" + code + "`", "");
+      arr(MN.map).forEach(m => {
+        if(typeof m === "string") return void L.push(`- ${line(m)}`);
+        L.push(`- ${String(m.h || m.head || "").replace(/[—\n]/g, "").trim()} — ${line(m.word || m.w || "")}`);
+      });
+      L.push("");
+      if(MN.say) L.push(line(MN.say), "");
     });
-    L.push("");
-    if(MN.say) L.push(line(MN.say), "");
   }
   if(sol.trap)       L.push("**흔한 실수**", "", line(sol.trap), "");
   if(arr(sol.also).length){

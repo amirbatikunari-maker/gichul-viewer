@@ -548,6 +548,13 @@ const TOOL = {
                                 h:    { type: "string", description: "그 글자 하나" },
                                 word: { type: "string", description: "그 글자가 뜻하는 항목" } } } },
                       say:  { type: "string", description: "code 를 외우기 쉬운 한 문장 (없으면 빈 문자열)" } } },
+      mnemos:     { type: "array", description: "소문항이 둘 이상이고 저마다 여러 개를 쓰라고 하면(예: (1) 장점 4가지 (2) 단점 2가지) 소문항마다 두문자 하나씩. 이때 mnemo 는 비운다",
+                    items: { type: "object", required: ["label", "code", "map"], properties: {
+                      label: { type: "string", description: "소문항 번호와 이름. 예: '(1) 장점', '(2) 단점'" },
+                      code:  { type: "string", description: "그 소문항 항목의 앞 글자를 이은 것" },
+                      map:   { type: "array", items: { type: "object", required: ["h", "word"], properties: {
+                                 h: { type: "string" }, word: { type: "string" } } } },
+                      say:   { type: "string", description: "외우기 쉬운 한 문장 (없으면 빈 문자열)" } } } },
       tags:       { type: "array", items: { type: "string" }, description: "과목·주제 꼬리표 2~4개" }
     }
   }
@@ -586,6 +593,9 @@ const SYS_SOL = [
   "- 시퀀스 회로 · 접점 · 타임차트 · 동작 순서 · 논리식 → 회로·시퀀스",
   "- 사용자가 유형을 정해 보냈으면(아래 «정해 준 유형») 그 유형을 따른다.",
   "- 답이 낱말 3개 이상 나열되면 mnemo(두문자)를 넣는다. code 는 항목마다 앞 글자 하나 — 답안지 순서 그대로.",
+  "- 소문항이 둘 이상이고 저마다 «N가지» 를 쓰라고 하면(예: (1) 장점 4가지 (2) 단점 2가지) mnemo 대신 mnemos 에 «소문항마다» 하나씩 넣는다. 하나도 빠뜨리지 않는다.",
+  "-   각 묶음의 항목 수 = 문제가 요구한 가지 수. 답안지에 더 많이 적혀 있으면 채점에 가장 흔히 쓰는 것부터 그 수만큼.",
+  "-   items 도 모든 소문항 항목을 빠짐없이 넣고, word 앞에 소문항 번호를 붙인다. 예: '(2) 에너지 밀도가 낮음'",
   "",
   "형광펜 (==핵심==)",
   "- 답안에 반드시 들어가야 할 핵심어·문구, 채점에서 점수가 걸리는 표현은 ==이렇게== 감싼다.",
@@ -822,7 +832,7 @@ function fixSol(sol){
     }
     return v;
   };
-  for (const k of ["steps", "symbols", "items", "given", "background", "keys", "tags"]) if (k in sol) sol[k] = toArr(sol[k]);
+  for (const k of ["steps", "symbols", "items", "given", "background", "keys", "tags", "mnemos"]) if (k in sol) sol[k] = toArr(sol[k]);
   if (typeof sol.mnemo === "string" && /^\s*\{/.test(sol.mnemo)){ const j = looseJson(sol.mnemo.trim()); if (j && typeof j === "object") sol.mnemo = j; }
   return sol;
 }
@@ -925,7 +935,7 @@ export default {
         판정: 막힌곳.includes(colo)
           ? `${colo} 기지는 Anthropic 이 막는 지역입니다 — 403 의 원인입니다.`
           : `${colo} 기지는 보통 허용됩니다.`,
-        빌드: "v281"
+        빌드: "v283"
       }, 200, H);
     }
 
@@ -981,7 +991,7 @@ export default {
         keyHead: String(env.ANTHROPIC_API_KEY).slice(0,14) + "…",
         keyLen: String(env.ANTHROPIC_API_KEY).length,
         keyTrimmed: String(env.ANTHROPIC_API_KEY) === String(env.ANTHROPIC_API_KEY).trim(),
-        빌드: "v281",
+        빌드: "v283",
         기지: (req.cf && req.cf.colo) || "?",
         upstream: parsed || body.slice(0,600),
         vision
@@ -989,7 +999,7 @@ export default {
     }
 
     if (path === "/health" || path === "/")
-      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v281" }, 200, H);
+      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v283" }, 200, H);
 
     if (env.APP_KEY && req.headers.get("x-app-key") !== env.APP_KEY)
       return json({ error: "x-app-key 가 맞지 않습니다", detail: "x-app-key 가 맞지 않습니다" }, 401, H);
