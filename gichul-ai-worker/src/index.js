@@ -778,7 +778,7 @@ async function explain(req, env, H){
      그래서 ① 처음부터 «한 번뿐 · 자리표시 금지» 를 못 박고
      ② 다시 받을 때는 처음부터 새로 묻지 않고, 그 대화를 이어 «방금 것은 미완성 — 이것들을 채운 완성본으로 다시 호출» 로 돌려준다
         (모델이 기대하는 흐름이라 같은 임시본을 되풀이하지 않는다) */
-  const ONCE = "── 도구 쓰는 법 ──\nwrite_solution 은 «딱 한 번», 모든 칸을 끝까지 채운 완성본으로 호출한다. 이 호출이 그대로 저장되며 고칠 기회는 없다.\n'임시' · 'TBD' · '작성 예정' · '…' 같은 자리표시를 절대 쓰지 않는다.";
+  const ONCE = "── 도구 쓰는 법 ──\nwrite_solution 은 «딱 한 번», 모든 칸을 끝까지 채운 완성본으로 호출한다. 이 호출이 그대로 저장되며 고칠 기회는 없다.\n'임시' · 'TBD' · '작성 예정' · '…' 같은 자리표시를 절대 쓰지 않는다.\n배열 칸(steps · symbols · given · background)은 JSON 배열 [ {…}, {…} ] 로 넣는다. <parameter name=…> 같은 태그 형식으로 쓰지 않는다.";
   const pull = out => {
     const c = (out.content || []).find(x => x.type === "tool_use" && x.name === "write_solution");
     return { c, sol: c ? fixSol(c.input) : null };
@@ -815,14 +815,15 @@ async function explain(req, env, H){
   const STEP_TOOL = { name: "write_steps", description: "이미 적은 해설에 빠진 «풀이 단계» 와 부호·주어진 값·검산을 채운다.",
     input_schema: { type: "object", required: ["steps"], properties: {
       steps: TOOL.input_schema.properties.steps, symbols: TOOL.input_schema.properties.symbols,
-      given: TOOL.input_schema.properties.given, check: TOOL.input_schema.properties.check } } };
+      given: TOOL.input_schema.properties.given, background: TOOL.input_schema.properties.background,
+      check: TOOL.input_schema.properties.check, trap: TOOL.input_schema.properties.trap } } };
   const askSteps = async (base, why) => {
     const res = await call(env, {
       model, max_tokens: maxTok, system: SYS_SOL,
       tools: [STEP_TOOL], tool_choice: { type: "tool", name: "write_steps" },
       messages: [{ role: "user", content: parts.concat([{ type: "text", text:
         "── 이미 적은 것 ──\n요지: " + (base.gist || "") + "\n유형: " + (base.kind || "") + "\n답:\n" + (base.answer || "") +
-        "\n\n── 빠진 것 ──\n" + why + "\n\nwrite_steps 로 풀이 단계(소문항마다 · 회로는 가지마다)와 부호·주어진 값·검산을 «객체 배열» 로 모두 채운다. 자리표시 금지." }]) }]
+        "\n\n── 빠진 것 ──\n" + why + "\n\nwrite_steps 로 빠진 칸을 모두 채운다 — 풀이 단계(소문항마다 · 회로는 가지마다) · 부호 · 주어진 값 · 먼저 알아야 할 것 · 검산 · 흔한 실수. 배열 칸은 JSON 배열 [ {…} ] 로. <parameter> 태그 · 자리표시 금지." }]) }]
     });
     const out = await res.json();
     diagOf(out, model + " · 풀이만");
@@ -830,8 +831,12 @@ async function explain(req, env, H){
     if (!c) return null;
     const add = fixSol(c.input || {});
     const m = Object.assign({}, base);
-    for (const k of ["steps", "symbols", "given"]) if (Array.isArray(add[k]) && add[k].length && !(Array.isArray(m[k]) && m[k].length >= add[k].length)) m[k] = add[k];
-    if (!String(m.check || "").trim() && add.check) m.check = add.check;
+    /* 원래 칸이 비었거나 글자(태그로 샌 것)면 새것으로 · 둘 다 배열이면 긴 쪽 */
+    for (const k of ["steps", "symbols", "given", "background"]){
+      if (!Array.isArray(add[k]) || !add[k].length) continue;
+      if (!Array.isArray(m[k]) || m[k].length < add[k].length) m[k] = add[k];
+    }
+    for (const k of ["check", "trap"]) if (!String(m[k] || "").trim() && add[k]) m[k] = add[k];
     return m;
   };
   const T0 = Date.now();
@@ -896,6 +901,8 @@ async function explain(req, env, H){
     if (["단답", "서술", "나열"].includes(kind) && steps.some(x => !String(x.ans || "").trim())) P.push("단답·서술·나열형인데 ans(그 소문항 답)가 빈 단계가 있다");
     return P;
   };
+  /* ★ v302 — Opus 가 배열 칸에 «<parameter name="say">…» 태그 글자를 넣어 첫 조각만 남는 것 (진단으로 확인) */
+  const leak = s => !!s && ["steps", "symbols", "given", "background"].some(k => typeof s[k] === "string" && /<\/?parameter|<\/?invoke|name="(say|sym|mean)"/.test(s[k]));
   const score = s => s ? -probs(s).length * 10 + covered(s) / 100 + (Array.isArray(s.steps) ? s.steps.length / 1000 : 0) : -999;
   /* 최대 두 번 더 — 빠진 것을 짚어서. 화면이 10분에 끊으므로 3분 30초가 지났으면 더 받지 않음 */
   for (let k = 0; k < 2; k++){
@@ -903,6 +910,7 @@ async function explain(req, env, H){
     const cut = out.stop_reason === "max_tokens";
     const P = probs(sol);
     if (!cut && !P.length) break;
+    if (!cut && leak(sol)) break;             /* 태그로 샌 것은 이어 받아도 같은 모양 — 바로 작은 틀로 */
     retried = true;
     const why = (cut ? ["직전 답이 길이 한도에서 잘렸다. background · check · trap 은 짧게 줄이고, steps 는 끝까지 적는다."] : [])
       .concat(P.map(x => "- " + x)).join("\n");
@@ -915,8 +923,9 @@ async function explain(req, env, H){
   }
   /* ★ v301 — 그래도 풀이가 비었으면 풀이만 따로 받아 합침 */
   let used = model, fallback = false;
-  if (probs(sol).length && Date.now() - T0 < 330000 && !(Array.isArray(sol.steps) && sol.steps.length)){
-    try{ const m = await askSteps(sol, probs(sol).map(x => "- " + x).join("\n")); if (m && score(m) > score(sol)) sol = m; }catch(e){}
+  /* ★ v302 — 풀이가 비었을 때만이 아니라, 무엇이든 빠졌으면 작은 틀로 채움 (최대 두 번) */
+  for (let k = 0; k < 2 && probs(sol).length && Date.now() - T0 < 330000; k++){
+    try{ const m = await askSteps(sol, probs(sol).map(x => "- " + x).join("\n")); if (m && score(m) > score(sol)) sol = m; else break; }catch(e){ break; }
   }
   /* ★ v301 — Opus 가 끝내 틀을 못 지키면 Sonnet 으로 한 번 (통과하면 그것을 씀) */
   if (probs(sol).length && /opus/i.test(model) && Date.now() - T0 < 390000){
@@ -1076,7 +1085,7 @@ export default {
         판정: 막힌곳.includes(colo)
           ? `${colo} 기지는 Anthropic 이 막는 지역입니다 — 403 의 원인입니다.`
           : `${colo} 기지는 보통 허용됩니다.`,
-        빌드: "v301"
+        빌드: "v302"
       }, 200, H);
     }
 
@@ -1132,7 +1141,7 @@ export default {
         keyHead: String(env.ANTHROPIC_API_KEY).slice(0,14) + "…",
         keyLen: String(env.ANTHROPIC_API_KEY).length,
         keyTrimmed: String(env.ANTHROPIC_API_KEY) === String(env.ANTHROPIC_API_KEY).trim(),
-        빌드: "v301",
+        빌드: "v302",
         기지: (req.cf && req.cf.colo) || "?",
         upstream: parsed || body.slice(0,600),
         vision
@@ -1140,7 +1149,7 @@ export default {
     }
 
     if (path === "/health" || path === "/")
-      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v301" }, 200, H);
+      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v302" }, 200, H);
 
     if (env.APP_KEY && req.headers.get("x-app-key") !== env.APP_KEY)
       return json({ error: "x-app-key 가 맞지 않습니다", detail: "x-app-key 가 맞지 않습니다" }, 401, H);
