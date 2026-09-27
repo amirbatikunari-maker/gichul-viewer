@@ -423,11 +423,18 @@ const PIN = {
 
 const state = {
 
+  /* ★ v308 — 기본은 Sonnet 5. 예전에 «자동» 으로 남아 있던 기기도 한 번만 Sonnet 으로 옮김 (그 뒤 고른 것은 그대로) */
   mode:
-    load(
-      "ai:mode",
-      "auto"
-    ),
+    (() => {
+      try{
+        if (!localStorage.getItem("ai:mode:v308")){
+          localStorage.setItem("ai:mode:v308", "1");
+          const cur = localStorage.getItem("ai:mode");
+          if (cur == null || cur === "auto") localStorage.setItem("ai:mode", "sonnet");
+        }
+      }catch(e){}
+      return load("ai:mode", "sonnet");
+    })(),
 
   tier:
     load(
