@@ -514,7 +514,10 @@ function toMd(sol){
   /* ★ v277 — «(2)» 앞에서 줄을 나눈다 (띄어쓰기가 없어도) */
   const ansLines = ansT.split(/\n+|(?=\(\d{1,2}\))/).map(x => x.trim()).filter(Boolean);
   const many = ansLines.length > 1;                 /* 소문항이 여럿인 답 */
-  const dup = unitT && (/[,，·]/.test(unitT) || ansT.includes(unitT) || ansT.includes(unitT.replace(/[\[\]]/g, "")));
+  /* ★ v316 — «1[m]» + 단위 «\\mathrm{m}» 처럼 모양만 달라도 같은 단위면 또 안 붙임 (1[m]m 로 나오던 것) */
+  const uN = t => String(t || "").replace(/\\(?:mathrm|text|rm|mathit)\s*\{([^{}]*)\}/g, "$1").replace(/\\[,;:! ]|\\quad/g, "").replace(/[\s$\[\]{}()\\]/g, "").toLowerCase();
+  const dup = unitT && (/[,，·]/.test(unitT) || ansT.includes(unitT) || ansT.includes(unitT.replace(/[\[\]]/g, ""))
+                        || (uN(unitT) && uN(ansT).endsWith(uN(unitT))));
   const stepAns = arr(sol.steps).some(s => s && typeof s === "object" && String(s.ans || "").trim());
   /* ★ v309 — 단답·서술·나열형 «최소 답안» : 이만큼만 써도 만점 + 필수 핵심어 형광펜 */
   const MINA = arr(sol.min_ans).filter(x => x && typeof x === "object" && String(x.text || "").trim());

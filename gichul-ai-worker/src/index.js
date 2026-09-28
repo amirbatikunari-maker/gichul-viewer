@@ -608,7 +608,11 @@ const SYS_SOL = [
   "- 소문항 유형이 섞이면 가장 비중이 큰 유형으로 정하고, 나머지 소문항도 그 칸들 안에서 푼다.",
   "",
   "유형 가르는 법 — 문제 끝말과 답의 생김새로 정한다",
-  "- 답에 계산한 숫자가 하나라도 있으면 «단답» 도 «나열» 도 아니다.",
+  "- 답에 «계산해서 나온» 숫자가 하나라도 있으면 «단답» 도 «나열» 도 아니다.",
+  "- ★ 법규·KEC·기술기준·표에 «정해진 값» 을 그대로 쓰는 문제는 숫자가 답이어도 «단답» 이다 — 계산이 없기 때문.",
+  "-   예: '아크가 생기는 기구는 가연성 물체로부터 몇 [m] 이상 이격?' → 1 [m] → 단답 (표·선정 아님)",
+  "-   예: '저압 옥내배선 최소 굵기는?' · '접지저항 몇 옴 이하?' · '절연저항 몇 MΩ 이상?' → 단답",
+  "-   «표·선정» 은 반드시 «먼저 계산한 값» 으로 표에서 고르는 문제만. 계산 없이 표를 읽기만 하면 단답.",
   "- '표에서 선정하시오 · 규격을 고르시오' → 표·선정. 계산해서 나온 값으로 표를 고르는 문제도 표·선정이다.",
   "-   예: 단락전류를 구해 표에서 정격차단전류를 고르고 차단용량을 계산해 표에서 선정 → 표·선정",
   "- '구하시오 · 계산하시오' 이고 답이 숫자 → 계산",
@@ -831,8 +835,10 @@ async function explain(req, env, H){
   const ONCE = "── 도구 쓰는 법 ──\nwrite_solution 은 «딱 한 번», 모든 칸을 끝까지 채운 완성본으로 호출한다. 이 호출이 그대로 저장되며 고칠 기회는 없다.\n'임시' · 'TBD' · '작성 예정' · '…' 같은 자리표시를 절대 쓰지 않는다.\n배열 칸(steps · symbols · given · background)은 JSON 배열 [ {…}, {…} ] 로 넣는다. <parameter name=…> 같은 태그 형식으로 쓰지 않는다.";
   const pull = out => {
     const c = (out.content || []).find(x => x.type === "tool_use" && x.name === "write_solution");
-    return { c, sol: c ? fixSol(c.input) : null };
+    return { c, sol: c ? tidy(fixSol(c.input)) : null };
   };
+  /* ★ v317 — 사람이 유형을 골라 보냈으면(b.kind) 그대로 둔다 — 자동 바로잡기는 «자동» 일 때만 */
+  const tidy = x => (b.kind ? x : tidyKind(x));
   const DIAG = [];
   const diagOf = (out, tag) => {
     const c = (out.content || []).find(x => x.type === "tool_use");
@@ -891,7 +897,7 @@ async function explain(req, env, H){
       if (score(t) > score(m) || (score(t) === score(m) && add[k].length > m[k].length)) m = t;
     }
     for (const k of ["check", "trap"]) if (!String(m[k] || "").trim() && add[k]) m[k] = add[k];
-    return m;
+    return tidy(m);
   };
   const T0 = Date.now();
   let { out, sol, c: lastC } = await ask1();
@@ -940,8 +946,8 @@ async function explain(req, env, H){
           const mine = steps.filter(x => new RegExp("^\\s*\\(\\s*" + k + "\\s*\\)").test(String(x.say || "")));
           if (mine.length && !mine.some(hasAns)) miss.push(`(${k})`);
         }
-        if (miss.length) P.push(`소문항 ${miss.join("·")} 에 답(ans)을 적은 단계가 없다 — 그 소문항을 끝내는 단계에 답을`);
-      } else if (!steps.some(hasAns)) P.push("답(ans)을 적은 단계가 하나도 없다 — 소문항을 끝내는 단계에 답을");
+        if (miss.length) (s._relaxed ? S : P).push(`소문항 ${miss.join("·")} 에 답(ans)을 적은 단계가 없다 — 그 소문항을 끝내는 단계에 답을`);
+      } else if (!steps.some(hasAns) && !(s._relaxed && String(s.answer || "").trim())) P.push("답(ans)을 적은 단계가 하나도 없다 — 소문항을 끝내는 단계에 답을");
     }
     if (calc){
       if (A("given").length < 2) P.push("given(주어진 값)이 모자란다 — 문제에 나온 숫자·조건(용량·역률·전압·거리 등)을 하나도 빼지 말고 전부");
@@ -969,7 +975,7 @@ async function explain(req, env, H){
     if (!A("easy").some(x => String(x || "").trim())) S.push("easy(쉽게 말하면)가 비었다 — 전기를 모르는 사람용 비유 설명 3~5문장");
     if (["단답", "서술", "나열"].includes(kind)){
       const MA = A("min_ans").filter(x => x && typeof x === "object" && String(x.text || "").trim());
-      if (!MA.length) P.push("min_ans(최소 답안)가 비었다 — 소문항마다 «이만큼만 써도 만점» 인 짧은 답과 필수 핵심어(must)를");
+      if (!MA.length) (s._relaxed ? S : P).push("min_ans(최소 답안)가 비었다 — 소문항마다 «이만큼만 써도 만점» 인 짧은 답과 필수 핵심어(must)를");
       else {
         if (n > 1 && MA.length < n) S.push(`min_ans 가 ${MA.length}개뿐이다 — 소문항 ${n}개 모두`);
         if (MA.some(x => !(Array.isArray(x.must) && x.must.some(w => String(w || "").trim())))) S.push("min_ans 에 필수 핵심어(must)가 빈 것이 있다");
@@ -1021,6 +1027,26 @@ async function explain(req, env, H){
                 usage: out.usage || null }, 200, H);
 }
 
+/* ★ v316 — «계산» · «표·선정» 으로 적었는데 계산이 하나도 없는 것 = 법규·표의 «정해진 값» 을 쓰는 단답.
+   예전엔 이런 문제(KEC 341.7 이격거리 1 m 등)가 «식 네 줄이 없다» 로 필수 미달 → 다시 받기 두 번 + Sonnet 까지 부르고도 실패했다.
+   · 풀이 단계에 숫자 대입식(num)·부호식(sym)이 하나도 없고
+   · 주어진 값(given)에 숫자가 든 줄이 두 개 미만이면
+   → 단답으로 바꾸고 계산 칸 검사를 건너뛴다 (_relaxed: 최소 답안이 없어도 다시 받지 않음) */
+function tidyKind(s){
+  if (!s || typeof s !== "object") return s;
+  const kind = String(s.kind || "");
+  if (kind !== "계산" && kind !== "표·선정") return s;
+  const st = Array.isArray(s.steps) ? s.steps.filter(x => x && typeof x === "object") : [];
+  /* ★ v317 — 값만 적은 칸(«1\\,[\\mathrm{m}]»)은 식이 아님 — 등호·연산이 있어야 계산으로 봄 */
+  const op = t => /=|\\times|\\div|\\d?frac|\\sqrt|[+×÷*/]|\d\s*-\s*\d/.test(String(t || ""));
+  const math = st.some(x => op(x.sym) || op(x.num) || op(x.plain));
+  const gnum = (Array.isArray(s.given) ? s.given : []).filter(g => /\d/.test(String(typeof g === "string" ? g : JSON.stringify(g)))).length;
+  /* 풀이 글에 계산한 흔적(= × ÷ √ · «계산» · 숫자 연산)이 있으면 진짜 계산 문제 — 식을 빼먹은 것이므로 바꾸지 않음 */
+  const txt = st.map(x => [x.say, x.why, x.ans].join(" ")).join(" ");
+  const calcTrace = /[=×÷√]|\\times|\\frac|\\sqrt|곱하|곱해|나누어|나눠|나눈|대입|계산하|계산해|계산한|\d\s*[*/]\s*\d/.test(txt);
+  if (!math && !calcTrace && gnum < 2 && st.length){ s.kind = "단답"; s._relaxed = kind; }
+  return s;
+}
 /* 답에 적힌 소문항 수 — (1)(2)(3) 만 센다.
    ★ v297 — 예전엔 ①②③ 도 셌다. 그런데 ①②③ 은 «3가지 쓰시오» 같은 나열형 답의 «항목» 번호라,
      소문항이 하나뿐인 나열형이 «소문항 3개인데 단계가 (1)(2)(3) 을 안 다뤘다» 로 늘 걸려
@@ -1164,7 +1190,7 @@ export default {
         판정: 막힌곳.includes(colo)
           ? `${colo} 기지는 Anthropic 이 막는 지역입니다 — 403 의 원인입니다.`
           : `${colo} 기지는 보통 허용됩니다.`,
-        빌드: "v310"
+        빌드: "v318"
       }, 200, H);
     }
 
@@ -1220,7 +1246,7 @@ export default {
         keyHead: String(env.ANTHROPIC_API_KEY).slice(0,14) + "…",
         keyLen: String(env.ANTHROPIC_API_KEY).length,
         keyTrimmed: String(env.ANTHROPIC_API_KEY) === String(env.ANTHROPIC_API_KEY).trim(),
-        빌드: "v310",
+        빌드: "v318",
         기지: (req.cf && req.cf.colo) || "?",
         upstream: parsed || body.slice(0,600),
         vision
@@ -1228,7 +1254,7 @@ export default {
     }
 
     if (path === "/health" || path === "/")
-      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v310" }, 200, H);
+      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v318" }, 200, H);
 
     if (env.APP_KEY && req.headers.get("x-app-key") !== env.APP_KEY)
       return json({ error: "x-app-key 가 맞지 않습니다", detail: "x-app-key 가 맞지 않습니다" }, 401, H);
