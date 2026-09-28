@@ -12368,6 +12368,19 @@ function mount(){
   return true;
 }
 
+/* ★ v322 — 랜덤 줄의 등급 단추가 «같은 설정» 을 쓰게 여는 창구 (두 곳이 따로 놀지 않게)
+   list: ['g','s'] 처럼 · 빈 배열 = 전체 */
+window.__pracTiers=()=>F.tiers.slice();
+window.__pracTierSet=list=>{
+  F.tiers=(Array.isArray(list)?list:[]).filter(t=>['g','s','b','r'].includes(t));
+  if(F.tiers.length===4) F.tiers=[];                 /* 넷 다 = 전체 */
+  fsave(); paintChips();
+  let had=false; try{ had=!!RAND }catch(x){}
+  try{ RAND=null }catch(x){}
+  if(had){ try{ return document.getElementById('fRand')?.click() }catch(x){} }
+  try{ drawList() }catch(x){}
+};
+
 /* ══ ⑥ 붙이기 ══ */
 let done=false;
 const boot=setInterval(()=>{
@@ -20876,7 +20889,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=321").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=322").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -24174,6 +24187,13 @@ setTimeout(()=>{ mountBtn(); paintBtn(); }, 900);
 #dRand .rbtn[data-rand="g"]:not(.on){color:#8a6100;border-color:#e9c46a;background:#fffaf0}
 #dRand .rbtn[data-rand="s"]:not(.on){color:#4a5768;border-color:#c3ccd8}
 #dRand .rbtn[data-rand="seq"]:not(.on){color:#1d4ed8;border-color:#bfd0f5;background:#f5f8ff}
+#dRand .rtier{margin-left:4px;padding-left:8px;border-left:1px dashed var(--line,#e2e8f0);align-items:center}
+#dRand .rtb{white-space:nowrap;min-width:0;padding:0 7px!important;font-size:11.5px}
+#dRand .rtb.t-g:not(.on){color:#8a6100;border-color:#e9c46a;background:#fffaf0}
+#dRand .rtb.t-s:not(.on){color:#4a5768;border-color:#c3ccd8}
+#dRand .rtb.t-b:not(.on){color:#8a4b12;border-color:#e3b58a;background:#fff7f0}
+#dRand .rtb.t-r:not(.on){color:#6b5a45;border-color:#d6cbbd}
+#dRand .rtb.on{background:#0f172a!important;border-color:#0f172a!important;color:#fff!important}
 #dRand .rx[hidden]{display:none!important}
 /* ★ v284 — 맞힌 것 빼기 N */
 #dRand .rstep{display:inline-flex;align-items:center;height:30px;margin-left:-2px;border:1px solid var(--line,#e2e8f0);border-radius:9px;overflow:hidden;background:var(--surface,#fff)}
@@ -24344,7 +24364,8 @@ function draw(mode){
   try{ drawList() }catch(e){}
   try{ if(document.body.classList.contains('oneup') && typeof window.showAt==='function') window.showAt(0) }catch(e){}
   const on=Object.keys(MODS).filter(k=>MOD[k]).map(k=>MODS[k].nm);
-  say(`${M.recent?'📅':'🎲'} ${M.nm}${on.filter(x=>!(M.recent&&x==='확률순')).length?' + '+on.filter(x=>!(M.recent&&x==='확률순')).join(' + '):''} ${pick.length}문항${M.dedupe?' · 중복 제외':''}${M.recent&&pick.length?` · ${pick[0].year}년 ${pick[0].session}회부터`:''}`);
+  const TSN=((window.__pracTiers&&window.__pracTiers())||[]).map(t=>({g:'금',s:'은',b:'동',r:'똥'})[t]).join('·');
+  say(`${M.recent?'📅':'🎲'} ${M.nm}${TSN?' ['+TSN+']':''}${on.filter(x=>!(M.recent&&x==='확률순')).length?' + '+on.filter(x=>!(M.recent&&x==='확률순')).join(' + '):''} ${pick.length}문항${M.dedupe?' · 중복 제외':''}${M.recent&&pick.length?` · ${pick[0].year}년 ${pick[0].session}회부터`:''}`);
 }
 function clear(){
   setRand(null); MODE=null;
@@ -24366,6 +24387,9 @@ function paint(){
     if(b.dataset.rmod==='ck') b.title=`체크 −  : ${ckN()}번 이상 푼 문항을 뺍니다 (회독) — 옆 − + 로 N`;
   });
   [['un',unN],['ck',ckN]].forEach(([k,f])=>{ const nv=$('#'+k+'Nv'); if(nv){ const t=String(f()); if(nv.textContent!==t) nv.textContent=t; nv.parentElement.classList.toggle('on', !!MOD[k]); } });
+  const TS=(window.__pracTiers&&window.__pracTiers())||[];
+  $$('#dRand [data-rtier]').forEach(b=>{ const k=b.dataset.rtier, on=k==='all'?!TS.length:TS.includes(k);
+    if(b.classList.contains('on')!==on) b.classList.toggle('on', on); b.setAttribute('aria-pressed', on?'true':'false'); });
   const x=$('#randClear'), R=getRand();
   if(x){ x.hidden=!R; const t=R?`✕ 해제 (${R.length})`:'✕ 해제'; if(x.textContent!==t) x.textContent=t; }
 }
@@ -24374,7 +24398,12 @@ function mount(){
   const row=document.createElement('div'); row.className='drow'; row.id='dRand';
   row.innerHTML=`<span class="tl">랜덤</span><span class="rseg" role="group" aria-label="랜덤 뽑기">`
     + Object.entries(MODES).map(([k,m])=>`<button type="button" class="chip rbtn" data-rand="${k}" title="${m.nm} — ${m.tip}">${m.sh}</button>`).join('')
-    + `</span><span class="rseg rmods" role="group" aria-label="겹치기"><span class="rtl" title="겹치기 — 여러 개 같이 켤 수 있음">＋</span>`
+    + `</span>`
+    /* ★ v322 — 등급 겹쳐 고르기 (위 «등급» 줄과 같은 설정) — 전체 랜덤 · 최신순에 바로 걸림 */
+    + `<span class="rseg rtier" role="group" aria-label="등급"><span class="rtl" title="위 «등급» 줄과 같은 설정 · 여러 개 함께 고를 수 있음">등급</span>`
+    + [['all','전체'],['g','금'],['s','은'],['b','동'],['r','똥']].map(([k,n])=>`<button type="button" class="chip rtb t-${k}" data-rtier="${k}" title="${k==='all'?'등급 거르기 없음':n+' 등급 — 여러 개 함께 켤 수 있음'}">${n}</button>`).join('')
+    + `</span>`
+    + `<span class="rseg rmods" role="group" aria-label="겹치기"><span class="rtl" title="겹치기 — 여러 개 같이 켤 수 있음">＋</span>`
     + Object.entries(MODS).map(([k,m])=>`<button type="button" class="chip rmod" data-rmod="${k}" title="${m.tip}">${m.nm}</button>`
         + (k==='un'||k==='ck'?`<span class="rstep" data-for="${k}" title="N 조절"><button type="button" data-stp="${k}" data-d="-1" aria-label="줄이기">−</button><b id="${k}Nv">1</b><button type="button" data-stp="${k}" data-d="1" aria-label="늘리기">＋</button></span>`:'')).join('')
     + `</span>`;
@@ -24388,6 +24417,11 @@ function mount(){
   row.title=note.textContent;               /* ★ v289 — 설명 줄은 숨기고 올리면 보이게 */
   row.appendChild(note);
   row.addEventListener('click', e=>{
+    const tb=e.target.closest('[data-rtier]');
+    if(tb){ if(!window.__pracTierSet) return say('등급을 세는 중입니다 — 잠시 뒤 다시 눌러 주세요');
+      const k=tb.dataset.rtier, cur=(window.__pracTiers&&window.__pracTiers())||[];
+      const nx = k==='all' ? [] : (cur.includes(k) ? cur.filter(x=>x!==k) : cur.concat(k));
+      window.__pracTierSet(nx); paint(); return; }
     const b=e.target.closest('[data-rand]'); if(b) return draw(b.dataset.rand);
     const st=e.target.closest('[data-stp]');
     if(st){ const k=st.dataset.stp, cur=k==='ck'?ckN():unN();
@@ -25443,18 +25477,19 @@ window.__mnOpen=open;
   font:700 10.5px/1 var(--font-d,system-ui);color:var(--muted,#475569)}
 .mmpop .tb button.on{background:#0f172a;border-color:#0f172a;color:#fff}
 .mmpop .tb .lg{margin-left:auto;display:flex;gap:8px;font-size:10px;color:var(--muted,#64748b)}
-.mmpop .tb .lg span::before{content:'';display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:3px;vertical-align:-1px;background:var(--c)}
+.mmpop .tb .lg span::before{content:'';display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:3px;vertical-align:-1px;background:var(--c);box-shadow:inset 0 0 0 1px rgba(15,23,42,.18)}
 .mmpop .bd{overflow:auto;padding:6px 8px 10px}
 .mmpop .ex{display:grid;grid-template-columns:64px minmax(0,1fr) 62px;gap:6px;align-items:start;padding:3px 4px;border-radius:8px}
 .mmpop .ex.now{background:#f6f8fc}
 .mmpop .ex .nm{font:800 11px/22px var(--font-m,monospace);color:var(--ink,#0f172a);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mmpop .ex .rt{font:700 9.5px/22px var(--font-m,monospace);color:var(--muted,#64748b);text-align:right;white-space:nowrap}
 .mmpop .cells{display:flex;flex-wrap:wrap;gap:3px}
-.mmpop .c{position:relative;width:24px;height:22px;padding:0;border:1px solid #d7dde6;border-radius:5px;background:#f1f4f8;cursor:pointer;
+.mmpop .c{position:relative;width:24px;height:22px;padding:0;border:1px solid #d3d9e2;border-radius:5px;background:#fff;cursor:pointer;
   font:700 9.5px/1 var(--font-m,monospace);color:#64748b}
 .mmpop .c.ok{background:#22a060;border-color:#1b8a52;color:#fff}
 .mmpop .c.no{background:#e5484d;border-color:#c93a3f;color:#fff}
-.mmpop .c.chk{background:#dbe7fb;border-color:#a9c1ee;color:#1e3a8a}
+/* ★ v322 — «푼 기록만» 이 «아직»(연회색) 과 거의 같은 색이라 푼 문제를 안 푼 것으로 보던 것 → 확실한 파랑 · 아직은 흰색 */
+.mmpop .c.chk{background:#8fb0ee;border-color:#5f89d8;color:#0b2a6b}
 .mmpop .c.kin{background:repeating-linear-gradient(135deg,#d5f0df 0 4px,#eef9f2 4px 8px);border-color:#9fd6b5;color:#18794e}
 .mmpop .c.me{outline:2px solid #0f172a;outline-offset:1px;z-index:1}
 .mmpop .c.rep::after{content:'';position:absolute;right:2px;top:2px;width:4px;height:4px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
@@ -25574,7 +25609,7 @@ function paint(){
   EL.innerHTML=`<div class="hd"><b>🗺 맞음 미니맵</b><span class="sum">${R.length}문항 <i class="o">✓ ${O}</i><i class="x">✕ ${X}</i><i class="u">아직 ${U}</i></span>
       <button type="button" class="cl" data-cl aria-label="닫기">✕</button></div>
     <div class="tb">${[['all','전체'],['no','틀림만'],['un','아직만'],['ckleft',`체크 ${CK}번↑ 흐리게`],['left',`맞힘 ${TH}번↑ 흐리게`]].map(([k,n])=>`<button type="button" data-f="${k}" class="${FIL===k?'on':''}">${n}</button>`).join('')}
-      <span class="lg"><span style="--c:#22a060">맞음</span><span style="--c:#e5484d">틀림</span><span style="--c:#dbe7fb">푼 기록만</span><span style="--c:#f1f4f8;">아직</span><span style="--c:#bfe8cf">같은 문제 풂</span></span></div>
+      <span class="lg"><span style="--c:#22a060">맞음</span><span style="--c:#e5484d">틀림</span><span style="--c:#8fb0ee">푼 기록만</span><span style="--c:#fff;">아직</span><span style="--c:#bfe8cf">같은 문제 풂</span></span></div>
     <div class="bd">${html||'<div class="emp">문항이 없습니다</div>'}</div>
     ${meRow?`<div class="ft"><span>지금 <b>${esc(exName(meRow.year,meRow.session))} ${esc(meRow.no)}번</b></span>
       <span>회독</span><span class="stp"><button type="button" data-cadj="-1" aria-label="줄이기">−</button><b>${(P[String(meRow.id)]||{}).n|0}</b><button type="button" data-cadj="1" aria-label="늘리기">＋</button></span>
