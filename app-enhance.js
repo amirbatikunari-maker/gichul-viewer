@@ -737,7 +737,7 @@
   }
 
   function boot(){
-    restorePreferences(); buildInterviewIsolation(); buildScroll(); buildCmd(); buildFloat(); maybeMarkResume(); buildOffline(); installGlobalSearch(); buildMobileNav(); setTimeout(buildTools,0); installShortcuts(); installCalcPopup();
+    restorePreferences(); buildInterviewIsolation(); buildScroll(); buildCmd(); buildFloat(); maybeMarkResume(); buildOffline(); installGlobalSearch(); /* ★ v326 — 폰 아래 탭줄(홈·실기·계산기…) 뺌: 위쪽 메뉴와 겹치고 화면만 가림 */ setTimeout(buildTools,0); installShortcuts(); installCalcPopup();
     document.addEventListener('keydown',e=>{
       const inField=/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName||'');
       if(window.__gkey?.matches('g-cmd',e)){e.preventDefault();window.openCmd();return}

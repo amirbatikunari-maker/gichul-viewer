@@ -1,3 +1,4 @@
+:root{--mobnav:0px}   /* ★ v326 — 폰 아래 탭줄 없음 → 그 높이만큼 띄우던 것들(형광펜 띠·실시간 기록·나눠 보기)도 0 */
 /* =========================================================
    기출 해설 노트 — App-wide UX/UI Upgrade
    Shared across all pages. Designed to sit above legacy CSS.
@@ -129,7 +130,9 @@ html[data-theme="dark"] .app-mobile-nav{background:rgba(13,23,38,.92);border-col
   .app-network{top:7px;right:8px;font-size:8px}.app-network span{display:none}
   .app-mobile-nav{display:grid;grid-template-columns:repeat(6,1fr);position:fixed;left:0;right:0;bottom:0;z-index:1700;padding:7px 7px calc(7px + env(safe-area-inset-bottom));background:rgba(255,255,255,.92);backdrop-filter:blur(16px);border-top:1px solid var(--line,#e2e8f0);box-shadow:0 -8px 24px rgba(15,23,42,.08)}
   .app-mobile-nav a{display:grid;place-items:center;gap:3px;text-decoration:none;color:var(--muted,#64748b);min-width:0}.app-mobile-nav a.active{color:var(--app-accent)}.app-mobile-nav span{font-size:14px;line-height:1}.app-mobile-nav small{font:800 8px/1 var(--font-d,system-ui);white-space:nowrap}
-  body{padding-bottom:72px!important}.app-float{bottom:140px}
+  /* ★ v326 — 아래 탭줄을 뺐으니 그 자리(72px)도 비우지 않음 */
+  body{padding-bottom:env(safe-area-inset-bottom)!important}.app-float{bottom:calc(16px + env(safe-area-inset-bottom))}
+  .app-mobile-nav{display:none!important}
   .app-global-search{padding-top:5vh}.app-global-search-results{max-height:72vh}
 }
 
