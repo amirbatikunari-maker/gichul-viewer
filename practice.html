@@ -1892,7 +1892,7 @@ function drawList(){
   /* 랜덤은 지금 걸린 조건 안에서만 뽑는다 — 연도를 좁혀 두면 그 안에서, 안 좁혔으면 전체에서.
      뽑은 목록은 다시 누르기 전까지 그대로라, 풀다가 화면을 건드려도 순서가 안 흐트러진다. */
   if(RAND){
-    rows = RAND.map(id => rows.find(r => r.id === id)).filter(Boolean);
+    { const byId = new Map(rows.map(r => [r.id, r])); rows = RAND.map(id => byId.get(id)).filter(Boolean); }   /* ★ v312 — 최신순은 2000문항 전부라 find 반복은 느림 */
     if(!rows.length){ RAND = null; return drawList(); }
   }
 
@@ -3719,6 +3719,18 @@ function mdLite(t){
           return html;
         }).join('');
       out += `<div class="qbox">${inner}</div>`;
+      continue;
+    }
+    /* ★ v310 — 표 (| 머리 | … | 다음 줄 |---|) : 해설 맨 아래 용어 풀이·공식 이유·헷갈리는 짝 */
+    if(/^\|.*\|$/.test(x) && /^\|[\s:\-|]+\|?$/.test((lines[i+1] || '').trim())){
+      close();
+      const cl = l => l.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+      const head = cl(x); i += 2;
+      const body = [];
+      while(i < lines.length && /^\|.*\|$/.test(lines[i].trim())){ body.push(cl(lines[i])); i++; }
+      out += `<div class="tblwrap eztblw"><table class="eztbl"><thead><tr>${head.map(h => `<th>${inl(h)}</th>`).join('')}</tr></thead><tbody>`
+           + body.map(r => `<tr>${r.map(c => `<td>${inl(c)}</td>`).join('')}</tr>`).join('')
+           + '</tbody></table></div>';
       continue;
     }
     if(/^-{3,}$/.test(x)){ close(); out += '<hr>'; i++; continue; }
@@ -18431,6 +18443,14 @@ setTimeout(()=>clearInterval(t),120000);
 
 /* 표 — 칸 안 줄바꿈과 열 너비가 먹도록 */
 .qmd table,.ez table{width:100%}
+/* ★ v310 — 해설 맨 아래 표 (용어 풀이 · 공식이 왜 · 헷갈리는 짝) */
+.ez .eztblw{overflow-x:auto;margin:.3em 0 .8em}
+.ez table.eztbl{display:table;width:100%;border-collapse:collapse;font-size:.93em}
+.ez table.eztbl th{background:#eef3fc;color:#1f3a6e;font-weight:700;text-align:left}
+.ez table.eztbl th,.ez table.eztbl td{border:1px solid #d9e2f3;padding:5px 8px;vertical-align:top}
+.ez table.eztbl td:first-child{white-space:nowrap;min-width:4.5em}
+body.rd-night .ez table.eztbl th{background:#1d2a44;color:#cfe0ff}
+body.rd-night .ez table.eztbl th,body.rd-night .ez table.eztbl td{border-color:#33415c}
 .qmd table.fixw,.ez table.fixw{table-layout:fixed}
 .qmd table td,.qmd table th,.ez table td,.ez table th{word-break:break-word;overflow-wrap:anywhere}
 </style>
@@ -20854,7 +20874,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=308").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=312").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -20953,7 +20973,7 @@ function solToMd(sol){
      그대로 찍으면 대괄호·따옴표가 화면에 그대로 나온다. 풀어서 줄로 나눈다. */
   /* ★ v257 — 칸을 못 채우고 «<item>…</item>» 같은 표를 통째로 적어 보내는 일이 있다.
      그대로 찍으면 태그가 화면에 그대로 나온다. 태그를 걷어내고 줄로 나눈다. */
-  const XML = /<\/?(item|step|symbol|sym|mean|unit|val|say|math|calc|plain|read|why|eq|steps|symbols|given|background|also|tags|tag|check|trap|memo|answer|gist|write_solution|why_answer)\s*\/?>/gi;
+  const XML = /<\/?(item|step|symbol|sym|mean|unit|val|say|math|calc|plain|read|why|eq|steps|symbols|given|background|also|tags|tag|check|trap|memo|answer|gist|write_solution|why_answer|easy|min_ans|must|terms|formula_why|pairs)\s*\/?>/gi;
   const unxml = t => String(t == null ? "" : t)
     .replace(/<\/?item\s*\/?>/gi, "\n")
     .replace(XML, " ")
@@ -21066,6 +21086,12 @@ function solToMd(sol){
   const line = t => fixMath(unxml(String(t == null ? "" : t))).replace(/\n{2,}/g, "\n").trim();
 
   if(sol.gist) L.push(`**${line(sol.gist)}**`, "");
+  /* ★ v309 — 비전공자용 «쉽게 말하면» */
+  if(arr(sol.easy).length){
+    L.push("**쉽게 말하면**", "");
+    arr(sol.easy).forEach(e => L.push(`- ${line(typeof e === "string" ? e : (e && (e.text || e.say)) || "")}`));
+    L.push("");
+  }
 
   if(arr(sol.background).length){
     L.push("**먼저 알아야 할 것**", "");
@@ -21139,6 +21165,25 @@ function solToMd(sol){
   const many = ansLines.length > 1;                 /* 소문항이 여럿인 답 */
   const dup = unitT && (/[,，·]/.test(unitT) || ansT.includes(unitT) || ansT.includes(unitT.replace(/[\[\]]/g, "")));
   const stepAns = arr(sol.steps).some(s => s && typeof s === "object" && String(s.ans || "").trim());
+  /* ★ v309 — 단답·서술·나열형 «최소 답안» : 이만큼만 써도 만점 + 필수 핵심어 형광펜 */
+  const MINA = arr(sol.min_ans).filter(x => x && typeof x === "object" && String(x.text || "").trim());
+  if(MINA.length){
+    L.push("**최소 답안 — 이만큼은 꼭**", "");
+    MINA.forEach(x => {
+      const must = arr(x.must).map(w => String(w || "").replace(/==/g, "").trim()).filter(Boolean);
+      let t = line(x.text).replace(/\n+/g, " ");
+      /* 필수어가 형광펜 없이 왔으면 첫 자리에 칠해 준다 */
+      must.forEach(w => {
+        if(t.includes("==" + w + "==")) return;
+        const i = t.indexOf(w); if(i < 0) return;
+        const pre = t.slice(0, i); if(((pre.match(/==/g) || []).length) % 2) return;
+        t = pre + "==" + w + "==" + t.slice(i + w.length);
+      });
+      const q = String(x.q || "").trim();
+      L.push(`> ${q && !t.startsWith(q) ? q + " " : ""}${t}`, "");
+      if(must.length) L.push(`- 필수: ${must.map(w => "★ ==" + w + "==").join(" · ")}`, "");
+    });
+  }
   /* ★ v276 — 나열형 «항목» · 서술형 «채점 포인트» */
   if(arr(sol.items).length){
     L.push("**항목**", "");
@@ -21195,6 +21240,34 @@ function solToMd(sol){
     L.push("**같이 알아 두기**", "");
     arr(sol.also).forEach(x => L.push(`- ${x}`));
     L.push("");
+  }
+  /* ★ v310 — 비전공자용 표 세 가지 (맨 아래) : 용어 풀이 · 공식이 왜 · 헷갈리는 짝 */
+  const cel = t => line(t).replace(/\n+/g, " ").replace(/\|/g, "∣").trim() || " ";
+  const TMS = arr(sol.terms).filter(x => x && typeof x === "object" && String(x.word || "").trim());
+  if(TMS.length){
+    const hasLike = TMS.some(x => String(x.like || "").trim());
+    L.push("**용어 풀이**", "", hasLike ? "| 용어 | 쉬운 뜻 | 비유·예 |" : "| 용어 | 쉬운 뜻 |", hasLike ? "|---|---|---|" : "|---|---|");
+    TMS.forEach(x => L.push(`| **${cel(x.word)}** | ${cel(x.easy)} |` + (hasLike ? ` ${cel(x.like)} |` : "")));
+    L.push("");
+  }
+  const FWS = arr(sol.formula_why).filter(x => x && typeof x === "object" && String(x.why || "").trim());
+  if(FWS.length){
+    L.push("**공식이 왜 이렇게 생겼나**", "", "| 식의 부분 | 왜 붙나 |", "|---|---|");
+    FWS.forEach(x => {
+      const p0 = String(x.part || "").trim();
+      const p = !p0 ? " " : HAN.test(p0) && !/[\\^_{]/.test(p0) ? cel(p0) : `$${(tex(p0) || "").replace(/\|/g, "\\vert ")}$`;
+      L.push(`| ${p} | ${cel(x.why)} |`);
+    });
+    L.push("");
+  }
+  const PRS = arr(sol.pairs).filter(x => x && typeof x === "object" && String(x.a || "").trim() && arr(x.rows).length);
+  if(PRS.length){
+    L.push("**헷갈리는 짝**", "");
+    PRS.forEach(P => {
+      L.push(`| 구분 | ${cel(P.a)} | ${cel(P.b)} |`, "|---|---|---|");
+      arr(P.rows).forEach(r => { if(r && typeof r === "object") L.push(`| ${cel(r.k)} | ${cel(r.a)} | ${cel(r.b)} |`); });
+      L.push("");
+    });
   }
   const TG = [sol.kind ? String(sol.kind).replace(/형$/, "") + "형" : null, ...arr(sol.tags)].filter(Boolean);
   if(TG.length) L.push("", `\`${TG.join("` `")}\``);
@@ -22802,6 +22875,15 @@ setTimeout(()=>{ paint(); mountEv(); paintEv(); }, 900);
 .qtbd em.rl.same,.qtpop em.rl.same{background:#dcf3e5;color:#18794e}
 .qtbd em.rl.sim,.qtpop em.rl.sim{background:#e9efff;color:#2f4fc4}
 .qtbd em.rl.unit,.qtpop em.rl.unit{background:#f1f5f9;color:#64748b}
+/* ★ v311 — 문항 칩의 동일·유사 · 방금 연동한 칩 반짝 */
+.qtpop em.rl.me{background:#f3e8ff;color:#6b2fb3}
+.qtbd em.rl.mid,.qtpop em.rl.mid{background:#fff4d6;color:#9a6700}
+.qtpop .mem em.rl{margin-left:3px}
+.qtpop .rlleg{font:600 11px/1.5 var(--font-d,system-ui);color:var(--muted,#64748b);margin:-2px 0 6px}
+.qtpop .rlleg em.rl{margin-left:0}
+.qtpop .mvd{color:#18794e;font-weight:700}
+@keyframes qtfresh{0%{background:#fde68a;box-shadow:0 0 0 3px #fde68a}100%{background:transparent;box-shadow:0 0 0 0 transparent}}
+.qtpop .mem.fresh{animation:qtfresh 2.4s ease-out}
 .qtbd .bt em.k{flex:none;padding:1px 5px;border-radius:4px;background:#f6f1fd;color:#6b2fb3;font-size:9.5px}
 .qtbd .bt em.k.sim{background:#e9efff;color:#2f4fc4}.qtbd .bt em.k.same{background:#dcf3e5;color:#18794e}
 .qtbd .qk{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:7px 10px;border-bottom:1px solid var(--line,#e2e8f0);background:#fcfaff;font-size:11.5px}
@@ -23310,29 +23392,48 @@ async function link(oid){
       if(await setType([o.id], A)) POP.msg=`${full(o)}만 «${A}» 유형으로 옮겼습니다`;
     }else return;
   }
+  POP.fresh=new Set([String(o.id)]);
   /* ★ v291 — 글자로 찾는 중이면 찾은 목록을 그대로 둔다 → 아래를 보면서 연달아 «연동» */
   if(!POP.no.trim() || isNoQ(POP.no)){ POP.no=''; POP.pv=''; POP.more=false; }
   render();
 }
-/* ★ v291 — 찾은 것 중 «같음» 아닌 것을 한 번에. 다른 유형이 이미 붙은 문항은 건너뛴다(말없이 합치지 않음) */
+/* ★ v291 — 찾은 것 중 «같음» 아닌 것을 한 번에.
+   ★ v311 — 다른 유형이 붙은 문항을 말없이 건너뛰지 않는다. 한 번 물어서 옮기고, 연동된 것은 찾은 목록에서 빠져 아래 «문항» 목록으로 내려간다 */
 async function linkMany(ids){
   const r=rowOf(POP.id); if(!r) return;
   let A=tv(r);
   const tg=ids.map(rowOf).filter(o=>o && String(o.id)!==String(r.id) && !(A && tv(o)===A));
   if(!tg.length){ POP.msg='연동할 문항이 없습니다'; return render(); }
   const other=tg.filter(o=>tv(o) && tv(o)!==A), free=tg.filter(o=>!tv(o));
+  const G=groupsOf(LV);
+  /* 이 문제만 A 에 있고, 고른 것이 전부 한 유형(B)이면 — 이 문제가 B 로 가는 편이 자연스러움 */
+  const Bs=[...new Set(other.map(o=>tv(o)))];
+  if(A && !free.length && Bs.length===1 && (G.get(A)||[]).length<=1){
+    const B=Bs[0], nb=(G.get(B)||[]).length;
+    if(confirm(`고른 ${other.length}문항은 이미 «${B}» ${LVN[LV]}입니다 (전체 ${nb}문항).\n\n[확인] 이 문제를 «${B}» 로 옮겨 함께 묶음\n[취소] 다음 물음 (고른 것을 «${A}» 로 옮기기)`)){
+      if(await setType([r.id], B)){ POP.fresh=new Set(other.map(o=>String(o.id))); POP.ck=new Set();
+        POP.msg=`이 문제 → «${B}» — ${nb+1}문항이 함께 묶였습니다 ↓ 아래 목록`; }
+      return render();
+    }
+  }
   if(!A){
-    const pick=[...new Set(other.map(o=>tv(o)))];
-    const def=pick.length===1 ? pick[0] : (clean(POP.no) || (suggest(r).find(x=>!x.ex)||{}).name || '');
+    const def=Bs.length===1 ? Bs[0] : (clean(POP.no) || (suggest(r).find(x=>!x.ex)||{}).name || '');
     const name=clean(prompt(`이 문제와 ${tg.length}문항을 묶을 ${LVN[LV]} 이름`, def)); if(!name) return;
     A=name;
   }
   const move=other.filter(o=>tv(o)!==A);
-  if(tv(r) && !free.length && move.length===tg.length){
-    POP.msg=`남은 ${move.length}문항은 다른 유형이 붙어 있어 건너뜁니다 — 하나씩 «연동» 을 누르면 합칠지 묻습니다`; return render(); }
-  if(!confirm(`«${A}» 로 ${free.length+(tv(r)?0:1)}문항 연동합니다.`+(move.length?`\n다른 유형이 붙은 ${move.length}문항은 건너뜁니다 (하나씩 «연동» 으로 합칠지 고르세요)`:'')+'\n\n계속할까요?')) return;
-  const ids2=[...(tv(r)?[]:[r.id]), ...free.map(o=>o.id), ...other.filter(o=>tv(o)===A).map(o=>o.id)];
-  if(ids2.length && await setType(ids2, A)) POP.msg=`«${A}» — ${ids2.length}문항 연동${move.length?` · ${move.length}문항 건너뜀`:''}`;
+  const same0=other.filter(o=>tv(o)===A);
+  let moveOk=false;
+  if(move.length){
+    const names=[...new Set(move.map(o=>tv(o)))].map(b=>`«${b}»`).join(' · ');
+    moveOk=confirm(`«${A}» 로 연동합니다.\n\n· 유형 없던 문항 ${free.length}개 → 그대로 넣음`+(tv(r)?'':'\n· 이 문제')+`\n· 이미 ${names} 인 문항 ${move.length}개\n\n[확인] 이 ${move.length}개도 «${A}» 로 옮김 (그 유형의 나머지 문항은 그대로)\n[취소] 이 ${move.length}개만 건너뜀`);
+    if(!moveOk && !free.length && tv(r)){ POP.msg=`건너뛰었습니다 — 연동한 문항 없음`; return render(); }
+  }else if(!confirm(`«${A}» 로 ${free.length+same0.length+(tv(r)?0:1)}문항 연동합니다. 계속할까요?`)) return;
+  const ids2=[...(tv(r)?[]:[r.id]), ...free.map(o=>o.id), ...same0.map(o=>o.id), ...(moveOk?move.map(o=>o.id):[])];
+  if(ids2.length && await setType(ids2, A)){
+    POP.fresh=new Set(ids2.map(String).filter(id=>id!==String(r.id))); POP.ck=new Set();
+    POP.msg=`«${A}» — ${ids2.length}문항 연동 ↓ 아래 목록으로 옮겼습니다${move.length&&!moveOk?` · ${move.length}문항 건너뜀`:''}`;
+  }
   render();
 }
 async function renameCur(){
@@ -23349,7 +23450,7 @@ async function renameCur(){
    ★ v269 — 입력칸은 «한 번만» 만든다. 여태 글자 하나 칠 때마다 쪽지를 통째로 다시 그려서
      입력칸이 새것으로 갈렸다 — 한글은 조합 중에 칸이 바뀌면 «ㅈ주주» 처럼 깨진다.
      이제 틀(뼈대)은 문항이 바뀔 때만 만들고, 치는 동안에는 목록·미리보기 칸만 고친다. */
-const POP={ on:false, id:null, q:'', no:'', msg:'', pv:'', more:false, ck:new Set(), lvall:false };
+const POP={ on:false, id:null, q:'', no:'', msg:'', pv:'', more:false, ck:new Set(), lvall:false, fresh:new Set() };
 let PEL=null, ANCHOR=null, COMPOSING=false;
 function pop(){
   if(PEL) return PEL;
@@ -23388,7 +23489,7 @@ function place(){
   PEL.style.maxHeight=Math.max(240, innerHeight-Math.max(8,y)-10)+'px';
 }
 function openPop(id, anchor){
-  Object.assign(POP,{ on:true, id:String(id), q:'', no:'', msg:'', pv:'', more:false, ck:new Set(), lvall:false });
+  Object.assign(POP,{ on:true, id:String(id), q:'', no:'', msg:'', pv:'', more:false, ck:new Set(), lvall:false, fresh:new Set() });
   ANCHOR=anchor; pop().classList.add('on'); render(); place();
   anchor && anchor.classList.add('open');
   setTimeout(()=>{ const i=PEL.querySelector('#qtQ'); if(i && matchMedia('(pointer:fine)').matches) i.focus(); },30);
@@ -23485,16 +23586,18 @@ function paintPv(){
   }
   /* ★ v282 — 본문 */
   btn.hidden=true;
-  const all=textHits(t), MAX=POP.more?40:8, list=all.slice(0,MAX);
+  /* ★ v311 — 이미 같은 유형이 된 문항은 찾은 목록에서 빼서 아래 «문항» 목록으로 */
+  const cur0=cur_(), hit0=textHits(t), all=cur0?hit0.filter(h=>tv(h.o)!==cur0):hit0, moved=hit0.length-all.length;
+  const MAX=POP.more?40:8, list=all.slice(0,MAX);
   if(POP.pv && !list.some(h=>String(h.o.id)===POP.pv)) POP.pv='';
   pv.innerHTML = !all.length
-    ? (squash(t).length<2?'두 글자 이상 쳐 주세요':'본문에서 못 찾았습니다 — 낱말을 줄이거나 띄어서 쳐 보세요')
-    : `<div class="hn">${all.length}문항${all.length>MAX?` · 위 ${MAX}개`:''} <small>👁 로 보고 ☑ 골라서</small>${(()=>{
+    ? (moved?`찾은 ${moved}문항 모두 이미 연동됨 — 아래 목록에 있음 ↓`:squash(t).length<2?'두 글자 이상 쳐 주세요':'본문에서 못 찾았습니다 — 낱말을 줄이거나 띄어서 쳐 보세요')
+    : `<div class="hn">${all.length}문항${all.length>MAX?` · 위 ${MAX}개`:''}${moved?` <small class="mvd">· 연동된 ${moved}개는 아래 ↓</small>`:''} <small>👁 로 보고 ☑ 골라서</small>${(()=>{
         const cur=cur_(), cand=list.filter(h=>!(cur && tv(h.o)===cur)).map(h=>String(h.o.id));
         POP.ck=new Set([...POP.ck].filter(id=>cand.includes(id)));
         const n=POP.ck.size;
         return cand.length?`<button type="button" class="mini" data-ckall="${esc(cand.join(','))}">${n===cand.length?'☑ 전체 풀기':'☐ 전체 고르기'}</button>
-          <button type="button" class="mini all" data-lksel${n?'':' disabled'} title="고른 것을 한 번에 연동 — 다른 유형이 붙은 것은 건너뜀">선택 ${n}개 연동</button>`:''; })()}</div>
+          <button type="button" class="mini all" data-lksel${n?'':' disabled'} title="고른 것을 한 번에 연동 — 다른 유형이 붙은 것은 옮길지 한 번 물음">선택 ${n}개 연동</button>`:''; })()}</div>
        <div class="hits">${list.map(h=>hitRow(h.o, ` <em class="w${h.where}">${WHERE[h.where]}</em>`, snip(h.o,t,h.where), true)).join('')}</div>`
       + (all.length>MAX?`<button type="button" class="mini more" data-more>더 보기 (${Math.min(all.length,40)-MAX}개 더)</button>`:'');
 }
@@ -23512,8 +23615,13 @@ function paintMem(){
   const mem=cur ? (groupsOf(LV).get(cur)||[]).map(rowOf).filter(Boolean)
                   .sort((a,b)=>(b.year-a.year)||(b.session-a.session)||(a.no-b.no)) : [];
   box.className=cur?'sec':'';
+  /* ★ v311 — 칩마다 이 문제와의 사이(동일·유사) · 방금 연동한 것은 반짝 */
+  const fr=POP.fresh||new Set();
+  const nS=mem.filter(m=>relOf(r,m)==='same').length, nM=mem.filter(m=>relOf(r,m)==='sim').length, nU=mem.filter(m=>relOf(r,m)==='mid').length;
   box.innerHTML=!cur?'':`<div class="lb">«${esc(cur)}» 문항 ${mem.length} <small>눌러서 이동 · ✕ 는 이 유형에서 빼기</small></div>
-      <div class="chips">${mem.map(m=>`<span class="mem${String(m.id)===String(r.id)?' now':''}" data-go="${m.id}" title="${esc(full(m))}">${esc(short(m))}<i data-rm="${m.id}" title="이 ${LVN[LV]}에서 빼기">✕</i></span>`).join('')}</div>`;
+      <div class="rlleg"><em class="rl same">동일</em> 대·중·소 모두 같음 ${nS} · <em class="rl sim">유사</em> 대문항만 같음 ${nM}${nU?` · <em class="rl mid">소 미정</em> 대·중 같고 소문항 비어 있음 ${nU} — 소문항까지 넣으면 동일`:''}${mem.length-1-nS-nM-nU>0?` · 표시 없음 ${mem.length-1-nS-nM-nU} (대문항 미정)`:''}</div>
+      <div class="chips">${mem.map(m=>`<span class="mem${String(m.id)===String(r.id)?' now':''}${fr.has(String(m.id))?' fresh':''}" data-go="${m.id}" title="${esc(full(m))}">${esc(short(m))}${String(m.id)===String(r.id)?'<em class="rl me">지금</em>':relTag(r,m)}<i data-rm="${m.id}" title="이 ${LVN[LV]}에서 빼기">✕</i></span>`).join('')}</div>`;
+  if(fr.size) setTimeout(()=>{ POP.fresh=new Set(); PEL&&PEL.querySelectorAll('.mem.fresh').forEach(x=>x.classList.remove('fresh')); }, 2600);
 }
 function paintMsg(){ const m=PEL&&PEL.querySelector('#qtMsg'); if(m) m.textContent=POP.msg; }
 function render(){
@@ -23590,10 +23698,12 @@ function relOf(a,b){
   if(!a||!b||String(a.id)===String(b.id)) return '';
   const A=p3(a), B=p3(b);
   if(A[0] && A[0]===B[0] && A[1]===B[1] && A[2] && A[2]===B[2]) return 'same';
+  /* ★ v311 — 대·중은 같은데 소문항이 한쪽이라도 비었으면 «소 미정» (소문항까지 같게 넣으면 동일) */
+  if(A[0] && A[0]===B[0] && A[1] && A[1]===B[1] && (!A[2] || !B[2])) return 'mid';
   if(A[0] && A[0]===B[0]) return 'sim';
   return '';
 }
-const REL_NM={ same:'동일', sim:'유사' };
+const REL_NM={ same:'동일', sim:'유사', mid:'소 미정' };
 const relTag=(a,b)=>{ const k=relOf(a,b); return k?`<em class="rl ${k}">${REL_NM[k]}</em>`:''; };
 function bdRows(){
   const R=rows();
@@ -24058,6 +24168,7 @@ setTimeout(()=>{ mountBtn(); paintBtn(); }, 900);
 #dRand .rmod.on::before{content:'☑ ';opacity:1}
 #dRand .rbtn[data-rand="g"]:not(.on){color:#8a6100;border-color:#e9c46a;background:#fffaf0}
 #dRand .rbtn[data-rand="s"]:not(.on){color:#4a5768;border-color:#c3ccd8}
+#dRand .rbtn[data-rand="seq"]:not(.on){color:#1d4ed8;border-color:#bfd0f5;background:#f5f8ff}
 #dRand .rx[hidden]{display:none!important}
 /* ★ v284 — 맞힌 것 빼기 N */
 #dRand .rstep{display:inline-flex;align-items:center;height:30px;margin-left:-2px;border:1px solid var(--line,#e2e8f0);border-radius:9px;overflow:hidden;background:var(--surface,#fff)}
@@ -24086,7 +24197,9 @@ const MODES={
   hot:{ nm:'빈출 랜덤', sh:'빈출', tip:'금·은·동에서 — 출제확률이 높을수록 더 자주 뽑힙니다 · 같은 문제·같은 유형은 하나만', tiers:['g','s','b'], dedupe:true, weight:true },
   g:  { nm:'금 랜덤',   sh:'금',   tip:'금 등급에서 무작위 · 같은 문제·같은 유형은 하나만', tiers:['g'], dedupe:true },
   s:  { nm:'은 랜덤',   sh:'은',   tip:'은 등급에서 무작위 · 같은 문제·같은 유형은 하나만', tiers:['s'], dedupe:true },
-  all:{ nm:'전체 랜덤', sh:'전체', tip:'지금 조건에 맞는 전체에서 무작위 (중복 묶기로 접혀 있는 것만 뺌)', tiers:null, dedupe:false }
+  all:{ nm:'전체 랜덤', sh:'전체', tip:'지금 조건에 맞는 전체에서 무작위 (중복 묶기로 접혀 있는 것만 뺌)', tiers:null, dedupe:false },
+  /* ★ v312 — 섞지 않고 최신 회차(26년)부터 차례로. 개수 제한 없이 전부 · 오른쪽 겹치기(회차外·체크·맞힘 −)는 그대로 걸림 */
+  seq:{ nm:'전체 최신순', sh:'📅 최신순', tip:'지금 조건에 맞는 전체를 최신 회차(26년)부터 차례로 — 개수 제한 없음 · 체크·맞힘 − 를 켜면 걸린 문항은 빠짐', tiers:null, dedupe:false, recent:true }
 };
 /* ★ v277 — 겹치기(여러 개 같이 켬). 위 랜덤 네 가지 어느 것에나 얹힌다
    예) 빈출 랜덤 + 오고·단답 빼기 + 체크한 것 빼기 + 확률 높은 순 → 확률 높은 것부터 풀고 맞힌 것은 소거 */
@@ -24196,7 +24309,9 @@ function draw(mode){
   if(MOD.nx) pool=pool.filter(r=>!isExcl(r));
   if(MOD.ck){ const N=ckN(); pool=pool.filter(r=>chkK(r.id)<N); }        /* ★ v286 — 같은 문제끼리 같이 셈 */
   if(MOD.un){ const N=unN(); pool=pool.filter(r=>okK(r.id)<N); }
-  pool = M.dedupe ? dedupe(pool) : shuffle(pool);
+  /* ★ v312 — 최신순: 진짜 회차(연도 1~2999)를 연도↓ 회차↓ 번호↑ 로, 문제집 자료(가짜 연도)는 맨 뒤 */
+  const newest=(a,b)=>(isExcl(a)-isExcl(b)) || ((+b.year||0)-(+a.year||0)) || ((+b.session||0)-(+a.session||0)) || ((+a.no||0)-(+b.no||0));
+  pool = M.recent ? pool.slice().sort(newest) : M.dedupe ? dedupe(pool) : shuffle(pool);
   if(!pool.length){
     const tierOn=!!document.querySelector('#tagRow button[data-tier].on');
     return alert(`지금 조건에 맞는 ${M.sh} 문항이 없습니다.`+(tierOn&&M.tiers?'\n위 «등급» 거르기가 켜져 있으면 풀어 보세요.':'')
@@ -24204,9 +24319,10 @@ function draw(mode){
       +(MOD.un?`\n«맞힘 − (${unN()})» — 다 맞혔으면 + 로 올리세요.`:''));
   }
   const want=$('#fRandN')?.value||'20';
-  const n=want==='all'?pool.length:Math.min(pool.length, +want||20);
+  const n=(want==='all'||M.recent)?pool.length:Math.min(pool.length, +want||20);
   let pick;
-  if(MOD.ord){
+  if(M.recent) pick=pool;
+  else if(MOD.ord){
     /* 확률 높은 순 — 섞어 둔 뒤 안정 정렬이라 같은 확률끼리는 매번 순서가 바뀐다 */
     const pv=r=>{ const t=tag(r.id); return t && isFinite(t.p) ? +t.p : -1; };
     pick=pool.slice().sort((a,b)=>pv(b)-pv(a)).slice(0,n);
@@ -24223,7 +24339,7 @@ function draw(mode){
   try{ drawList() }catch(e){}
   try{ if(document.body.classList.contains('oneup') && typeof window.showAt==='function') window.showAt(0) }catch(e){}
   const on=Object.keys(MODS).filter(k=>MOD[k]).map(k=>MODS[k].nm);
-  say(`🎲 ${M.nm}${on.length?' + '+on.join(' + '):''} ${pick.length}문항${M.dedupe?' · 중복 제외':''}`);
+  say(`${M.recent?'📅':'🎲'} ${M.nm}${on.filter(x=>!(M.recent&&x==='확률순')).length?' + '+on.filter(x=>!(M.recent&&x==='확률순')).join(' + '):''} ${pick.length}문항${M.dedupe?' · 중복 제외':''}${M.recent&&pick.length?` · ${pick[0].year}년 ${pick[0].session}회부터`:''}`);
 }
 function clear(){
   setRand(null); MODE=null;
@@ -24263,7 +24379,7 @@ function mount(){
   x.type='button'; x.className='chip rx'; x.id='randClear'; x.hidden=true; x.title='랜덤을 풀고 원래 목록으로';
   x.textContent='✕ 해제'; row.appendChild(x);
   const note=document.createElement('span'); note.className='rnote';
-  note.textContent='랜덤 하나 + 겹치기 여러 개 · 빈출·금·은은 같은 문제·같은 유형을 하나만 · 겹치기를 바꾸면 바로 다시 뽑음';
+  note.textContent='랜덤 하나(또는 📅 최신순) + 겹치기 여러 개 · 빈출·금·은은 같은 문제·같은 유형을 하나만 · 최신순은 섞지 않고 26년부터 전부 · 겹치기를 바꾸면 바로 다시 뽑음';
   row.title=note.textContent;               /* ★ v289 — 설명 줄은 숨기고 올리면 보이게 */
   row.appendChild(note);
   row.addEventListener('click', e=>{
@@ -24478,7 +24594,7 @@ let LASTQ='';
 
 const FOLDSEC=/^(검산|흔한 실수|왜 이 답인가|같이 알아 두기)$/;
 const SYMSEC=/^(부호)$/;
-const BOXSEC=/^(먼저 알아야 할 것|주어진 값|문제를 이렇게 읽음|채점 포인트)$/;
+const BOXSEC=/^(먼저 알아야 할 것|주어진 값|문제를 이렇게 읽음|채점 포인트|쉽게 말하면|최소 답안 — 이만큼은 꼭)$/;
 const ITEMSEC=/^(항목)$/;
 const MNSEC=/^(두문자)$/;
 const STEPSEC=/^(풀이|쓰는 식)$/;

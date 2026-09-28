@@ -1355,7 +1355,7 @@ function solToMd(sol){
      그대로 찍으면 대괄호·따옴표가 화면에 그대로 나온다. 풀어서 줄로 나눈다. */
   /* ★ v257 — 칸을 못 채우고 «<item>…</item>» 같은 표를 통째로 적어 보내는 일이 있다.
      그대로 찍으면 태그가 화면에 그대로 나온다. 태그를 걷어내고 줄로 나눈다. */
-  const XML = /<\/?(item|step|symbol|sym|mean|unit|val|say|math|calc|plain|read|why|eq|steps|symbols|given|background|also|tags|tag|check|trap|memo|answer|gist|write_solution|why_answer)\s*\/?>/gi;
+  const XML = /<\/?(item|step|symbol|sym|mean|unit|val|say|math|calc|plain|read|why|eq|steps|symbols|given|background|also|tags|tag|check|trap|memo|answer|gist|write_solution|why_answer|easy|min_ans|must|terms|formula_why|pairs)\s*\/?>/gi;
   const unxml = t => String(t == null ? "" : t)
     .replace(/<\/?item\s*\/?>/gi, "\n")
     .replace(XML, " ")
@@ -1468,6 +1468,12 @@ function solToMd(sol){
   const line = t => fixMath(unxml(String(t == null ? "" : t))).replace(/\n{2,}/g, "\n").trim();
 
   if(sol.gist) L.push(`**${line(sol.gist)}**`, "");
+  /* ★ v309 — 비전공자용 «쉽게 말하면» */
+  if(arr(sol.easy).length){
+    L.push("**쉽게 말하면**", "");
+    arr(sol.easy).forEach(e => L.push(`- ${line(typeof e === "string" ? e : (e && (e.text || e.say)) || "")}`));
+    L.push("");
+  }
 
   if(arr(sol.background).length){
     L.push("**먼저 알아야 할 것**", "");
@@ -1541,6 +1547,25 @@ function solToMd(sol){
   const many = ansLines.length > 1;                 /* 소문항이 여럿인 답 */
   const dup = unitT && (/[,，·]/.test(unitT) || ansT.includes(unitT) || ansT.includes(unitT.replace(/[\[\]]/g, "")));
   const stepAns = arr(sol.steps).some(s => s && typeof s === "object" && String(s.ans || "").trim());
+  /* ★ v309 — 단답·서술·나열형 «최소 답안» : 이만큼만 써도 만점 + 필수 핵심어 형광펜 */
+  const MINA = arr(sol.min_ans).filter(x => x && typeof x === "object" && String(x.text || "").trim());
+  if(MINA.length){
+    L.push("**최소 답안 — 이만큼은 꼭**", "");
+    MINA.forEach(x => {
+      const must = arr(x.must).map(w => String(w || "").replace(/==/g, "").trim()).filter(Boolean);
+      let t = line(x.text).replace(/\n+/g, " ");
+      /* 필수어가 형광펜 없이 왔으면 첫 자리에 칠해 준다 */
+      must.forEach(w => {
+        if(t.includes("==" + w + "==")) return;
+        const i = t.indexOf(w); if(i < 0) return;
+        const pre = t.slice(0, i); if(((pre.match(/==/g) || []).length) % 2) return;
+        t = pre + "==" + w + "==" + t.slice(i + w.length);
+      });
+      const q = String(x.q || "").trim();
+      L.push(`> ${q && !t.startsWith(q) ? q + " " : ""}${t}`, "");
+      if(must.length) L.push(`- 필수: ${must.map(w => "★ ==" + w + "==").join(" · ")}`, "");
+    });
+  }
   /* ★ v276 — 나열형 «항목» · 서술형 «채점 포인트» */
   if(arr(sol.items).length){
     L.push("**항목**", "");
@@ -1597,6 +1622,34 @@ function solToMd(sol){
     L.push("**같이 알아 두기**", "");
     arr(sol.also).forEach(x => L.push(`- ${x}`));
     L.push("");
+  }
+  /* ★ v310 — 비전공자용 표 세 가지 (맨 아래) : 용어 풀이 · 공식이 왜 · 헷갈리는 짝 */
+  const cel = t => line(t).replace(/\n+/g, " ").replace(/\|/g, "∣").trim() || " ";
+  const TMS = arr(sol.terms).filter(x => x && typeof x === "object" && String(x.word || "").trim());
+  if(TMS.length){
+    const hasLike = TMS.some(x => String(x.like || "").trim());
+    L.push("**용어 풀이**", "", hasLike ? "| 용어 | 쉬운 뜻 | 비유·예 |" : "| 용어 | 쉬운 뜻 |", hasLike ? "|---|---|---|" : "|---|---|");
+    TMS.forEach(x => L.push(`| **${cel(x.word)}** | ${cel(x.easy)} |` + (hasLike ? ` ${cel(x.like)} |` : "")));
+    L.push("");
+  }
+  const FWS = arr(sol.formula_why).filter(x => x && typeof x === "object" && String(x.why || "").trim());
+  if(FWS.length){
+    L.push("**공식이 왜 이렇게 생겼나**", "", "| 식의 부분 | 왜 붙나 |", "|---|---|");
+    FWS.forEach(x => {
+      const p0 = String(x.part || "").trim();
+      const p = !p0 ? " " : HAN.test(p0) && !/[\\^_{]/.test(p0) ? cel(p0) : `$${(tex(p0) || "").replace(/\|/g, "\\vert ")}$`;
+      L.push(`| ${p} | ${cel(x.why)} |`);
+    });
+    L.push("");
+  }
+  const PRS = arr(sol.pairs).filter(x => x && typeof x === "object" && String(x.a || "").trim() && arr(x.rows).length);
+  if(PRS.length){
+    L.push("**헷갈리는 짝**", "");
+    PRS.forEach(P => {
+      L.push(`| 구분 | ${cel(P.a)} | ${cel(P.b)} |`, "|---|---|---|");
+      arr(P.rows).forEach(r => { if(r && typeof r === "object") L.push(`| ${cel(r.k)} | ${cel(r.a)} | ${cel(r.b)} |`); });
+      L.push("");
+    });
   }
   const TG = [sol.kind ? String(sol.kind).replace(/형$/, "") + "형" : null, ...arr(sol.tags)].filter(Boolean);
   if(TG.length) L.push("", `\`${TG.join("` `")}\``);

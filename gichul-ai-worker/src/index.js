@@ -502,12 +502,14 @@ const TOOL = {
   description: "전기기사 실기 한 문항의 해설을 정해진 칸에 나눠 적는다. 전기를 배운 적 없는 사람이 혼자 읽고 이해할 만큼 자세히.",
   input_schema: {
     type: "object",
-    required: ["kind", "sub_count", "gist", "background", "given", "symbols", "steps", "answer"],
+    required: ["kind", "sub_count", "gist", "easy", "background", "given", "symbols", "steps", "answer"],
     properties: {
       sub_count:  { type: "integer", description: "문제에 있는 소문항 수. (1)(2) 두 개면 2, 소문항이 없으면 1. steps 를 쓰기 «전에» 문제를 보고 센다" },
       kind:       { type: "string", enum: ["계산", "나열", "단답", "서술", "회로·시퀀스", "표·선정"],
                     description: "문제 유형. 계산=숫자로 값을 구함 · 나열=~을 N가지 쓰시오 · 단답=명칭·약호·용어 · 서술=이유·방법을 글로 · 회로·시퀀스=회로·접점·동작 · 표·선정=계산 뒤 표·규격에서 고름" },
       gist:       { type: "string", description: "한 줄 요지 — 무엇을 묻는 문제인가" },
+      easy:       { type: "array", items: { type: "string" },
+                    description: "★ 비전공자용 «쉽게 말하면». 전기를 전혀 모르는 사람에게 말로 설명하듯 3~5문장. 원소 하나에 한 문장. 생활 비유(물·수도관·도로·저울 등) 1개 이상. 전문용어를 쓰면 바로 괄호로 풀이. 수식·기호·백슬래시 금지. 순서: ① 이 문제가 묻는 것 ② 비유 ③ 풀이 흐름을 한 문장으로" },
       background: { type: "array", items: { type: "string" },
                     description: "풀기 전에 알아야 할 배경. 전기를 처음 보는 사람 기준으로 3~6개. 한 개가 배열 원소 하나" },
       given:      { type: "array", items: { type: "string" },
@@ -540,6 +542,28 @@ const TOOL = {
                       mean: { type: "string", description: "쉬운 말로 한 줄 뜻" },
                       why:  { type: "string", description: "왜 이것이 답인지 · 무엇을 하는 것인지 2~4문장" } } } },
       keys:       { type: "array", items: { type: "string" }, description: "서술형 채점 포인트 — 답안에 꼭 들어가야 할 핵심어·문장" },
+      terms:      { type: "array", description: "★ 용어 풀이 표 — 문제·풀이에 나온 전문용어·약어를 비전공자용으로 3~6개. 해설 맨 아래 표로 나감",
+                    items: { type: "object", required: ["word", "easy"], properties: {
+                      word: { type: "string", description: "용어. 약어면 'OCR(과전류계전기)' 꼴" },
+                      easy: { type: "string", description: "전기를 모르는 사람용 쉬운 뜻 한 줄. 수식·백슬래시 금지" },
+                      like: { type: "string", description: "생활 비유나 쉬운 예 한 줄. 없으면 빈 문자열" } } } },
+      formula_why: { type: "array", description: "★ 공식이 왜 이렇게 생겼나 표 — 계산·표·선정형만. 식에 붙는 것(√3, cosθ, 10^3, 100 나누기, 2배 등)마다 한 줄. 다른 유형은 빈 배열",
+                    items: { type: "object", required: ["part", "why"], properties: {
+                      part: { type: "string", description: "식의 그 부분. KaTeX, $ 없이. 예: \\sqrt{3}" },
+                      why:  { type: "string", description: "왜 붙는지 쉬운 말 1~2문장. 수식·백슬래시 금지" } } } },
+      pairs:      { type: "array", description: "헷갈리는 짝 비교표 — 이 문제에서 수험생이 자주 헷갈리는 짝(OCR↔OCGR, VCB↔ACB, 과부하↔단락 등) 0~2개. 없으면 빈 배열",
+                    items: { type: "object", required: ["a", "b", "rows"], properties: {
+                      a: { type: "string", description: "첫째 것" }, b: { type: "string", description: "둘째 것" },
+                      rows: { type: "array", description: "비교 항목 2~4줄",
+                              items: { type: "object", required: ["k", "a", "b"], properties: {
+                                k: { type: "string", description: "비교 기준. 예: '감지하는 것'" },
+                                a: { type: "string", description: "첫째 것의 값 (짧게)" },
+                                b: { type: "string", description: "둘째 것의 값 (짧게)" } } } } } } },
+      min_ans:    { type: "array", description: "★ 단답·서술·나열형의 «최소 답안» — 시험장에서 이만큼만 써도 만점인 가장 짧은 답. 소문항마다 하나(소문항이 없으면 하나). 계산·표·선정·회로형은 빈 배열",
+                    items: { type: "object", required: ["q", "text", "must"], properties: {
+                      q:    { type: "string", description: "소문항 번호. 예: '(1)'. 소문항이 없으면 빈 문자열" },
+                      text: { type: "string", description: "최소 답안 문장(답안지 말투 그대로, 한두 줄). 빠지면 감점되는 핵심어는 ==이렇게== 감싼다. 나열형이면 요구한 가지 수만큼 '①… ②…' 로" },
+                      must: { type: "array", items: { type: "string" }, description: "빠지면 감점·오답이 되는 필수 핵심어 1~4개. text 안에 그대로 들어 있어야 한다" } } } },
       mnemo:      { type: "object", description: "두문자. 답이 낱말 3개 이상 나열될 때만. 계산·표·선정 답에는 넣지 않는다",
                     properties: {
                       code: { type: "string", description: "항목마다 앞 글자 하나씩 이은 것. 예: '단피엠차'" },
@@ -577,9 +601,10 @@ const SYS_SOL = [
   "- 계산      : background · given · symbols · steps(식 네 줄 + why) · answer · unit · check · trap",
   "- 표·선정    : background · given · symbols · steps(«계산해서 값 구하기» 단계 + «표에서 바로 위 값 고르기» 단계) · answer · check · trap",
   "- 회로·시퀀스 : background · given([동작설명]·조건을 한 줄씩) · symbols(접점·기기 기호와 역할) · steps(say·ans·why, 식이 있을 때만 식 줄) · answer · check · trap",
-  "- 단답      : steps(소문항마다 say·ans·why, 식 줄 없음) · answer · memo · trap.  given · symbols · check 는 넣지 않는다",
-  "- 나열      : steps(say·ans·why) · items(항목마다 뜻·왜) · mnemo(두문자) · answer · trap.  symbols · check 는 넣지 않는다",
-  "- 서술      : background · steps(say·ans(모범 답안 문장)·why) · keys(채점 포인트) · answer · trap.  symbols · check 는 넣지 않는다",
+  "- 단답      : steps(소문항마다 say·ans·why, 식 줄 없음) · min_ans(최소 답안) · answer · memo · trap.  given · symbols · check 는 넣지 않는다",
+  "- 나열      : steps(say·ans·why) · items(항목마다 뜻·왜) · min_ans · mnemo(두문자) · answer · trap.  symbols · check 는 넣지 않는다",
+  "- 서술      : background · steps(say·ans(모범 답안 문장)·why) · min_ans · keys(채점 포인트) · answer · trap.  symbols · check 는 넣지 않는다",
+  "- 모든 유형 : easy(쉽게 말하면) 를 반드시 채운다",
   "- 소문항 유형이 섞이면 가장 비중이 큰 유형으로 정하고, 나머지 소문항도 그 칸들 안에서 푼다.",
   "",
   "유형 가르는 법 — 문제 끝말과 답의 생김새로 정한다",
@@ -608,9 +633,34 @@ const SYS_SOL = [
   "- check 에는 [동작설명]을 한 줄씩 대어 보며 «이 회로에서 그렇게 된다» 를 확인하고, 보조접점 수 조건(a 몇 개 · b 몇 개)을 셌을 때 맞는지 적는다.",
   "- answer 는 소문항별 한두 줄 요약만. 자세한 연결은 steps 에.",
   "",
+  "쉽게 말하면 (easy) — 모든 유형에 반드시",
+  "- 전기를 전혀 모르는 사람에게 옆에서 말로 설명하듯 3~5문장. 한 원소에 한 문장.",
+  "- 생활 비유를 하나 이상: 전압=물의 높이차(수압), 전류=흐르는 물의 양, 저항=좁은 관, 역률=실제로 일에 쓰인 비율 같은 식.",
+  "- 전문용어는 쓰자마자 괄호로 풀이. 수식·기호·백슬래시 금지.",
+  "- 순서: ① 이 문제가 묻는 것 ② 비유 ③ 풀이 흐름 한 문장(예: '주어진 값을 공식에 넣어 전류를 구하고, 그보다 한 단계 큰 규격을 표에서 고름').",
+  "",
+  "단계 빠짐 없이 — 비전공자가 따라올 수 있게",
+  "- 문제가 묻는 것을 하나도 건너뛰지 않는다. 소문항·요구 항목·단위 환산·표 찾기·반올림도 저마다 한 단계.",
+  "- «당연해서» 생략하던 단계(kW→W 환산, 선간→상전압, %를 소수로, 표에서 한 단계 위 고르기)도 단계로 적는다.",
+  "- why 는 ① 이 단계에서 하는 일 ② 왜 필요한지 ③ 어떻게 하는지 순서로. 앞 단계 결과를 받아 쓰면 '앞 단계에서 구한 전류 30암페어를' 처럼 이어 준다.",
+  "",
+  "맨 아래 표 세 가지 — 비전공자용",
+  "- terms(용어 풀이): 모든 유형에 3~6개. 문제·풀이에 나온 전문용어·약어의 쉬운 뜻 + 비유. 표 칸이므로 한 줄씩 짧게.",
+  "- formula_why(공식이 왜 이렇게 생겼나): 계산·표·선정형만. √3·cosθ·10^3·100으로 나누기처럼 식에 «붙는 것» 마다 왜 붙는지. part 만 KaTeX, why 는 글.",
+  "-   예: part '\\sqrt{3}' · why '3상에서는 선 사이 전압이 한 상 전압의 루트3배라서, 3상 전력을 선간전압으로 쓸 때 붙음'",
+  "- pairs(헷갈리는 짝): 이 문제에서 실제로 헷갈릴 만한 짝이 있을 때만 0~2개. 비교 기준 2~4줄.",
+  "- 세 표 칸에는 세로막대(|)를 쓰지 않는다.",
+  "",
+  "최소 답안 (min_ans) — 단답 · 서술 · 나열형에 반드시",
+  "- 시험장에서 «이만큼만 써도 만점» 인 가장 짧은 답. 소문항마다 하나. 답안지 말투 그대로.",
+  "- 빠지면 감점·오답이 되는 핵심어는 text 안에서 ==이렇게== 감싸고, must 에도 같은 말로 1~4개 적는다.",
+  "- 서술형이면 한두 문장, 단답형이면 낱말·약호 하나(+꼭 필요한 조건), 나열형이면 요구한 가지 수만큼 ①② 로.",
+  "-   예(서술): '(1) 변압기 ==여자돌입전류== 에 의한 ==오동작 방지==' · must: ['여자돌입전류', '오동작 방지']",
+  "- 계산 · 표·선정 · 회로·시퀀스 형은 min_ans 를 빈 배열로 둔다.",
+  "",
   "형광펜 (==핵심==)",
   "- 답안에 반드시 들어가야 할 핵심어·문구, 채점에서 점수가 걸리는 표현은 ==이렇게== 감싼다.",
-  "- why · ans · background · trap · why_answer · items 에 쓴다. 한 칸에 1~3곳. 식 네 칸(sym·plain·num·unit)에는 쓰지 않는다.",
+  "- why · ans · background · trap · why_answer · items · min_ans 에 쓴다. 한 칸에 1~3곳. 식 네 칸(sym·plain·num·unit)에는 쓰지 않는다.",
   "",
   "약어",
   "- 영문 약어(MOF, SR, OS, VCB, LA, CT, PT, ZCT, OCR, DS, ASS, COS 등)는 처음 나올 때 반드시 «약어(영문 원말, 한글 이름)» 로 푼다.",
@@ -816,14 +866,16 @@ async function explain(req, env, H){
     input_schema: { type: "object", required: ["steps"], properties: {
       steps: TOOL.input_schema.properties.steps, symbols: TOOL.input_schema.properties.symbols,
       given: TOOL.input_schema.properties.given, background: TOOL.input_schema.properties.background,
-      check: TOOL.input_schema.properties.check, trap: TOOL.input_schema.properties.trap } } };
+      check: TOOL.input_schema.properties.check, trap: TOOL.input_schema.properties.trap,
+      easy: TOOL.input_schema.properties.easy, min_ans: TOOL.input_schema.properties.min_ans,
+      terms: TOOL.input_schema.properties.terms, formula_why: TOOL.input_schema.properties.formula_why } } };
   const askSteps = async (base, why) => {
     const res = await call(env, {
       model, max_tokens: maxTok, system: SYS_SOL,
       tools: [STEP_TOOL], tool_choice: { type: "tool", name: "write_steps" },
       messages: [{ role: "user", content: parts.concat([{ type: "text", text:
         "── 이미 적은 것 ──\n요지: " + (base.gist || "") + "\n유형: " + (base.kind || "") + "\n답:\n" + (base.answer || "") +
-        "\n\n── 빠진 것 ──\n" + why + "\n\nwrite_steps 로 빠진 칸을 모두 채운다 — 풀이 단계(소문항마다 · 회로는 가지마다) · 부호 · 주어진 값 · 먼저 알아야 할 것 · 검산 · 흔한 실수. 배열 칸은 JSON 배열 [ {…} ] 로. <parameter> 태그 · 자리표시 금지." }]) }]
+        "\n\n── 빠진 것 ──\n" + why + "\n\nwrite_steps 로 빠진 칸을 모두 채운다 — 풀이 단계(소문항마다 · 회로는 가지마다) · 부호 · 주어진 값 · 먼저 알아야 할 것 · 검산 · 흔한 실수 · 쉽게 말하면(easy) · 최소 답안(min_ans, 단답·서술·나열형) · 용어 풀이(terms) · 공식이 왜(formula_why, 계산형). 배열 칸은 JSON 배열 [ {…} ] 로. <parameter> 태그 · 자리표시 금지." }]) }]
     });
     const out = await res.json();
     diagOf(out, model + " · 풀이만");
@@ -832,7 +884,7 @@ async function explain(req, env, H){
     const add = fixSol(c.input || {});
     /* ★ v303 — 칸마다 «바꿨을 때 검사가 나아지면» 새것으로 (길이만 보던 것 → 같은 길이로 고쳐 온 것을 버리던 문제) */
     let m = Object.assign({}, base);
-    for (const k of ["steps", "symbols", "given", "background"]){
+    for (const k of ["steps", "symbols", "given", "background", "easy", "min_ans", "terms", "formula_why"]){
       if (!Array.isArray(add[k]) || !add[k].length) continue;
       if (!Array.isArray(m[k]) || !m[k].length){ m[k] = add[k]; continue; }
       const t = Object.assign({}, m, { [k]: add[k] });
@@ -911,6 +963,18 @@ async function explain(req, env, H){
       if (String(s.answer || "").length > 700 && steps.length < need + 1) S.push("풀이를 answer 한 칸에 몰아 넣었다 — answer 는 소문항별 요약만, 설명은 steps 에");
     }
     if (steps.some(x => !String(x.why || "").trim())) S.push("why(왜)가 빈 단계가 있다 — 단계마다 3~6문장");
+    /* ★ v309 — 비전공자용 «쉽게 말하면» · 단답·서술·나열형 «최소 답안» */
+    if (!A("terms").some(x => x && typeof x === "object" && String(x.word || "").trim())) S.push("terms(용어 풀이)가 비었다 — 전문용어·약어 3~6개를 쉬운 뜻·비유와 함께");
+    if (calc && !A("formula_why").some(x => x && typeof x === "object" && String(x.why || "").trim())) S.push("formula_why(공식이 왜 이렇게 생겼나)가 비었다 — √3·cosθ·10^3 처럼 식에 붙는 것마다 이유를");
+    if (!A("easy").some(x => String(x || "").trim())) S.push("easy(쉽게 말하면)가 비었다 — 전기를 모르는 사람용 비유 설명 3~5문장");
+    if (["단답", "서술", "나열"].includes(kind)){
+      const MA = A("min_ans").filter(x => x && typeof x === "object" && String(x.text || "").trim());
+      if (!MA.length) P.push("min_ans(최소 답안)가 비었다 — 소문항마다 «이만큼만 써도 만점» 인 짧은 답과 필수 핵심어(must)를");
+      else {
+        if (n > 1 && MA.length < n) S.push(`min_ans 가 ${MA.length}개뿐이다 — 소문항 ${n}개 모두`);
+        if (MA.some(x => !(Array.isArray(x.must) && x.must.some(w => String(w || "").trim())))) S.push("min_ans 에 필수 핵심어(must)가 빈 것이 있다");
+      }
+    }
     return { hard: P, soft: S };
   };
   const probs = s => check2(s).hard;
@@ -997,7 +1061,7 @@ function fixSol(sol){
     }
     return v;
   };
-  for (const k of ["steps", "symbols", "items", "given", "background", "keys", "tags", "mnemos"]) if (k in sol) sol[k] = toArr(sol[k]);
+  for (const k of ["steps", "symbols", "items", "given", "background", "keys", "tags", "mnemos", "easy", "min_ans", "terms", "formula_why", "pairs"]) if (k in sol) sol[k] = toArr(sol[k]);
   if (typeof sol.mnemo === "string" && /^\s*\{/.test(sol.mnemo)){ const j = looseJson(sol.mnemo.trim()); if (j && typeof j === "object") sol.mnemo = j; }
   return sol;
 }
@@ -1100,7 +1164,7 @@ export default {
         판정: 막힌곳.includes(colo)
           ? `${colo} 기지는 Anthropic 이 막는 지역입니다 — 403 의 원인입니다.`
           : `${colo} 기지는 보통 허용됩니다.`,
-        빌드: "v303"
+        빌드: "v310"
       }, 200, H);
     }
 
@@ -1156,7 +1220,7 @@ export default {
         keyHead: String(env.ANTHROPIC_API_KEY).slice(0,14) + "…",
         keyLen: String(env.ANTHROPIC_API_KEY).length,
         keyTrimmed: String(env.ANTHROPIC_API_KEY) === String(env.ANTHROPIC_API_KEY).trim(),
-        빌드: "v303",
+        빌드: "v310",
         기지: (req.cf && req.cf.colo) || "?",
         upstream: parsed || body.slice(0,600),
         vision
@@ -1164,7 +1228,7 @@ export default {
     }
 
     if (path === "/health" || path === "/")
-      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v303" }, 200, H);
+      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v310" }, 200, H);
 
     if (env.APP_KEY && req.headers.get("x-app-key") !== env.APP_KEY)
       return json({ error: "x-app-key 가 맞지 않습니다", detail: "x-app-key 가 맞지 않습니다" }, 401, H);
