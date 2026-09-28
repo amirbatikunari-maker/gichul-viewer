@@ -2027,6 +2027,19 @@ function build() {
     close;
 
 
+  /* ★ v319 — Ctrl + / (맥은 ⌘ + /) 로 AI 창 열기·닫기 · 열면 바로 입력칸에
+     한글 자판이어도 같은 자리 키(e.code = Slash)면 됨 · 입력칸에서 치는 중이어도 동작 */
+  addEventListener("keydown", e => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+    if (!(e.code === "Slash" || e.key === "/" || e.key === "?")) return;
+    if (e.isComposing) return;
+    e.preventDefault(); e.stopPropagation();
+    if (el.wrap.classList.contains("on")) { close(); return; }
+    open();
+    setTimeout(() => { try { el.ta && el.ta.focus(); } catch (x) {} }, 60);
+  }, true);
+
+
   /* ★ v313 — 패널 왼쪽 가장자리를 끌어서 너비 조절 (문제·답·쉬운 풀이 칸처럼)
      · 너비는 이 기기에 기억 · 두 번 누르면 기본(460px)으로
      · 폰(560px 이하)은 아래에서 올라오는 판이라 해당 없음 */

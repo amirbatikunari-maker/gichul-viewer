@@ -6872,7 +6872,7 @@ sb?.auth?.onAuthStateChange?.((evt, session) => setTimeout(() => {
 </script>
 
 <!-- ══ AI 대화 상자 ══ config.js 의 AI_WORKER_URL 을 채워야 작동합니다 -->
-<script src="./ai-chat.js?v=315" defer></script>
+<script src="./ai-chat.js?v=319" defer></script>
 <script src="./ai-viewer.js" defer></script>
 <script>
 (function(){
@@ -6940,7 +6940,7 @@ sb?.auth?.onAuthStateChange?.((evt, session) => setTimeout(() => {
     $('#qFav')?.addEventListener('click',()=>{const rows=Array.isArray(window.SHOWN)?window.SHOWN:[];const favRows=rows.filter(r=>isFav(r.id)); if(!favRows.length)return toast('북마크한 문제가 없습니다'); const q=$('#fQ'); if(q){q.value='';} document.querySelectorAll('#list>.pcard').forEach(c=>c.hidden=!isFav(c.dataset.id)); toast(`북마크 ${favRows.length}문제 표시`);});
     $('#qUnseen')?.addEventListener('click',()=>{const rows=Array.isArray(window.SHOWN)?window.SHOWN:[];const n=rows.filter(r=>!state.visited?.[r.id]).length;if(!n)return toast('미학습 문제가 없습니다');document.querySelectorAll('#list>.pcard').forEach(c=>c.hidden=!!state.visited?.[c.dataset.id]);toast(`미학습 ${n}문제 표시`)});
     $('#qRandom')?.addEventListener('click',()=>{const e=$('#fRand');if(e){$('#fRandN').value='10';e.click();toast('랜덤 10문제') } });
-    $('#qHelp')?.addEventListener('click',()=>alert('단축키\n\n← / →  이전·다음 문제\nSpace  답안 보기/가리기\nF  검색창 포커스\nR  랜덤 문제\nB  현재 문제 북마크\nEsc  열린 화면 닫기'));
+    $('#qHelp')?.addEventListener('click',()=>alert('단축키\n\n← / →  이전·다음 문제\nSpace  답안 보기/가리기\nF  검색창 포커스\nR  랜덤 문제\nB  현재 문제 북마크\nCtrl + /  AI 에게 묻기 열기·닫기\nEsc  열린 화면 닫기'));
     $('#studyContinue')?.addEventListener('click',()=>{const rows=Array.isArray(window.SHOWN)?window.SHOWN:[];const i=rows.findIndex(r=>!state.visited?.[r.id]);if(i>=0&&typeof window.showAt==='function')window.showAt(i);else toast('모든 문제가 학습되었습니다')});
     $('#studyReset')?.addEventListener('click',()=>{if(!confirm('이 과목의 학습 진행률과 북마크를 초기화할까요?'))return;localStorage.removeItem(keyBase());state={};refreshCards();refreshHUD();toast('학습 기록 초기화')});
     $('#list')?.addEventListener('click',e=>{const b=e.target.closest('[data-study-fav]');if(b){e.preventDefault();e.stopPropagation();fav(b.dataset.studyFav)}});
@@ -20876,7 +20876,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=316").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=319").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
