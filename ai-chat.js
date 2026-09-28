@@ -1277,6 +1277,43 @@ const CSS = `
   backdrop-filter:blur(2px)
 }
 
+.aic-grip{
+  position:absolute;
+  left:-5px;
+  top:0;
+  bottom:0;
+  width:10px;
+  cursor:ew-resize;
+  z-index:5;
+  touch-action:none
+}
+.aic-grip::after{
+  content:"";
+  position:absolute;
+  left:3px;
+  top:50%;
+  width:4px;
+  height:44px;
+  margin-top:-22px;
+  border-radius:3px;
+  background:var(--rule,#cbd5e1);
+  opacity:.55;
+  transition:opacity .12s,background .12s
+}
+.aic-grip:hover::after,
+.aic-resizing .aic-grip::after{
+  opacity:1;
+  background:var(--accent,#1D4ED8)
+}
+.aic-resizing,
+.aic-resizing *{
+  cursor:ew-resize!important;
+  user-select:none!important
+}
+@media(max-width:560px){
+  .aic-grip{ display:none }
+}
+
 .aic-panel{
   position:absolute;
   right:0;
@@ -1629,6 +1666,43 @@ const CSS = `
 .aic-exp button:hover{
   background:var(--surface-2,#f7f9fc)
 }
+.aic-exp button.qsave{
+  background:#1d4ed8;
+  border-color:#1d4ed8;
+  color:#fff
+}
+.aic-qp{
+  position:absolute;
+  left:10px;
+  right:10px;
+  bottom:calc(100% + 6px);
+  max-height:min(60vh,520px);
+  overflow:auto;
+  background:var(--card,#fff);
+  border:1px solid var(--rule,#d5dae2);
+  border-radius:12px;
+  box-shadow:0 14px 40px -12px rgba(0,0,0,.4);
+  padding:10px;
+  z-index:6;
+  font:13px/1.45 var(--font-d,system-ui)
+}
+.aic-qp[hidden]{ display:none }
+.aic-qp .qph{ display:flex; align-items:center; gap:6px; margin-bottom:8px }
+.aic-qp .qph b{ font:800 13px/1.2 var(--font-d,system-ui); color:inherit; margin:0 }
+.aic-qp .qph small{ color:var(--ink-2,#64748b); margin-left:auto; font-size:11px }
+.aic-qp .qpp{ border:1px solid var(--rule,#e2e8f0); border-radius:9px; padding:6px 8px; margin-bottom:6px }
+.aic-qp .qpp.last{ border-color:#1d4ed8 }
+.aic-qp label{ display:flex; gap:6px; align-items:flex-start; cursor:pointer; padding:2px 0 }
+.aic-qp label input{ margin-top:3px }
+.aic-qp label em{ font-style:normal; font-weight:800; font-size:11px; padding:2px 5px; border-radius:4px; flex:none }
+.aic-qp label em.q{ background:#e9efff; color:#2f4fc4 }
+.aic-qp label em.a{ background:#dcf3e5; color:#18794e }
+.aic-qp label span{ min-width:0; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; font-size:12.5px }
+.aic-qp .qpb{ display:flex; gap:6px; justify-content:flex-end; margin-top:8px }
+.aic-qp .qpb button{ border:1px solid var(--rule,#cbd5e1); background:var(--card,#fff); border-radius:8px; padding:7px 12px; font-weight:700; cursor:pointer }
+.aic-qp .qpb button.ok{ background:#1d4ed8; border-color:#1d4ed8; color:#fff }
+.aic-qp .qpb button:disabled{ opacity:.5; cursor:default }
+.aic-qp .qpe{ color:var(--ink-2,#64748b); font-size:12px; padding:6px 2px }
 .aic-exp button.notion{
   border-color:#cbd5e1;
   background:#0f172a;
@@ -1872,10 +1946,8 @@ function build() {
         <div class="aic-exp">
           <b>내보내기</b>
           <button data-exp="copy"   title="이 대화를 마크다운으로 복사합니다">복사</button>
-          <button data-exp="md"     title="이 대화를 .md 파일로 내려받습니다">Markdown</button>
-          <button data-exp="txt"    title="이 대화를 .txt 파일로 내려받습니다">텍스트</button>
-          <button data-exp="notion" class="notion"
-            title="정해 둔 노션 페이지 밑에 이 대화를 새 페이지로 넣습니다&#10;(워커에 NOTION_TOKEN 이 아직 없으면 «복사 + 페이지 열기» 로 대신합니다)&#10;Shift 를 누른 채 누르면 저장할 페이지를 다시 정합니다">노션에 저장</button>
+          <button data-qsave class="qsave"
+            title="고른 질문(Q)·답(A)을 지금 보고 있는 문항의 쉬운 풀이 아래에 쌓습니다">📌 본문저장</button>
         </div>
 
       </div>
@@ -1953,6 +2025,45 @@ function build() {
 
   el.veil.onclick =
     close;
+
+
+  /* ★ v313 — 패널 왼쪽 가장자리를 끌어서 너비 조절 (문제·답·쉬운 풀이 칸처럼)
+     · 너비는 이 기기에 기억 · 두 번 누르면 기본(460px)으로
+     · 폰(560px 이하)은 아래에서 올라오는 판이라 해당 없음 */
+  (function gripInit(){
+    const KEY = "ai:w:v313", DEF = 460, MIN = 360;
+    const maxW = () => Math.max(MIN, Math.min(1600, innerWidth - 40));
+    const narrow = () => matchMedia("(max-width:560px)").matches;
+    const apply = w => {
+      if (narrow()){ el.panel.style.width = ""; document.documentElement.style.removeProperty("--aicw"); return; }
+      const v = Math.round(Math.min(maxW(), Math.max(MIN, w || DEF)));
+      el.panel.style.width = v + "px";
+      document.documentElement.style.setProperty("--aicw", v + "px");
+      return v;
+    };
+    let cur = DEF;
+    try{ cur = +localStorage.getItem(KEY) || DEF; }catch(e){}
+    apply(cur);
+    const g = document.createElement("div");
+    g.className = "aic-grip";
+    g.title = "끌어서 너비 조절 · 두 번 누르면 기본 너비";
+    g.setAttribute("role", "separator");
+    g.setAttribute("aria-orientation", "vertical");
+    el.panel.appendChild(g);
+    let x0 = 0, w0 = 0, drag = false;
+    g.addEventListener("pointerdown", e => {
+      if (narrow()) return;
+      e.preventDefault(); drag = true; x0 = e.clientX; w0 = el.panel.getBoundingClientRect().width;
+      try{ g.setPointerCapture(e.pointerId); }catch(x){}
+      document.documentElement.classList.add("aic-resizing");
+    });
+    g.addEventListener("pointermove", e => { if (drag) cur = apply(w0 + (x0 - e.clientX)) || cur; });
+    const end = () => { if (!drag) return; drag = false; document.documentElement.classList.remove("aic-resizing");
+      try{ localStorage.setItem(KEY, String(cur)); }catch(x){} };
+    g.addEventListener("pointerup", end); g.addEventListener("pointercancel", end);
+    g.addEventListener("dblclick", () => { cur = apply(DEF) || DEF; try{ localStorage.setItem(KEY, String(cur)); }catch(x){} });
+    addEventListener("resize", () => apply(cur));
+  })();
 
 
   wrap.querySelector(
@@ -2364,6 +2475,75 @@ function build() {
     };
 
   });
+
+
+  /* ★ v314 — 📌 본문저장 : 고른 Q·A 를 지금 문항의 쉬운 풀이 아래에 쌓는다 (practice 화면이 받아서 저장) */
+  (function qsaveInit(){
+    const btn = wrap.querySelector("[data-qsave]");
+    const bar = wrap.querySelector(".aic-exp");
+    if (!btn || !bar) return;
+    bar.style.position = "relative";
+    const qp = document.createElement("div");
+    qp.className = "aic-qp"; qp.hidden = true;
+    bar.appendChild(qp);
+    const txt = m => String((m && m.content) || "").trim();
+    const pairs = () => {
+      const M = (state.msgs || []).filter(m => m && (m.role === "user" || m.role === "assistant") && txt(m));
+      const out = []; let cur = null;
+      M.forEach(m => {
+        if (m.role === "user"){ cur = { q: txt(m), a: "" }; out.push(cur); }
+        else if (cur && !cur.a) cur.a = txt(m);
+        else { cur = { q: "", a: txt(m) }; out.push(cur); }
+      });
+      return out;
+    };
+    const cut = t => esc(String(t).replace(/[#*`>$|]/g, " ").replace(/\s+/g, " ").trim().slice(0, 160));
+    let P = [];
+    function paint(){
+      P = pairs();
+      const tg = window.__pracQaTarget ? window.__pracQaTarget() : null;
+      const show = P.slice(-6);
+      const base = P.length - show.length;
+      qp.innerHTML =
+        `<div class="qph"><b>📌 본문저장</b><small>${tg ? "→ " + esc(tg.label) + " 쉬운 풀이 아래" : "실기 화면에서 문항을 열어 두세요"}</small></div>`
+        + (!show.length ? `<div class="qpe">저장할 대화가 없습니다.</div>`
+          : show.map((p, k) => { const i = base + k, last = i === P.length - 1;
+              return `<div class="qpp${last ? " last" : ""}">`
+                + (p.q ? `<label><input type="checkbox" data-qi="${i}" data-qk="q"${last ? " checked" : ""}><em class="q">Q</em><span>${cut(p.q)}</span></label>` : "")
+                + (p.a ? `<label><input type="checkbox" data-qi="${i}" data-qk="a"${last ? " checked" : ""}><em class="a">A</em><span>${cut(p.a)}</span></label>` : "")
+                + `</div>`; }).join(""))
+        + (state.busy ? `<div class="qpe">⏳ 답을 쓰는 중입니다 — 다 쓴 뒤에 저장하세요 (지금 저장하면 답이 잘림)</div>` : "")
+        + `<div class="qpb"><button type="button" data-qpx>닫기</button><button type="button" class="ok" data-qpok${tg && show.length && !state.busy ? "" : " disabled"}>저장</button></div>`;
+    }
+    btn.onclick = e => {
+      e.stopPropagation();
+      if (!qp.hidden){ qp.hidden = true; return; }
+      if (!window.__pracQaAdd){ expSay("본문저장은 실기 화면(practice)에서만 됩니다."); return; }
+      paint(); qp.hidden = false;
+    };
+    qp.addEventListener("click", async e => {
+      e.stopPropagation();
+      if (e.target.closest("[data-qpx]")){ qp.hidden = true; return; }
+      const ok = e.target.closest("[data-qpok]"); if (!ok) return;
+      const pick = new Map();
+      qp.querySelectorAll("input[data-qi]:checked").forEach(c => {
+        const i = +c.dataset.qi, o = pick.get(i) || { q: "", a: "" };
+        o[c.dataset.qk] = P[i] ? P[i][c.dataset.qk] : ""; pick.set(i, o);
+      });
+      const list = [...pick.keys()].sort((a, b) => a - b).map(i => pick.get(i));
+      if (!list.length){ expSay("저장할 Q·A 를 체크하세요."); return; }
+      ok.disabled = true; ok.textContent = "저장 중…";
+      try{
+        const where = await window.__pracQaAdd(list);
+        qp.hidden = true;
+        expSay(`📌 ${where} 쉬운 풀이 아래에 ${list.length}개 저장했습니다.`);
+      }catch(err){
+        ok.disabled = false; ok.textContent = "저장";
+        expSay("저장 못 함 — " + (err && err.message || err));
+      }
+    });
+    document.addEventListener("click", e => { if (!qp.hidden && !e.target.closest(".aic-qp,[data-qsave]")) qp.hidden = true; });
+  })();
 
 
   el.file.onchange =
@@ -6115,6 +6295,13 @@ function close() {
    ═══════════════════════════════════════════════════════════════════════ */
 
 const AIChat = {
+
+  /* ★ v314 — 본문저장한 답을 대화와 같은 모양으로 그리려고 */
+  md,
+
+  tex: aicTex,
+
+  get _state() { return state; },
 
   open,
 

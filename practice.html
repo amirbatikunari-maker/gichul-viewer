@@ -6154,7 +6154,7 @@ $$("#ovl .otabs button").forEach(b => b.onclick = () => { OVSEG = b.dataset.oseg
 function typingIn(e){
   const t = e.target, tg = t && t.tagName;
   if(/^(INPUT|TEXTAREA|SELECT)$/.test(tg||"")) return true;
-  if(t && (t.isContentEditable || (t.closest && t.closest('[contenteditable=""],[contenteditable="true"],.aic-panel,.aic,[class*="aic-"],.qtpop,.qtbd,.mnpop,.mmpop,.edw')))) return true;
+  if(t && (t.isContentEditable || (t.closest && t.closest('[contenteditable=""],[contenteditable="true"],.aic-panel,.aic,[class*="aic-"],.qtpop,.qtbd,.mnpop,.mmpop,.edw,.qastack .qed')))) return true;
   if(e.isComposing) return true;
   return false;
 }
@@ -6872,7 +6872,7 @@ sb?.auth?.onAuthStateChange?.((evt, session) => setTimeout(() => {
 </script>
 
 <!-- ══ AI 대화 상자 ══ config.js 의 AI_WORKER_URL 을 채워야 작동합니다 -->
-<script src="./ai-chat.js?v=308" defer></script>
+<script src="./ai-chat.js?v=315" defer></script>
 <script src="./ai-viewer.js" defer></script>
 <script>
 (function(){
@@ -12904,6 +12904,8 @@ body:has(.mus-ov.on) .odock,
 body:has(.aic-wrap.on) .odock{opacity:0;pointer-events:none;transition:opacity .12s}
 /* «한눈에» 판 위에서도 손이 닿아야 한다 — 대신 접어 두고 조금 흐리게 */
 body.ovlopen .odock{z-index:100020;opacity:.75}
+/* ★ v313 — 한눈에 보기에서 AI 창을 열면 오른쪽 도구 단추들이 대화 위에 겹쳐 떠 있었음 → AI 창이 열려 있으면 숨김 */
+body.ovlopen:has(.aic-wrap.on) .odock{opacity:0!important;pointer-events:none!important}
 body.ovlopen .odock:hover,body.ovlopen .odock.open{opacity:1}
 /* 필기 도구줄이 펴져 있으면 그 위로 올라간다 */
 body.inkon .odock{bottom:calc(72px + env(safe-area-inset-bottom))}
@@ -20874,7 +20876,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=312").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=315").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -25964,6 +25966,237 @@ function chip(){
 }
 setInterval(tick, 2000);
 setInterval(chip, 1200);
+})();
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════
+     v314 · 📌 본문저장 — AI 에게 물은 Q·A 를 쉬운 풀이 아래에 쌓기
+     · AI 창의 «본문저장» → 질문·답을 골라 지금 문항의 쉬운 풀이 밑에 쌓음
+     · 쌓인 것은 접기·펴기 · 하나씩 고치기(✎)·지우기
+     · 저장: practicals.qa (jsonb) — 기기끼리 합쳐서 맞춤 (v315: 항목 id 로 합침 · 지운 것은 안 살아남)
+       칸이 아직 없으면(supabase-qa.sql 전) 이 기기에만 둠
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+.ez.hide .qastack{display:none}
+.qastack{margin:12px 0 4px;border:1px solid #d9e2f3;border-radius:10px;background:#f8faff;overflow:hidden}
+.qastack .qah{display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;user-select:none;background:#eef3fc}
+.qastack .qah b{font:800 12.5px/1.2 var(--font-d,system-ui);color:#1f3a6e}
+.qastack .qah small{font:600 10.5px/1.2 var(--font-d,system-ui);color:#64748b;margin-left:auto}
+.qastack .qah .car{font-size:11px;color:#1f3a6e;transition:transform .15s}
+.qastack.fold .qah .car{transform:rotate(-90deg)}
+.qastack.fold .qal{display:none}
+.qastack .qal{padding:6px;display:flex;flex-direction:column;gap:5px}
+.qastack .qai{border:1px solid #e3e9f7;border-radius:8px;background:#fff}
+.qastack .qai > summary{list-style:none;display:flex;align-items:flex-start;gap:6px;padding:6px 8px;cursor:pointer}
+.qastack .qai > summary::-webkit-details-marker{display:none}
+.qastack .qai > summary .qs{flex:1;min-width:0;font:600 13px/1.45 var(--font-d,system-ui);color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qastack .qai > summary .qs b{color:#2f4fc4;font-weight:800;margin-right:2px}
+.qastack .qai > summary .car{font-size:10px;color:#64748b;line-height:1.9;transition:transform .15s}
+.qastack .qai[open] > summary .car{transform:rotate(90deg)}
+.qastack .qai[open] > summary .qs{white-space:normal}
+.qastack .qai > summary .qd{font:500 10px/1.8 var(--font-m,monospace);color:#94a3b8;white-space:nowrap}
+.qastack .qai > summary button{border:1px solid #e2e8f0;background:#fff;border-radius:6px;font:700 10.5px/1 var(--font-d,system-ui);padding:4px 6px;cursor:pointer;color:#475569}
+.qastack .qai > summary button:hover{background:#eef2f7}
+.qastack .qb{padding:2px 10px 8px;font-size:13px;line-height:1.6}
+.qastack .qb .qk{display:inline-block;font:800 11px/1 var(--font-d,system-ui);padding:3px 6px;border-radius:5px;margin:6px 6px 2px 0;vertical-align:1px}
+.qastack .qb .qk.q{background:#e9efff;color:#2f4fc4}
+.qastack .qb .qk.a{background:#dcf3e5;color:#18794e}
+.qastack .qb .qmd{overflow-x:auto}
+.qastack .qb .qmd table{border-collapse:collapse;font-size:12.5px}
+.qastack .qb .qmd th,.qastack .qb .qmd td{border:1px solid #d9e2f3;padding:3px 7px}
+.qastack .qb .qmd p{margin:.3em 0}
+.qastack .qed{display:flex;flex-direction:column;gap:6px;padding:4px 10px 10px}
+.qastack .qed label{font:800 11px/1 var(--font-d,system-ui);color:#475569}
+.qastack .qed textarea{width:100%;min-height:70px;resize:vertical;border:1px solid #cbd5e1;border-radius:7px;padding:7px 8px;font:13px/1.5 var(--font-m,monospace);box-sizing:border-box}
+.qastack .qed .qeb{display:flex;gap:6px;justify-content:flex-end}
+.qastack .qed .qeb button{border:1px solid #cbd5e1;border-radius:7px;padding:6px 12px;font:700 12px/1 var(--font-d,system-ui);cursor:pointer;background:#fff}
+.qastack .qed .qeb button.ok{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+.qastack .qempty{font:600 11.5px/1.5 var(--font-d,system-ui);color:#94a3b8;padding:4px 4px 2px}
+body.rd-night .qastack{background:#131c2e;border-color:#33415c}
+body.rd-night .qastack .qah{background:#1d2a44}
+body.rd-night .qastack .qah b{color:#cfe0ff}
+body.rd-night .qastack .qai{background:#0f172a;border-color:#33415c}
+body.rd-night .qastack .qai > summary .qs{color:#e2e8f0}
+</style>
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const client=()=>{ try{ return sb }catch(e){ return null } };
+const curSid=()=>{ try{ return CACHE_SID }catch(e){ return null } };
+const rows=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
+const rowOf=id=>rows().find(r=>String(r.id)===String(id));
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const say=m=>{ try{ (window.__pxToast||window.AppUI?.toast||console.log)(m) }catch(e){} };
+const NOCOL=m=>/\bqa\b|column|schema cache|42703|PGRST204/i.test(String(m||''));
+const short=r=>r?`${String(r.year).length===4&&+r.year<3000?String(r.year).slice(2):r.year}-${r.session} ${r.no}`:'';
+
+/* ── 저장소 ── 이 기기(LS) + 서버(qa 칸). 문항마다 { items:[{id,q,a,at}], at } */
+const LK='prac:qa:v1', PK='prac:qa:pend';
+let COL=null;                                    /* null=모름 · true=있음 · false=없음 */
+const lsGet=k=>{ try{ return JSON.parse(localStorage.getItem(k)||'{}')||{} }catch(e){ return {} } };
+const lsPut=(k,v)=>{ try{ localStorage.setItem(k, JSON.stringify(v)) }catch(e){} };
+let L=lsGet(LK), PEND=lsGet(PK);
+const norm=v=>{ if(!v) return null; if(typeof v==='string'){ try{ v=JSON.parse(v) }catch(e){ return null } }
+  if(Array.isArray(v)) v={ items:v, at:0 }; return v && Array.isArray(v.items) ? v : null; };
+/* ★ v315 — 두 기기 것을 «합친다» (예전: 나중 것이 통째로 이김 → 다른 기기에서 막 쌓은 것이 사라질 수 있었음)
+   · 항목은 id 로 합침 · 같은 id 면 나중에 고친 쪽(ed) · 지운 id 는 del 에 남겨 되살아나지 않게 */
+const ver=x=>+(x&&(x.ed||x.at))||0;
+function merge(a,b){
+  a=norm(a)||{ items:[], del:[], at:0 }; b=norm(b)||{ items:[], del:[], at:0 };
+  const del=[...new Set([...(a.del||[]), ...(b.del||[])])].slice(-300), dd=new Set(del), by=new Map();
+  [...a.items, ...b.items].forEach(x=>{ if(!x || !x.id || dd.has(x.id)) return; const o=by.get(x.id); if(!o || ver(x)>ver(o)) by.set(x.id, x); });
+  return { items:[...by.values()].sort((p,q)=>(+p.at||0)-(+q.at||0)), del, at:Math.max(+a.at||0, +b.at||0) };
+}
+function get(id){
+  const a=L[String(id)], r=rowOf(id), b=norm(r&&r.qa);
+  return (a||b) ? merge(a,b) : { items:[], del:[], at:0 };
+}
+async function put(id, v){
+  id=String(id); v.at=Date.now(); if(!v.del) v.del=(get(id).del||[]); L[id]=v; lsPut(LK,L);
+  const r=rowOf(id); if(r) r.qa=v;
+  PEND[id]=1; lsPut(PK,PEND);
+  paintAll();
+  await flush();
+}
+let SAID=false;
+const noCol=()=>{ COL=false; if(!SAID){ SAID=true; say('📌 이 기기에만 저장했습니다 — Supabase 에서 supabase-qa.sql 을 한 번 돌리면 기기끼리 맞춰집니다'); } };
+async function flush(){
+  const c=client(); if(COL===false){ noCol(); return; }
+  if(!c || !navigator.onLine) return;
+  for(const id of Object.keys(PEND)){
+    let v=L[id]; if(!v){ delete PEND[id]; continue; }
+    /* 올리기 전에 서버 것을 한 번 받아 합친다 — 다른 기기가 그새 쌓은 것을 덮지 않게 */
+    const g=await c.from('practicals').select('qa').eq('id', id).maybeSingle();
+    if(g.error && NOCOL(g.error.message)){ noCol(); return; }
+    if(!g.error && g.data && g.data.qa){ v=merge(g.data.qa, v); v.at=Date.now(); L[id]=v; lsPut(LK,L); const r=rowOf(id); if(r) r.qa=v; paintAll(); }
+    const q=await c.from('practicals').update({ qa:v }).eq('id', id);
+    if(q.error){
+      if(NOCOL(q.error.message)) noCol();
+      return;
+    }
+    COL=true; delete PEND[id]; lsPut(PK,PEND);
+  }
+}
+/* 서버 → 이 기기 (두 쪽 것을 합침) */
+/* ★ v315 — 한 번만 받던 것 → 과목이 바뀌면 · 1분마다 · 창으로 돌아올 때(다른 기기에서 쌓고 넘어온 경우) 다시 받음 */
+let PULLED='', PT=0;
+async function pull(force){
+  const c=client(), s=curSid(); if(!c || !s) return;
+  if(!force && PULLED===String(s) && Date.now()-PT<60000) return;
+  PULLED=String(s); PT=Date.now();
+  try{
+    const q=await c.from('practicals').select('id,qa').eq('subject_id', s).not('qa','is',null).limit(5000);
+    if(q.error){ if(NOCOL(q.error.message)) COL=false; return; }
+    COL=true;
+    (q.data||[]).forEach(d=>{
+      const id=String(d.id), sv=norm(d.qa); if(!sv) return;
+      const mv=merge(L[id], sv); L[id]=mv;
+      const r=rowOf(id); if(r) r.qa=mv;
+    });
+    lsPut(LK,L); lsPut(PK,PEND); paintAll(); flush();
+  }catch(e){}
+}
+
+/* ── 지금 문항 ── */
+function target(){
+  try{ if($('#ovl')?.classList.contains('on') && OVID!=null) return String(OVID); }catch(e){}
+  try{ if(document.body.classList.contains('oneup')){ const r=window.SHOWN&&window.SHOWN[window.ONEAT|0]; if(r) return String(r.id); } }catch(e){}
+  const cards=$$('.pcard[data-id]');
+  for(const c of cards){ const b=c.getBoundingClientRect(); if(b.bottom>80 && b.top<innerHeight*.6) return c.dataset.id; }
+  return cards.length?cards[0].dataset.id:null;
+}
+window.__pracQaTarget=()=>{ const id=target(), r=rowOf(id); return id&&r?{ id, label:(+r.year<3000?`${r.year}년 ${r.session}회 ${r.no}번`:short(r)) }:null; };
+window.__pracQaAdd=async(list)=>{
+  const id=target(); if(!id || !rowOf(id)) throw new Error('지금 보고 있는 문항을 못 찾았습니다');
+  const v=get(id), items=(v.items||[]).slice();
+  (Array.isArray(list)?list:[list]).forEach(x=>{
+    const q=String(x&&x.q||'').trim(), a=String(x&&x.a||'').trim(); if(!q && !a) return;
+    items.push({ id:'qa'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), q, a, at:Date.now() });
+  });
+  await put(id, { items, del:v.del });
+  OPEN.add(id);
+  return short(rowOf(id));
+};
+
+/* ── 그리기 ── */
+const OPEN=new Set(), OPENED=new Set();          /* OPENED — 사람이 펼쳐 둔 항목 (다시 그려도 유지) */                            /* 방금 저장한 문항 — 마지막 것을 펼쳐 보임 */
+let EDIT='';                                     /* 고치는 중인 항목 id */
+function mdHtml(t){
+  try{ if(window.AIChat && typeof window.AIChat.md==='function') return window.AIChat.md(t); }catch(e){}
+  try{ if(typeof window.mdLite==='function') return window.mdLite(t); }catch(e){}
+  return esc(t).replace(/\n/g,'<br>');
+}
+function tex(el){
+  try{ if(window.AIChat && typeof window.AIChat.tex==='function') return window.AIChat.tex(el); }catch(e){}
+  try{ window.renderMathInElement && window.renderMathInElement(el,{ delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}], throwOnError:false }); }catch(e){}
+}
+const firstLine=t=>String(t||'').replace(/[#*`>$]/g,'').replace(/\s+/g,' ').trim().slice(0,120);
+const when=ms=>{ const d=new Date(ms||0), p=n=>String(n).padStart(2,'0'); return `${String(d.getFullYear()).slice(2)}.${p(d.getMonth()+1)}.${p(d.getDate())}`; };
+function html(id){
+  const v=get(id), it=v.items||[];
+  if(!it.length) return '';
+  /* ★ v315 — «📌 저장한 Q&A N» 머리줄 없이 «Q1. 질문» 이 바로 한 줄씩 (누르면 답이 펼쳐짐) */
+  return `<div class="qal">${it.map((x,i)=>{
+      const last=i===it.length-1 && OPEN.has(id);
+      if(EDIT===x.id) return `<div class="qai" data-qi="${esc(x.id)}"><div class="qed">
+          <label>Q. 질문</label><textarea data-qe="q">${esc(x.q)}</textarea>
+          <label>A. 답 (마크다운 그대로 — 표·수식 유지)</label><textarea data-qe="a" style="min-height:160px">${esc(x.a)}</textarea>
+          <div class="qeb"><button type="button" data-qacancel>취소</button><button type="button" class="ok" data-qasave="${esc(x.id)}">저장</button></div></div></div>`;
+      return `<details class="qai" data-qi="${esc(x.id)}"${last||OPENED.has(x.id)?' open':''}>
+        <summary><span class="car">▸</span><span class="qs"><b>Q${i+1}.</b> ${esc(firstLine(x.q)||'(질문 없이 답만)')}</span><span class="qd">${when(x.at)}</span>
+          <button type="button" data-qaedit="${esc(x.id)}" title="고치기">✎</button><button type="button" data-qadel="${esc(x.id)}" title="지우기">🗑</button></summary>
+        <div class="qb">${x.q && (String(x.q).length>120 || /\n/.test(x.q)) ? `<span class="qk q">Q.</span><div class="qmd">${mdHtml(x.q)}</div>`:''}${x.a?`<span class="qk a">A.</span><div class="qmd">${mdHtml(x.a)}</div>`:''}</div>
+      </details>`; }).join('')}</div>`;
+}
+function slotFor(host, id){
+  let box=host.nextElementSibling;
+  if(!(box && box.classList.contains('qastack'))){ box=document.createElement('div'); box.className='qastack'; host.after(box); }
+  const v=get(id), sig=id+'|'+(v.at||0)+'|'+(v.items||[]).map(x=>x.id+ver(x)).join(',')+'|'+EDIT+'|'+OPEN.has(id);
+  if(box.__sig===sig) return;
+  box.__sig=sig; box.dataset.for=id;
+  const h=html(id);
+  box.hidden=!h;
+  box.innerHTML=h;
+  if(h) tex(box);
+}
+function paintAll(){
+  /* 일반 보기 — 카드의 쉬운 풀이 상자 밑 */
+  $$('.pcard[data-id] .pcol-ez .easybox, .pcard[data-id] .ez .easybox').forEach(b=>{
+    const id=b.closest('.pcard').dataset.id; slotFor(b, id); });
+  /* 한눈에 — 쉬운 풀이 칸 밑 */
+  try{ const e=$('#ovRight [data-seg="e"] .ez'); if(e && OVID!=null) slotFor(e, String(OVID)); }catch(e){}
+}
+document.addEventListener('click', async e=>{
+  const st=e.target.closest('.qastack'); if(!st) return;
+  const id=st.dataset.for; if(!id) return;
+  const t=e.target;
+  const ed=t.closest('[data-qaedit]'); if(ed){ e.preventDefault(); EDIT=ed.dataset.qaedit; st.__sig=''; paintAll(); st.querySelector('textarea')?.focus(); return; }
+  const dl=t.closest('[data-qadel]'); if(dl){ e.preventDefault();
+    if(!confirm('이 Q&A 를 지울까요?')) return;
+    const v=get(id); await put(id, { items:(v.items||[]).filter(x=>x.id!==dl.dataset.qadel), del:[...(v.del||[]), dl.dataset.qadel] }); return; }
+  if(t.closest('[data-qacancel]')){ EDIT=''; st.__sig=''; return paintAll(); }
+  const sv=t.closest('[data-qasave]'); if(sv){
+    const box=sv.closest('.qai'), q=box.querySelector('[data-qe="q"]').value, a=box.querySelector('[data-qe="a"]').value;
+    const v=get(id); EDIT='';
+    await put(id, { items:(v.items||[]).map(x=>x.id===sv.dataset.qasave?Object.assign({},x,{ q:q.trim(), a:a.trim(), ed:Date.now() }):x), del:v.del });
+    say('📌 고쳤습니다'); return; }
+});
+document.addEventListener('toggle', e=>{ const d=e.target; if(!(d && d.classList && d.classList.contains('qai'))) return;
+  const k=d.dataset.qi; if(d.open) OPENED.add(k); else OPENED.delete(k); }, true);
+/* 화면이 다시 그려지면 따라 붙인다 */
+let T=0;
+new MutationObserver(ms=>{
+  if(ms.every(m=>m.target.closest && m.target.closest('.qastack'))) return;
+  clearTimeout(T); T=setTimeout(()=>{ paintAll(); pull(); }, 120);
+}).observe(document.body, { childList:true, subtree:true });
+setInterval(()=>{ pull(); flush(); }, 60000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) pull(true); });
+addEventListener('focus', ()=>pull());
+window.__pracQaPull=()=>pull(true);
+addEventListener('online', flush);
+setTimeout(()=>{ paintAll(); pull(); }, 1500);
 })();
 </script>
 
