@@ -25530,6 +25530,14 @@ window.__mnOpen=open;
 .mmpop .c.rep::after{content:'';position:absolute;right:2px;top:2px;width:4px;height:4px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
 .mmpop .c:not(.ok):not(.no).rep::after{background:#64748b}
 .mmpop .c.dim{opacity:.18}
+/* ★ v327 — «중복 묶기» 로 목록에서 접힌 칸. 안 푼 것(흰칸)과 섞이면 «왜 건너뛰지» 가 된다.
+   빗금 + ⧉ 로 «여긴 목록에 없다» 를 눈에 보이게. 누르면 한눈에로 열린다. */
+.mmpop .c.fold{background:repeating-linear-gradient(135deg,#e9edf3 0 4px,#f7f9fc 4px 8px);
+  border-color:#c3ccd8;border-style:dashed;color:#64748b}
+.mmpop .c.fold::before{content:'⧉';position:absolute;left:-3px;top:-6px;font-size:9px;line-height:1;
+  color:#7c8899;font-style:normal;text-shadow:0 0 2px #fff,0 0 2px #fff;pointer-events:none}
+.mmpop .hd .sum .d{background:#e9edf3;color:#64748b}
+.mmpop .tb .unfold.on{background:#1f7a4d;border-color:#1f7a4d;color:#fff}
 .mmpop .c:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(15,23,42,.18)}
 .rdk i.lk{font-style:normal;padding:0 5px;height:100%;display:inline-flex;align-items:center;border-right:1px solid var(--line,#e2e8f0);
   font:800 9.5px/1 var(--font-d,system-ui);color:#6b2fb3;background:#f6f1fd;cursor:help}
@@ -25599,6 +25607,16 @@ function pop(){
     if(e.target.closest('[data-cl]')) return close();
     const f=e.target.closest('[data-f]');
     if(f){ FIL=f.dataset.f; try{ localStorage.setItem(FK,FIL) }catch(x){} SIG=''; return paint(); }
+    /* ★ v327 — «⧉ 접힘 펴기» : 중복 묶기를 풀어 접힌 문항을 목록에 되돌린다.
+       머리줄의 «⧉ 중복 묶기» 칩과 같은 스위치라, 한쪽에서 끄면 양쪽이 같이 꺼진다. */
+    if(e.target.closest('[data-unfold]')){
+      const chip=document.querySelector('#tagRow [data-dup]');
+      if(!chip){ try{ (window.__pxToast||console.log)('«중복 묶기» 단추를 찾지 못했습니다') }catch(x){} return; }
+      chip.click();                                    /* FOLD 뒤집고 목록 다시 그림 */
+      setTimeout(()=>{ SIG=''; paint(); },60);
+      try{ (window.__pxToast||console.log)('⧉ 접힘을 폈습니다 — 접힌 문항이 목록에 들어왔습니다 (다시 누르면 원래대로)') }catch(x){}
+      return;
+    }
     const aj=e.target.closest('[data-adj]');
     if(aj){ const id=curId(); if(id && window.__pracOkAdj){ window.__pracOkAdj(id, +aj.dataset.adj); SIG=''; paint(); } return; }
     if(e.target.closest('[data-okb]')){
@@ -25644,7 +25662,13 @@ function paint(){
   const TH=(window.__pracUnN&&window.__pracUnN())||1, CK=(window.__pracCkN&&window.__pracCkN())||1;
   const isFix=id=>{ try{ return !!(window.__ezFixed && window.__ezFixed(id)); }catch(e){ return false; } };
   const fixSig=(()=>{ try{ return (window.__ezFixList?window.__ezFixList():[]).sort().join(','); }catch(e){ return ''; } })();
-  const sig=R.length+'|'+JSON.stringify(P)+'|'+me+'|'+FIL+'|'+TH+'|'+CK+'|'+((window.__pracKinScope&&window.__pracKinScope())||'')+'|'+fixSig;
+  /* ★ v327 — «중복 묶기» 가 접어 둔 문항.
+     미니맵은 ROWS(전부)를 그리는데 목록(SHOWN)은 접힌 것을 뺀 뒤라, 접힌 칸이
+     «아직(흰칸)» 으로 보이면서 앞뒤로 넘길 때 통째로 건너뛰었다. 그 칸을 따로 그린다. */
+  const DH=(()=>{ try{ const d=window.__pracDup&&window.__pracDup(); return (d&&d.on&&d.hide&&d.hide.size)?d.hide:null }catch(e){ return null } })();
+  const repName=id=>{ try{ const rp=window.__pracRepOf&&window.__pracRepOf(id); if(!rp) return '';
+    const r=R.find(x=>String(x.id)===String(rp)); return r?`${exName(r.year,r.session)} ${r.no}번`:''; }catch(e){ return '' } };
+  const sig=R.length+'|'+JSON.stringify(P)+'|'+me+'|'+FIL+'|'+TH+'|'+CK+'|'+((window.__pracKinScope&&window.__pracKinScope())||'')+'|'+fixSig+'|'+(DH?DH.size:0);
   if(sig===SIG) return; SIG=sig;
   /* 같은 대문항 유형에서 맞힌 것이 있나 */
   /* ★ v288 — 연두 빗금 = 같은 문제 안에서 푼 기록이 있음 */
@@ -25654,7 +25678,7 @@ function paint(){
   R.forEach(r=>{ const k=r.year+'|'+r.session; (ex.get(k)||ex.set(k,[]).get(k)).push(r); });
   const keys=[...ex.keys()].sort((a,b)=>{ const [ay,as]=a.split('|').map(Number), [by,bs]=b.split('|').map(Number);
     const ar=ay>0&&ay<3000, br=by>0&&by<3000; return (br-ar)||(by-ay)||(bs-as); });
-  let O=0,X=0,U=0,FX=0;
+  let O=0,X=0,U=0,FX=0,FD=0;
   const meRow=R.find(r=>String(r.id)===me)||null;
   const html=keys.map(k=>{
     const list=ex.get(k).sort((a,b)=>(+a.no)-(+b.no));
@@ -25666,8 +25690,10 @@ function paint(){
       const dim= FIL==='no' ? st!=='no' : FIL==='un' ? !!st : false;
       const on_=okN(r.id), cn_=p?(p.n|0):0, dim2=(FIL==='left' && on_>=TH) || (FIL==='ckleft' && cn_>=CK);
       const fx=isFix(r.id); if(fx) FX++;
-      const cls=['c', st, kin?'kin':'', String(r.id)===me?'me':'', (dim||dim2)?'dim':'', fx?'fix':''].filter(Boolean).join(' ');
-      const tip=`${exName(r.year,r.session)} ${r.no}번 — ${st==='ok'?'맞음':st==='no'?'틀림':st==='chk'?'푼 기록만':kin?`아직 (같은 문제를 ${kn}번 풂)`:'아직'}${p&&p.n?` · ${p.n}회독 (맞힘 ${on_} · 틀림 ${p.no!=null?p.no:(p.r==='no'?1:0)})`:''}${p&&p.at?` · ${new Date(p.at).toLocaleDateString('ko-KR')}`:''}${qt(r.id)?`\n유형: ${qt(r.id)}`:''}${fx?'\n🔒 쉬운해설 고정 — 오른쪽 클릭으로 풀기':'\n오른쪽 클릭 = 쉬운해설 고정'}`;
+      const fold=!!(DH && DH.has(String(r.id))); if(fold) FD++;
+      const cls=['c', st, kin?'kin':'', fold?'fold':'', String(r.id)===me?'me':'', (dim||dim2)?'dim':'', fx?'fix':''].filter(Boolean).join(' ');
+      const rpn=fold?repName(r.id):'';
+      const tip=`${exName(r.year,r.session)} ${r.no}번 — ${st==='ok'?'맞음':st==='no'?'틀림':st==='chk'?'푼 기록만':kin?`아직 (같은 문제를 ${kn}번 풂)`:'아직'}${p&&p.n?` · ${p.n}회독 (맞힘 ${on_} · 틀림 ${p.no!=null?p.no:(p.r==='no'?1:0)})`:''}${p&&p.at?` · ${new Date(p.at).toLocaleDateString('ko-KR')}`:''}${qt(r.id)?`\n유형: ${qt(r.id)}`:''}${fold?`\n⧉ 중복 묶기로 접힘 — 목록에서 빠져 있어 앞뒤로 넘길 때 건너뜁니다${rpn?`\n대표: ${rpn}`:''}\n위 «⧉ 접힘 펴기» 를 누르면 목록에 다시 들어옵니다`:''}${fx?'\n🔒 쉬운해설 고정 — 오른쪽 클릭으로 풀기':'\n오른쪽 클릭 = 쉬운해설 고정'}`;
       return `<button type="button" class="${cls}" data-id="${esc(r.id)}" title="${esc(tip)}">${esc(r.no)}${cn_>=2?`<sup>${cn_}</sup>`:''}${fx?'<i class="lk" aria-label="해설 고정">🔒</i>':''}</button>`;
     }).join('');
     const y=k.split('|');
@@ -25677,11 +25703,12 @@ function paint(){
   }).join('');
   /* ★ v324 — 다시 그려도 보던 자리 유지 (아래쪽에서 오른쪽 클릭 고정하면 맨 위로 튀던 것) */
   const bd0=EL.querySelector('.bd'), keepY=bd0?bd0.scrollTop:0;
-  EL.innerHTML=`<div class="hd"><b>🗺 맞음 미니맵</b><span class="sum">${R.length}문항 <i class="o">✓ ${O}</i><i class="x">✕ ${X}</i><i class="u">아직 ${U}</i><i class="f" title="쉬운해설 고정 · 칸을 오른쪽 클릭하면 고정/풀기">🔒 ${FX}</i></span>
+  EL.innerHTML=`<div class="hd"><b>🗺 맞음 미니맵</b><span class="sum">${R.length}문항 <i class="o">✓ ${O}</i><i class="x">✕ ${X}</i><i class="u">아직 ${U}</i>${FD?`<i class="d" title="중복 묶기로 접혀 목록에서 빠진 문항 — 앞뒤로 넘길 때 건너뜁니다">⧉ 접힘 ${FD}</i>`:''}<i class="f" title="쉬운해설 고정 · 칸을 오른쪽 클릭하면 고정/풀기">🔒 ${FX}</i></span>
       <button type="button" class="cl" data-cl aria-label="닫기">✕</button></div>
     <div class="tb">${[['all','전체'],['no','틀림만'],['un','아직만'],['ckleft',`체크 ${CK}번↑ 흐리게`],['left',`맞힘 ${TH}번↑ 흐리게`]].map(([k,n])=>`<button type="button" data-f="${k}" class="${FIL===k?'on':''}">${n}</button>`).join('')}
+      ${FD?`<button type="button" class="unfold" data-unfold title="지금 ${FD}문항이 «중복 묶기» 로 접혀 목록에서 빠져 있습니다. 누르면 접기를 풀어 전부 목록에 넣습니다 (다시 누르면 원래대로)">⧉ 접힘 펴기 ${FD}</button>`:''}
       <button type="button" class="fxall" data-fxall title="맞음 기록이 있거나 1번이라도 회독한 문항의 쉬운해설을 모두 고정합니다 (이미 고정된 것은 그대로)">🔒 푼 것 모두 고정</button>
-      <span class="lg"><span style="--c:#22a060">맞음</span><span style="--c:#e5484d">틀림</span><span style="--c:#8fb0ee">푼 기록만</span><span style="--c:#fff;">아직</span><span style="--c:#bfe8cf">같은 문제 풂</span><span class="lgf">🔒 해설 고정 (오른쪽 클릭)</span></span></div>
+      <span class="lg"><span style="--c:#22a060">맞음</span><span style="--c:#e5484d">틀림</span><span style="--c:#8fb0ee">푼 기록만</span><span style="--c:#fff;">아직</span><span style="--c:#bfe8cf">같은 문제 풂</span>${FD?`<span style="--c:#e9edf3">⧉ 접힘 (목록에 없음)</span>`:''}<span class="lgf">🔒 해설 고정 (오른쪽 클릭)</span></span></div>
     <div class="bd">${html||'<div class="emp">문항이 없습니다</div>'}</div>
     ${meRow?`<div class="ft"><span>지금 <b>${esc(exName(meRow.year,meRow.session))} ${esc(meRow.no)}번</b></span>
       <span>회독</span><span class="stp"><button type="button" data-cadj="-1" aria-label="줄이기">−</button><b>${(P[String(meRow.id)]||{}).n|0}</b><button type="button" data-cadj="1" aria-label="늘리기">＋</button></span>
