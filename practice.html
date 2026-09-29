@@ -423,6 +423,10 @@ body.oneup .pnav{display:flex}
 #pnavAt{font:600 12px/1 var(--font-m);color:var(--ink-2);min-width:120px;text-align:center}
 body.oneup #list > .pcard{display:none}
 body.oneup #list > .pcard.show{display:block}
+/* ★ v327 — «북마크만 보기 · 미학습만 · 틀린 것만 · 시험 모드» 는 카드에 hidden 을 세워 거른다.
+   그런데 위 .show 규칙이 UA 기본 [hidden] 보다 세서, 한 문항씩 보기에서는 거르기가
+   통째로 무시됐다 (토스트만 뜨고 화면은 그대로, ←/→ 도 거른 문항을 그냥 넘어감). */
+body.oneup #list > .pcard.show[hidden]{display:none!important}
 .noans{margin-top:10px;padding:11px 13px;border:1px dashed var(--rule);border-radius:10px;
   font-size:12.5px;color:var(--ink-2);line-height:1.7;background:var(--paper)}
 .noans b{color:var(--ink)}
@@ -1893,10 +1897,18 @@ function drawList(){
      뽑은 목록은 다시 누르기 전까지 그대로라, 풀다가 화면을 건드려도 순서가 안 흐트러진다. */
   if(RAND){
     { const byId = new Map(rows.map(r => [r.id, r])); rows = RAND.map(id => byId.get(id)).filter(Boolean); }   /* ★ v312 — 최신순은 2000문항 전부라 find 반복은 느림 */
-    if(!rows.length){ RAND = null; return drawList(); }
+    /* ★ v327 — 랜덤이 조용히 풀리던 자리. 단추는 «🎲 랜덤 해제 (20)» 인 채로 남아서,
+       다음에 누르면 해제가 아니라 새로 20문항을 또 뽑았다. 단추도 같이 되돌린다. */
+    if(!rows.length){ RAND = null; try{ paintRand() }catch(e){} return drawList(); }
   }
 
   if(!rows.length){
+    /* ★ v327 — 여기서 그냥 return 하면 SHOWN·ONEAT 가 직전 목록 그대로 얼어붙는다.
+       화면엔 «조건에 맞는 문제가 없습니다» 가 뜨는데 아래 띠는 «37 / 120» 을 유지하고,
+       → 를 누를 때마다 ONEAT 만 소리 없이 밀려서, 검색어를 지우면 보던 자리가 아니라
+       엉뚱한 끝 문항으로 튀었다. 목록이 비면 상태도 같이 비운다. */
+    SHOWN = []; ONEAT = 0;
+    try{ const at=$("#pnavAt"); if(at) at.textContent = "0 / 0"; }catch(e){}
     $("#list").innerHTML = `<div class="empty">${ROWS.length ? "조건에 맞는 문제가 없습니다." : "아직 올린 실기 문제가 없습니다. 아래에서 PDF 를 넣어 주세요."}</div>`;
     return;
   }
@@ -25865,14 +25877,27 @@ async function flush(){
           for(let j=0;j<ids.length;j+=300){
             const part=ids.slice(j,j+300);
             try{
-              const up=await c.from('practicals').update({ [kind]:JSON.parse(k) }).in('id', part.map(x=>isNaN(+x)?x:+x));
+              /* ★ v327 — .select('id') 를 붙였다.
+                 예전에는 «에러만 없으면 성공» 으로 보고 대기열을 지웠는데,
+                 한 줄도 안 바뀌어도(id 가 안 맞거나 RLS 에 걸려도) 에러는 안 난다.
+                 그래서 서버엔 없는데 대기열은 비워져 기록이 영영 안 올라갔다.
+                 이제 «진짜 바뀐 id» 만 대기열에서 뺀다 — 못 올린 건 남아서 다음에 다시 시도한다. */
+              const up=await c.from('practicals').update({ [kind]:JSON.parse(k) })
+                              .in('id', part.map(x=>isNaN(+x)?x:+x)).select('id');
               if(up.error){
                 if(NOCOL(up.error.message)){ COL[kind]=false; stop=true;
                   if(!TOLD){ TOLD=true; say('🔄 회독·북마크가 이 기기에만 저장됩니다 — supabase-study.sql 을 한 번 돌리면 기기끼리 맞춥니다'); } }
                 return;
               }
               COL[kind]=true;
-              part.forEach(id=>{ if(JSON.stringify(PEND[kind][id])===k) delete PEND[kind][id]; });
+              const done=new Set((up.data||[]).map(r=>String(r.id)));
+              let miss=0;
+              part.forEach(id=>{
+                if(!done.has(String(id))){ miss++; return; }              /* 안 바뀐 줄은 대기열에 남긴다 */
+                if(JSON.stringify(PEND[kind][id])===k) delete PEND[kind][id];
+              });
+              if(miss && !TOLD){ TOLD=true;
+                say(`🔄 기록 ${miss}개가 서버에 저장되지 않았습니다 — 이 기기에는 남아 있고 다음에 다시 시도합니다`); }
             }catch(e){ stop=true; }
           }
         }));
@@ -25907,9 +25932,28 @@ async function pull(force){
       /* 진도 */
       const sp=d.prog, lp=P[id], pp=PEND.prog[id];
       if(sp && typeof sp==='object'){
-        if(pp){ if(at(sp)>at(pp)){ delete PEND.prog[id]; window.__pracProgPut(id, sp); chP=true; } }
-        else if(!lp || at(sp)>at(lp)){ if((sp.n|0)>0 || lp){ window.__pracProgPut(id, sp); chP=true; } }
-        else if(at(lp)>at(sp)) PEND.prog[id]=lp;
+        /* ★ v327 — 예전에는 «나중에 만진 쪽» 레코드를 통째로 갈아끼웠다.
+           그래서 PC 에서 3회독한 문항을 태블릿에서 1회독하면 서버·PC 가 모두 1회독으로 내려앉아
+           2회독분이 사라졌다. 이제 회독·맞힘·틀림은 **큰 쪽을 남기고**(되돌아가지 않음),
+           마지막 결과(r)와 시각(at)만 나중 것을 따른다. 초기화(n:0)는 예외로 그대로 받는다. */
+        const nn=(v)=>({ n:+(v&&v.n)||0, ok:+(v&&v.ok)||(v&&v.r==='ok'?1:0)||0, no:+(v&&v.no)||(v&&v.r==='no'?1:0)||0 });
+        const fuse=(a,b)=>{                       /* a,b 중 하나가 없으면 있는 쪽 */
+          if(!a) return b; if(!b) return a;
+          if((+a.n||0)===0 || (+b.n||0)===0) return at(a)>=at(b)?a:b;   /* 초기화는 덮어쓰기 */
+          const A=nn(a), B=nn(b), late=at(a)>=at(b)?a:b;
+          return Object.assign({}, late, { n:Math.max(A.n,B.n), ok:Math.max(A.ok,B.ok), no:Math.max(A.no,B.no) });
+        };
+        if(pp){
+          const m=fuse(sp,pp);
+          if(JSON.stringify(m)!==JSON.stringify(pp)){ PEND.prog[id]=m; }
+          if(JSON.stringify(m)!==JSON.stringify(lp)){ window.__pracProgPut(id, m); chP=true; }
+        }else{
+          const m=fuse(sp,lp);
+          if(JSON.stringify(m)!==JSON.stringify(lp)){
+            if((m.n|0)>0 || lp){ window.__pracProgPut(id, m); chP=true; }
+          }
+          if(JSON.stringify(m)!==JSON.stringify(sp)) PEND.prog[id]=m;   /* 합친 값을 서버로도 되돌려 보냄 */
+        }
       }else if(lp && !pp) PEND.prog[id]=lp;
       /* 북마크 */
       const sf=d.fav, lf=F[id], pf=PEND.fav[id];
@@ -25941,13 +25985,30 @@ async function pull(force){
 window.__studySync=()=>pull(true);
 
 /* 진도 초기화 — 모든 기기에서 지우기 */
+/* ★ v327 — 진도 초기화.
+   예전 코드는 `.not('prog','is',null)` 하나로 **practicals 테이블 전체**를 지웠다.
+   전기기사만 지우려 해도 공조냉동 등 다른 과목 진도까지 통째로 날아갔고,
+   한 계정을 여럿이 쓰면 남의 기록까지 지워졌다.
+   지금은 «지금 화면에 있는 그 문항들(ids)» 만, 300개씩 끊어서 지운다. */
 window.__studyReset=async ids=>{
   const now=Date.now(), z={ n:0, at:now };
-  (ids||[]).forEach(id=>{ PEND.prog[String(id)]=z; });
+  const list=[...new Set((ids||[]).map(String))];
+  list.forEach(id=>{ PEND.prog[id]=z; });
   psv();
+  if(!list.length){ flush(); return; }
   const c=client();
   if(c && COL.prog!==false){
-    try{ const up=await c.from('practicals').update({ prog:z }).not('prog','is',null); if(!up.error){ (ids||[]).forEach(id=>{ delete PEND.prog[String(id)]; }); psv(); } }catch(e){}
+    for(let i=0;i<list.length;i+=300){
+      const part=list.slice(i,i+300);
+      try{
+        const up=await c.from('practicals').update({ prog:z })
+                        .in('id', part.map(x=>isNaN(+x)?x:+x)).select('id');
+        if(up.error) break;
+        const done=new Set((up.data||[]).map(r=>String(r.id)));
+        part.forEach(id=>{ if(done.has(id)) delete PEND.prog[id]; });   /* 진짜 지워진 것만 대기열에서 뺌 */
+        psv();
+      }catch(e){ break; }
+    }
   }
   flush();
 };
