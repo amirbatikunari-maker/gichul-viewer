@@ -1294,7 +1294,7 @@ async function askSol(r, depth){
   }
   const md = solToMd(d.sol || {});
   if(!md || md.length < 20) throw new Error("해설이 비어서 왔습니다");
-  return { md, model: d.model || null, usage: d.usage || null, depth: d.depth || null,
+  return { md, model: d.model || null, usage: d.usage || null, depth: d.depth || null, bill: d.bill || null,
            problems: Array.isArray(d.problems) ? d.problems : [] };
 }
 
@@ -1332,7 +1332,7 @@ async function genSol(btn){
   try{
     const got = await solveOne(target, $("#solEffort") ? $("#solEffort").value : "full");
     clearInterval(tick);
-    log(`${target.no}번 해설 뽑기 완료 (${got.md.length}자)`, "ok");
+    log(`${target.no}번 해설 뽑기 완료 — ${got.md.length.toLocaleString()}자${billTxt(got.bill)}`, "ok");
     draw();
     if(CUR && CUR.no === target.no) detail(target.no);   /* 다시 그리면 이 쪽지는 사라짐 */
   }catch(e){
@@ -1355,7 +1355,7 @@ function solToMd(sol){
      그대로 찍으면 대괄호·따옴표가 화면에 그대로 나온다. 풀어서 줄로 나눈다. */
   /* ★ v257 — 칸을 못 채우고 «<item>…</item>» 같은 표를 통째로 적어 보내는 일이 있다.
      그대로 찍으면 태그가 화면에 그대로 나온다. 태그를 걷어내고 줄로 나눈다. */
-  const XML = /<\/?(item|step|symbol|sym|mean|unit|val|say|math|calc|plain|read|why|eq|steps|symbols|given|background|also|tags|tag|check|trap|memo|answer|gist|write_solution|why_answer|easy|min_ans|must|terms|formula_why|pairs)\s*\/?>/gi;
+  const XML = /<\/?(item|step|symbol|sym|mean|unit|val|say|math|calc|plain|read|why|eq|steps|symbols|given|background|also|tags|tag|check|trap|memo|answer|gist|write_solution|why_answer|easy|min_ans|must|terms|formula_why|pairs|derive|gates|truth)\s*\/?>/gi;
   const unxml = t => String(t == null ? "" : t)
     .replace(/<\/?item\s*\/?>/gi, "\n")
     .replace(XML, " ")
@@ -1522,6 +1522,17 @@ function solToMd(sol){
       L.push(/^\s*(\(\d+\)|[①-⑳]|\d+\s*[).])/.test(sy0) ? `${sy0}` : `${i+1}. ${sy0}`, "");
       /* ★ v277 — 소문항 답은 그 단계 바로 밑에 먼저 (단답·서술은 «답 → 왜» 순서) */
       if(s.ans) L.push(`> ${line(s.ans).replace(/\n+/g, " ")}`, "");
+      /* ★ v327 — 식 바꾸는 과정 «한 줄에 법칙 하나» (논리식 드모르간 등) — 표: 번호 · 식 · 이 줄에서 한 것 */
+      const tcl = t => line(t).replace(/\n+/g, " ").replace(/\|/g, "∣").trim() || " ";
+      /* ★ v328 — 식 안의 게이트 이름(NAND·NOR…)은 변수처럼 기울지 않게 똑바른 글씨로 */
+      const gateUp = x => x.replace(/(^|[^\\a-zA-Z{])(NAND|NOR|XOR|NOT|AND|OR)(?![a-zA-Z])/g, "$1\\mathrm{$2}");
+      const tmath = t => { const x = tex(String(t || "")); return x ? "$" + gateUp(x).replace(/\|/g, "\\vert ") + "$" : " "; };
+      const DV = arr(s.derive).filter(d => d && typeof d === "object" && String(d.eq || "").trim());
+      if(DV.length){
+        L.push("| | 식 | 이 줄에서 한 것 |", "|---|---|---|");
+        DV.forEach((d, k) => L.push(`| ${"①②③④⑤⑥⑦⑧⑨⑩⑪⑫"[k] || (k + 1)} | ${tmath(d.eq)} | ${tcl(d.law || "")} |`));
+        L.push("");
+      }
       /* 새 판 — 등호로 이은 한 줄(여럿이면 줄마다) */
       /* ★ v260 — 한 단계는 다섯 줄. 순서를 화면에서 못 박는다.
          ①부호식 ②해설식 ③숫자대입식 ④읽기식 ⑤왜 */
@@ -1534,6 +1545,13 @@ function solToMd(sol){
       }
       else if(eqs.length) eqs.forEach(e => eqBlock(e));
       else eqBlock([s.math, s.calc].filter(Boolean));   /* 옛 판 대비 */
+      /* ★ v327 — 게이트 연결표: 이 표만 보고 답안 그림을 따라 그릴 수 있게 */
+      const GT = arr(s.gates).filter(g => g && typeof g === "object" && String(g.type || g.g || "").trim());
+      if(GT.length){
+        L.push("| 게이트 | 종류 | 입력 | 출력 | 하는 일 |", "|---|---|---|---|---|");
+        GT.forEach(g => L.push(`| **${tcl(g.g || "")}** | ${tcl(g.type || "")} | ${/[\\^_{]/.test(String(g.in || "")) ? tmath(g.in) : tcl(g.in || "")} | ${/[\\^_{]/.test(String(g.out || "")) ? tmath(g.out) : tcl(g.out || "")} | ${tcl(g.role || "")} |`));
+        L.push("");
+      }
       if(s.read) L.push(`- 읽기: “${line(s.read).replace(/^["“]|["”]$/g, "")}”`, "");
       if(s.why)  L.push(`- 왜: ${line(s.why)}`, "");
       L.push("");
@@ -1594,6 +1612,14 @@ function solToMd(sol){
   }
   if(sol.why_answer) L.push("**왜 이 답인가**", "", line(sol.why_answer), "");
   if(sol.check)      L.push("**검산**", "", line(sol.check), "");
+  /* ★ v327 — 진리표 검산 (입력 조합 전부 · 원래 식과 바꾼 회로 출력 나란히) */
+  const TR = sol.truth && typeof sol.truth === "object" ? sol.truth : null;
+  if(TR && arr(TR.cols).length && arr(TR.rows).length){
+    const cc = arr(TR.cols).map(c => String(c == null ? "" : c).replace(/[|\n]/g, " ").trim() || " ");
+    L.push("**진리표 검산**", "", "| " + cc.join(" | ") + " |", "|" + cc.map(() => "---").join("|") + "|");
+    arr(TR.rows).forEach(r => { const v = Array.isArray(r) ? r : arr(r); L.push("| " + cc.map((_, k) => String(v[k] == null ? "" : v[k]).replace(/[|\n]/g, " ").trim() || " ").join(" | ") + " |"); });
+    L.push("");
+  }
   if(sol.memo)       L.push("**외우기**", "", line(sol.memo), "");
   /* ★ v276 — 두문자 : 첫 줄 `글자` · 줄마다 «글자 — 항목» (화면에서 고쳐 쓸 수 있음) */
   /* ★ v283 — 소문항마다 두문자 묶음 (mnemos 배열). 예전 mnemo 하나도 그대로 받음.
@@ -1664,7 +1690,9 @@ function solToMd(sol){
 /* ═══════════════════════════════════════════════════
    해설 일괄 뽑기 — 지금 불러온 문항이 대상 (v252)
    ═══════════════════════════════════════════════════ */
-const SN = { total:0, done:0, bad:0, skip:0, tin:0, tout:0 };
+const SN = { total:0, done:0, bad:0, skip:0, tin:0, tout:0, krw:0 };
+/* ★ v328 — 문항마다 «몇 자 · 얼마» */
+const billTxt = b => b && b.calls > 0 ? ` · 약 ${(b.krw|0).toLocaleString()}원 (호출 ${b.calls}번 · 입력 ${(b.in_tokens/1000).toFixed(1)}k/출력 ${(b.out_tokens/1000).toFixed(1)}k 토큰)` : "";
 let SOL_TARGET = [], SOL_FAILED = [], SOL_RUN = false, SOL_STOP = false;
 
 function solLog(m, cls){
@@ -1735,7 +1763,8 @@ async function solRun(list){
       try{
         const got = await solveOne(r, depth);
         if(got.usage){ SN.tin += got.usage.input_tokens||0; SN.tout += got.usage.output_tokens||0; }
-        SN.done++; solLog(`${tag} 완료 · ${got.md.length}자`, "ok");
+        if(got.bill) SN.krw += got.bill.krw|0;
+        SN.done++; solLog(`${tag} 완료 · ${got.md.length.toLocaleString()}자${billTxt(got.bill)} · 누적 약 ${SN.krw.toLocaleString()}원`, "ok");
         draw();
       }catch(e){
         if(e.skip){ SN.skip++; solLog(`${tag} 건너뜀 — ${e.message}`, "skip"); }

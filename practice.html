@@ -423,10 +423,6 @@ body.oneup .pnav{display:flex}
 #pnavAt{font:600 12px/1 var(--font-m);color:var(--ink-2);min-width:120px;text-align:center}
 body.oneup #list > .pcard{display:none}
 body.oneup #list > .pcard.show{display:block}
-/* ★ v327 — «북마크만 보기 · 미학습만 · 틀린 것만 · 시험 모드» 는 카드에 hidden 을 세워 거른다.
-   그런데 위 .show 규칙이 UA 기본 [hidden] 보다 세서, 한 문항씩 보기에서는 거르기가
-   통째로 무시됐다 (토스트만 뜨고 화면은 그대로, ←/→ 도 거른 문항을 그냥 넘어감). */
-body.oneup #list > .pcard.show[hidden]{display:none!important}
 .noans{margin-top:10px;padding:11px 13px;border:1px dashed var(--rule);border-radius:10px;
   font-size:12.5px;color:var(--ink-2);line-height:1.7;background:var(--paper)}
 .noans b{color:var(--ink)}
@@ -1897,18 +1893,10 @@ function drawList(){
      뽑은 목록은 다시 누르기 전까지 그대로라, 풀다가 화면을 건드려도 순서가 안 흐트러진다. */
   if(RAND){
     { const byId = new Map(rows.map(r => [r.id, r])); rows = RAND.map(id => byId.get(id)).filter(Boolean); }   /* ★ v312 — 최신순은 2000문항 전부라 find 반복은 느림 */
-    /* ★ v327 — 랜덤이 조용히 풀리던 자리. 단추는 «🎲 랜덤 해제 (20)» 인 채로 남아서,
-       다음에 누르면 해제가 아니라 새로 20문항을 또 뽑았다. 단추도 같이 되돌린다. */
-    if(!rows.length){ RAND = null; try{ paintRand() }catch(e){} return drawList(); }
+    if(!rows.length){ RAND = null; return drawList(); }
   }
 
   if(!rows.length){
-    /* ★ v327 — 여기서 그냥 return 하면 SHOWN·ONEAT 가 직전 목록 그대로 얼어붙는다.
-       화면엔 «조건에 맞는 문제가 없습니다» 가 뜨는데 아래 띠는 «37 / 120» 을 유지하고,
-       → 를 누를 때마다 ONEAT 만 소리 없이 밀려서, 검색어를 지우면 보던 자리가 아니라
-       엉뚱한 끝 문항으로 튀었다. 목록이 비면 상태도 같이 비운다. */
-    SHOWN = []; ONEAT = 0;
-    try{ const at=$("#pnavAt"); if(at) at.textContent = "0 / 0"; }catch(e){}
     $("#list").innerHTML = `<div class="empty">${ROWS.length ? "조건에 맞는 문제가 없습니다." : "아직 올린 실기 문제가 없습니다. 아래에서 PDF 를 넣어 주세요."}</div>`;
     return;
   }
@@ -20901,7 +20889,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=326").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=328").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -21000,7 +20988,7 @@ function solToMd(sol){
      그대로 찍으면 대괄호·따옴표가 화면에 그대로 나온다. 풀어서 줄로 나눈다. */
   /* ★ v257 — 칸을 못 채우고 «<item>…</item>» 같은 표를 통째로 적어 보내는 일이 있다.
      그대로 찍으면 태그가 화면에 그대로 나온다. 태그를 걷어내고 줄로 나눈다. */
-  const XML = /<\/?(item|step|symbol|sym|mean|unit|val|say|math|calc|plain|read|why|eq|steps|symbols|given|background|also|tags|tag|check|trap|memo|answer|gist|write_solution|why_answer|easy|min_ans|must|terms|formula_why|pairs)\s*\/?>/gi;
+  const XML = /<\/?(item|step|symbol|sym|mean|unit|val|say|math|calc|plain|read|why|eq|steps|symbols|given|background|also|tags|tag|check|trap|memo|answer|gist|write_solution|why_answer|easy|min_ans|must|terms|formula_why|pairs|derive|gates|truth)\s*\/?>/gi;
   const unxml = t => String(t == null ? "" : t)
     .replace(/<\/?item\s*\/?>/gi, "\n")
     .replace(XML, " ")
@@ -21167,6 +21155,17 @@ function solToMd(sol){
       L.push(/^\s*(\(\d+\)|[①-⑳]|\d+\s*[).])/.test(sy0) ? `${sy0}` : `${i+1}. ${sy0}`, "");
       /* ★ v277 — 소문항 답은 그 단계 바로 밑에 먼저 (단답·서술은 «답 → 왜» 순서) */
       if(s.ans) L.push(`> ${line(s.ans).replace(/\n+/g, " ")}`, "");
+      /* ★ v327 — 식 바꾸는 과정 «한 줄에 법칙 하나» (논리식 드모르간 등) — 표: 번호 · 식 · 이 줄에서 한 것 */
+      const tcl = t => line(t).replace(/\n+/g, " ").replace(/\|/g, "∣").trim() || " ";
+      /* ★ v328 — 식 안의 게이트 이름(NAND·NOR…)은 변수처럼 기울지 않게 똑바른 글씨로 */
+      const gateUp = x => x.replace(/(^|[^\\a-zA-Z{])(NAND|NOR|XOR|NOT|AND|OR)(?![a-zA-Z])/g, "$1\\mathrm{$2}");
+      const tmath = t => { const x = tex(String(t || "")); return x ? "$" + gateUp(x).replace(/\|/g, "\\vert ") + "$" : " "; };
+      const DV = arr(s.derive).filter(d => d && typeof d === "object" && String(d.eq || "").trim());
+      if(DV.length){
+        L.push("| | 식 | 이 줄에서 한 것 |", "|---|---|---|");
+        DV.forEach((d, k) => L.push(`| ${"①②③④⑤⑥⑦⑧⑨⑩⑪⑫"[k] || (k + 1)} | ${tmath(d.eq)} | ${tcl(d.law || "")} |`));
+        L.push("");
+      }
       /* 새 판 — 등호로 이은 한 줄(여럿이면 줄마다) */
       /* ★ v260 — 한 단계는 다섯 줄. 순서를 화면에서 못 박는다.
          ①부호식 ②해설식 ③숫자대입식 ④읽기식 ⑤왜 */
@@ -21179,6 +21178,13 @@ function solToMd(sol){
       }
       else if(eqs.length) eqs.forEach(e => eqBlock(e));
       else eqBlock([s.math, s.calc].filter(Boolean));   /* 옛 판 대비 */
+      /* ★ v327 — 게이트 연결표: 이 표만 보고 답안 그림을 따라 그릴 수 있게 */
+      const GT = arr(s.gates).filter(g => g && typeof g === "object" && String(g.type || g.g || "").trim());
+      if(GT.length){
+        L.push("| 게이트 | 종류 | 입력 | 출력 | 하는 일 |", "|---|---|---|---|---|");
+        GT.forEach(g => L.push(`| **${tcl(g.g || "")}** | ${tcl(g.type || "")} | ${/[\\^_{]/.test(String(g.in || "")) ? tmath(g.in) : tcl(g.in || "")} | ${/[\\^_{]/.test(String(g.out || "")) ? tmath(g.out) : tcl(g.out || "")} | ${tcl(g.role || "")} |`));
+        L.push("");
+      }
       if(s.read) L.push(`- 읽기: “${line(s.read).replace(/^["“]|["”]$/g, "")}”`, "");
       if(s.why)  L.push(`- 왜: ${line(s.why)}`, "");
       L.push("");
@@ -21239,6 +21245,14 @@ function solToMd(sol){
   }
   if(sol.why_answer) L.push("**왜 이 답인가**", "", line(sol.why_answer), "");
   if(sol.check)      L.push("**검산**", "", line(sol.check), "");
+  /* ★ v327 — 진리표 검산 (입력 조합 전부 · 원래 식과 바꾼 회로 출력 나란히) */
+  const TR = sol.truth && typeof sol.truth === "object" ? sol.truth : null;
+  if(TR && arr(TR.cols).length && arr(TR.rows).length){
+    const cc = arr(TR.cols).map(c => String(c == null ? "" : c).replace(/[|\n]/g, " ").trim() || " ");
+    L.push("**진리표 검산**", "", "| " + cc.join(" | ") + " |", "|" + cc.map(() => "---").join("|") + "|");
+    arr(TR.rows).forEach(r => { const v = Array.isArray(r) ? r : arr(r); L.push("| " + cc.map((_, k) => String(v[k] == null ? "" : v[k]).replace(/[|\n]/g, " ").trim() || " ").join(" | ") + " |"); });
+    L.push("");
+  }
   if(sol.memo)       L.push("**외우기**", "", line(sol.memo), "");
   /* ★ v276 — 두문자 : 첫 줄 `글자` · 줄마다 «글자 — 항목» (화면에서 고쳐 쓸 수 있음) */
   /* ★ v283 — 소문항마다 두문자 묶음 (mnemos 배열). 예전 mnemo 하나도 그대로 받음.
@@ -21358,7 +21372,7 @@ async function askSol(r, which){
   else if(Array.isArray(d.notes) && d.notes.length && !(Array.isArray(d.problems)&&d.problems.length))
     setTimeout(()=>toast(`ℹ 보충하면 좋은 곳 ${d.notes.length} — ${String(d.notes[0]).split(' — ')[0]}`), 1800);
   const diag=Array.isArray(d.diag)?d.diag.map(x=>`${x.tag}: steps ${x.steps} · 멈춤 ${x.stop||'-'}`):[];
-  return { md:md2, model:d.model||null, depth:d.depth||null, problems, diag };
+  return { md:md2, model:d.model||null, depth:d.depth||null, problems, diag, bill:d.bill||null };
 }
 /* 유형마다 반드시 있어야 할 칸 — 워커 probs() 와 같은 규칙 */
 function solProbs(s){
@@ -21386,6 +21400,29 @@ function solProbs(s){
   return P;
 }
 
+/* ★ v328 — 해설 한 문항에 «몇 자 · 얼마» (워커가 다시 받기·채우기까지 합쳐 계산해 보냄)
+   이 기기에 모델별 평균·오늘 합계를 적어 두고 «✎ 해설 돌리기» 예상 금액에도 씀 */
+const BILLK='prac:bill:v1';
+const billAll=()=>{ try{ return JSON.parse(localStorage.getItem(BILLK)||'{}')||{} }catch(e){ return {} } };
+const kfmt=n=>n>=1000?(n/1000).toFixed(1)+'k':String(n|0);
+function billNote(bill, which){
+  if(!bill || !(bill.calls>0)) return;
+  const B=billAll(), day=new Date().toLocaleDateString('sv-SE');
+  const w=/opus/i.test(which)?'opus':'sonnet';
+  const m=B[w]||{ n:0, krw:0 }; m.n++; m.krw+=bill.krw|0; B[w]=m;
+  if(B.day!==day){ B.day=day; B.today=0; B.todayN=0; }
+  B.today=(B.today|0)+(bill.krw|0); B.todayN=(B.todayN|0)+1;
+  try{ localStorage.setItem(BILLK, JSON.stringify(B)) }catch(e){}
+}
+function billTxt(bill, withToday){
+  if(!bill || !(bill.calls>0)) return '';
+  const B=billAll(), day=new Date().toLocaleDateString('sv-SE');
+  const today = withToday && B.day===day && B.today ? ` · 오늘 ${(B.today|0).toLocaleString()}원` : '';
+  return `약 ${(bill.krw|0).toLocaleString()}원 ($${(+bill.usd||0).toFixed(3)} · 호출 ${bill.calls}번 · 입력 ${kfmt(bill.in_tokens)}/출력 ${kfmt(bill.out_tokens)} 토큰)${today}`;
+}
+window.__pxBillAvg=w=>{ const m=billAll()[/opus/i.test(w)?'opus':'sonnet']; return m && m.n>=3 ? Math.round(m.krw/m.n) : 0; };
+window.__pxBillTxt=billTxt; window.__pxBillNote=billNote;
+
 let SOLBUSY=false;
 async function makeSol(id, which, btn){
   const r=rowById(id); if(!r) return;
@@ -21408,8 +21445,10 @@ async function makeSol(id, which, btn){
   const box=document.querySelector(`.pcard[data-id="${id}"] .easybox`);
   if(box){ box.classList.remove('empty'); box.innerHTML='<span class="wait">상세 해설을 쓰는 중입니다… 30~90초쯤 걸립니다.</span>'; }
 
+  let spent=null;
   try{
     const got=await askSol(r, which);
+    spent=got.bill; billNote(spent, which);
     /* ★ v297 — 원칙 미달이면 있던 해설을 말없이 덮지 않는다 */
     if(got.problems && got.problems.length){
       const list=got.problems.slice(0,6).map(x=>'· '+x).join('\n')
@@ -21424,11 +21463,11 @@ async function makeSol(id, which, btn){
       up=await sbx.from('practicals').update({ easy_md:got.md }).eq('id', r.id);
     if(up.error) throw new Error('저장 실패 — '+up.error.message);
     Object.assign(r, patch);
-    toast(`${r.no}번 해설 완료 (${NAME[which]} · ${got.md.length}자)`);
+    toast(`${r.no}번 해설 완료 — ${NAME[which]} · ${got.md.length.toLocaleString()}자${spent?' · '+billTxt(spent, true):''}`);
     repaint(id);
   }catch(e){
     const why=String(e.message||e);
-    toast(`해설 실패 — ${why}`);
+    toast(`해설 실패 — ${why}${spent?' · 쓴 돈 '+billTxt(spent, true):''}`);
     /* ★ v297 — 있던 해설이 있으면 «쓰는 중» 자리를 원래 해설로 되돌림 */
     if(r.easy_md){ try{ repaint(id) }catch(x){} }
     else if(box) box.innerHTML=`<span class="wait">해설을 쓰지 못했습니다 — ${why}</span>`;
@@ -21449,17 +21488,19 @@ async function solOne(id, which){
   const box=document.querySelector(`.pcard[data-id="${id}"] .easybox`);
   if(box){ box.classList.remove('empty'); box.innerHTML='<span class="wait">상세 해설을 쓰는 중…</span>'; }
   const got=await askSol(r, which);
+  billNote(got.bill, which);
+  const fail=m=>{ const e=new Error(m); e.bill=got.bill; return e; };      /* ★ v328 — 실패해도 쓴 돈은 알려 줌 */
   /* ★ v297 — 여럿 돌릴 때: 원칙 미달이면 있던 해설은 그대로 두고 «실패» 로 셈 (다시 돌리면 됨) */
-  if(got.problems && got.problems.length && r.easy_md){ repaint(id); throw new Error('원칙 미달 · 있던 해설 유지 — '+got.problems[0]); }
+  if(got.problems && got.problems.length && r.easy_md){ repaint(id); throw fail('원칙 미달 · 있던 해설 유지 — '+got.problems[0]); }
   const patch={ easy_md:got.md, st_sol:'raw', sol_by:got.model, sol_ver:(r.sol_ver||0)+1 };
   let up=await sbx.from('practicals').update(patch).eq('id', r.id);
   if(up.error && /st_sol|sol_ver|sol_by|column|schema cache/i.test(up.error.message))
     up=await sbx.from('practicals').update({ easy_md:got.md }).eq('id', r.id);
-  if(up.error) throw new Error('저장 실패 — '+up.error.message);
+  if(up.error) throw fail('저장 실패 — '+up.error.message);
   Object.assign(r, patch);
   repaint(id);
-  if(got.problems && got.problems.length) throw new Error('원칙 미달(저장은 함) — '+got.problems[0]);
-  return got.md.length;
+  if(got.problems && got.problems.length) throw fail('원칙 미달(저장은 함) — '+got.problems[0]);
+  return { len:got.md.length, bill:got.bill||null };
 }
 
 /* ══ ② 그림 잘라 넣기 ══ */
@@ -22056,7 +22097,9 @@ body.oneup #list > .pcard > .phead{flex-wrap:nowrap!important;gap:8px!important;
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const say=m=>{ try{ (window.__pxToast||window.AppUI?.toast||alert)(m) }catch(e){} };
-const COST={ sonnet:30, opus:80 };
+const COST0={ sonnet:30, opus:80 };
+/* ★ v328 — 예상 금액: 이 기기에서 실제로 쓴 평균(3번 이상 뽑은 뒤)이 있으면 그걸로 */
+const COST=new Proxy(COST0, { get:(t,k)=>{ try{ const a=window.__pxBillAvg&&window.__pxBillAvg(String(k)); if(a) return a; }catch(e){} return t[k]; } });
 const NM={ sonnet:'Sonnet', opus:'Opus' };
 const K='prac:pxrun:v1';
 let OPT=(()=>{ try{ return Object.assign({ m:'sonnet', sc:'one', re:false, c:2 }, JSON.parse(localStorage.getItem(K)||'{}')) }catch(e){ return { m:'sonnet', sc:'one', re:false, c:2 } } })();
@@ -22327,7 +22370,7 @@ function paint(){
   const fixT = fixN ? ` · 🔒 고정 ${fixN}개 건너뜀` : '';
   const go=$('#pxGo',PAN);
   if(RUN){
-    $('#pxSum',PAN).innerHTML=`<b>${RUN.done}/${RUN.list.length}</b> · 성공 ${RUN.ok} · 실패 ${RUN.bad}`;
+    $('#pxSum',PAN).innerHTML=`<b>${RUN.done}/${RUN.list.length}</b> · 성공 ${RUN.ok} · 실패 ${RUN.bad} · 쓴 돈 약 ${(RUN.krw|0).toLocaleString()}원`;
     go.textContent='■ 중지'; go.classList.add('stop'); go.disabled=RUN.halt;
   }else{
     $('#pxSum',PAN).innerHTML = ts.length
@@ -22367,7 +22410,7 @@ async function start(given){
   const cost=(list.length*COST[OPT.m]).toLocaleString();
   if(list.length>1 && !confirm(`${list.length}문항을 ${NM[OPT.m]} 로 해설합니다 (약 ${cost}원).\n시작할까요?`)) return;
   if(list.length===1 && list[0].easy_md && !confirm(`${list[0].no}번 해설이 이미 있습니다. ${NM[OPT.m]} 로 다시 쓸까요?`)) return;
-  RUN={ list, done:0, ok:0, bad:0, halt:false, which:OPT.m };
+  RUN={ list, done:0, ok:0, bad:0, halt:false, which:OPT.m, krw:0 };
   list.forEach(r=>{ STATE[String(r.id)]=''; });
   $('#pxLog').textContent=''; $('#pxBar').style.display='block'; $('#pxBar i').style.width='0';
   paint();
@@ -22384,10 +22427,14 @@ async function start(given){
         if(RUN.halt) break;
         STATE[id]='run'; paint();
         try{
-          const n=await window.__pxSolOne(id, RUN.which);
-          STATE[id]='ok'; RUN.ok++; done=true; log(`✓ ${nm} (${n}자)${k?` · ${k}번 다시 해서 성공`:''}`);
+          const res=await window.__pxSolOne(id, RUN.which);
+          const len=typeof res==='number'?res:(res&&res.len)||0, bl=res&&res.bill;
+          if(bl) RUN.krw+=bl.krw|0;
+          STATE[id]='ok'; RUN.ok++; done=true;
+          log(`✓ ${nm} — ${len.toLocaleString()}자${bl?` · 약 ${(bl.krw|0).toLocaleString()}원 (호출 ${bl.calls}번)`:''}${k?` · ${k}번 다시 해서 성공`:''}`);
         }catch(e){
           last=String(e.message||e);
+          if(e && e.bill){ RUN.krw+=e.bill.krw|0; last+=` · 쓴 돈 약 ${(e.bill.krw|0).toLocaleString()}원`; }
           if(!BUSY(last) || k===3) break;
           const w=[20,45,90][k]*1000 + Math.random()*5000;
           RUN.cool=Math.max(RUN.cool||0, Date.now()+w);
@@ -22405,7 +22452,8 @@ async function start(given){
   };
   await Promise.all(Array.from({ length:Math.max(1,Math.min(3,OPT.c|0||1,list.length)) }, worker));
   const R=RUN; RUN=null; paint();
-  say(`해설 ${R.halt?'중지':'끝'} — 성공 ${R.ok} · 실패 ${R.bad}${R.halt?` · 남음 ${R.list.length-R.done}`:''}`);
+  say(`해설 ${R.halt?'중지':'끝'} — 성공 ${R.ok} · 실패 ${R.bad}${R.halt?` · 남음 ${R.list.length-R.done}`:''} · 쓴 돈 약 ${(R.krw|0).toLocaleString()}원`);
+  log(`■ 합계 — ${R.done}문항 · 약 ${(R.krw|0).toLocaleString()}원`);
 }
 function stop(){ if(!RUN) return; RUN.halt=true; log('■ 중지 — 돌고 있는 것만 마저 끝냅니다'); paint(); }
 
@@ -25542,14 +25590,6 @@ window.__mnOpen=open;
 .mmpop .c.rep::after{content:'';position:absolute;right:2px;top:2px;width:4px;height:4px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
 .mmpop .c:not(.ok):not(.no).rep::after{background:#64748b}
 .mmpop .c.dim{opacity:.18}
-/* ★ v327 — «중복 묶기» 로 목록에서 접힌 칸. 안 푼 것(흰칸)과 섞이면 «왜 건너뛰지» 가 된다.
-   빗금 + ⧉ 로 «여긴 목록에 없다» 를 눈에 보이게. 누르면 한눈에로 열린다. */
-.mmpop .c.fold{background:repeating-linear-gradient(135deg,#e9edf3 0 4px,#f7f9fc 4px 8px);
-  border-color:#c3ccd8;border-style:dashed;color:#64748b}
-.mmpop .c.fold::before{content:'⧉';position:absolute;left:-3px;top:-6px;font-size:9px;line-height:1;
-  color:#7c8899;font-style:normal;text-shadow:0 0 2px #fff,0 0 2px #fff;pointer-events:none}
-.mmpop .hd .sum .d{background:#e9edf3;color:#64748b}
-.mmpop .tb .unfold.on{background:#1f7a4d;border-color:#1f7a4d;color:#fff}
 .mmpop .c:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(15,23,42,.18)}
 .rdk i.lk{font-style:normal;padding:0 5px;height:100%;display:inline-flex;align-items:center;border-right:1px solid var(--line,#e2e8f0);
   font:800 9.5px/1 var(--font-d,system-ui);color:#6b2fb3;background:#f6f1fd;cursor:help}
@@ -25619,16 +25659,6 @@ function pop(){
     if(e.target.closest('[data-cl]')) return close();
     const f=e.target.closest('[data-f]');
     if(f){ FIL=f.dataset.f; try{ localStorage.setItem(FK,FIL) }catch(x){} SIG=''; return paint(); }
-    /* ★ v327 — «⧉ 접힘 펴기» : 중복 묶기를 풀어 접힌 문항을 목록에 되돌린다.
-       머리줄의 «⧉ 중복 묶기» 칩과 같은 스위치라, 한쪽에서 끄면 양쪽이 같이 꺼진다. */
-    if(e.target.closest('[data-unfold]')){
-      const chip=document.querySelector('#tagRow [data-dup]');
-      if(!chip){ try{ (window.__pxToast||console.log)('«중복 묶기» 단추를 찾지 못했습니다') }catch(x){} return; }
-      chip.click();                                    /* FOLD 뒤집고 목록 다시 그림 */
-      setTimeout(()=>{ SIG=''; paint(); },60);
-      try{ (window.__pxToast||console.log)('⧉ 접힘을 폈습니다 — 접힌 문항이 목록에 들어왔습니다 (다시 누르면 원래대로)') }catch(x){}
-      return;
-    }
     const aj=e.target.closest('[data-adj]');
     if(aj){ const id=curId(); if(id && window.__pracOkAdj){ window.__pracOkAdj(id, +aj.dataset.adj); SIG=''; paint(); } return; }
     if(e.target.closest('[data-okb]')){
@@ -25674,13 +25704,7 @@ function paint(){
   const TH=(window.__pracUnN&&window.__pracUnN())||1, CK=(window.__pracCkN&&window.__pracCkN())||1;
   const isFix=id=>{ try{ return !!(window.__ezFixed && window.__ezFixed(id)); }catch(e){ return false; } };
   const fixSig=(()=>{ try{ return (window.__ezFixList?window.__ezFixList():[]).sort().join(','); }catch(e){ return ''; } })();
-  /* ★ v327 — «중복 묶기» 가 접어 둔 문항.
-     미니맵은 ROWS(전부)를 그리는데 목록(SHOWN)은 접힌 것을 뺀 뒤라, 접힌 칸이
-     «아직(흰칸)» 으로 보이면서 앞뒤로 넘길 때 통째로 건너뛰었다. 그 칸을 따로 그린다. */
-  const DH=(()=>{ try{ const d=window.__pracDup&&window.__pracDup(); return (d&&d.on&&d.hide&&d.hide.size)?d.hide:null }catch(e){ return null } })();
-  const repName=id=>{ try{ const rp=window.__pracRepOf&&window.__pracRepOf(id); if(!rp) return '';
-    const r=R.find(x=>String(x.id)===String(rp)); return r?`${exName(r.year,r.session)} ${r.no}번`:''; }catch(e){ return '' } };
-  const sig=R.length+'|'+JSON.stringify(P)+'|'+me+'|'+FIL+'|'+TH+'|'+CK+'|'+((window.__pracKinScope&&window.__pracKinScope())||'')+'|'+fixSig+'|'+(DH?DH.size:0);
+  const sig=R.length+'|'+JSON.stringify(P)+'|'+me+'|'+FIL+'|'+TH+'|'+CK+'|'+((window.__pracKinScope&&window.__pracKinScope())||'')+'|'+fixSig;
   if(sig===SIG) return; SIG=sig;
   /* 같은 대문항 유형에서 맞힌 것이 있나 */
   /* ★ v288 — 연두 빗금 = 같은 문제 안에서 푼 기록이 있음 */
@@ -25690,7 +25714,7 @@ function paint(){
   R.forEach(r=>{ const k=r.year+'|'+r.session; (ex.get(k)||ex.set(k,[]).get(k)).push(r); });
   const keys=[...ex.keys()].sort((a,b)=>{ const [ay,as]=a.split('|').map(Number), [by,bs]=b.split('|').map(Number);
     const ar=ay>0&&ay<3000, br=by>0&&by<3000; return (br-ar)||(by-ay)||(bs-as); });
-  let O=0,X=0,U=0,FX=0,FD=0;
+  let O=0,X=0,U=0,FX=0;
   const meRow=R.find(r=>String(r.id)===me)||null;
   const html=keys.map(k=>{
     const list=ex.get(k).sort((a,b)=>(+a.no)-(+b.no));
@@ -25702,10 +25726,8 @@ function paint(){
       const dim= FIL==='no' ? st!=='no' : FIL==='un' ? !!st : false;
       const on_=okN(r.id), cn_=p?(p.n|0):0, dim2=(FIL==='left' && on_>=TH) || (FIL==='ckleft' && cn_>=CK);
       const fx=isFix(r.id); if(fx) FX++;
-      const fold=!!(DH && DH.has(String(r.id))); if(fold) FD++;
-      const cls=['c', st, kin?'kin':'', fold?'fold':'', String(r.id)===me?'me':'', (dim||dim2)?'dim':'', fx?'fix':''].filter(Boolean).join(' ');
-      const rpn=fold?repName(r.id):'';
-      const tip=`${exName(r.year,r.session)} ${r.no}번 — ${st==='ok'?'맞음':st==='no'?'틀림':st==='chk'?'푼 기록만':kin?`아직 (같은 문제를 ${kn}번 풂)`:'아직'}${p&&p.n?` · ${p.n}회독 (맞힘 ${on_} · 틀림 ${p.no!=null?p.no:(p.r==='no'?1:0)})`:''}${p&&p.at?` · ${new Date(p.at).toLocaleDateString('ko-KR')}`:''}${qt(r.id)?`\n유형: ${qt(r.id)}`:''}${fold?`\n⧉ 중복 묶기로 접힘 — 목록에서 빠져 있어 앞뒤로 넘길 때 건너뜁니다${rpn?`\n대표: ${rpn}`:''}\n위 «⧉ 접힘 펴기» 를 누르면 목록에 다시 들어옵니다`:''}${fx?'\n🔒 쉬운해설 고정 — 오른쪽 클릭으로 풀기':'\n오른쪽 클릭 = 쉬운해설 고정'}`;
+      const cls=['c', st, kin?'kin':'', String(r.id)===me?'me':'', (dim||dim2)?'dim':'', fx?'fix':''].filter(Boolean).join(' ');
+      const tip=`${exName(r.year,r.session)} ${r.no}번 — ${st==='ok'?'맞음':st==='no'?'틀림':st==='chk'?'푼 기록만':kin?`아직 (같은 문제를 ${kn}번 풂)`:'아직'}${p&&p.n?` · ${p.n}회독 (맞힘 ${on_} · 틀림 ${p.no!=null?p.no:(p.r==='no'?1:0)})`:''}${p&&p.at?` · ${new Date(p.at).toLocaleDateString('ko-KR')}`:''}${qt(r.id)?`\n유형: ${qt(r.id)}`:''}${fx?'\n🔒 쉬운해설 고정 — 오른쪽 클릭으로 풀기':'\n오른쪽 클릭 = 쉬운해설 고정'}`;
       return `<button type="button" class="${cls}" data-id="${esc(r.id)}" title="${esc(tip)}">${esc(r.no)}${cn_>=2?`<sup>${cn_}</sup>`:''}${fx?'<i class="lk" aria-label="해설 고정">🔒</i>':''}</button>`;
     }).join('');
     const y=k.split('|');
@@ -25715,12 +25737,11 @@ function paint(){
   }).join('');
   /* ★ v324 — 다시 그려도 보던 자리 유지 (아래쪽에서 오른쪽 클릭 고정하면 맨 위로 튀던 것) */
   const bd0=EL.querySelector('.bd'), keepY=bd0?bd0.scrollTop:0;
-  EL.innerHTML=`<div class="hd"><b>🗺 맞음 미니맵</b><span class="sum">${R.length}문항 <i class="o">✓ ${O}</i><i class="x">✕ ${X}</i><i class="u">아직 ${U}</i>${FD?`<i class="d" title="중복 묶기로 접혀 목록에서 빠진 문항 — 앞뒤로 넘길 때 건너뜁니다">⧉ 접힘 ${FD}</i>`:''}<i class="f" title="쉬운해설 고정 · 칸을 오른쪽 클릭하면 고정/풀기">🔒 ${FX}</i></span>
+  EL.innerHTML=`<div class="hd"><b>🗺 맞음 미니맵</b><span class="sum">${R.length}문항 <i class="o">✓ ${O}</i><i class="x">✕ ${X}</i><i class="u">아직 ${U}</i><i class="f" title="쉬운해설 고정 · 칸을 오른쪽 클릭하면 고정/풀기">🔒 ${FX}</i></span>
       <button type="button" class="cl" data-cl aria-label="닫기">✕</button></div>
     <div class="tb">${[['all','전체'],['no','틀림만'],['un','아직만'],['ckleft',`체크 ${CK}번↑ 흐리게`],['left',`맞힘 ${TH}번↑ 흐리게`]].map(([k,n])=>`<button type="button" data-f="${k}" class="${FIL===k?'on':''}">${n}</button>`).join('')}
-      ${FD?`<button type="button" class="unfold" data-unfold title="지금 ${FD}문항이 «중복 묶기» 로 접혀 목록에서 빠져 있습니다. 누르면 접기를 풀어 전부 목록에 넣습니다 (다시 누르면 원래대로)">⧉ 접힘 펴기 ${FD}</button>`:''}
       <button type="button" class="fxall" data-fxall title="맞음 기록이 있거나 1번이라도 회독한 문항의 쉬운해설을 모두 고정합니다 (이미 고정된 것은 그대로)">🔒 푼 것 모두 고정</button>
-      <span class="lg"><span style="--c:#22a060">맞음</span><span style="--c:#e5484d">틀림</span><span style="--c:#8fb0ee">푼 기록만</span><span style="--c:#fff;">아직</span><span style="--c:#bfe8cf">같은 문제 풂</span>${FD?`<span style="--c:#e9edf3">⧉ 접힘 (목록에 없음)</span>`:''}<span class="lgf">🔒 해설 고정 (오른쪽 클릭)</span></span></div>
+      <span class="lg"><span style="--c:#22a060">맞음</span><span style="--c:#e5484d">틀림</span><span style="--c:#8fb0ee">푼 기록만</span><span style="--c:#fff;">아직</span><span style="--c:#bfe8cf">같은 문제 풂</span><span class="lgf">🔒 해설 고정 (오른쪽 클릭)</span></span></div>
     <div class="bd">${html||'<div class="emp">문항이 없습니다</div>'}</div>
     ${meRow?`<div class="ft"><span>지금 <b>${esc(exName(meRow.year,meRow.session))} ${esc(meRow.no)}번</b></span>
       <span>회독</span><span class="stp"><button type="button" data-cadj="-1" aria-label="줄이기">−</button><b>${(P[String(meRow.id)]||{}).n|0}</b><button type="button" data-cadj="1" aria-label="늘리기">＋</button></span>
@@ -25877,27 +25898,14 @@ async function flush(){
           for(let j=0;j<ids.length;j+=300){
             const part=ids.slice(j,j+300);
             try{
-              /* ★ v327 — .select('id') 를 붙였다.
-                 예전에는 «에러만 없으면 성공» 으로 보고 대기열을 지웠는데,
-                 한 줄도 안 바뀌어도(id 가 안 맞거나 RLS 에 걸려도) 에러는 안 난다.
-                 그래서 서버엔 없는데 대기열은 비워져 기록이 영영 안 올라갔다.
-                 이제 «진짜 바뀐 id» 만 대기열에서 뺀다 — 못 올린 건 남아서 다음에 다시 시도한다. */
-              const up=await c.from('practicals').update({ [kind]:JSON.parse(k) })
-                              .in('id', part.map(x=>isNaN(+x)?x:+x)).select('id');
+              const up=await c.from('practicals').update({ [kind]:JSON.parse(k) }).in('id', part.map(x=>isNaN(+x)?x:+x));
               if(up.error){
                 if(NOCOL(up.error.message)){ COL[kind]=false; stop=true;
                   if(!TOLD){ TOLD=true; say('🔄 회독·북마크가 이 기기에만 저장됩니다 — supabase-study.sql 을 한 번 돌리면 기기끼리 맞춥니다'); } }
                 return;
               }
               COL[kind]=true;
-              const done=new Set((up.data||[]).map(r=>String(r.id)));
-              let miss=0;
-              part.forEach(id=>{
-                if(!done.has(String(id))){ miss++; return; }              /* 안 바뀐 줄은 대기열에 남긴다 */
-                if(JSON.stringify(PEND[kind][id])===k) delete PEND[kind][id];
-              });
-              if(miss && !TOLD){ TOLD=true;
-                say(`🔄 기록 ${miss}개가 서버에 저장되지 않았습니다 — 이 기기에는 남아 있고 다음에 다시 시도합니다`); }
+              part.forEach(id=>{ if(JSON.stringify(PEND[kind][id])===k) delete PEND[kind][id]; });
             }catch(e){ stop=true; }
           }
         }));
@@ -25932,28 +25940,9 @@ async function pull(force){
       /* 진도 */
       const sp=d.prog, lp=P[id], pp=PEND.prog[id];
       if(sp && typeof sp==='object'){
-        /* ★ v327 — 예전에는 «나중에 만진 쪽» 레코드를 통째로 갈아끼웠다.
-           그래서 PC 에서 3회독한 문항을 태블릿에서 1회독하면 서버·PC 가 모두 1회독으로 내려앉아
-           2회독분이 사라졌다. 이제 회독·맞힘·틀림은 **큰 쪽을 남기고**(되돌아가지 않음),
-           마지막 결과(r)와 시각(at)만 나중 것을 따른다. 초기화(n:0)는 예외로 그대로 받는다. */
-        const nn=(v)=>({ n:+(v&&v.n)||0, ok:+(v&&v.ok)||(v&&v.r==='ok'?1:0)||0, no:+(v&&v.no)||(v&&v.r==='no'?1:0)||0 });
-        const fuse=(a,b)=>{                       /* a,b 중 하나가 없으면 있는 쪽 */
-          if(!a) return b; if(!b) return a;
-          if((+a.n||0)===0 || (+b.n||0)===0) return at(a)>=at(b)?a:b;   /* 초기화는 덮어쓰기 */
-          const A=nn(a), B=nn(b), late=at(a)>=at(b)?a:b;
-          return Object.assign({}, late, { n:Math.max(A.n,B.n), ok:Math.max(A.ok,B.ok), no:Math.max(A.no,B.no) });
-        };
-        if(pp){
-          const m=fuse(sp,pp);
-          if(JSON.stringify(m)!==JSON.stringify(pp)){ PEND.prog[id]=m; }
-          if(JSON.stringify(m)!==JSON.stringify(lp)){ window.__pracProgPut(id, m); chP=true; }
-        }else{
-          const m=fuse(sp,lp);
-          if(JSON.stringify(m)!==JSON.stringify(lp)){
-            if((m.n|0)>0 || lp){ window.__pracProgPut(id, m); chP=true; }
-          }
-          if(JSON.stringify(m)!==JSON.stringify(sp)) PEND.prog[id]=m;   /* 합친 값을 서버로도 되돌려 보냄 */
-        }
+        if(pp){ if(at(sp)>at(pp)){ delete PEND.prog[id]; window.__pracProgPut(id, sp); chP=true; } }
+        else if(!lp || at(sp)>at(lp)){ if((sp.n|0)>0 || lp){ window.__pracProgPut(id, sp); chP=true; } }
+        else if(at(lp)>at(sp)) PEND.prog[id]=lp;
       }else if(lp && !pp) PEND.prog[id]=lp;
       /* 북마크 */
       const sf=d.fav, lf=F[id], pf=PEND.fav[id];
@@ -25985,30 +25974,13 @@ async function pull(force){
 window.__studySync=()=>pull(true);
 
 /* 진도 초기화 — 모든 기기에서 지우기 */
-/* ★ v327 — 진도 초기화.
-   예전 코드는 `.not('prog','is',null)` 하나로 **practicals 테이블 전체**를 지웠다.
-   전기기사만 지우려 해도 공조냉동 등 다른 과목 진도까지 통째로 날아갔고,
-   한 계정을 여럿이 쓰면 남의 기록까지 지워졌다.
-   지금은 «지금 화면에 있는 그 문항들(ids)» 만, 300개씩 끊어서 지운다. */
 window.__studyReset=async ids=>{
   const now=Date.now(), z={ n:0, at:now };
-  const list=[...new Set((ids||[]).map(String))];
-  list.forEach(id=>{ PEND.prog[id]=z; });
+  (ids||[]).forEach(id=>{ PEND.prog[String(id)]=z; });
   psv();
-  if(!list.length){ flush(); return; }
   const c=client();
   if(c && COL.prog!==false){
-    for(let i=0;i<list.length;i+=300){
-      const part=list.slice(i,i+300);
-      try{
-        const up=await c.from('practicals').update({ prog:z })
-                        .in('id', part.map(x=>isNaN(+x)?x:+x)).select('id');
-        if(up.error) break;
-        const done=new Set((up.data||[]).map(r=>String(r.id)));
-        part.forEach(id=>{ if(done.has(id)) delete PEND.prog[id]; });   /* 진짜 지워진 것만 대기열에서 뺌 */
-        psv();
-      }catch(e){ break; }
-    }
+    try{ const up=await c.from('practicals').update({ prog:z }).not('prog','is',null); if(!up.error){ (ids||[]).forEach(id=>{ delete PEND.prog[String(id)]; }); psv(); } }catch(e){}
   }
   flush();
 };
@@ -26429,7 +26401,6 @@ setTimeout(()=>{ paintAll(); pull(); }, 1500);
   body.oneup.pvsplit .pcard .pgrid.mvon > .pcol:has(> .ez.pfold){flex:0 0 auto!important;overflow:hidden!important}
   /* «쉬운 풀이» 이름이 옆 도구 단추에 밀려 세로로 찌그러지던 것 — 이름은 한 줄, 단추는 다음 줄로 */
   body.oneup .pcard .pcol-ez .ez > .plabel{flex-wrap:wrap;row-gap:5px}
-  body.oneup .pcard .pcol-ez .ez > .plabel{white-space:nowrap}
   /* 칸 안에서 굴릴 때 이름줄은 위에 붙어 따라옴 */
   body.oneup.pvsplit .pcard .pgrid.mvon > .pcol > .plabel,
   body.oneup.pvsplit .pcard .pgrid.mvon > .pcol > .ez > .plabel{position:sticky!important;top:0;z-index:3;
@@ -26442,6 +26413,8 @@ setTimeout(()=>{ paintAll(); pull(); }, 1500);
   body.mvdrag,body.mvdrag *{-webkit-user-select:none!important;user-select:none!important}
 }
 @media(min-width:900px){ .mvgrip{display:none!important} }
+/* ★ v327 — PC 에서도 쉬운 풀이 칸이 좁으면 «쉬운 풀이» 이름이 세로로 찌그러지던 것 → 이름 한 줄 · 단추는 다음 줄 */
+.pcard .pcol-ez .ez > .plabel{flex-wrap:wrap;row-gap:5px;white-space:nowrap}
 </style>
 <script>
 (function(){
