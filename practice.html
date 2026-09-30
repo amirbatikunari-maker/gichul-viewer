@@ -7217,6 +7217,7 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
 .ovrail .pb.now{background:var(--ink,#111827);border-color:var(--ink,#111827);color:#fff}
 .ovrail .pb.done{border-color:#93b4f7;background:#eef4ff;color:#1d4ed8}
 .ovrail .pb.done.now{background:var(--ink,#111827);border-color:var(--ink,#111827);color:#fff}
+.ovrail .pb.fold{border-style:dashed!important;outline:2px dashed #94a3b8;outline-offset:1px}
 
 /* ── 카드의 «학습 체크» ── */
 .pcard .result-actions{display:flex!important;gap:5px;margin-left:auto;align-items:center}
@@ -7589,17 +7590,32 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
   function drawOvRail(){
     const s=$('#ovrS'); if(!s) return;
     ovrHook(s);
-    const rs=rows(); if(!rs.length){ s.innerHTML=''; return; }
+    let rs=rows(); if(!rs.length){ s.innerHTML=''; return; }
     const at=(()=>{ try{ return Math.max(0,window.ONEAT|0) }catch(e){ return 0 } })();
     const m=String($('#ovTitle')?.textContent||'').match(/(\d{4})년 제(\d+)회 (\d+)번/);
-    let now=at;
+    let now=at, VIRT=null;
     if(m){ const k=rs.findIndex(r=>String(r.year)===m[1]&&String(r.session)===m[2]&&String(r.no)===m[3]); if(k>=0)now=k;
-      /* ★ v269 — 중복 묶기로 접힌 문항을 보는 중이면, 엉뚱한 칸 대신 그 묶음의 대표 칸을 «지금» 으로 */
-      else{ try{ const rid=window.__pracRepOf&&window.__pracRepOf(OVID); const k2=rid?rs.findIndex(r=>String(r.id)===String(rid)):-1; if(k2>=0) now=k2; }catch(e){} } }
+      /* ★ v330 — 목록에 없는 문항(동일 −·유사 − 로 접힘 · 미니맵에서 연 것)을 보는 중이면
+         엉뚱한 칸(앞에 보던 것)을 까맣게 칠하던 것 → 그 문항을 제자리(같은 회차 번호 순)에 점선 칸으로 끼워 «지금» 으로 */
+      else{ try{
+        const all=Array.isArray(ROWS)?ROWS:[];
+        const cur=all.find(r=>String(r.id)===String(OVID))
+               || all.find(r=>String(r.year)===m[1]&&String(r.session)===m[2]&&String(r.no)===m[3]);
+        if(cur){
+          const Y=+cur.year, S=+cur.session, N=+cur.no;
+          let pos=-1;
+          rs.forEach((r,i)=>{ if(+r.year===Y && +r.session===S && (+r.no)<N) pos=i+1; });
+          if(pos<0){ const j=rs.findIndex(r=>+r.year===Y && +r.session===S); if(j>=0) pos=j; }
+          if(pos<0){ const rid=window.__pracRepOf&&window.__pracRepOf(cur.id); const j=rid?rs.findIndex(r=>String(r.id)===String(rid)):-1; if(j>=0) pos=j+1; }
+          if(pos<0) pos=Math.min(rs.length, at+1);
+          rs=rs.slice(0,pos).concat([cur],rs.slice(pos)); now=pos; VIRT=String(cur.id);
+        }
+      }catch(e){} } }
     const W=45, a=Math.max(0,now-W), b=Math.min(rs.length,now+W+1);
     const html=rs.slice(a,b).map((r,k)=>{
       const i=a+k, p=PROG[String(r.id)];
-      return `<button class="pb ${i===now?'now':''} ${p?'done':''} ${p?.r==='ok'?'rok':p?.r==='no'?'wrong':''}" type="button" data-ovgo="${i}" data-y="${r.year}">${r.year%100}-${r.session} ${r.no}${p&&(p.n|0)>=2?`<sup class="rdn">${p.n|0}</sup>`:''}</button>`
+      const vf=VIRT===String(r.id);
+      return `<button class="pb ${i===now?'now':''} ${vf?'fold':''} ${p?'done':''} ${p?.r==='ok'?'rok':p?.r==='no'?'wrong':''}" type="button" data-ovgo="${i}" data-y="${r.year}"${vf?' title="목록에서는 접힌 문항 (동일 −·유사 − 또는 다른 거르기) — 지금 보는 중"':''}>${r.year%100}-${r.session} ${r.no}${p&&(p.n|0)>=2?`<sup class="rdn">${p.n|0}</sup>`:''}</button>`
         + (window.__grpTail ? window.__grpTail(r) : '');
     }).join('');
     /* ① 내용이 그대로면 손대지 않는다 */
@@ -7608,7 +7624,8 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
       s.innerHTML=html;
       s.querySelectorAll('[data-ovgo]').forEach(b=>b.onclick=()=>{
         const i=+b.dataset.ovgo, r=rs[i]; if(!r)return;
-        if(document.body.classList.contains('oneup') && typeof window.showAt==='function') window.showAt(i);
+        const si=(Array.isArray(SHOWN)?SHOWN:[]).findIndex(x=>String(x.id)===String(r.id));   /* ★ v330 — 끼운 칸이 있으면 번호가 밀리므로 id 로 */
+        if(si>=0 && document.body.classList.contains('oneup') && typeof window.showAt==='function') window.showAt(si);
         if(typeof window.ovOpen==='function') window.ovOpen(r.id);
       });
     }
@@ -14937,7 +14954,7 @@ function repOf(id){
   return null;
 }
 window.__pracRepOf=repOf;
-window.__pracDup=()=>({groups:GROUPS,hide:HIDE,ready:READY,man:MANNM,on:ON()});
+window.__pracDup=()=>({groups:GROUPS,hide:HIDE,ready:READY,man:MANNM,on:ON(),fold:FOLD&&READY&&HIDE.size>0&&!oneSheet()});
 
 /* ══ ③ 목록에서 빼기 ══ */
 const KEY='prac:dupfold:v1';
@@ -14954,7 +14971,9 @@ const oneSheet=()=>{
     return !!(y && ss);
   }catch(e){ return false }
 };
-const ON=()=>FOLD&&READY&&HIDE.size>0&&!oneSheet();
+/* ★ v330 — 📅 최신순은 «순서대로 전부» — 동일 −·유사 − 접기를 안 건다 (22-3 16·17·18 이 빠지던 것) */
+const seqOn=()=>{ try{ return !!(window.__pracSeqOn&&window.__pracSeqOn()) }catch(e){ return false } };
+const ON=()=>FOLD&&READY&&HIDE.size>0&&!oneSheet()&&!seqOn();
 
 function hook(){
   if(typeof drawList!=='function'||drawList.__dup) return false;
@@ -15056,11 +15075,11 @@ function mountChip(){
   b.type='button'; b.dataset.dup=''; 
   b.title='묻는 글이 같은 문항을 한 덩어리로 접습니다 (그림이 조금 달라도)';
   const paint=()=>{
-    const off=FOLD&&READY&&HIDE.size>0&&oneSheet();   /* 켜 뒀지만 지금은 안 접는 중 */
+    const off=FOLD&&READY&&HIDE.size>0&&(oneSheet()||seqOn());   /* 켜 뒀지만 지금은 안 접는 중 */
     let man=0; MANNM.forEach((_,rep)=>{ const g=GROUPS.get(rep); if(g) man+=g.length-1; });
     const auto=Math.max(0,HIDE.size-man);
     const cnt=!READY||!HIDE.size ? '' : (auto ? `유형 ${man} · 자동 ${auto}문항 접힘` : `${man}문항 접힘`);
-    b.textContent=`⧉ 중복 묶기` + (off?' · 회차 볼 땐 끔':'');           /* ★ v292 — «(유형 N)» 빼고 설명으로 */
+    b.textContent=`⧉ 중복 묶기` + (off?(seqOn()?' · 최신순 땐 끔':' · 회차 볼 땐 끔'):'');           /* ★ v292 — «(유형 N)» 빼고 설명으로 */
     b.dataset.cnt=cnt;
     try{ $$('[data-duplv]',row).forEach(x=>{ const on=FOLD && x.dataset.duplv===LV; x.classList.toggle('on',on); x.setAttribute('aria-pressed',on); }); }catch(e){}
     b.classList.toggle('on',FOLD&&!off);
@@ -20889,7 +20908,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=329").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=330").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -21098,41 +21117,80 @@ function solToMd(sol){
     b = b.replace(CMD, (w, _g, off, str) => (off > 0 && str[off - 1] === "\\") ? w : "\\" + w);
     return "$" + b + "$";
   });
-  const line = t => fixMath(unxml(String(t == null ? "" : t))).replace(/\n{2,}/g, "\n").trim();
+  /* ★ v330 — 글 칸에 «C바» 처럼 읽는 말로 온 식 → $\overline{C}$ · 맨 글자로 쓴 논리식(S = ABC + D) → $…$ 로 감쌈 */
+  const oTxt = o => {
+    if(o == null) return "";
+    if(typeof o !== "object") return String(o);
+    if(Array.isArray(o)) return o.map(oTxt).filter(Boolean).join(" · ");
+    const pk = ks => { for(const k of ks){ const v = o[k]; if(v != null && typeof v !== "object" && String(v).trim()) return String(v).trim(); } return ""; };
+    const hd = pk(["name","term","word","label","item","key","k","title","sym","what","concept","q","h"]);
+    const va = pk(["value","val","v","num","amount"]);
+    const un = pk(["unit"]);
+    const de = pk(["desc","mean","meaning","text","say","note","why","easy","detail","explain","content","body","info","def","a"]);
+    let s = hd;
+    if(va) s += (s ? " = " : "") + va + (un && !va.includes(un) ? " " + un : "");
+    if(de) s += (s ? " — " : "") + de;
+    return s || Object.values(o).filter(x => x != null && typeof x !== "object" && String(x).trim()).join(" · ");
+  };
+  const LGW = /^(AND|OR|NOT|NAND|NOR|XOR|EX|MC|MCF|MCR|THR|PB|PL|RL|GL|YL|WL|OCR|OVR|UVR|OCGR|SGR|DGR|CT|PT|ZCT|GPT|KEC|TR|ELB|MCCB|ACB|VCB|LA|SA|UPS|LED|DC|AC|PF|VA|KVA|KW|HP|OFF|IDC|HIV|PVC)$/;
+  const mathify = t => String(t == null ? "" : t).split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+\$)/).map((seg, si) => {
+    if(si % 2) return seg;
+    const K = [], P = m => { K.push(m); return "\u0001" + (K.length - 1) + "\u0002"; };
+    let x = seg;
+    /* (A+B)바 · (A+B) 바 */
+    x = x.replace(/\(([A-Z][A-Z0-9+·' ]*)\)\s?바(?!탕|람|닥|깥|꾸|꿔|뀌|뀐|이패스|로 (?:옆|뒤|앞|아래|위))/g, (m, e) => P("\\overline{" + e.replace(/·/g, "\\cdot ").trim() + "}"));
+    /* C바 (붙여 씀) · C 바( / C 바, / C 바 끝 (띄어 씀은 뒤가 조사·괄호·문장부호일 때만) */
+    x = x.replace(/(?<![a-z0-9_\\])([A-Z])바(?!탕|람|닥|깥|꾸|꿔|뀌|뀐|이패스)/g, (m, v) => P("\\overline{" + v + "}"));
+    x = x.replace(/(^|[^A-Za-z0-9_\\])([A-Z]) 바(?=$|[\s(),.·:;]|[와과는를가의도만](?![가-힣]))/g, (m, a, v) => a + P("\\overline{" + v + "}"));
+    /* 맨 글자 논리식: 글자(·부정)끼리 + = · 로 이은 것 */
+    const T = "(?:\\(?(?:[A-Z]|\\u0001\\d+\\u0002)+'?\\)?)+";
+    const RE = new RegExp("(^|[^A-Za-z0-9_.=/^×÷√\\\\\\u0002])(" + T + "(?:\\s*[+=]\\s*" + T + "|·" + T + ")+)(?![A-Za-z0-9_=/^×÷√\\u0001])", "g");
+    x = x.replace(RE, (m, a, e) => {
+      const bare = e.replace(/\u0001\d+\u0002/g, " ");
+      const words = bare.match(/[A-Z]{2,}/g) || [];
+      if(words.some(w => LGW.test(w))) return m;
+      if(!/[+=·]/.test(e)) return m;
+      return a + P(e.replace(/\u0001(\d+)\u0002/g, (_, i) => K[+i]).replace(/·/g, " \\cdot ").replace(/\s+/g, " ").trim());
+    });
+    /* 남은 부정 하나짜리 — 한 덩어리로 붙은 것끼리 합쳐 $…$ 하나로 */
+    x = x.replace(/(?:\u0001\d+\u0002|(?<=\u0002)[A-Z]|[A-Z](?=\u0001))+/g, m => "$" + m.replace(/\u0001(\d+)\u0002/g, (_, i) => K[+i]) + "$");
+    return x.replace(/\u0001(\d+)\u0002/g, (_, i) => "$" + K[+i] + "$").replace(/\$\$(?=\S)/g, "$ $");
+  }).join("");
+  const line = t => fixMath(mathify(unxml(oTxt(t)))).replace(/\n{2,}/g, "\n").trim();
 
   if(sol.gist) L.push(`**${line(sol.gist)}**`, "");
   /* ★ v309 — 비전공자용 «쉽게 말하면» */
   if(arr(sol.easy).length){
     L.push("**쉽게 말하면**", "");
-    arr(sol.easy).forEach(e => L.push(`- ${line(typeof e === "string" ? e : (e && (e.text || e.say)) || "")}`));
+    arr(sol.easy).forEach(e => L.push(`- ${line(e)}`));
     L.push("");
   }
 
   if(arr(sol.background).length){
     L.push("**먼저 알아야 할 것**", "");
-    arr(sol.background).forEach(b => L.push(`- ${b}`));
+    arr(sol.background).forEach(b => L.push(`- ${line(b)}`));   /* ★ v330 — 객체로 오면 [object Object] 로 나오던 것 */
     L.push("");
   }
   if(arr(sol.read).length){
     L.push("**문제를 이렇게 읽음**", "");
-    arr(sol.read).forEach(b => L.push(`- ${b}`));
+    arr(sol.read).forEach(b => L.push(`- ${line(b)}`));
     L.push("");
   }
   if(arr(sol.given).length){
     L.push("**주어진 값**", "");
-    arr(sol.given).forEach(g => L.push(`- ${g}`));
+    arr(sol.given).forEach(g => L.push(`- ${line(g)}`));
     L.push("");
   }
   if(arr(sol.symbols).length){
     L.push("**부호**", "");
     arr(sol.symbols).forEach(x => {
-      if(typeof x === "string") return void L.push(`- ${x}`);
+      if(typeof x === "string") return void L.push(`- ${line(x)}`);
       const u = x.unit ? ` · 단위 ${inlineTex(x.unit)}` : "";
       const v = x.val  ? ` · 이 문제: ${inlineTex(x.val)}` : "";
       const sy = HAN.test(String(x.sym||"")) ? String(x.sym||"") : `$${tex(x.sym)||""}$`;
       /* ★ v277 — 읽는 발음 «브이 에스» 를 기호 옆에 */
       const pr = x.say ? ` «${String(x.say).replace(/[«»\n]/g, "").trim()}»` : "";
-      L.push(`- ${sy}${pr} — ${x.mean || ""}${u}${v}`);
+      L.push(`- ${sy}${pr} — ${line(x.mean || "")}${u}${v}`);
     });
     L.push("");
   }
@@ -21310,7 +21368,7 @@ function solToMd(sol){
   if(sol.trap)       L.push("**흔한 실수**", "", line(sol.trap), "");
   if(arr(sol.also).length){
     L.push("**같이 알아 두기**", "");
-    arr(sol.also).forEach(x => L.push(`- ${x}`));
+    arr(sol.also).forEach(x => L.push(`- ${line(x)}`));
     L.push("");
   }
   /* ★ v310 — 비전공자용 표 세 가지 (맨 아래) : 용어 풀이 · 공식이 왜 · 헷갈리는 짝 */
@@ -24426,16 +24484,17 @@ function isExcl(r){
   return !(y>0 && y<3000);
 }
 let MODE=null, LAST='all';
+window.__pracSeqOn=()=>MODE==='seq'&&!!getRand();
 
 /* 위 거르기를 그대로 겹친다 — 목록이 쓰는 조건과 같아야 뽑은 수만큼 나온다 */
-function basePool(){
+function basePool(all){
   const y=$('#fYear')?.value||'', s=$('#fSess')?.value||'', q=($('#fQ')?.value||'').trim();
   let pool=rowsAll();
   if(y) pool=pool.filter(r=>String(r.year)===y);
   if(s) pool=pool.filter(r=>String(r.session)===s);
   if(q) pool=pool.filter(r=>(r.q_text||'').includes(q)||(r.a_text||'').includes(q));
   try{ if(window.__pracRowPass) pool=pool.filter(window.__pracRowPass); }catch(e){}
-  const d=dup(); if(d && d.on && d.hide) pool=pool.filter(r=>!d.hide.has(String(r.id)));
+  const d=dup(); if(!all && d && (d.fold!=null?d.fold:d.on) && d.hide) pool=pool.filter(r=>!d.hide.has(String(r.id)));   /* ★ v330 — 최신순은 접힌 것도 전부 */
   return pool;
 }
 const shuffle=a=>{ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
@@ -24449,7 +24508,7 @@ function dedupe(pool){
 }
 function draw(mode){
   const M=MODES[mode]; if(!M) return;
-  let pool=basePool();
+  let pool=basePool(!!M.recent);
   if(M.tiers){
     if(pool.length && !tag(pool[0].id)) return say('등급을 세는 중입니다 — 잠시 뒤 다시 눌러 주세요');
     pool=pool.filter(r=>{ const t=tag(r.id); return t && M.tiers.includes(t.tier); });

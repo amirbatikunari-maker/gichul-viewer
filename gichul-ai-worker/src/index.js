@@ -509,11 +509,11 @@ const TOOL = {
                     description: "문제 유형. 계산=숫자로 값을 구함 · 나열=~을 N가지 쓰시오 · 단답=명칭·약호·용어 · 서술=이유·방법을 글로 · 회로·시퀀스=회로·접점·동작 · 표·선정=계산 뒤 표·규격에서 고름" },
       gist:       { type: "string", description: "한 줄 요지 — 무엇을 묻는 문제인가" },
       easy:       { type: "array", items: { type: "string" },
-                    description: "★ 비전공자용 «쉽게 말하면» — 짧게. 2~3문장 · 한 문장 40자 안팎. 생활 비유 하나 + 이 문제가 묻는 것 한 줄. 수식·기호·백슬래시 금지. 장황하게 늘이지 않는다" },
+                    description: "★ 비전공자용 «쉽게 말하면» — 짧게. 2~3문장 · 한 문장 40자 안팎. 생활 비유 하나 + 이 문제가 묻는 것 한 줄. 식·기호가 꼭 필요하면 $…$ 로 감싼 KaTeX(예: $\\overline{C}$, $S = ABC + D$) — 'C바'·'루트3' 같은 읽는 말 금지. 장황하게 늘이지 않는다" },
       background: { type: "array", items: { type: "string" },
-                    description: "풀기 전에 알아야 할 배경 — ★ 짧게. 2~4개 · 한 원소에 개념 하나 · 한 줄(40자 안팎). 길게 풀어 쓰지 않는다 (자세한 설명은 풀이의 «왜» 에서)" },
+                    description: "풀기 전에 알아야 할 배경 — ★ 짧게. 2~4개 · 한 원소에 개념 하나 · 한 줄(40자 안팎). 길게 풀어 쓰지 않는다 (자세한 설명은 풀이의 «왜» 에서). ★ 원소는 반드시 «글자 하나» — {이름, 설명} 같은 객체 금지. 식·기호는 $…$ KaTeX" },
       given:      { type: "array", items: { type: "string" },
-                    description: "문제에 나온 숫자·조건을 «빠짐없이 전부». 한 개가 배열 원소 하나. '이름 = 숫자 단위 (뜻)' 꼴" },
+                    description: "문제에 나온 숫자·조건을 «빠짐없이 전부». 한 개가 배열 원소 하나. '이름 = 숫자 단위 (뜻)' 꼴의 «글자 하나». {name, value} 같은 객체 금지. 기호는 $…$ KaTeX (예: '$V = 6600$ V (1차 선간전압)')" },
       symbols:    { type: "array", description: "식에 나오는 기호",
                     items: { type: "object", required: ["sym", "mean"], properties: {
                       sym:  { type: "string", description: "기호. KaTeX, $ 없이" },
@@ -660,7 +660,8 @@ const SYS_SOL = [
   "-   ans 에는 개수와 연결 요약 (예: '2입력 NAND 4개 — G1(C,C) · G2(B,G1) · G3(A,A) · G4(G3,G2) = Y').",
   "- NOR 만으로도 같은 방식 (이중부정 → 드모르간 → NOR 로 읽기 → NOT 은 NOR(X,X)).",
   "- truth(진리표) 로 검산: 입력 조합 전부(3입력이면 8줄) · 원래 식과 바꾼 회로 출력이 모두 같음을 보인다.",
-  "- why · check 등 «글» 칸에서는 부정을 'C 바(C의 부정)' 처럼 글로 쓴다. \\overline 같은 수식은 derive · gates · sym 칸에만.",
+  "- ★ why · check · easy · background · given · trap 같은 «글» 칸에서도 식·기호는 반드시 $…$ 로 감싼 KaTeX: $\\overline{C}$ · $\\overline{A} \\cdot B$ · $S = ABC + D$.",
+  "-   'C바' · 'C 바' · '에이 곱하기 비' · '루트3' 처럼 «읽는 말» 로 식을 쓰지 않는다 — 화면에 수식이 안 그려진다.",
   "- 수식 안의 게이트 이름은 \\mathrm{NAND} · \\mathrm{NOR} 처럼 똑바른 글씨로.",
   "",
   "식 정리·전개 일반 — 계산 문제도 같음",
@@ -680,7 +681,7 @@ const SYS_SOL = [
   "쉽게 말하면 (easy) — 모든 유형에 반드시",
   "- ★ 짧게: 2~3문장 · 한 문장 40자 안팎. 한 원소에 한 문장. 장황하게 늘이지 않는다.",
   "- 생활 비유 «하나만»: 전압=물의 높이차(수압), 전류=흐르는 물의 양, 저항=좁은 관, 역률=실제로 일에 쓰인 비율 같은 식.",
-  "- 전문용어는 쓰자마자 괄호로 풀이. 수식·기호·백슬래시 금지.",
+  "- 전문용어는 쓰자마자 괄호로 풀이. 식은 꼭 필요할 때만 $…$ KaTeX 로 짧게 (읽는 말 'C바' 금지).",
   "- 순서: ① 이 문제가 묻는 것 ② 비유 ③ 풀이 흐름 한 문장 — 이 셋이면 끝 (예: '주어진 값을 공식에 넣어 전류를 구하고, 그보다 한 단계 큰 규격을 표에서 고름').",
   "",
   "대충 넘기는 말 금지 — 이 말이 나오면 틀린 해설이다",
@@ -1177,6 +1178,46 @@ function looseJson(x){
   }
   return undefined;
 }
+/* ★ v330 — 글 칸에 «C바» 처럼 읽는 말로 온 식 → $\overline{C}$ · 맨 글자로 쓴 논리식(S = ABC + D) → $…$ 로 감쌈 */
+const oTxt = o => {
+  if(o == null) return "";
+  if(typeof o !== "object") return String(o);
+  if(Array.isArray(o)) return o.map(oTxt).filter(Boolean).join(" · ");
+  const pk = ks => { for(const k of ks){ const v = o[k]; if(v != null && typeof v !== "object" && String(v).trim()) return String(v).trim(); } return ""; };
+  const hd = pk(["name","term","word","label","item","key","k","title","sym","what","concept","q","h"]);
+  const va = pk(["value","val","v","num","amount"]);
+  const un = pk(["unit"]);
+  const de = pk(["desc","mean","meaning","text","say","note","why","easy","detail","explain","content","body","info","def","a"]);
+  let s = hd;
+  if(va) s += (s ? " = " : "") + va + (un && !va.includes(un) ? " " + un : "");
+  if(de) s += (s ? " — " : "") + de;
+  return s || Object.values(o).filter(x => x != null && typeof x !== "object" && String(x).trim()).join(" · ");
+};
+const LGW = /^(AND|OR|NOT|NAND|NOR|XOR|EX|MC|MCF|MCR|THR|PB|PL|RL|GL|YL|WL|OCR|OVR|UVR|OCGR|SGR|DGR|CT|PT|ZCT|GPT|KEC|TR|ELB|MCCB|ACB|VCB|LA|SA|UPS|LED|DC|AC|PF|VA|KVA|KW|HP|OFF|IDC|HIV|PVC)$/;
+const mathify = t => String(t == null ? "" : t).split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+\$)/).map((seg, si) => {
+  if(si % 2) return seg;
+  const K = [], P = m => { K.push(m); return "\u0001" + (K.length - 1) + "\u0002"; };
+  let x = seg;
+  /* (A+B)바 · (A+B) 바 */
+  x = x.replace(/\(([A-Z][A-Z0-9+·' ]*)\)\s?바(?!탕|람|닥|깥|꾸|꿔|뀌|뀐|이패스|로 (?:옆|뒤|앞|아래|위))/g, (m, e) => P("\\overline{" + e.replace(/·/g, "\\cdot ").trim() + "}"));
+  /* C바 (붙여 씀) · C 바( / C 바, / C 바 끝 (띄어 씀은 뒤가 조사·괄호·문장부호일 때만) */
+  x = x.replace(/(?<![a-z0-9_\\])([A-Z])바(?!탕|람|닥|깥|꾸|꿔|뀌|뀐|이패스)/g, (m, v) => P("\\overline{" + v + "}"));
+  x = x.replace(/(^|[^A-Za-z0-9_\\])([A-Z]) 바(?=$|[\s(),.·:;]|[와과는를가의도만](?![가-힣]))/g, (m, a, v) => a + P("\\overline{" + v + "}"));
+  /* 맨 글자 논리식: 글자(·부정)끼리 + = · 로 이은 것 */
+  const T = "(?:\\(?(?:[A-Z]|\\u0001\\d+\\u0002)+'?\\)?)+";
+  const RE = new RegExp("(^|[^A-Za-z0-9_.=/^×÷√\\\\\\u0002])(" + T + "(?:\\s*[+=]\\s*" + T + "|·" + T + ")+)(?![A-Za-z0-9_=/^×÷√\\u0001])", "g");
+  x = x.replace(RE, (m, a, e) => {
+    const bare = e.replace(/\u0001\d+\u0002/g, " ");
+    const words = bare.match(/[A-Z]{2,}/g) || [];
+    if(words.some(w => LGW.test(w))) return m;
+    if(!/[+=·]/.test(e)) return m;
+    return a + P(e.replace(/\u0001(\d+)\u0002/g, (_, i) => K[+i]).replace(/·/g, " \\cdot ").replace(/\s+/g, " ").trim());
+  });
+  /* 남은 부정 하나짜리 — 한 덩어리로 붙은 것끼리 합쳐 $…$ 하나로 */
+  x = x.replace(/(?:\u0001\d+\u0002|(?<=\u0002)[A-Z]|[A-Z](?=\u0001))+/g, m => "$" + m.replace(/\u0001(\d+)\u0002/g, (_, i) => K[+i]) + "$");
+  return x.replace(/\u0001(\d+)\u0002/g, (_, i) => "$" + K[+i] + "$").replace(/\$\$(?=\S)/g, "$ $");
+}).join("");
+
 function fixSol(sol){
   if (!sol || typeof sol !== "object") return sol;
   const toArr = v => {
@@ -1219,6 +1260,15 @@ function fixSol(sol){
   });
   if (LG.length || "logic" in sol) sol.logic = LG;
   if (typeof sol.truth === "string"){ const j = looseJson(sol.truth.trim()); sol.truth = (j && typeof j === "object") ? j : null; }
+  /* ★ v330 — 글 칸 손질: ① 배열 원소가 객체로 오면({name,value}·{term,desc}) 글자 하나로 — 화면에 [object Object] 로 나오던 것
+     ② 'C바' 처럼 읽는 말로 쓴 식 · 맨 글자 논리식(S = ABC + D)을 $…$ KaTeX 로 */
+  for (const k of ["easy", "background", "given", "read", "keys", "also"]) if (Array.isArray(sol[k])) sol[k] = sol[k].map(x => mathify(oTxt(x))).filter(x => String(x).trim());
+  for (const k of ["gist", "check", "trap", "memo", "why_answer", "answer"]) if (sol[k] != null && typeof sol[k] !== "string") sol[k] = oTxt(sol[k]);
+  for (const k of ["gist", "check", "trap", "memo", "why_answer"]) if (typeof sol[k] === "string") sol[k] = mathify(sol[k]);
+  if (Array.isArray(sol.steps)) sol.steps.forEach(st => { if (st && typeof st === "object") for (const k of ["say", "ans", "why", "read"]) if (st[k] != null){ if (typeof st[k] !== "string") st[k] = oTxt(st[k]); st[k] = mathify(st[k]); } });
+  if (Array.isArray(sol.items)) sol.items.forEach(it => { if (it && typeof it === "object") for (const k of ["mean", "why"]) if (typeof it[k] === "string") it[k] = mathify(it[k]); });
+  if (Array.isArray(sol.terms)) sol.terms.forEach(it => { if (it && typeof it === "object") for (const k of ["easy", "like"]) if (typeof it[k] === "string") it[k] = mathify(it[k]); });
+  if (Array.isArray(sol.formula_why)) sol.formula_why.forEach(it => { if (it && typeof it === "object" && typeof it.why === "string") it.why = mathify(it.why); });
   if (typeof sol.mnemo === "string" && /^\s*\{/.test(sol.mnemo)){ const j = looseJson(sol.mnemo.trim()); if (j && typeof j === "object") sol.mnemo = j; }
   return sol;
 }
@@ -1321,7 +1371,7 @@ export default {
         판정: 막힌곳.includes(colo)
           ? `${colo} 기지는 Anthropic 이 막는 지역입니다 — 403 의 원인입니다.`
           : `${colo} 기지는 보통 허용됩니다.`,
-        빌드: "v329"
+        빌드: "v330"
       }, 200, H);
     }
 
@@ -1377,7 +1427,7 @@ export default {
         keyHead: String(env.ANTHROPIC_API_KEY).slice(0,14) + "…",
         keyLen: String(env.ANTHROPIC_API_KEY).length,
         keyTrimmed: String(env.ANTHROPIC_API_KEY) === String(env.ANTHROPIC_API_KEY).trim(),
-        빌드: "v329",
+        빌드: "v330",
         기지: (req.cf && req.cf.colo) || "?",
         upstream: parsed || body.slice(0,600),
         vision
@@ -1385,7 +1435,7 @@ export default {
     }
 
     if (path === "/health" || path === "/")
-      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v329" }, 200, H);
+      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v330" }, 200, H);
 
     if (env.APP_KEY && req.headers.get("x-app-key") !== env.APP_KEY)
       return json({ error: "x-app-key 가 맞지 않습니다", detail: "x-app-key 가 맞지 않습니다" }, 401, H);

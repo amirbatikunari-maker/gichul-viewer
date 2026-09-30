@@ -437,41 +437,80 @@ function toMd(sol){
     b = b.replace(CMD, (w, _g, off, str) => (off > 0 && str[off - 1] === "\\") ? w : "\\" + w);
     return "$" + b + "$";
   });
-  const line = t => fixMath(unxml(String(t == null ? "" : t))).replace(/\n{2,}/g, "\n").trim();
+  /* ★ v330 — 글 칸에 «C바» 처럼 읽는 말로 온 식 → $\overline{C}$ · 맨 글자로 쓴 논리식(S = ABC + D) → $…$ 로 감쌈 */
+  const oTxt = o => {
+    if(o == null) return "";
+    if(typeof o !== "object") return String(o);
+    if(Array.isArray(o)) return o.map(oTxt).filter(Boolean).join(" · ");
+    const pk = ks => { for(const k of ks){ const v = o[k]; if(v != null && typeof v !== "object" && String(v).trim()) return String(v).trim(); } return ""; };
+    const hd = pk(["name","term","word","label","item","key","k","title","sym","what","concept","q","h"]);
+    const va = pk(["value","val","v","num","amount"]);
+    const un = pk(["unit"]);
+    const de = pk(["desc","mean","meaning","text","say","note","why","easy","detail","explain","content","body","info","def","a"]);
+    let s = hd;
+    if(va) s += (s ? " = " : "") + va + (un && !va.includes(un) ? " " + un : "");
+    if(de) s += (s ? " — " : "") + de;
+    return s || Object.values(o).filter(x => x != null && typeof x !== "object" && String(x).trim()).join(" · ");
+  };
+  const LGW = /^(AND|OR|NOT|NAND|NOR|XOR|EX|MC|MCF|MCR|THR|PB|PL|RL|GL|YL|WL|OCR|OVR|UVR|OCGR|SGR|DGR|CT|PT|ZCT|GPT|KEC|TR|ELB|MCCB|ACB|VCB|LA|SA|UPS|LED|DC|AC|PF|VA|KVA|KW|HP|OFF|IDC|HIV|PVC)$/;
+  const mathify = t => String(t == null ? "" : t).split(/(\$\$[\s\S]*?\$\$|\$[^$\n]+\$)/).map((seg, si) => {
+    if(si % 2) return seg;
+    const K = [], P = m => { K.push(m); return "\u0001" + (K.length - 1) + "\u0002"; };
+    let x = seg;
+    /* (A+B)바 · (A+B) 바 */
+    x = x.replace(/\(([A-Z][A-Z0-9+·' ]*)\)\s?바(?!탕|람|닥|깥|꾸|꿔|뀌|뀐|이패스|로 (?:옆|뒤|앞|아래|위))/g, (m, e) => P("\\overline{" + e.replace(/·/g, "\\cdot ").trim() + "}"));
+    /* C바 (붙여 씀) · C 바( / C 바, / C 바 끝 (띄어 씀은 뒤가 조사·괄호·문장부호일 때만) */
+    x = x.replace(/(?<![a-z0-9_\\])([A-Z])바(?!탕|람|닥|깥|꾸|꿔|뀌|뀐|이패스)/g, (m, v) => P("\\overline{" + v + "}"));
+    x = x.replace(/(^|[^A-Za-z0-9_\\])([A-Z]) 바(?=$|[\s(),.·:;]|[와과는를가의도만](?![가-힣]))/g, (m, a, v) => a + P("\\overline{" + v + "}"));
+    /* 맨 글자 논리식: 글자(·부정)끼리 + = · 로 이은 것 */
+    const T = "(?:\\(?(?:[A-Z]|\\u0001\\d+\\u0002)+'?\\)?)+";
+    const RE = new RegExp("(^|[^A-Za-z0-9_.=/^×÷√\\\\\\u0002])(" + T + "(?:\\s*[+=]\\s*" + T + "|·" + T + ")+)(?![A-Za-z0-9_=/^×÷√\\u0001])", "g");
+    x = x.replace(RE, (m, a, e) => {
+      const bare = e.replace(/\u0001\d+\u0002/g, " ");
+      const words = bare.match(/[A-Z]{2,}/g) || [];
+      if(words.some(w => LGW.test(w))) return m;
+      if(!/[+=·]/.test(e)) return m;
+      return a + P(e.replace(/\u0001(\d+)\u0002/g, (_, i) => K[+i]).replace(/·/g, " \\cdot ").replace(/\s+/g, " ").trim());
+    });
+    /* 남은 부정 하나짜리 — 한 덩어리로 붙은 것끼리 합쳐 $…$ 하나로 */
+    x = x.replace(/(?:\u0001\d+\u0002|(?<=\u0002)[A-Z]|[A-Z](?=\u0001))+/g, m => "$" + m.replace(/\u0001(\d+)\u0002/g, (_, i) => K[+i]) + "$");
+    return x.replace(/\u0001(\d+)\u0002/g, (_, i) => "$" + K[+i] + "$").replace(/\$\$(?=\S)/g, "$ $");
+  }).join("");
+  const line = t => fixMath(mathify(unxml(oTxt(t)))).replace(/\n{2,}/g, "\n").trim();
 
   if(sol.gist) L.push(`**${line(sol.gist)}**`, "");
   /* ★ v309 — 비전공자용 «쉽게 말하면» */
   if(arr(sol.easy).length){
     L.push("**쉽게 말하면**", "");
-    arr(sol.easy).forEach(e => L.push(`- ${line(typeof e === "string" ? e : (e && (e.text || e.say)) || "")}`));
+    arr(sol.easy).forEach(e => L.push(`- ${line(e)}`));
     L.push("");
   }
 
   if(arr(sol.background).length){
     L.push("**먼저 알아야 할 것**", "");
-    arr(sol.background).forEach(b => L.push(`- ${b}`));
+    arr(sol.background).forEach(b => L.push(`- ${line(b)}`));   /* ★ v330 — 객체로 오면 [object Object] 로 나오던 것 */
     L.push("");
   }
   if(arr(sol.read).length){
     L.push("**문제를 이렇게 읽음**", "");
-    arr(sol.read).forEach(b => L.push(`- ${b}`));
+    arr(sol.read).forEach(b => L.push(`- ${line(b)}`));
     L.push("");
   }
   if(arr(sol.given).length){
     L.push("**주어진 값**", "");
-    arr(sol.given).forEach(g => L.push(`- ${g}`));
+    arr(sol.given).forEach(g => L.push(`- ${line(g)}`));
     L.push("");
   }
   if(arr(sol.symbols).length){
     L.push("**부호**", "");
     arr(sol.symbols).forEach(x => {
-      if(typeof x === "string") return void L.push(`- ${x}`);
+      if(typeof x === "string") return void L.push(`- ${line(x)}`);
       const u = x.unit ? ` · 단위 ${inlineTex(x.unit)}` : "";
       const v = x.val  ? ` · 이 문제: ${inlineTex(x.val)}` : "";
       const sy = HAN.test(String(x.sym||"")) ? String(x.sym||"") : `$${tex(x.sym)||""}$`;
       /* ★ v277 — 읽는 발음 «브이 에스» 를 기호 옆에 */
       const pr = x.say ? ` «${String(x.say).replace(/[«»\n]/g, "").trim()}»` : "";
-      L.push(`- ${sy}${pr} — ${x.mean || ""}${u}${v}`);
+      L.push(`- ${sy}${pr} — ${line(x.mean || "")}${u}${v}`);
     });
     L.push("");
   }
@@ -649,7 +688,7 @@ function toMd(sol){
   if(sol.trap)       L.push("**흔한 실수**", "", line(sol.trap), "");
   if(arr(sol.also).length){
     L.push("**같이 알아 두기**", "");
-    arr(sol.also).forEach(x => L.push(`- ${x}`));
+    arr(sol.also).forEach(x => L.push(`- ${line(x)}`));
     L.push("");
   }
   /* ★ v310 — 비전공자용 표 세 가지 (맨 아래) : 용어 풀이 · 공식이 왜 · 헷갈리는 짝 */
