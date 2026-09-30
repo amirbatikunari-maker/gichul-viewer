@@ -509,9 +509,9 @@ const TOOL = {
                     description: "문제 유형. 계산=숫자로 값을 구함 · 나열=~을 N가지 쓰시오 · 단답=명칭·약호·용어 · 서술=이유·방법을 글로 · 회로·시퀀스=회로·접점·동작 · 표·선정=계산 뒤 표·규격에서 고름" },
       gist:       { type: "string", description: "한 줄 요지 — 무엇을 묻는 문제인가" },
       easy:       { type: "array", items: { type: "string" },
-                    description: "★ 비전공자용 «쉽게 말하면». 전기를 전혀 모르는 사람에게 말로 설명하듯 3~5문장. 원소 하나에 한 문장. 생활 비유(물·수도관·도로·저울 등) 1개 이상. 전문용어를 쓰면 바로 괄호로 풀이. 수식·기호·백슬래시 금지. 순서: ① 이 문제가 묻는 것 ② 비유 ③ 풀이 흐름을 한 문장으로" },
+                    description: "★ 비전공자용 «쉽게 말하면» — 짧게. 2~3문장 · 한 문장 40자 안팎. 생활 비유 하나 + 이 문제가 묻는 것 한 줄. 수식·기호·백슬래시 금지. 장황하게 늘이지 않는다" },
       background: { type: "array", items: { type: "string" },
-                    description: "풀기 전에 알아야 할 배경. 전기를 처음 보는 사람 기준으로 3~6개. 한 개가 배열 원소 하나" },
+                    description: "풀기 전에 알아야 할 배경 — ★ 짧게. 2~4개 · 한 원소에 개념 하나 · 한 줄(40자 안팎). 길게 풀어 쓰지 않는다 (자세한 설명은 풀이의 «왜» 에서)" },
       given:      { type: "array", items: { type: "string" },
                     description: "문제에 나온 숫자·조건을 «빠짐없이 전부». 한 개가 배열 원소 하나. '이름 = 숫자 단위 (뜻)' 꼴" },
       symbols:    { type: "array", description: "식에 나오는 기호",
@@ -529,7 +529,11 @@ const TOOL = {
                       plain: { type: "string", description: "②해설식 — ①과 «생김새가 똑같은 식». 기호 자리에만 한글 이름을 넣는다. ①이 분수면 여기도 \\dfrac, ①이 \\times 면 여기도 \\times, ①이 \\sqrt{} 면 여기도 \\sqrt{}. '나누기'·'곱하기'·'루트3'·'그 다음'·'~를 곱함' 같은 말로 풀어쓴 «문장» 은 절대 금지 — 그건 why 칸이 할 일. 한글은 \\text{} 안에. KaTeX, $ 없이" },
                       num:   { type: "string", description: "③숫자대입식 — 숫자를 넣고 계산해 결과까지. 단위는 뒤에 \\,[\\text{옴}] 처럼 한글로. KaTeX, $ 없이" },
                       unit:  { type: "string", description: "④단위계산식 — 숫자 대신 «단위» 만 넣어 결과 단위가 맞는지 보이는 식. 예: [\\text{옴}] = \\dfrac{[\\text{볼트}] \\times [\\text{볼트}]}{[\\text{와트}]}. KaTeX, $ 없이" },
-                      why:   { type: "string", description: "⑤왜 — 이 식을 왜 쓰는지 한글 3~6문장. 수식·기호·달러표시를 넣지 않는다. 값은 '저항 0.945옴' 처럼 글로 쓴다" },
+                      why:   { type: "string", description: "⑤왜 — 이 식을 왜 쓰는지 한글 3~6문장. 수식·기호·달러표시를 넣지 않는다. 값은 '저항 0.945옴' 처럼 글로 쓴다" } } } },
+      /* ★ v329 — 논리식 변환·게이트 표를 «단계 안» 이 아니라 여기(맨 바깥)에 — 안쪽 칸은 모델이 자주 빼먹거나 바깥에 적어 검사가 못 찾았음 */
+      logic:      { type: "array", description: "★ 논리식·논리회로 문제면 반드시 — NAND 만으로 · NOR 만으로 · 간략화 처럼 «식을 바꾸거나 회로를 그리는 소문항마다 하나». 다른 문제는 빈 배열",
+                    items: { type: "object", required: ["q", "derive"], properties: {
+                      q:      { type: "string", description: "소문항 번호와 이름. 예: '(2) 2입력 NAND 만으로'" },
                       derive: { type: "array", description: "★ 식을 바꾸는 과정(논리식 변환·식 정리·전개) — «한 줄에 법칙·조작 하나». 건너뛰기 금지. 논리식(드모르간·NAND/NOR 만으로) 문제는 반드시",
                                 items: { type: "object", required: ["eq", "law"], properties: {
                                   eq:  { type: "string", description: "그 줄의 식 전체. KaTeX, $ 없이. 첫 줄은 'Y = …' 처럼 원래 식, 다음 줄부터는 '= …' 로 시작" },
@@ -642,14 +646,16 @@ const SYS_SOL = [
   "-   items 도 모든 소문항 항목을 빠짐없이 넣고, word 앞에 소문항 번호를 붙인다. 예: '(2) 에너지 밀도가 낮음'",
   "",
   "논리식 · 논리회로 (드모르간 · NAND 만으로 · NOR 만으로 · 간략화) — 과정을 절대 건너뛰지 않는다",
-  "- 식을 바꾸는 단계마다 derive 배열에 «한 줄에 법칙 하나». 한 등호에서 두 가지를 한꺼번에 바꾸지 않는다.",
+  "- logic 배열(맨 바깥 칸)에 «식을 바꾸거나 회로를 그리는 소문항마다» 한 묶음 { q, derive, gates }. steps 안에 넣지 않는다.",
+  "- derive 는 «한 줄에 법칙 하나». 한 등호에서 두 가지를 한꺼번에 바꾸지 않는다.",
   "-   예(NAND 만으로, Y = A + B\\overline{C}):",
   "-     ① Y = A + B\\overline{C}  · law '원래 식'",
   "-     ② = \\overline{\\overline{A + B\\overline{C}}}  · law '이중부정 — 두 번 뒤집어도 값이 그대로'",
   "-     ③ = \\overline{\\overline{A} \\cdot \\overline{B\\overline{C}}}  · law '드모르간 — 합(OR)의 부정 = 각각 부정의 곱(AND)'",
   "-     ④ = NAND(\\overline{A}, NAND(B, \\overline{C}))  · law 'NAND 로 바꿔 읽기 — 곱의 부정 = NAND'",
   "-     ⑤ \\overline{A} = NAND(A, A), \\overline{C} = NAND(C, C)  · law 'NOT 을 NAND 로 — 같은 입력 두 개'",
-  "- 회로를 그리는 소문항은 gates 표를 채운다: 게이트마다 종류 · 입력 · 출력 · 하는 일. 입력 쪽부터 차례로 → 마지막 게이트 출력이 Y.",
+  "- 같은 묶음의 gates 표: 게이트마다 종류 · 입력 · 출력 · 하는 일. 입력 쪽부터 차례로 → 마지막 게이트 출력이 Y.",
+  "- (1) 기본 게이트로 그리기도 logic 한 묶음 (derive 는 '원래 식' 한두 줄, gates 는 NOT·AND·OR).",
   "-   예: G1 NAND (C, C) → \\overline{C} · G2 NAND (B, G1) → \\overline{B\\overline{C}} · G3 NAND (A, A) → \\overline{A} · G4 NAND (G3, G2) → Y",
   "-   ans 에는 개수와 연결 요약 (예: '2입력 NAND 4개 — G1(C,C) · G2(B,G1) · G3(A,A) · G4(G3,G2) = Y').",
   "- NOR 만으로도 같은 방식 (이중부정 → 드모르간 → NOR 로 읽기 → NOT 은 NOR(X,X)).",
@@ -672,10 +678,10 @@ const SYS_SOL = [
   "- answer 는 소문항별 한두 줄 요약만. 자세한 연결은 steps 에.",
   "",
   "쉽게 말하면 (easy) — 모든 유형에 반드시",
-  "- 전기를 전혀 모르는 사람에게 옆에서 말로 설명하듯 3~5문장. 한 원소에 한 문장.",
-  "- 생활 비유를 하나 이상: 전압=물의 높이차(수압), 전류=흐르는 물의 양, 저항=좁은 관, 역률=실제로 일에 쓰인 비율 같은 식.",
+  "- ★ 짧게: 2~3문장 · 한 문장 40자 안팎. 한 원소에 한 문장. 장황하게 늘이지 않는다.",
+  "- 생활 비유 «하나만»: 전압=물의 높이차(수압), 전류=흐르는 물의 양, 저항=좁은 관, 역률=실제로 일에 쓰인 비율 같은 식.",
   "- 전문용어는 쓰자마자 괄호로 풀이. 수식·기호·백슬래시 금지.",
-  "- 순서: ① 이 문제가 묻는 것 ② 비유 ③ 풀이 흐름 한 문장(예: '주어진 값을 공식에 넣어 전류를 구하고, 그보다 한 단계 큰 규격을 표에서 고름').",
+  "- 순서: ① 이 문제가 묻는 것 ② 비유 ③ 풀이 흐름 한 문장 — 이 셋이면 끝 (예: '주어진 값을 공식에 넣어 전류를 구하고, 그보다 한 단계 큰 규격을 표에서 고름').",
   "",
   "대충 넘기는 말 금지 — 이 말이 나오면 틀린 해설이다",
   "- '답안지 그림처럼' · '그림과 같이' · '위와 같이' · '같은 방법으로' · '마찬가지로' · '생략' · '간단히 정리하면' · '이하 동일' · '…' 로 과정을 건너뛰지 않는다.",
@@ -862,7 +868,7 @@ async function explain(req, env, H){
     ? "짧게 요점만 적는다."
     : depth === "mid"
       ? "보통 길이로 적되, 기호 뜻과 숫자 대입 과정은 빠뜨리지 않는다."
-      : "아주 자세히 적는다. 전기를 처음 보는 사람이 이 해설만 읽고 혼자 이해할 수 있어야 한다. 길이를 아끼지 않는다.";
+      : "풀이 단계 · «왜» · 식 바꾸는 과정은 아주 자세히 — 전기를 처음 보는 사람이 이 해설만 읽고 혼자 이해할 수 있어야 한다. 대신 «쉽게 말하면» · «먼저 알아야 할 것» 은 짧게(각 2~4줄).";
   parts.push({ type: "text", text: "── 어떻게 적을까 ──\n" + ask });
   /* ★ v278 — 화면에서 사람이 유형을 골라 보냈으면 그 틀로 */
   const KINDS = ["계산", "나열", "단답", "서술", "회로·시퀀스", "표·선정"];
@@ -888,7 +894,10 @@ async function explain(req, env, H){
     const st = inp.steps;
     DIAG.push({ tag, stop: out.stop_reason || null, out_tokens: (out.usage && out.usage.output_tokens) || null,
       keys: Object.keys(inp).join(","),
-      steps: Array.isArray(st) ? `배열 ${st.length}` : st == null ? "없음" : typeof st === "string" ? `글자 ${st.length}자: ${st.slice(0, 80)}` : `${typeof st}: ${JSON.stringify(st).slice(0, 80)}` });
+      steps: Array.isArray(st) ? `배열 ${st.length}` : st == null ? "없음" : typeof st === "string" ? `글자 ${st.length}자: ${st.slice(0, 80)}` : `${typeof st}: ${JSON.stringify(st).slice(0, 80)}`,
+      /* ★ v329 — 논리식 칸이 어디에 몇 개 왔는지 */
+      logic: (() => { const L = inp.logic; const inStep = Array.isArray(st) ? st.filter(x => x && (x.derive || x.gates)).length : 0;
+        return (Array.isArray(L) ? `logic ${L.length}묶음` : L == null ? "logic 없음" : `logic ${typeof L}`) + (inStep ? ` · 단계 안 ${inStep}` : "") + ("derive" in inp || "gates" in inp ? " · 바깥 derive/gates" : ""); })() });
   };
   const ask1 = async (extra, mt, prev, mdl) => {
     const first = { role: "user", content: parts.concat([{ type: "text", text: ONCE }]) };
@@ -918,14 +927,14 @@ async function explain(req, env, H){
       check: TOOL.input_schema.properties.check, trap: TOOL.input_schema.properties.trap,
       easy: TOOL.input_schema.properties.easy, min_ans: TOOL.input_schema.properties.min_ans,
       terms: TOOL.input_schema.properties.terms, formula_why: TOOL.input_schema.properties.formula_why,
-      truth: TOOL.input_schema.properties.truth } } };
+      truth: TOOL.input_schema.properties.truth , logic: TOOL.input_schema.properties.logic} } };
   const askSteps = async (base, why) => {
     const res = await call(env, {
       model, max_tokens: maxTok, system: SYS_SOL,
       tools: [STEP_TOOL], tool_choice: { type: "tool", name: "write_steps" },
       messages: [{ role: "user", content: parts.concat([{ type: "text", text:
         "── 이미 적은 것 ──\n요지: " + (base.gist || "") + "\n유형: " + (base.kind || "") + "\n답:\n" + (base.answer || "") +
-        "\n\n── 빠진 것 ──\n" + why + "\n\nwrite_steps 로 빠진 칸을 모두 채운다 — 풀이 단계(소문항마다 · 회로는 가지마다) · 부호 · 주어진 값 · 먼저 알아야 할 것 · 검산 · 흔한 실수 · 논리식이면 변환 과정(derive)·게이트 표(gates)·진리표(truth) · 쉽게 말하면(easy) · 최소 답안(min_ans, 단답·서술·나열형) · 용어 풀이(terms) · 공식이 왜(formula_why, 계산형). 배열 칸은 JSON 배열 [ {…} ] 로. <parameter> 태그 · 자리표시 금지." }]) }]
+        "\n\n── 빠진 것 ──\n" + why + "\n\nwrite_steps 로 빠진 칸을 모두 채운다 — 풀이 단계(소문항마다 · 회로는 가지마다) · 부호 · 주어진 값 · 먼저 알아야 할 것 · 검산 · 흔한 실수 · 논리식이면 맨 바깥 logic 칸(소문항마다 {q, derive, gates})·진리표(truth) · 쉽게 말하면(easy) · 최소 답안(min_ans, 단답·서술·나열형) · 용어 풀이(terms) · 공식이 왜(formula_why, 계산형). 배열 칸은 JSON 배열 [ {…} ] 로. <parameter> 태그 · 자리표시 금지." }]) }]
     });
     const out = await res.json();
     BILL.push({ model, u: out.usage || null });
@@ -943,6 +952,9 @@ async function explain(req, env, H){
     }
     for (const k of ["check", "trap"]) if (!String(m[k] || "").trim() && add[k]) m[k] = add[k];
     if ((!m.truth || !Array.isArray(m.truth.rows) || !m.truth.rows.length) && add.truth && Array.isArray(add.truth.rows) && add.truth.rows.length) m.truth = add.truth;
+    /* ★ v329 — 논리식 변환·게이트 묶음: 새로 온 것이 더 많으면 새것으로 */
+    const lgN = x => (Array.isArray(x) ? x : []).reduce((a, g) => a + ((g && g.derive) || []).length + ((g && g.gates) || []).length, 0);
+    if (lgN(add.logic) > lgN(m.logic)) m.logic = add.logic;
     return tidy(m);
   };
   const T0 = Date.now();
@@ -1031,20 +1043,21 @@ async function explain(req, env, H){
     const txtAll = [s.gist, s.answer, ...steps.map(x => [x.say, x.ans, x.sym].join(" "))].join(" ");
     const logic = /NAND|NOR|논리식|논리 ?회로|드모르간|De ?Morgan|불 ?대수|게이트/i.test(txtAll);
     if (logic){
-      const der = steps.map(x => Array.isArray(x.derive) ? x.derive.filter(d => d && String(d.eq || "").trim()) : []);
+      const LGs = Array.isArray(s.logic) ? s.logic.filter(x => x && typeof x === "object") : [];
+      const der = LGs.map(x => Array.isArray(x.derive) ? x.derive.filter(d => d && String(d.eq || "").trim()) : []);
       const best = Math.max(0, ...der.map(d => d.length));
-      if (best < 2) P.push("논리식 변환 과정(derive)이 없다 — 원래 식부터 «한 줄에 법칙 하나»(이중부정 · 드모르간 · NAND/NOR 로 읽기 …) 로 전부");
+      if (best < 2) P.push("논리식 변환 과정이 없다 — 맨 바깥 logic 칸에 소문항마다 { q, derive:[{eq,law}…], gates:[…] } — derive 는 원래 식부터 «한 줄에 법칙 하나»(이중부정 · 드모르간 · NAND/NOR 로 읽기 …)");
       else if (/NAND|NOR/i.test(txtAll) && best < 3) S.push("derive 가 너무 짧다 — 이중부정 · 드모르간 · NAND/NOR 로 읽기를 한 줄씩 따로");
       if (der.some(d => d.some(x => !String(x.law || "").trim()))) S.push("derive 줄마다 쓴 법칙(law)을 적는다");
-      const gs = steps.map(x => Array.isArray(x.gates) ? x.gates.filter(g => g && String(g.type || "").trim()) : []);
-      if (/NAND|NOR/i.test(txtAll) && !gs.some(g => g.length >= 2)) P.push("게이트 연결표(gates)가 없다 — 회로를 그리는 소문항마다 게이트 하나에 한 줄(종류 · 입력 · 출력 · 하는 일)");
+      const gs = LGs.map(x => Array.isArray(x.gates) ? x.gates.filter(g => g && String(g.type || "").trim()) : []);
+      if (/NAND|NOR/i.test(txtAll) && !gs.some(g => g.length >= 2)) P.push("게이트 연결표가 없다 — logic 칸의 각 묶음 gates 에 게이트 하나에 한 줄(g · type · in · out · role)");
       const tr = s.truth;
       if (!(tr && Array.isArray(tr.rows) && tr.rows.length >= 4)) S.push("진리표(truth)가 없다 — 입력 조합 전부 · 원래 식과 바꾼 회로 출력을 나란히");
     }
     /* ★ v309 — 비전공자용 «쉽게 말하면» · 단답·서술·나열형 «최소 답안» */
     if (!A("terms").some(x => x && typeof x === "object" && String(x.word || "").trim())) S.push("terms(용어 풀이)가 비었다 — 전문용어·약어 3~6개를 쉬운 뜻·비유와 함께");
     if (calc && !A("formula_why").some(x => x && typeof x === "object" && String(x.why || "").trim())) S.push("formula_why(공식이 왜 이렇게 생겼나)가 비었다 — √3·cosθ·10^3 처럼 식에 붙는 것마다 이유를");
-    if (!A("easy").some(x => String(x || "").trim())) S.push("easy(쉽게 말하면)가 비었다 — 전기를 모르는 사람용 비유 설명 3~5문장");
+    if (!A("easy").some(x => String(x || "").trim())) S.push("easy(쉽게 말하면)가 비었다 — 전기를 모르는 사람용 비유 설명 2~3문장(짧게)");
     if (["단답", "서술", "나열"].includes(kind)){
       const MA = A("min_ans").filter(x => x && typeof x === "object" && String(x.text || "").trim());
       if (!MA.length) (s._relaxed ? S : P).push("min_ans(최소 답안)가 비었다 — 소문항마다 «이만큼만 써도 만점» 인 짧은 답과 필수 핵심어(must)를");
@@ -1092,6 +1105,9 @@ async function explain(req, env, H){
       if (r2.sol && score(r2.sol) > score(sol)){ sol = r2.sol; out = r2.out; used = alt; fallback = true; }
     }catch(e){}
   }
+  /* ★ v329 — «쉽게 말하면» 3줄 · «먼저 알아야 할 것» 4줄까지만 (길게 오면 잘라서 — 다시 부르지 않음) */
+  if (Array.isArray(sol.easy) && sol.easy.length > 3) sol.easy = sol.easy.slice(0, 3);
+  if (Array.isArray(sol.background) && sol.background.length > 4) sol.background = sol.background.slice(0, 4);
   const problems = probs(sol), notes = softs(sol);
 
   return json({ ok: true, sol, notes, model: used, asked: model, fallback, diag: DIAG, depth, retried, problems,
@@ -1186,6 +1202,22 @@ function fixSol(sol){
   for (const k of ["steps", "symbols", "items", "given", "background", "keys", "tags", "mnemos", "easy", "min_ans", "terms", "formula_why", "pairs"]) if (k in sol) sol[k] = toArr(sol[k]);
   /* ★ v327 — 단계 안의 derive · gates 도 글자(JSON)로 오면 풀어 줌 · truth 가 글자면 풀어 줌 */
   if (Array.isArray(sol.steps)) sol.steps.forEach(st => { if (st && typeof st === "object") for (const k of ["derive", "gates"]) if (k in st){ const v = toArr(st[k]); st[k] = Array.isArray(v) ? v : []; } });
+  /* ★ v329 — 논리식 변환·게이트 표는 어디에 적어 오든 logic 한 곳으로 모은다
+     ① logic 이 글자(JSON)면 풀기 ② 맨 바깥에 derive·gates 만 따로 온 것 ③ 예전처럼 단계 안에 넣은 것(v327) */
+  let LG = "logic" in sol ? toArr(sol.logic) : [];
+  if (!Array.isArray(LG)) LG = (LG && typeof LG === "object") ? [LG] : [];
+  LG = LG.filter(x => x && typeof x === "object").map(x => ({ ...x, derive: Array.isArray(toArr(x.derive)) ? toArr(x.derive) : [], gates: Array.isArray(toArr(x.gates)) ? toArr(x.gates) : [] }));
+  const stray = { derive: toArr(sol.derive), gates: toArr(sol.gates) };
+  if ((Array.isArray(stray.derive) && stray.derive.length) || (Array.isArray(stray.gates) && stray.gates.length))
+    LG.push({ q: "", derive: Array.isArray(stray.derive) ? stray.derive : [], gates: Array.isArray(stray.gates) ? stray.gates : [] });
+  delete sol.derive; delete sol.gates;
+  if (Array.isArray(sol.steps)) sol.steps.forEach(st => {
+    if (!st || typeof st !== "object") return;
+    const d = Array.isArray(st.derive) ? st.derive : [], g = Array.isArray(st.gates) ? st.gates : [];
+    if (d.length || g.length) LG.push({ q: String(st.say || ""), derive: d, gates: g });
+    delete st.derive; delete st.gates;
+  });
+  if (LG.length || "logic" in sol) sol.logic = LG;
   if (typeof sol.truth === "string"){ const j = looseJson(sol.truth.trim()); sol.truth = (j && typeof j === "object") ? j : null; }
   if (typeof sol.mnemo === "string" && /^\s*\{/.test(sol.mnemo)){ const j = looseJson(sol.mnemo.trim()); if (j && typeof j === "object") sol.mnemo = j; }
   return sol;
@@ -1289,7 +1321,7 @@ export default {
         판정: 막힌곳.includes(colo)
           ? `${colo} 기지는 Anthropic 이 막는 지역입니다 — 403 의 원인입니다.`
           : `${colo} 기지는 보통 허용됩니다.`,
-        빌드: "v328"
+        빌드: "v329"
       }, 200, H);
     }
 
@@ -1345,7 +1377,7 @@ export default {
         keyHead: String(env.ANTHROPIC_API_KEY).slice(0,14) + "…",
         keyLen: String(env.ANTHROPIC_API_KEY).length,
         keyTrimmed: String(env.ANTHROPIC_API_KEY) === String(env.ANTHROPIC_API_KEY).trim(),
-        빌드: "v328",
+        빌드: "v329",
         기지: (req.cf && req.cf.colo) || "?",
         upstream: parsed || body.slice(0,600),
         vision
@@ -1353,7 +1385,7 @@ export default {
     }
 
     if (path === "/health" || path === "/")
-      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v328" }, 200, H);
+      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v329" }, 200, H);
 
     if (env.APP_KEY && req.headers.get("x-app-key") !== env.APP_KEY)
       return json({ error: "x-app-key 가 맞지 않습니다", detail: "x-app-key 가 맞지 않습니다" }, 401, H);

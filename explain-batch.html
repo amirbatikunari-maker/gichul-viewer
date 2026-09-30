@@ -327,7 +327,7 @@ function toMd(sol){
      그대로 찍으면 대괄호·따옴표가 화면에 그대로 나온다. 풀어서 줄로 나눈다. */
   /* ★ v257 — 칸을 못 채우고 «<item>…</item>» 같은 표를 통째로 적어 보내는 일이 있다.
      그대로 찍으면 태그가 화면에 그대로 나온다. 태그를 걷어내고 줄로 나눈다. */
-  const XML = /<\/?(item|step|symbol|sym|mean|unit|val|say|math|calc|plain|read|why|eq|steps|symbols|given|background|also|tags|tag|check|trap|memo|answer|gist|write_solution|why_answer|easy|min_ans|must|terms|formula_why|pairs|derive|gates|truth)\s*\/?>/gi;
+  const XML = /<\/?(item|step|symbol|sym|mean|unit|val|say|math|calc|plain|read|why|eq|steps|symbols|given|background|also|tags|tag|check|trap|memo|answer|gist|write_solution|why_answer|easy|min_ans|must|terms|formula_why|pairs|derive|gates|truth|logic)\s*\/?>/gi;
   const unxml = t => String(t == null ? "" : t)
     .replace(/<\/?item\s*\/?>/gi, "\n")
     .replace(XML, " ")
@@ -485,6 +485,26 @@ function toMd(sol){
       if(f.why)  L.push(`- 왜: ${f.why}`, "");
     });
   }
+  /* ★ v329 — 논리식 변환·게이트 표를 맨 바깥 logic 칸에서 받음 — 그 소문항 풀이 바로 밑에 붙임 (번호가 없으면 풀이 끝에) */
+  const lgCl = t => line(t).replace(/\n+/g, " ").replace(/\|/g, "∣").trim() || " ";
+  const lgUp = x => x.replace(/(^|[^\\a-zA-Z{])(NAND|NOR|XOR|NOT|AND|OR)(?![a-zA-Z])/g, "$1\\mathrm{$2}");
+  const lgMath = t => { const x = tex(String(t || "")); return x ? "$" + lgUp(x).replace(/\|/g, "\\vert ") + "$" : " "; };
+  const lgTables = g => {
+    const DV = arr(g.derive).filter(d => d && typeof d === "object" && String(d.eq || "").trim());
+    if(DV.length){
+      L.push("| | 식 | 이 줄에서 한 것 |", "|---|---|---|");
+      DV.forEach((d, k) => L.push(`| ${"①②③④⑤⑥⑦⑧⑨⑩⑪⑫"[k] || (k + 1)} | ${lgMath(d.eq)} | ${lgCl(d.law || "")} |`));
+      L.push("");
+    }
+    const GT = arr(g.gates).filter(x => x && typeof x === "object" && String(x.type || x.g || "").trim());
+    if(GT.length){
+      L.push("| 게이트 | 종류 | 입력 | 출력 | 하는 일 |", "|---|---|---|---|---|");
+      GT.forEach(x => L.push(`| **${lgCl(x.g || "")}** | ${lgCl(x.type || "")} | ${/[\\^_{]/.test(String(x.in || "")) ? lgMath(x.in) : lgCl(x.in || "")} | ${/[\\^_{]/.test(String(x.out || "")) ? lgMath(x.out) : lgCl(x.out || "")} | ${lgCl(x.role || "")} |`));
+      L.push("");
+    }
+  };
+  const LGX = arr(sol.logic).filter(g => g && typeof g === "object" && (arr(g.derive).length || arr(g.gates).length))
+    .map(g => ({ g, n: (String(g.q || "").match(/\(\s*(\d{1,2})\s*\)/) || [])[1] || "", used: false }));
   if(arr(sol.steps).length){
     L.push("**풀이**", "");
     arr(sol.steps).forEach((s, i) => {
@@ -527,7 +547,15 @@ function toMd(sol){
       if(s.read) L.push(`- 읽기: “${line(s.read).replace(/^["“]|["”]$/g, "")}”`, "");
       if(s.why)  L.push(`- 왜: ${line(s.why)}`, "");
       L.push("");
+      /* ★ v329 — 이 소문항 번호의 논리식 표 (그 번호가 처음 나온 단계 밑에 한 번) */
+      const sn = (String(s.say || "").match(/^\s*\(\s*(\d{1,2})\s*\)/) || [])[1];
+      if(sn) LGX.filter(x => !x.used && x.n === sn).forEach(x => { x.used = true; if(x.g.q) L.push(`▸ ${lgCl(x.g.q)}`, ""); lgTables(x.g); });
     });
+  }
+  const LGR = LGX.filter(x => !x.used);
+  if(LGR.length){
+    L.push("**식 바꾸기 · 게이트 연결**", "");
+    LGR.forEach(x => { x.used = true; if(x.g.q) L.push(`▸ ${lgCl(x.g.q)}`, ""); lgTables(x.g); });
   }
   /* 답에 이미 단위가 붙어 온 경우 또 붙이지 않는다 (70[mm^2]mm^2 처럼 되던 것) */
   const ansT = line(sol.answer).trim();
