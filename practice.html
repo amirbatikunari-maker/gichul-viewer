@@ -3749,7 +3749,21 @@ function mdLite(t){
       continue;
     }
     if(/^#{1,6}\s/.test(x)){ close(); out += `<h4>${inl(x.replace(/^#+\s/,""))}</h4>`; i++; continue; }
-    if(/^[-*]\s/.test(x)){ if(!ul){ out += "<ul>"; ul = true; } out += `<li>${inl(x.replace(/^[-*]\s/,""))}</li>`; i++; continue; }
+    if(/^[-*]\s/.test(x)){ if(!ul){ out += "<ul>"; ul = true; }
+      /* ★ v333 — 한 칸 안의 줄바꿈: «- 왜: …» 다음 줄들이 칸 밖으로 빠져 노란 상자에 첫 줄만 들어가던 것
+         ① 두 칸 이상 들여 쓴 다음 줄 ② «왜:» 칸이면 빈 줄 · 새 목록 · 머리줄 · 식 줄 · 답 줄 전까지 → 같은 칸에 줄바꿈으로 */
+      const body = x.replace(/^[-*]\s/,"");
+      let li = inl(body); i++;
+      const whyLi = /^(?:왜|읽기)\s*[:：]/.test(body);
+      const BLK = /^(?:[-*]\s|\d+[.)]\s|#{1,6}\s|\||\$\$|&gt;|>|```|\[\[|-{3,}$|\(\d{1,2}\)|[①-⑳]|\*\*[^*]+\*\*\s*$)/;
+      while(i < lines.length){
+        const raw = lines[i].replace(/&nbsp;|\uE000/g, " "), y = raw.trim();   /* 들여쓰기 살리기(v153)가 빈칸을 \uE000 으로 바꿔 둠 → 빈칸으로 보고 앞 빈칸은 떼고 붙임 */
+        if(!y) break;
+        if(/^\s{2,}\S/.test(raw) && !/^\s*[-*]\s/.test(raw)){ li += "<br>" + inl(y); i++; continue; }
+        if(whyLi && !BLK.test(y)){ li += "<br>" + inl(y); i++; continue; }
+        break;
+      }
+      out += `<li>${li}</li>`; continue; }
     close(); out += `<p>${inl(x)}</p>`; i++;
   }
   close(); return out;
@@ -20908,7 +20922,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=332").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=335").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -21264,7 +21278,7 @@ function solToMd(sol){
         L.push("");
       }
       if(s.read) L.push(`- 읽기: “${line(s.read).replace(/^["“]|["”]$/g, "")}”`, "");
-      if(s.why)  L.push(`- 왜: ${line(s.why)}`, "");
+      if(s.why)  L.push(`- 왜: ${line(s.why).replace(/\n+/g, "\n  ")}`, "");   /* ★ v333 — 다음 줄은 들여 써서 같은 «왜» 상자 안으로 */
       L.push("");
       /* ★ v329 — 이 소문항 번호의 논리식 표 (그 번호가 처음 나온 단계 밑에 한 번) */
       const sn = (String(s.say || "").match(/^\s*\(\s*(\d{1,2})\s*\)/) || [])[1];
@@ -21314,7 +21328,7 @@ function solToMd(sol){
       const w = line(it.word || it.name || it.item || "");
       const m = line(it.mean || it.desc || "");
       L.push(`- **${w}**${m ? " — " + m : ""}`);
-      if(it.why) L.push(`- 왜: ${line(it.why)}`);
+      if(it.why) L.push(`- 왜: ${line(it.why).replace(/\n+/g, "\n  ")}`);
     });
     L.push("");
   }
@@ -24721,6 +24735,10 @@ body:not(.ezx-off) .ezx p.ezstep{margin:.65em 0 .1em!important;padding:2px 8px!i
 /* ② 왜 · 읽기 */
 body:not(.ezx-off) .ezx li.ezwhy{list-style:none;margin:.15em 0 .45em -14px!important;padding:4px 9px!important;
   background:#fffaf0;border:1px solid #f1dcae;border-radius:8px}
+/* ★ v334 — 왜 상자: 표(왜:) | 글 두 칸 — 줄이 바뀌어도 글 시작점에 맞춰 들여쓰기 */
+body:not(.ezx-off) .ezx li.ezwhy:has(> .ezwb){display:flex;align-items:flex-start;gap:0}
+body:not(.ezx-off) .ezx li.ezwhy > .ezwk{flex:none;margin-top:.12em}
+body:not(.ezx-off) .ezx li.ezwhy > .ezwb{flex:1;min-width:0;display:block}
 body:not(.ezx-off) .ezx li.ezwhy .ezwk{display:inline-block;margin-right:5px;padding:0 6px;border-radius:4px;
   background:#e89b00;color:#fff;font-weight:800;font-size:.86em;line-height:1.5}
 body:not(.ezx-off) .ezx li.ezread{list-style:none;margin-left:-14px!important;padding:0 9px!important;color:#5b6678;font-size:.95em}
@@ -24776,6 +24794,28 @@ body:not(.ezx-off) .ezx ul.mnm.quiz > li{cursor:pointer}
   font:800 10px/1 var(--font-d,system-ui);vertical-align:2px;letter-spacing:0}
 .mnb:hover{background:#6b2fb3;color:#fff}
 .mnb.on{background:#6b2fb3;color:#fff}
+/* ★ v335 — «밤» 읽기에서 쉬운 풀이 상자들이 흰 바탕 그대로라 밝은 글자가 안 보이던 것 (상자 바탕·테두리를 어둡게) */
+html body.rd-night #ovl .seg[data-seg="e"] > .ez, html body.rd-night .easybox{background:#161c26!important;border-color:#2c3542!important}
+html body.rd-night:not(.ezx-off) .ezx p.eqr{background:#1a2029;border-color:#33415c}
+html body.rd-night:not(.ezx-off) .ezx p.eqr:not(.eqf){border-top-color:#2c3542}
+html body.rd-night:not(.ezx-off) .ezx p.eqr[data-k]::before{background:#22304d;color:#9cc4ff}
+html body.rd-night:not(.ezx-off) .ezx p.eqr[data-k="말로"]::before{background:#163526;color:#6fd79e}
+html body.rd-night:not(.ezx-off) .ezx p.eqr[data-k="대입"]::before{background:#3a2a0e;color:#ffc66b}
+html body.rd-night:not(.ezx-off) .ezx p.eqr[data-k="단위"]::before{background:#2a3442;color:#a5b2c2}
+html body.rd-night:not(.ezx-off) .ezx p.ezstep{background:#1d2a44;color:#cfe0ff}
+html body.rd-night:not(.ezx-off) .ezx li.ezwhy{background:#2a2414;border-color:#5c4a1f;color:#f3e7cb}
+html body.rd-night:not(.ezx-off) .ezx li.ezread{color:#a5b2c2}
+html body.rd-night:not(.ezx-off) .ezx p.ezfc{background:#1a2029;border-color:#2c3542}
+html body.rd-night:not(.ezx-off) .ezx .ezbox, html body.rd-night:not(.ezx-off) .ezx ul.ezitems{background:#1a2029;border-color:#2c3542}
+html body.rd-night:not(.ezx-off) .ezx ul.ezitems > li:not(.ezwhy){border-top-color:#2c3542}
+html body.rd-night:not(.ezx-off) .ezx ul.ezitems .ezs-s{color:#9cc4ff}
+html body.rd-night:not(.ezx-off) .ezx ul.mnm{background:#221a2e;border-color:#3d2d55}
+html body.rd-night:not(.ezx-off) .ezx p.ezans{background:#1d2a44;border-left-color:#7fb0ff;color:#e8edf4!important}
+html body.rd-night:not(.ezx-off) .ezx p.ezans.ansf::before{background:#7fb0ff;color:#0f172a}
+html body.rd-night .ezx mark.ezkey{background:linear-gradient(transparent 52%,rgba(255,206,64,.42) 52%);color:#fff3c4}
+html body.rd-night .ezx .katex.ezkeyk{background:linear-gradient(transparent 55%,rgba(255,206,64,.42) 55%)}
+html body.rd-night .ezx code, html body.rd-night .easybox code{background:#2a3442!important;color:#cfe0ff!important;border-color:#3b4757!important}
+html body.rd-night:not(.ezx-off).ezx-open .ezx .ezf.tog::after, html body.rd-night:not(.ezx-off):not(.ezx-open) .ezx .ezf:not(.tog)::after{background:linear-gradient(90deg,rgba(26,32,41,0),#1a2029 38%)}
 .mnb[data-mn="quiz"]::before{content:'🧠 외우기'}
 .mnb[data-mn="quiz"].on::before{content:'👁 다 보기'}
 .mnb[data-mn="edit"]::before{content:'✎ 두문자 바꾸기'}
@@ -24989,7 +25029,11 @@ function tidy(box){
       }
       $$(':scope > li', el).forEach(li=>{
         const t=(li.textContent||'').trim();
-        if(/^왜\s*[:：]/.test(t)){ li.classList.add('ezwhy','ezfc'); wrapLead(li, /^\s*왜\s*[:：]\s*/, 'ezwk'); }
+        if(/^왜\s*[:：]/.test(t)){ li.classList.add('ezwhy'); li.classList.remove('ezfc','ezf','tog'); wrapLead(li, /^\s*왜\s*[:：]\s*/, 'ezwk');
+          /* ★ v334 — 둘째 줄부터 «왜:» 표 오른쪽 글 시작점에 맞춰 들여쓰기 — 표 뒤 글을 한 덩어리(ezwb)로 */
+          const wk=li.querySelector(':scope > .ezwk');
+          if(wk && !li.querySelector(':scope > .ezwb')){ const wb=document.createElement('span'); wb.className='ezwb';
+            while(wk.nextSibling) wb.appendChild(wk.nextSibling); li.appendChild(wb); } }   /* ★ v333 — «왜» 는 짧아졌으니 접지 않고 다 보임 */
         else if(/^읽기\s*[:：]/.test(t)) li.classList.add('ezread');
         else if(FOLDSEC.test(sec) && t.length>110) li.classList.add('ezfc');
       });

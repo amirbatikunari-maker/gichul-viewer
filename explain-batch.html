@@ -584,7 +584,7 @@ function toMd(sol){
         L.push("");
       }
       if(s.read) L.push(`- 읽기: “${line(s.read).replace(/^["“]|["”]$/g, "")}”`, "");
-      if(s.why)  L.push(`- 왜: ${line(s.why)}`, "");
+      if(s.why)  L.push(`- 왜: ${line(s.why).replace(/\n+/g, "\n  ")}`, "");   /* ★ v333 — 다음 줄은 들여 써서 같은 «왜» 상자 안으로 */
       L.push("");
       /* ★ v329 — 이 소문항 번호의 논리식 표 (그 번호가 처음 나온 단계 밑에 한 번) */
       const sn = (String(s.say || "").match(/^\s*\(\s*(\d{1,2})\s*\)/) || [])[1];
@@ -634,7 +634,7 @@ function toMd(sol){
       const w = line(it.word || it.name || it.item || "");
       const m = line(it.mean || it.desc || "");
       L.push(`- **${w}**${m ? " — " + m : ""}`);
-      if(it.why) L.push(`- 왜: ${line(it.why)}`);
+      if(it.why) L.push(`- 왜: ${line(it.why).replace(/\n+/g, "\n  ")}`);
     });
     L.push("");
   }
