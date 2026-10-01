@@ -20922,7 +20922,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=337").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=338").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -25134,7 +25134,7 @@ function paintBtns(){
   labs.forEach(lab=>{
     try{ kindSel(lab) }catch(e){}
     try{ gapBtns(lab) }catch(e){}
-    [['open', open?'⇡ 모두 접기':'⇣ 모두 펼치기', open?'«왜» 설명을 모두 두 줄로 접습니다':'«왜» 설명·검산·흔한 실수를 모두 펼칩니다'],
+    [['open', open?'⇡ 접기':'⇣ 펼치기', open?'«왜» 설명을 모두 두 줄로 접습니다':'«왜» 설명·검산·흔한 실수를 모두 펼칩니다'],
      ['off',  off?'◫ 정리 보기':'◫ 원래대로', off?'식 상자·접기·부호 표로 정리해서 봅니다':'정리를 끄고 예전 모양 그대로 봅니다']
     ].forEach(([k,txt,tip])=>{
       let b=lab.querySelector(`:scope > .ezxb[data-ezx="${k}"]`);
@@ -26875,6 +26875,113 @@ setInterval(()=>{ try{ mount() }catch(e){} }, 700);
 try{ new MutationObserver(()=>paint()).observe(document.body,{ attributes:true, attributeFilter:['class'] }); }catch(e){}
 mount(); paint();
 addEventListener('resize', paint);
+})();
+</script>
+<!-- ══════════════════════════════════════════════════════════════
+     v338 · 한눈에(이지뷰 · 폰) — 문제 / 답안 / 쉬운 풀이 칸 높이를 손잡이로 끌어 조절 · 여백 줄임 · 이름줄 글자 줄임
+     · 칸 사이 가로 손잡이 두 개 — 위아래로 끌기 · 두 번 톡 = 처음 높이 · 이 기기에 기억 (prac:evh:v1)
+     · 쉬운 풀이 이름 «쉬운 풀이» · «줄간격» 글자는 한눈에서 숨김 (단추는 그대로)
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+#ovl .seg[data-seg="e"] > .plab > .plabt{display:none}
+#ovl .ezgap > .gl{display:none}
+.evgrip{display:none}
+@media(max-width:899px){
+  body.easyview #ovl .ob{grid-template-rows:var(--evh1,fit-content(36%)) 14px var(--evh2,fit-content(28%)) 14px minmax(0,1fr)!important}
+  body.easyview #ovl .pane.left{grid-row:1!important}
+  body.easyview #ovl .pane.right > .seg[data-seg="a"]{grid-row:3!important}
+  body.easyview #ovl .pane.right > .seg[data-seg="e"]{grid-row:5!important}
+  body.easyview #ovl.solo .pane.left{grid-row:1 / span 3!important}
+  body.easyview #ovl.solo .evgrip[data-g="1"]{display:none!important}
+  body.easyview #ovl .evgrip{display:flex;grid-column:1 / -1;align-items:center;justify-content:center;cursor:row-resize;touch-action:none;
+    -webkit-user-select:none;user-select:none;background:var(--surface-2,#f1f5f9);border-top:1px solid var(--line,#e2e8f0);border-bottom:1px solid var(--line,#e2e8f0);z-index:2}
+  body.easyview #ovl .evgrip[data-g="1"]{grid-row:2}
+  body.easyview #ovl .evgrip[data-g="2"]{grid-row:4}
+  body.easyview #ovl .evgrip i{display:block;width:44px;height:4px;border-radius:99px;background:#94a3b8;transition:width .12s,background .12s}
+  body.easyview #ovl .evgrip.on i{width:72px;background:#1d4ed8}
+  /* 여백 줄이기 */
+  body.easyview #ovl #ovLeft, body.easyview #ovl .pane.right > .seg{padding:4px 6px 4px!important;gap:0!important}
+  body.easyview #ovl .plab{padding:2px 0!important;margin:0 0 2px!important;min-height:0!important}
+  body.easyview #ovl .plab button, body.easyview #ovl .plab select{height:24px!important;min-height:0!important;padding-top:0!important;padding-bottom:0!important}
+  body.easyview #ovl .seg[data-seg="e"] > .ez{margin-top:2px!important;padding:5px 6px!important}
+  body.easyview #ovl .pane .qmd{margin:0!important}
+  body.evdrag, body.evdrag *{-webkit-user-select:none!important;user-select:none!important}
+}
+</style>
+<script>
+(function(){
+'use strict';
+const KEY='prac:evh:v1';
+const phone=()=>{ try{ return matchMedia('(max-width:899px)').matches }catch(e){ return innerWidth<900 } };
+let S={}; try{ S=JSON.parse(localStorage.getItem(KEY)||'{}')||{} }catch(e){ S={} }
+const save=()=>{ try{ localStorage.setItem(KEY, JSON.stringify(S)) }catch(e){} };
+const ob=()=>document.querySelector('#ovl .ob');
+const setv=(el,k,v)=>{ if(el.style.getPropertyValue(k)!==v) el.style.setProperty(k,v); };
+/* 기억해 둔 비율(전체 높이 대비) → 픽셀 */
+function apply(){
+  const o=ob(); if(!o) return;
+  if(!(phone() && document.body.classList.contains('easyview'))){ o.style.removeProperty('--evh1'); o.style.removeProperty('--evh2'); return; }
+  const H=o.clientHeight; if(H<100) return;
+  /* 단답(문제+답 한 칸 · solo): 손잡이는 하나 — 그 칸 높이 하나만 따로 기억 (hs) */
+  if(document.getElementById('ovl').classList.contains('solo')){
+    if(S.hs){ setv(o,'--evh1', Math.max(40,Math.round(S.hs*H)-14)+'px'); setv(o,'--evh2','0px'); }
+    else { o.style.removeProperty('--evh1'); o.style.removeProperty('--evh2'); }
+    return;
+  }
+  if(S.h1) setv(o,'--evh1', Math.round(S.h1*H)+'px'); else o.style.removeProperty('--evh1');
+  if(S.h2) setv(o,'--evh2', Math.round(S.h2*H)+'px'); else o.style.removeProperty('--evh2');
+}
+/* «쉬운 풀이» 글자를 감싸 숨길 수 있게 */
+function wrapLabel(){
+  const pl=document.querySelector('#ovl .seg[data-seg="e"] > .plab'); if(!pl || pl.querySelector(':scope > .plabt')) return;
+  const t=[...pl.childNodes].find(n=>n.nodeType===3 && /쉬운\s*풀이/.test(n.nodeValue)); if(!t) return;
+  const sp=document.createElement('span'); sp.className='plabt'; pl.insertBefore(sp,t); sp.appendChild(t);
+}
+let DRAG=null;
+function mount(){
+  wrapLabel();
+  const o=ob(); if(!o) return;
+  [1,2].forEach(g=>{
+    if(o.querySelector(`:scope > .evgrip[data-g="${g}"]`)) return;
+    const d=document.createElement('div'); d.className='evgrip'; d.dataset.g=String(g);
+    d.title='위아래로 끌어 칸 높이 조절 · 두 번 톡 = 처음 높이'; d.setAttribute('role','separator'); d.innerHTML='<i></i>';
+    o.appendChild(d);
+    let last=0;
+    d.addEventListener('pointerdown', e=>{
+      const now=Date.now();
+      const soloNow=document.getElementById('ovl').classList.contains('solo');
+      if(now-last<320){ delete S[soloNow?'hs':'h'+g]; save(); apply(); last=0; return; }   /* 두 번 톡 = 처음대로 */
+      last=now;
+      const L=document.querySelector('#ovLeft'), A=document.querySelector('#ovl .seg[data-seg="a"]');
+      const solo=document.getElementById('ovl').classList.contains('solo');
+      const top = g===1 ? L : (solo ? L : A);
+      if(!top) return;
+      DRAG={ g, y:e.clientY, h:top.getBoundingClientRect().height, H:o.clientHeight, el:d, solo };
+      d.classList.add('on'); document.body.classList.add('evdrag');
+      try{ d.setPointerCapture(e.pointerId) }catch(x){}
+      e.preventDefault();
+    });
+    d.addEventListener('pointermove', e=>{
+      if(!DRAG || DRAG.el!==d) return;
+      const o2=ob(); const other = DRAG.g===1 ? (S.h2? S.h2*DRAG.H : 120) : (S.h1? S.h1*DRAG.H : 120);
+      const max=Math.max(60, DRAG.H - other - 28 - 70);                         /* 아래 쉬운 풀이 칸이 최소 70px 은 남게 */
+      if(DRAG.solo){
+        const h=Math.min(DRAG.H-28-70, Math.max(60, DRAG.h + (e.clientY-DRAG.y)));
+        setv(o2,'--evh1', Math.round(h-14)+'px'); setv(o2,'--evh2','0px'); S.hs=h/DRAG.H; e.preventDefault(); return;
+      }
+      const h=Math.min(max, Math.max(40, DRAG.h + (e.clientY-DRAG.y)));
+      setv(o2, DRAG.g===1?'--evh1':'--evh2', Math.round(h)+'px');
+      S['h'+DRAG.g]=h/DRAG.H;
+      e.preventDefault();
+    });
+    const up=()=>{ if(!DRAG || DRAG.el!==d) return; d.classList.remove('on'); document.body.classList.remove('evdrag'); DRAG=null; save(); };
+    d.addEventListener('pointerup', up); d.addEventListener('pointercancel', up);
+  });
+  apply();
+}
+setInterval(()=>{ try{ mount() }catch(e){} }, 600);
+addEventListener('resize', ()=>{ try{ apply() }catch(e){} });
+try{ new MutationObserver(()=>{ try{ apply() }catch(e){} }).observe(document.body,{ attributes:true, attributeFilter:['class'] }); }catch(e){}
 })();
 </script>
 </body>
