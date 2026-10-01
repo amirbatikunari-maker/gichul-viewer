@@ -6154,7 +6154,7 @@ $$("#ovl .otabs button").forEach(b => b.onclick = () => { OVSEG = b.dataset.oseg
 function typingIn(e){
   const t = e.target, tg = t && t.tagName;
   if(/^(INPUT|TEXTAREA|SELECT)$/.test(tg||"")) return true;
-  if(t && (t.isContentEditable || (t.closest && t.closest('[contenteditable=""],[contenteditable="true"],.aic-panel,.aic,[class*="aic-"],.qtpop,.qtbd,.mnpop,.mmpop,.edw,.qastack .qed')))) return true;
+  if(t && (t.isContentEditable || (t.closest && t.closest('[contenteditable=""],[contenteditable="true"],.aic-panel,.aic,[class*="aic-"],.qtpop,.qtbd,.mnpop,.mmpop,.edw,.qastack .qed,.qastack .qx-ed')))) return true;
   if(e.isComposing) return true;
   return false;
 }
@@ -7615,7 +7615,7 @@ body.ovlopen .app-network,body.ovlopen .app-mobile-nav{display:none!important}
     const html=rs.slice(a,b).map((r,k)=>{
       const i=a+k, p=PROG[String(r.id)];
       const vf=VIRT===String(r.id);
-      return `<button class="pb ${i===now?'now':''} ${vf?'fold':''} ${p?'done':''} ${p?.r==='ok'?'rok':p?.r==='no'?'wrong':''}" type="button" data-ovgo="${i}" data-y="${r.year}"${vf?' title="목록에서는 접힌 문항 (동일 −·유사 − 또는 다른 거르기) — 지금 보는 중"':''}>${r.year%100}-${r.session} ${r.no}${p&&(p.n|0)>=2?`<sup class="rdn">${p.n|0}</sup>`:''}</button>`
+      return `<button class="pb ${i===now?'now':''} ${vf?'fold':''} ${p?'done':''} ${p?.r==='ok'?'rok':p?.r==='no'?'wrong':''}" type="button" data-ovgo="${i}" data-y="${r.year}"${vf?` title="지금 목록에 없는 문항 — ${String((window.__pracWhyOut&&window.__pracWhyOut(r.id))||'거르기에 걸림').replace(/"/g,'&quot;')}"`:''}>${r.year%100}-${r.session} ${r.no}${p&&(p.n|0)>=2?`<sup class="rdn">${p.n|0}</sup>`:''}</button>`
         + (window.__grpTail ? window.__grpTail(r) : '');
     }).join('');
     /* ① 내용이 그대로면 손대지 않는다 */
@@ -20908,7 +20908,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=330").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=332").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -24485,6 +24485,37 @@ function isExcl(r){
 }
 let MODE=null, LAST='all';
 window.__pracSeqOn=()=>MODE==='seq'&&!!getRand();
+/* ★ v331 — «이 문항이 왜 지금 목록에 없나» — 미니맵 점선 칸 · 레일 끼운 칸 · 미니맵에서 열 때 알림 */
+const nmOf=r=>r?`${(+r.year>0&&+r.year<3000)?String(r.year).slice(2):r.year}-${r.session} ${r.no}`:'?';
+const shownIds=()=>{ let S=null; try{ S=(typeof SHOWN!=='undefined'?SHOWN:window.SHOWN) }catch(e){ S=window.SHOWN } return new Set((S||[]).map(x=>String(x.id))); };
+window.__pracShownIds=shownIds;
+window.__pracWhyOut=(id, SH)=>{
+  id=String(id);
+  const all=rowsAll(), byId=new Map(all.map(x=>[String(x.id),x])), r=byId.get(id); if(!r) return '';
+  if((SH||shownIds()).has(id)) return '';
+  const y=$('#fYear')?.value||'', s=$('#fSess')?.value||'', q=($('#fQ')?.value||'').trim();
+  if(y && String(r.year)!==y) return '위 연도 거르기('+y+'년)에 안 맞음';
+  if(s && String(r.session)!==s) return '위 회차 거르기(제'+s+'회)에 안 맞음';
+  if(q && !((r.q_text||'').includes(q)||(r.a_text||'').includes(q))) return '찾는 말 «'+q+'» 이 없음';
+  try{ if(window.__pracRowPass && !window.__pracRowPass(r)){ const t=tag(id); const TS=((window.__pracTiers&&window.__pracTiers())||[]).map(k=>({g:'금',s:'은',b:'동',r:'똥'})[k]).join('·');
+    return `등급 거르기(${TS||'켜 둔 것'})에 안 맞음 — 이 문항은 ${t?({g:'금',s:'은',b:'동',r:'똥'})[t.tier]||t.tier:'?'}`; } }catch(e){}
+  const kinTxt=f=>{ const ks=kinOf(id).filter(k=>k!==id).map(k=>[k,f(k)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,3);
+    return ks.length?` (같은 문제 ${ks.map(([k,n])=>nmOf(byId.get(k))+' '+n+'번').join(' · ')})`:''; };
+  const d=dup(), R0=getRand();
+  if(R0){
+    const M=MODES[MODE]||{};
+    if(MOD.nx && isExcl(r)) return '«회차外 −» 가 켜져 있음 (문제집 자료)';
+    if(MOD.ck && chkK(id)>=ckN()) return `«체크 − ${ckN()}» — ${ckN()}번 이상 푼 문항은 뺌 · 이 문항 ${chkN(id)}번`+kinTxt(chkN);
+    if(MOD.un && okK(id)>=unN()) return `«맞힘 − ${unN()}» — ${unN()}번 이상 맞힌 문항은 뺌 · 이 문항 ${okN(id)}번`+kinTxt(okN);
+    if(M.tiers){ const t=tag(id); if(!t || !M.tiers.includes(t.tier)) return `«${M.nm}» 은 ${M.tiers.map(k=>({g:'금',s:'은',b:'동'})[k]).join('·')} 등급만 뽑음`; }
+    if(!M.recent && d && d.fold && d.hide && d.hide.has(id)){ const rp=window.__pracRepOf&&window.__pracRepOf(id); return `중복 묶기(동일 −·유사 −)로 접힘 — 대표 ${nmOf(byId.get(String(rp)))}`; }
+    if(M.dedupe) return '같은 문제·같은 유형은 하나만 뽑아서 다른 쪽이 걸림';
+    if(!M.recent) return `랜덤 ${R0.length}개 뽑기에 안 걸림 (다시 누르면 새로 뽑음)`;
+    return '최신순 목록 밖 (다시 누르면 새로 만듦)';
+  }
+  if(d && d.on && d.hide && d.hide.has(id)){ const rp=window.__pracRepOf&&window.__pracRepOf(id); return `중복 묶기(동일 −·유사 −)로 접힘 — 대표 ${nmOf(byId.get(String(rp)))} 칸의 ▾ 에 있음`; }
+  return '다른 거르기(안 된 것만 · 출처 · 실패 모음 등)가 켜져 있음';
+};
 
 /* 위 거르기를 그대로 겹친다 — 목록이 쓰는 조건과 같아야 뽑은 수만큼 나온다 */
 function basePool(all){
@@ -25677,6 +25708,10 @@ window.__mnOpen=open;
 .mmpop .c.rep::after{content:'';position:absolute;right:2px;top:2px;width:4px;height:4px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
 .mmpop .c:not(.ok):not(.no).rep::after{background:#64748b}
 .mmpop .c.dim{opacity:.18}
+.mmpop .c.out{border-style:dashed;border-color:#475569;box-shadow:inset 0 0 0 1px rgba(255,255,255,.7)}
+.mmpop .c.out:not(.ok):not(.no):not(.chk):not(.kin){background:#f1f5f9;color:#94a3b8}
+.mmpop .tb .lg span.lgo::before{display:none}
+.mmpop .lg .lgo{border:1px dashed #475569;border-radius:4px;padding:0 4px;font-size:10.5px;color:#475569}
 .mmpop .c:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(15,23,42,.18)}
 .rdk i.lk{font-style:normal;padding:0 5px;height:100%;display:inline-flex;align-items:center;border-right:1px solid var(--line,#e2e8f0);
   font:800 9.5px/1 var(--font-d,system-ui);color:#6b2fb3;background:#f6f1fd;cursor:help}
@@ -25730,12 +25765,13 @@ const curId=()=>{
 function goTo(id){
   const ovOn=!!$('#ovl')?.classList.contains('on');
   try{
-    if(ovOn){ window.ovOpen && window.ovOpen(id); return; }
+    if(ovOn){ window.ovOpen && window.ovOpen(id); try{ const w=window.__pracWhyOut&&window.__pracWhyOut(id); if(w) (window.__pxToast||console.log)('이 문항은 지금 목록에 없음 — '+w); }catch(x){} return; }
     const sh=window.SHOWN||[], i=sh.findIndex(x=>String(x.id)===String(id));
     if(i>=0 && document.body.classList.contains('oneup') && typeof window.showAt==='function'){ window.showAt(i); MMID=String(id); return; }
     const c=document.querySelector(`#list > .pcard[data-id="${CSS.escape(String(id))}"]`);
     if(c && !c.hidden){ c.scrollIntoView({ block:'start', behavior:'smooth' }); MMID=String(id); return; }
     window.ovOpen && window.ovOpen(id);                 /* 목록에 없으면(거르기·접힘) 한눈에로 */
+    try{ const w=window.__pracWhyOut&&window.__pracWhyOut(id); if(w) (window.__pxToast||console.log)('이 문항은 지금 목록에 없음 — '+w); }catch(x){}
   }catch(e){}
 }
 function pop(){
@@ -25791,7 +25827,9 @@ function paint(){
   const TH=(window.__pracUnN&&window.__pracUnN())||1, CK=(window.__pracCkN&&window.__pracCkN())||1;
   const isFix=id=>{ try{ return !!(window.__ezFixed && window.__ezFixed(id)); }catch(e){ return false; } };
   const fixSig=(()=>{ try{ return (window.__ezFixList?window.__ezFixList():[]).sort().join(','); }catch(e){ return ''; } })();
-  const sig=R.length+'|'+JSON.stringify(P)+'|'+me+'|'+FIL+'|'+TH+'|'+CK+'|'+((window.__pracKinScope&&window.__pracKinScope())||'')+'|'+fixSig;
+  const SHI=(()=>{ try{ return window.__pracShownIds?window.__pracShownIds():null }catch(e){ return null } })();
+  const shSig=SHI?SHI.size+':'+[...SHI].slice(0,5).join(','):'';
+  const sig=R.length+'|'+JSON.stringify(P)+'|'+me+'|'+FIL+'|'+TH+'|'+CK+'|'+((window.__pracKinScope&&window.__pracKinScope())||'')+'|'+fixSig+'|'+shSig;
   if(sig===SIG) return; SIG=sig;
   /* 같은 대문항 유형에서 맞힌 것이 있나 */
   /* ★ v288 — 연두 빗금 = 같은 문제 안에서 푼 기록이 있음 */
@@ -25813,8 +25851,10 @@ function paint(){
       const dim= FIL==='no' ? st!=='no' : FIL==='un' ? !!st : false;
       const on_=okN(r.id), cn_=p?(p.n|0):0, dim2=(FIL==='left' && on_>=TH) || (FIL==='ckleft' && cn_>=CK);
       const fx=isFix(r.id); if(fx) FX++;
-      const cls=['c', st, kin?'kin':'', String(r.id)===me?'me':'', (dim||dim2)?'dim':'', fx?'fix':''].filter(Boolean).join(' ');
-      const tip=`${exName(r.year,r.session)} ${r.no}번 — ${st==='ok'?'맞음':st==='no'?'틀림':st==='chk'?'푼 기록만':kin?`아직 (같은 문제를 ${kn}번 풂)`:'아직'}${p&&p.n?` · ${p.n}회독 (맞힘 ${on_} · 틀림 ${p.no!=null?p.no:(p.r==='no'?1:0)})`:''}${p&&p.at?` · ${new Date(p.at).toLocaleDateString('ko-KR')}`:''}${qt(r.id)?`\n유형: ${qt(r.id)}`:''}${fx?'\n🔒 쉬운해설 고정 — 오른쪽 클릭으로 풀기':'\n오른쪽 클릭 = 쉬운해설 고정'}`;
+      /* ★ v331 — 지금 목록(윗줄)에 없는 칸 = 점선 · 올려 보면 이유 */
+      const outW=(SHI && SHI.size && !SHI.has(String(r.id)) && window.__pracWhyOut) ? (window.__pracWhyOut(r.id, SHI)||'') : '';
+      const cls=['c', st, kin?'kin':'', String(r.id)===me?'me':'', (dim||dim2)?'dim':'', fx?'fix':'', outW?'out':''].filter(Boolean).join(' ');
+      const tip=`${exName(r.year,r.session)} ${r.no}번 — ${st==='ok'?'맞음':st==='no'?'틀림':st==='chk'?'푼 기록만':kin?`아직 (같은 문제를 ${kn}번 풂)`:'아직'}${p&&p.n?` · ${p.n}회독 (맞힘 ${on_} · 틀림 ${p.no!=null?p.no:(p.r==='no'?1:0)})`:''}${p&&p.at?` · ${new Date(p.at).toLocaleDateString('ko-KR')}`:''}${qt(r.id)?`\n유형: ${qt(r.id)}`:''}${outW?'\n⛔ 지금 목록에 없음 — '+outW:''}${fx?'\n🔒 쉬운해설 고정 — 오른쪽 클릭으로 풀기':'\n오른쪽 클릭 = 쉬운해설 고정'}`;
       return `<button type="button" class="${cls}" data-id="${esc(r.id)}" title="${esc(tip)}">${esc(r.no)}${cn_>=2?`<sup>${cn_}</sup>`:''}${fx?'<i class="lk" aria-label="해설 고정">🔒</i>':''}</button>`;
     }).join('');
     const y=k.split('|');
@@ -25828,7 +25868,7 @@ function paint(){
       <button type="button" class="cl" data-cl aria-label="닫기">✕</button></div>
     <div class="tb">${[['all','전체'],['no','틀림만'],['un','아직만'],['ckleft',`체크 ${CK}번↑ 흐리게`],['left',`맞힘 ${TH}번↑ 흐리게`]].map(([k,n])=>`<button type="button" data-f="${k}" class="${FIL===k?'on':''}">${n}</button>`).join('')}
       <button type="button" class="fxall" data-fxall title="맞음 기록이 있거나 1번이라도 회독한 문항의 쉬운해설을 모두 고정합니다 (이미 고정된 것은 그대로)">🔒 푼 것 모두 고정</button>
-      <span class="lg"><span style="--c:#22a060">맞음</span><span style="--c:#e5484d">틀림</span><span style="--c:#8fb0ee">푼 기록만</span><span style="--c:#fff;">아직</span><span style="--c:#bfe8cf">같은 문제 풂</span><span class="lgf">🔒 해설 고정 (오른쪽 클릭)</span></span></div>
+      <span class="lg"><span style="--c:#22a060">맞음</span><span style="--c:#e5484d">틀림</span><span style="--c:#8fb0ee">푼 기록만</span><span style="--c:#fff;">아직</span><span style="--c:#bfe8cf">같은 문제 풂</span><span class="lgf">🔒 해설 고정 (오른쪽 클릭)</span><span class="lgo" title="점선 칸에 마우스를 올리면 왜 빠졌는지 나옴">┅ 목록에 없음</span></span></div>
     <div class="bd">${html||'<div class="emp">문항이 없습니다</div>'}</div>
     ${meRow?`<div class="ft"><span>지금 <b>${esc(exName(meRow.year,meRow.session))} ${esc(meRow.no)}번</b></span>
       <span>회독</span><span class="stp"><button type="button" data-cadj="-1" aria-label="줄이기">−</button><b>${(P[String(meRow.id)]||{}).n|0}</b><button type="button" data-cadj="1" aria-label="늘리기">＋</button></span>
@@ -26236,46 +26276,70 @@ setInterval(chip, 1200);
        칸이 아직 없으면(supabase-qa.sql 전) 이 기기에만 둠
      ══════════════════════════════════════════════════════════════ -->
 <style>
+/* ★ v332 — Q&A 칸 새 모양. 예전 이름(.qai)이 AI 단추(ai-viewer.js .qai = 30×30)와 겹쳐 항목이 30px 칸에 찌그러져 펼치기·고치기·지우기가 안 눌리던 것 → qx- 로 이름 바꿈 */
 .ez.hide .qastack{display:none}
-.qastack{margin:12px 0 4px;border:1px solid #d9e2f3;border-radius:10px;background:#f8faff;overflow:hidden}
-.qastack .qah{display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;user-select:none;background:#eef3fc}
-.qastack .qah b{font:800 12.5px/1.2 var(--font-d,system-ui);color:#1f3a6e}
-.qastack .qah small{font:600 10.5px/1.2 var(--font-d,system-ui);color:#64748b;margin-left:auto}
-.qastack .qah .car{font-size:11px;color:#1f3a6e;transition:transform .15s}
-.qastack.fold .qah .car{transform:rotate(-90deg)}
-.qastack.fold .qal{display:none}
-.qastack .qal{padding:6px;display:flex;flex-direction:column;gap:5px}
-.qastack .qai{border:1px solid #e3e9f7;border-radius:8px;background:#fff}
-.qastack .qai > summary{list-style:none;display:flex;align-items:flex-start;gap:6px;padding:6px 8px;cursor:pointer}
-.qastack .qai > summary::-webkit-details-marker{display:none}
-.qastack .qai > summary .qs{flex:1;min-width:0;font:600 13px/1.45 var(--font-d,system-ui);color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.qastack .qai > summary .qs b{color:#2f4fc4;font-weight:800;margin-right:2px}
-.qastack .qai > summary .car{font-size:10px;color:#64748b;line-height:1.9;transition:transform .15s}
-.qastack .qai[open] > summary .car{transform:rotate(90deg)}
-.qastack .qai[open] > summary .qs{white-space:normal}
-.qastack .qai > summary .qd{font:500 10px/1.8 var(--font-m,monospace);color:#94a3b8;white-space:nowrap}
-.qastack .qai > summary button{border:1px solid #e2e8f0;background:#fff;border-radius:6px;font:700 10.5px/1 var(--font-d,system-ui);padding:4px 6px;cursor:pointer;color:#475569}
-.qastack .qai > summary button:hover{background:#eef2f7}
-.qastack .qb{padding:2px 10px 8px;font-size:13px;line-height:1.6}
-.qastack .qb .qk{display:inline-block;font:800 11px/1 var(--font-d,system-ui);padding:3px 6px;border-radius:5px;margin:6px 6px 2px 0;vertical-align:1px}
-.qastack .qb .qk.q{background:#e9efff;color:#2f4fc4}
-.qastack .qb .qk.a{background:#dcf3e5;color:#18794e}
-.qastack .qb .qmd{overflow-x:auto}
-.qastack .qb .qmd table{border-collapse:collapse;font-size:12.5px}
-.qastack .qb .qmd th,.qastack .qb .qmd td{border:1px solid #d9e2f3;padding:3px 7px}
-.qastack .qb .qmd p{margin:.3em 0}
-.qastack .qed{display:flex;flex-direction:column;gap:6px;padding:4px 10px 10px}
-.qastack .qed label{font:800 11px/1 var(--font-d,system-ui);color:#475569}
-.qastack .qed textarea{width:100%;min-height:70px;resize:vertical;border:1px solid #cbd5e1;border-radius:7px;padding:7px 8px;font:13px/1.5 var(--font-m,monospace);box-sizing:border-box}
-.qastack .qed .qeb{display:flex;gap:6px;justify-content:flex-end}
-.qastack .qed .qeb button{border:1px solid #cbd5e1;border-radius:7px;padding:6px 12px;font:700 12px/1 var(--font-d,system-ui);cursor:pointer;background:#fff}
-.qastack .qed .qeb button.ok{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
-.qastack .qempty{font:600 11.5px/1.5 var(--font-d,system-ui);color:#94a3b8;padding:4px 4px 2px}
-body.rd-night .qastack{background:#131c2e;border-color:#33415c}
-body.rd-night .qastack .qah{background:#1d2a44}
-body.rd-night .qastack .qah b{color:#cfe0ff}
-body.rd-night .qastack .qai{background:#0f172a;border-color:#33415c}
-body.rd-night .qastack .qai > summary .qs{color:#e2e8f0}
+.qastack{margin:14px 0 6px;border:1px solid #d6e0f5;border-radius:12px;background:#fbfcff;overflow:hidden;font-family:var(--font-d,system-ui)}
+.qastack .qx-hd{display:flex;align-items:center;gap:8px;padding:7px 10px 7px 12px;background:linear-gradient(180deg,#f1f5ff,#eaf0fe);border-bottom:1px solid #dfe7f8}
+.qastack .qx-hd .qx-tl{font:800 12.5px/1 var(--font-d,system-ui);color:#1e3a8a;letter-spacing:-.01em}
+.qastack .qx-hd .qx-n{font:800 10.5px/1 var(--font-m,monospace);color:#2f4fc4;background:#fff;border:1px solid #c9d7f6;border-radius:99px;padding:3px 7px}
+.qastack .qx-hd .sp{flex:1}
+.qastack .qx-hb{height:26px;padding:0 10px;border:1px solid #c9d7f6;border-radius:8px;background:#fff;color:#1e3a8a;font:700 11.5px/1 var(--font-d,system-ui);cursor:pointer}
+.qastack .qx-hb:hover{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+.qastack .qx-hb.add{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+.qastack .qx-hb.add:hover{background:#1e40af}
+.qastack .qx-list{padding:8px;display:flex;flex-direction:column;gap:6px}
+.qastack .qx-it{border:1px solid #e3e9f7;border-radius:10px;background:#fff;transition:border-color .15s,box-shadow .15s}
+.qastack .qx-it:hover{border-color:#c7d5f5}
+.qastack .qx-it[open]{border-color:#b9cbf3;box-shadow:0 3px 12px rgba(30,58,138,.08)}
+.qastack .qx-sm{list-style:none;display:flex;align-items:center;gap:8px;padding:7px 8px 7px 9px;cursor:pointer;-webkit-user-select:none;user-select:none;border-radius:10px}
+.qastack .qx-sm::-webkit-details-marker{display:none}
+.qastack .qx-sm:hover{background:#f6f8ff}
+.qastack .qx-no{flex:none;min-width:30px;height:22px;padding:0 6px;border-radius:99px;background:#e9efff;color:#2f4fc4;font:800 11px/22px var(--font-m,monospace);text-align:center}
+.qastack .qx-it[open] .qx-no{background:#2f4fc4;color:#fff}
+.qastack .qx-q{flex:1;min-width:0;font:650 13px/1.45 var(--font-d,system-ui);color:#0f172a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qastack .qx-it[open] .qx-q{white-space:normal}
+.qastack .qx-dt{flex:none;font:500 10px/1 var(--font-m,monospace);color:#94a3b8}
+.qastack .qx-act{flex:none;display:flex;gap:3px;opacity:.35;transition:opacity .15s}
+.qastack .qx-sm:hover .qx-act,.qastack .qx-it[open] .qx-act{opacity:1}
+@media(hover:none){ .qastack .qx-act{opacity:1} }
+.qastack .qx-act button{width:26px;height:26px;padding:0;border:1px solid #e2e8f0;border-radius:7px;background:#fff;color:#475569;font-size:12px;line-height:1;cursor:pointer}
+.qastack .qx-act button:hover{background:#eef2ff;border-color:#c7d5f5}
+.qastack .qx-act button.del:hover{background:#fff1f2;border-color:#fecdd3}
+.qastack .qx-car{flex:none;width:14px;text-align:center;font-size:10px;color:#94a3b8;transition:transform .15s}
+.qastack .qx-it[open] .qx-car{transform:rotate(90deg);color:#2f4fc4}
+.qastack .qx-body{padding:2px 12px 12px 12px;border-top:1px dashed #e3e9f7;margin:0 8px}
+.qastack .qx-row{display:flex;gap:9px;align-items:flex-start;margin-top:9px}
+.qastack .qx-k{flex:none;width:22px;height:22px;border-radius:7px;font:900 11.5px/22px var(--font-d,system-ui);text-align:center}
+.qastack .qx-k.q{background:#e9efff;color:#2f4fc4}
+.qastack .qx-k.a{background:#dcf3e5;color:#18794e}
+.qastack .qx-md{flex:1;min-width:0;font-size:13.5px;line-height:1.7;color:#1e293b;overflow-x:auto}
+.qastack .qx-md > :first-child{margin-top:0}
+.qastack .qx-md p{margin:.3em 0}
+.qastack .qx-md h1,.qastack .qx-md h2,.qastack .qx-md h3,.qastack .qx-md h4{font-size:14px;margin:.5em 0 .3em;color:#1e3a8a}
+.qastack .qx-md ul,.qastack .qx-md ol{margin:.3em 0;padding-left:1.3em}
+.qastack .qx-md table{border-collapse:collapse;font-size:12.5px;margin:.4em 0}
+.qastack .qx-md th,.qastack .qx-md td{border:1px solid #d9e2f3;padding:4px 8px}
+.qastack .qx-md th{background:#f1f5ff}
+.qastack .qx-md code{background:#f1f5f9;border-radius:4px;padding:0 4px}
+.qastack .qx-empty{font:600 12px/1.5 var(--font-d,system-ui);color:#94a3b8;padding:8px 6px;text-align:center}
+.qastack .qx-ed{display:flex;flex-direction:column;gap:6px;padding:10px;border:1.5px solid #93b4f7;border-radius:10px;background:#fff}
+.qastack .qx-ed label{font:800 11px/1 var(--font-d,system-ui);color:#475569;display:flex;align-items:center;gap:6px}
+.qastack .qx-ed textarea{width:100%;min-height:64px;resize:vertical;border:1px solid #cbd5e1;border-radius:8px;padding:8px 9px;font:13px/1.55 var(--font-m,monospace);box-sizing:border-box;background:#fbfcff}
+.qastack .qx-ed textarea:focus{outline:3px solid rgba(54,92,255,.14);border-color:#365cff;background:#fff}
+.qastack .qx-ed .qx-eb{display:flex;gap:6px;justify-content:flex-end;align-items:center}
+.qastack .qx-ed .qx-eb small{margin-right:auto;color:#94a3b8;font:600 10.5px/1.4 var(--font-d,system-ui)}
+.qastack .qx-ed .qx-eb button{height:30px;border:1px solid #cbd5e1;border-radius:8px;padding:0 14px;font:700 12px/1 var(--font-d,system-ui);cursor:pointer;background:#fff;color:#334155}
+.qastack .qx-ed .qx-eb button.ok{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+body.rd-night .qastack{background:#111a2c;border-color:#33415c}
+body.rd-night .qastack .qx-hd{background:#1a2640;border-color:#33415c}
+body.rd-night .qastack .qx-hd .qx-tl{color:#cfe0ff}
+body.rd-night .qastack .qx-hb,body.rd-night .qastack .qx-hd .qx-n{background:#0f172a;border-color:#33415c;color:#cfe0ff}
+body.rd-night .qastack .qx-it{background:#0f172a;border-color:#33415c}
+body.rd-night .qastack .qx-sm:hover{background:#16213a}
+body.rd-night .qastack .qx-q,body.rd-night .qastack .qx-md{color:#e2e8f0}
+body.rd-night .qastack .qx-act button{background:#0f172a;border-color:#33415c;color:#cbd5e1}
+body.rd-night .qastack .qx-ed{background:#0f172a}
+body.rd-night .qastack .qx-ed textarea{background:#111a2c;color:#e2e8f0;border-color:#33415c}
 </style>
 <script>
 (function(){
@@ -26374,8 +26438,8 @@ window.__pracQaAdd=async(list)=>{
     const q=String(x&&x.q||'').trim(), a=String(x&&x.a||'').trim(); if(!q && !a) return;
     items.push({ id:'qa'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), q, a, at:Date.now() });
   });
+  OPEN.add(id); const nw=items[items.length-1]; if(nw) OPENED.add(nw.id);
   await put(id, { items, del:v.del });
-  OPEN.add(id);
   return short(rowOf(id));
 };
 
@@ -26393,26 +26457,36 @@ function tex(el){
 }
 const firstLine=t=>String(t||'').replace(/[#*`>$]/g,'').replace(/\s+/g,' ').trim().slice(0,120);
 const when=ms=>{ const d=new Date(ms||0), p=n=>String(n).padStart(2,'0'); return `${String(d.getFullYear()).slice(2)}.${p(d.getMonth()+1)}.${p(d.getDate())}`; };
+function edForm(x, isNew){
+  return `<div class="qx-ed" data-qi="${esc(x.id)}">
+      <label><span class="qx-k q">Q</span>질문</label><textarea data-qe="q" placeholder="질문 (없어도 됨)">${esc(x.q||'')}</textarea>
+      <label><span class="qx-k a">A</span>답 — 마크다운 그대로 (표·수식 $…$ 유지)</label><textarea data-qe="a" style="min-height:150px" placeholder="답·메모">${esc(x.a||'')}</textarea>
+      <div class="qx-eb"><small>Ctrl+Enter 저장 · Esc 취소</small><button type="button" data-qacancel>취소</button><button type="button" class="ok" data-qasave="${esc(x.id)}"${isNew?' data-new="1"':''}>${isNew?'추가':'저장'}</button></div></div>`;
+}
 function html(id){
   const v=get(id), it=v.items||[];
-  if(!it.length) return '';
-  /* ★ v315 — «📌 저장한 Q&A N» 머리줄 없이 «Q1. 질문» 이 바로 한 줄씩 (누르면 답이 펼쳐짐) */
-  return `<div class="qal">${it.map((x,i)=>{
-      const last=i===it.length-1 && OPEN.has(id);
-      if(EDIT===x.id) return `<div class="qai" data-qi="${esc(x.id)}"><div class="qed">
-          <label>Q. 질문</label><textarea data-qe="q">${esc(x.q)}</textarea>
-          <label>A. 답 (마크다운 그대로 — 표·수식 유지)</label><textarea data-qe="a" style="min-height:160px">${esc(x.a)}</textarea>
-          <div class="qeb"><button type="button" data-qacancel>취소</button><button type="button" class="ok" data-qasave="${esc(x.id)}">저장</button></div></div></div>`;
-      return `<details class="qai" data-qi="${esc(x.id)}"${last||OPENED.has(x.id)?' open':''}>
-        <summary><span class="car">▸</span><span class="qs"><b>Q${i+1}.</b> ${esc(firstLine(x.q)||'(질문 없이 답만)')}</span><span class="qd">${when(x.at)}</span>
-          <button type="button" data-qaedit="${esc(x.id)}" title="고치기">✎</button><button type="button" data-qadel="${esc(x.id)}" title="지우기">🗑</button></summary>
-        <div class="qb">${x.q && (String(x.q).length>120 || /\n/.test(x.q)) ? `<span class="qk q">Q.</span><div class="qmd">${mdHtml(x.q)}</div>`:''}${x.a?`<span class="qk a">A.</span><div class="qmd">${mdHtml(x.a)}</div>`:''}</div>
-      </details>`; }).join('')}</div>`;
+  if(!it.length && EDIT!=='new:'+id) return '';
+  /* ★ v332 — 머리줄: Q&A 개수 · 모두 펼치기/접기 · ＋ 직접 추가 */
+  const allOpen=it.length && it.every(x=>OPENED.has(x.id));
+  const head=`<div class="qx-hd"><span class="qx-tl">💬 Q&amp;A</span><span class="qx-n">${it.length}</span><span class="sp"></span>
+      ${it.length?`<button type="button" class="qx-hb" data-qaall="${allOpen?'0':'1'}">${allOpen?'모두 접기':'모두 펼치기'}</button>`:''}
+      <button type="button" class="qx-hb add" data-qaadd title="질문·답을 직접 적어 넣기">＋ 추가</button></div>`;
+  const items=it.map((x,i)=>{
+      if(EDIT===x.id) return edForm(x,false);
+      const open=OPENED.has(x.id);
+      const longQ=x.q && (String(x.q).length>120 || /\n/.test(x.q));
+      return `<details class="qx-it" data-qi="${esc(x.id)}"${open?' open':''}>
+        <summary class="qx-sm"><span class="qx-car">▶</span><span class="qx-no">Q${i+1}</span><span class="qx-q">${esc(firstLine(x.q)||'(질문 없이 답만)')}</span><span class="qx-dt">${when(x.ed||x.at)}</span>
+          <span class="qx-act"><button type="button" data-qaedit="${esc(x.id)}" title="고치기">✎</button><button type="button" class="del" data-qadel="${esc(x.id)}" title="지우기">🗑</button></span></summary>
+        <div class="qx-body">${longQ?`<div class="qx-row"><span class="qx-k q">Q</span><div class="qx-md">${mdHtml(x.q)}</div></div>`:''}${x.a?`<div class="qx-row"><span class="qx-k a">A</span><div class="qx-md">${mdHtml(x.a)}</div></div>`:'<div class="qx-empty">답이 비어 있음 — ✎ 로 적기</div>'}</div>
+      </details>`; }).join('');
+  const add = EDIT==='new:'+id ? edForm({ id:'new' }, true) : '';
+  return head+`<div class="qx-list">${items}${add}</div>`;
 }
 function slotFor(host, id){
   let box=host.nextElementSibling;
   if(!(box && box.classList.contains('qastack'))){ box=document.createElement('div'); box.className='qastack'; host.after(box); }
-  const v=get(id), sig=id+'|'+(v.at||0)+'|'+(v.items||[]).map(x=>x.id+ver(x)).join(',')+'|'+EDIT+'|'+OPEN.has(id);
+  const v=get(id), sig=id+'|'+(v.at||0)+'|'+(v.items||[]).map(x=>x.id+ver(x)).join(',')+'|'+EDIT;
   if(box.__sig===sig) return;
   box.__sig=sig; box.dataset.for=id;
   const h=html(id);
@@ -26427,23 +26501,50 @@ function paintAll(){
   /* 한눈에 — 쉬운 풀이 칸 밑 */
   try{ const e=$('#ovRight [data-seg="e"] .ez'); if(e && OVID!=null) slotFor(e, String(OVID)); }catch(e){}
 }
+const repaint=st=>{ st.__sig=''; paintAll(); };
+async function saveEd(st, btn){
+  const id=st.dataset.for, box=btn.closest('.qx-ed'); if(!id || !box) return;
+  const q=box.querySelector('[data-qe="q"]').value.trim(), a=box.querySelector('[data-qe="a"]').value.trim();
+  const v=get(id); EDIT='';
+  if(btn.dataset.new){
+    if(!q && !a){ repaint(st); return; }
+    const nid='qa'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    OPENED.add(nid);
+    await put(id, { items:[...(v.items||[]), { id:nid, q, a, at:Date.now() }], del:v.del });
+    say('💬 Q&A 를 추가했습니다'); return;
+  }
+  await put(id, { items:(v.items||[]).map(x=>x.id===btn.dataset.qasave?Object.assign({},x,{ q, a, ed:Date.now() }):x), del:v.del });
+  say('💬 고쳤습니다');
+}
 document.addEventListener('click', async e=>{
   const st=e.target.closest('.qastack'); if(!st) return;
   const id=st.dataset.for; if(!id) return;
   const t=e.target;
-  const ed=t.closest('[data-qaedit]'); if(ed){ e.preventDefault(); EDIT=ed.dataset.qaedit; st.__sig=''; paintAll(); st.querySelector('textarea')?.focus(); return; }
-  const dl=t.closest('[data-qadel]'); if(dl){ e.preventDefault();
-    if(!confirm('이 Q&A 를 지울까요?')) return;
-    const v=get(id); await put(id, { items:(v.items||[]).filter(x=>x.id!==dl.dataset.qadel), del:[...(v.del||[]), dl.dataset.qadel] }); return; }
-  if(t.closest('[data-qacancel]')){ EDIT=''; st.__sig=''; return paintAll(); }
-  const sv=t.closest('[data-qasave]'); if(sv){
-    const box=sv.closest('.qai'), q=box.querySelector('[data-qe="q"]').value, a=box.querySelector('[data-qe="a"]').value;
-    const v=get(id); EDIT='';
-    await put(id, { items:(v.items||[]).map(x=>x.id===sv.dataset.qasave?Object.assign({},x,{ q:q.trim(), a:a.trim(), ed:Date.now() }):x), del:v.del });
-    say('📌 고쳤습니다'); return; }
+  /* 줄(summary) 안의 단추는 펼치기·접기를 건드리지 않게 */
+  const inSum=t.closest('.qx-sm') && t.closest('button');
+  if(inSum) { e.preventDefault(); e.stopPropagation(); }
+  const ed=t.closest('[data-qaedit]'); if(ed){ EDIT=ed.dataset.qaedit; repaint(st); st.querySelector('.qx-ed textarea[data-qe="a"]')?.focus(); return; }
+  const dl=t.closest('[data-qadel]'); if(dl){
+    const v=get(id), x=(v.items||[]).find(y=>y.id===dl.dataset.qadel);
+    if(!confirm(`이 Q&A 를 지울까요?\n\nQ. ${firstLine(x&&x.q).slice(0,60)||'(질문 없음)'}`)) return;
+    OPENED.delete(dl.dataset.qadel);
+    await put(id, { items:(v.items||[]).filter(y=>y.id!==dl.dataset.qadel), del:[...(v.del||[]), dl.dataset.qadel] }); say('🗑 지웠습니다'); return; }
+  if(t.closest('[data-qaadd]')){ EDIT='new:'+id; repaint(st); st.querySelector('.qx-ed textarea[data-qe="q"]')?.focus(); return; }
+  const al=t.closest('[data-qaall]'); if(al){ const on=al.dataset.qaall==='1'; (get(id).items||[]).forEach(x=>on?OPENED.add(x.id):OPENED.delete(x.id)); repaint(st); return; }
+  if(t.closest('[data-qacancel]')){ EDIT=''; return repaint(st); }
+  const sv=t.closest('[data-qasave]'); if(sv) return saveEd(st, sv);
 });
-document.addEventListener('toggle', e=>{ const d=e.target; if(!(d && d.classList && d.classList.contains('qai'))) return;
-  const k=d.dataset.qi; if(d.open) OPENED.add(k); else OPENED.delete(k); }, true);
+document.addEventListener('keydown', e=>{
+  const ta=e.target.closest && e.target.closest('.qastack .qx-ed textarea'); if(!ta) return;
+  const st=ta.closest('.qastack');
+  if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); EDIT=''; repaint(st); }
+  else if(e.key==='Enter' && (e.ctrlKey||e.metaKey)){ e.preventDefault(); e.stopPropagation(); const b=st.querySelector('.qx-ed [data-qasave]'); b && saveEd(st, b); }
+}, true);
+document.addEventListener('toggle', e=>{ const d=e.target; if(!(d && d.classList && d.classList.contains('qx-it'))) return;
+  const k=d.dataset.qi; if(d.open) OPENED.add(k); else OPENED.delete(k);
+  /* 머리줄 «모두 펼치기/접기» 글자만 맞춤 (통째로 다시 그리면 펼침 움직임이 끊김) */
+  const st=d.closest('.qastack'), hb=st&&st.querySelector('[data-qaall]');
+  if(hb){ const all=[...st.querySelectorAll('.qx-it')].every(x=>x.open); hb.dataset.qaall=all?'0':'1'; hb.textContent=all?'모두 접기':'모두 펼치기'; } }, true);
 /* 화면이 다시 그려지면 따라 붙인다 */
 let T=0;
 new MutationObserver(ms=>{
