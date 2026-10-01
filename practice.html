@@ -20922,7 +20922,7 @@ window.__pracPos={ resume, goIndex, goId, remember };
    서비스워커가 아예 안 붙어, 애써 만든 그림 캐시가 한 번도 안 돌았다.
    같은 문제 그림을 들어올 때마다 Supabase 에서 새로 받고 있었던 것. */
 if("serviceWorker" in navigator && location.protocol.startsWith("http"))
-  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=335").catch(() => {}));
+  addEventListener("load", () => navigator.serviceWorker.register("./sw.js?v=336").catch(() => {}));
 </script>
 <!-- ══════════════════════════════════════════════════════════════
      v253 · ① 상세 해설 한 문항씩 (Opus · Sonnet)  ② 그림 잘라 넣기
@@ -26824,5 +26824,56 @@ window.__pracMv={ scan, get state(){ return S; } };
 })();
 </script>
 
+<!-- ══════════════════════════════════════════════════════════════
+     v336 · 한눈에 위 도구 줄 접기 — 문항 레일 맨 왼쪽(‹ 앞) 단추 하나로 접고 폄
+     · 폰(폭 900 미만)은 처음에 접힌 채 · PC 는 펼친 채 · 한 번 누르면 그 기기에 기억 (prac:ohfold:v1)
+     ══════════════════════════════════════════════════════════════ -->
+<style>
+html body.ohfold #ovl > .oh{display:none!important}
+#ovrail.hastog{padding-left:40px!important}
+#ovrail.hastog > .railar.l{left:40px}
+#ovrail > .ohtog{position:absolute;left:4px;top:50%;transform:translateY(-50%);z-index:4;width:32px;height:32px;padding:0;
+  display:grid;place-items:center;border:1px solid #c9d7f6;border-radius:10px;background:#eef3ff;color:#1e3a8a;
+  font:900 15px/1 var(--font-d,system-ui);cursor:pointer;box-shadow:0 2px 8px rgba(15,23,42,.08);-webkit-tap-highlight-color:transparent}
+#ovrail > .ohtog:active{transform:translateY(-50%) scale(.94)}
+html body.ohfold #ovrail > .ohtog{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+@media(max-width:899px){ #ovrail.hastog{padding-left:42px!important} #ovrail.hastog > .railar.l{left:42px} #ovrail > .ohtog{width:34px;height:34px} }
+html body.rd-night #ovrail > .ohtog{background:#1d2a44;border-color:#33415c;color:#cfe0ff}
+html body.rd-night.ohfold #ovrail > .ohtog{background:#7fb0ff;border-color:#7fb0ff;color:#0f172a}
+</style>
+<script>
+(function(){
+'use strict';
+const KEY='prac:ohfold:v1';
+const phone=()=>{ try{ return matchMedia('(max-width:899px)').matches }catch(e){ return innerWidth<900 } };
+const saved=()=>{ try{ return localStorage.getItem(KEY) }catch(e){ return null } };
+const folded=()=>{ const v=saved(); return v==null ? phone() : v==='1'; };      /* 기본: 폰은 접힘 · PC 는 펼침 */
+function paint(){
+  /* 레일을 꺼 둔 사람은 단추가 안 보이므로 접지 않는다 (못 펴게 되는 것 막기) */
+  const f=folded() && document.body.classList.contains('ovl-rail');
+  if(document.body.classList.contains('ohfold')!==f) document.body.classList.toggle('ohfold', f);
+  const b=document.getElementById('ovOhTog');
+  if(b){ const t=f?'▾':'▴'; if(b.textContent!==t) b.textContent=t;
+    b.title=f?'위 도구 줄 펴기 (연도·회차 고르기 · 글자 크기 · 닫기 · 해설 돌리기)':'위 도구 줄 접기';
+    b.setAttribute('aria-expanded', f?'false':'true'); }
+}
+function mount(){
+  const rail=document.getElementById('ovrail'); if(!rail) return false;
+  if(!document.getElementById('ovOhTog')){
+    const b=document.createElement('button'); b.type='button'; b.className='ohtog'; b.id='ovOhTog'; b.setAttribute('aria-label','위 도구 줄 접기·펴기');
+    b.addEventListener('click', e=>{ e.preventDefault(); e.stopPropagation();
+      try{ localStorage.setItem(KEY, folded()?'0':'1') }catch(x){}
+      paint(); });
+    rail.insertBefore(b, rail.firstChild);
+    rail.classList.add('hastog');
+  }
+  paint(); return true;
+}
+const w=setInterval(()=>{ if(mount()) clearInterval(w); }, 400);
+setTimeout(()=>clearInterval(w), 60000);
+paint();
+addEventListener('resize', paint);
+})();
+</script>
 </body>
 </html>
