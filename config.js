@@ -1,3 +1,28 @@
+/* ═══════════════════════════════════════════════════════════════
+   ★ v341 — «묻힌 오류» 기록장
+   앱 곳곳의 빈 catch(e){} (600개 넘음)가 오류를 흔적 없이 삼켜서
+   «가끔 안 그려짐» 같은 문제를 쫓을 수가 없었다. 이제 전부 여기로 모인다.
+   - 화면 동작은 예전과 똑같음 (여전히 삼킴 — 앱이 멈추지 않음)
+   - 최근 200개를 window.__errs 에 보관 → 개발자 도구 콘솔에서 __errs 로 확인
+   - localStorage 'gv-debug' 를 '1' 로 두면 생길 때마다 콘솔에 경고로도 찍음
+   ═══════════════════════════════════════════════════════════════ */
+(function(){
+  if (globalThis.__q) return;
+  const L = globalThis.__errs = [];
+  let loud = false;
+  try { loud = localStorage.getItem("gv-debug") === "1"; } catch (e) {}
+  globalThis.__q = function(e){
+    try{
+      const msg = String((e && e.message) || e).slice(0, 300);
+      const at = String((e && e.stack) || "").split("\n")[1] || "";
+      const last = L[L.length - 1];
+      if (last && last.m === msg && last.at === at){ last.n++; last.t = Date.now(); }   /* 같은 오류 연속은 한 줄로 */
+      else { L.push({ t: Date.now(), m: msg, at: at.trim(), n: 1 }); if (L.length > 200) L.shift(); }
+      if (loud) console.warn("[묻힌 오류]", e);
+    }catch(_){}
+  };
+})();
+
 /* ─────────────────────────────────────────────
    Supabase 값 (뷰어·업로더용)
    Supabase 대시보드 → Project Settings → API
@@ -25,8 +50,9 @@ window.APP_CONFIG = {
 
      AI_APP_KEY — Worker 에 APP_KEY 시크릿을 등록했을 때만 채웁니다.
        ⚠ 이 값은 브라우저에서 보이므로 «비밀» 이 아닙니다.
-         지나가던 사람이 주소만 알고 함부로 쓰는 걸 막는 문고리일 뿐,
-         진짜 자물쇠는 Worker 의 ALLOWED_ORIGINS 입니다.
+         지나가던 사람이 주소만 알고 함부로 쓰는 걸 막는 문고리일 뿐입니다.
+       ★ v340 — 진짜 자물쇠는 Worker 의 «로그인 확인»(REQUIRE_AUTH / ALLOWED_EMAILS) 입니다.
+         이 파일 맨 아래 attachWorkerAuth 가 워커로 가는 요청마다 로그인 토큰을 붙여 줍니다.
 
      AI_APP_NAME — 대화 기록을 앱별로 나눠 담는 이름표.
      ───────────────────────────────────────────── */
@@ -75,5 +101,85 @@ AI_APP_KEY: "",
         storage:{from(){return {upload:async()=>({data:null,error:offlineError}),download:async()=>({data:null,error:offlineError}),remove:async()=>({data:null,error:offlineError}),list:async()=>({data:[],error:offlineError})}}}
       };
     }
+  };
+})();
+
+
+/* ═══════════════════════════════════════════════════════════════
+   ★ v340 — 워커로 가는 요청에 로그인 토큰을 자동으로 붙임
+
+   워커가 이제 «로그인한 허용 계정» 만 받는다 (예전엔 주소만 알면 누구나 AI 를 불러 요금이 샐 수 있었음).
+   워커를 부르는 곳이 index · practice · review · interview · ingest · explain-batch · ai-explain 등
+   열 군데가 넘어서, 하나하나 고치지 않고 여기서 fetch 를 한 번 감싸 처리한다.
+
+   - 워커 주소(WORKER_URL · AI_WORKER_URL · CLAUDE_WORKER_URL · WORKER_BACKUP_URL)로 가는 요청만 손댐
+   - 이미 Authorization 이 붙어 있으면(ai-chat.js) 그대로 둠
+   - 토큰은 그 화면의 Supabase 연결(sb)에서 받음 — 만료됐으면 supabase-js 가 알아서 새로 받아 줌
+   - 워커가 401(로그인 만료)을 돌려주면 토큰을 한 번 새로 받아 딱 한 번만 다시 보냄
+   ═══════════════════════════════════════════════════════════════ */
+(function attachWorkerAuth(){
+  if (window.__workerAuthPatched || typeof window.fetch !== "function") return;
+  window.__workerAuthPatched = true;
+  const C = window.APP_CONFIG || {};
+  const HOSTS = new Set([C.WORKER_URL, C.WORKER_BACKUP_URL, C.AI_WORKER_URL, C.CLAUDE_WORKER_URL]
+    .filter(Boolean).map(u => { try { return new URL(u).origin; } catch (e) { return ""; } }).filter(Boolean));
+  if (!HOSTS.size) return;
+  const orig = window.fetch.bind(window);
+
+  const withTimeout = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]);
+  /* 각 화면이 맨 위에 const sb = createClient(...) 로 만든 연결 */
+  function pageSb(){
+    try { return (typeof sb !== "undefined" && sb && sb.auth) ? sb : null; } catch (e) { return null; }
+  }
+  /* sb 를 못 쓸 때 대비: 저장소에 남은 supabase 세션 중 아직 살아 있는 토큰 */
+  function storedToken(){
+    const now = Date.now() / 1000 + 30;
+    for (const st of [window.localStorage, window.sessionStorage]){
+      try{
+        for (let i = 0; i < st.length; i++){
+          const k = st.key(i);
+          if (!k || !k.startsWith("sb-")) continue;
+          const o = JSON.parse(st.getItem(k) || "null");
+          const s = o && (o.access_token ? o : o.currentSession);
+          if (s && s.access_token && (!s.expires_at || s.expires_at > now)) return s.access_token;
+        }
+      }catch(e){globalThis.__q?.(e)}
+    }
+    return "";
+  }
+  async function getToken(refresh){
+    const c = pageSb();
+    if (c){
+      try{
+        const r = await withTimeout(refresh ? c.auth.refreshSession() : c.auth.getSession(), 4000);
+        const t = r && r.data && r.data.session && r.data.session.access_token;
+        if (t) return t;
+      }catch(e){ console.warn("[워커 인증] 세션 읽기 실패", e); }
+    }
+    return storedToken();
+  }
+  function isWorker(input){
+    try{
+      const u = typeof input === "string" ? input : (input && (input.url || input.href)) || "";
+      return HOSTS.has(new URL(u, location.href).origin);
+    }catch(e){ return false; }
+  }
+
+  window.fetch = async function(input, init){
+    if (!isWorker(input)) return orig(input, init);
+    const base = new Headers((init && init.headers) || (input instanceof Request ? input.headers : undefined));
+    if (base.has("Authorization")) return orig(input, init);
+
+    const send = async refresh => {
+      const h = new Headers(base);
+      const t = await getToken(refresh);
+      if (t) h.set("Authorization", "Bearer " + t);
+      return orig(input, Object.assign({}, init || {}, { headers: h }));
+    };
+    const res = await send(false);
+    /* 본문을 다시 보낼 수 있는 경우만 한 번 더 (Request 객체 본문은 한 번 읽으면 끝) */
+    const replayable = !(input instanceof Request && input.body && !(init && "body" in init));
+    if (res.status === 401 && replayable && pageSb()) return send(true);
+    return res;
   };
 })();

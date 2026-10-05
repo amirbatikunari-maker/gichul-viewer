@@ -193,7 +193,7 @@ function tex(el){
   try{ renderMathInElement(el,{delimiters:[
     {left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},
     {left:'\\[',right:'\\]',display:true},{left:'\\(',right:'\\)',display:false}
-  ],throwOnError:false,ignoredTags:['script','style','textarea','pre','code']}); }catch(e){}
+  ],throwOnError:false,ignoredTags:['script','style','textarea','pre','code']}); }catch(e){globalThis.__q?.(e)}
 }
 
 /* ── 판 ── */
@@ -257,7 +257,7 @@ function saveNote(sel,md){
       api.addNote(body);
       getSelection()?.removeAllRanges();
       return;
-    }catch(e){}
+    }catch(e){globalThis.__q?.(e)}
   }
   /* ② 필기 — 이 파일이 들고 있는 주석함에 */
   const qid=sel.el.dataset.qid||'', key=sel.el.dataset.hl||sel.el.dataset.ann||'x';
@@ -271,7 +271,7 @@ function saveNote(sel,md){
 }
 const NKEY='gichul:ainote:v1';
 const load=()=>{ try{ return JSON.parse(localStorage.getItem(NKEY)||'{}') }catch(e){ return {} } };
-const save=v=>{ try{ localStorage.setItem(NKEY,JSON.stringify(v)) }catch(e){} };
+const save=v=>{ try{ localStorage.setItem(NKEY,JSON.stringify(v)) }catch(e){globalThis.__q?.(e)} };
 function del(qid,key,id){ const b=load(); const a=(b[qid]||{})[key]||[]; b[qid][key]=a.filter(x=>x.id!==id); save(b); paintAll(true); }
 
 let PBUSY=false, pT=0;
@@ -328,7 +328,7 @@ if(!PRAC){
   },true);
   const mo=new MutationObserver(()=>{ clearTimeout(pT); pT=setTimeout(()=>paintAll(false),160); });
   addEventListener('load',()=>{ mo.observe(document.body,{childList:true,subtree:true}); paintAll(true); });
-  setTimeout(()=>{ try{ mo.observe(document.body,{childList:true,subtree:true}) }catch(e){} paintAll(true); },1200);
+  setTimeout(()=>{ try{ mo.observe(document.body,{childList:true,subtree:true}) }catch(e){globalThis.__q?.(e)} paintAll(true); },1200);
 }
 
 /* ── 모양 ── */

@@ -130,7 +130,7 @@ function boot(){
     b.id = "simpleToggle"; b.type = "button"; b.className = "simple-btn";
     b.addEventListener("click", () => {
       const next = !document.body.classList.contains("simple");
-      try{ localStorage.setItem(KEY, next ? "1" : "0"); }catch(e){}
+      try{ localStorage.setItem(KEY, next ? "1" : "0"); }catch(e){globalThis.__q?.(e)}
       paint(next);
       if (next) mark();
     });
@@ -140,7 +140,7 @@ function boot(){
   /* 처음 오는 사람은 «간단히» 로 시작한다 — 단추 67개를 한꺼번에
      보여 주는 것보다, 필요할 때 펼치게 하는 편이 낫다. */
   let on = true;
-  try{ const v = localStorage.getItem(KEY); if (v !== null) on = v === "1"; }catch(e){}
+  try{ const v = localStorage.getItem(KEY); if (v !== null) on = v === "1"; }catch(e){globalThis.__q?.(e)}
   paint(on);
 
   /* 나중에 그려지는 단추도 잡는다 (문항을 다시 그릴 때 등) */

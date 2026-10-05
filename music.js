@@ -60,7 +60,7 @@ let VOL = load("music:vol", 0.5);
 let timer = null, timerEnd = 0;
 
 function load(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } }
-function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch(__e){globalThis.__q?.(__e)} }
 
 function boot() {
   if (ctx) return ctx;
@@ -172,7 +172,7 @@ function playNoise(kind) {
   return { stop(t) {
     g.gain.cancelScheduledValues(t);
     g.gain.setTargetAtTime(0, t, 0.5);
-    setTimeout(() => { try { src.stop(); lfo?.stop(); } catch {} }, 1800);
+    setTimeout(() => { try { src.stop(); lfo?.stop(); } catch(__e){globalThis.__q?.(__e)} }, 1800);
   } };
 }
 
@@ -217,7 +217,7 @@ function playBinaural(beatHz) {
     out.gain.cancelScheduledValues(t);
     out.gain.setTargetAtTime(0, t, 0.4);
     bedG.gain.setTargetAtTime(0, t, 0.4);
-    setTimeout(() => { try { sides.forEach(o => o.stop()); bed.stop(); } catch {} }, 1600);
+    setTimeout(() => { try { sides.forEach(o => o.stop()); bed.stop(); } catch(__e){globalThis.__q?.(__e)} }, 1600);
   } };
 }
 
@@ -471,7 +471,7 @@ async function play(id) {
 }
 
 function stop() {
-  if (node) { try { node.stop(ctx.currentTime); } catch {} node = null; }
+  if (node) { try { node.stop(ctx.currentTime); } catch(__e){globalThis.__q?.(__e)} node = null; }
   CUR = null;
   paint();
 }

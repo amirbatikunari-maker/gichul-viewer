@@ -115,7 +115,7 @@
         const k=localStorage.key(i)||'';
         if((INTERVIEW_KEYS.test(k) && STUDY_KEYS.test(k)) || (STUDY_KEYS.test(k) && k.startsWith('iv')) || (INTERVIEW_KEYS.test(k) && (k.startsWith('gichul:')||k.startsWith('prac:')))) return true;
       }
-    }catch{}
+    }catch(__e){globalThis.__q?.(__e)}
     return false;
   }
   function qualityQAScore(){
@@ -152,7 +152,7 @@
   const $=(s,r=document)=>r.querySelector(s);
   const $$=(s,r=document)=>[...r.querySelectorAll(s)];
   const read=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch{return {}}};
-  const write=v=>{try{localStorage.setItem(KEY,JSON.stringify(v))}catch{}};
+  const write=v=>{try{localStorage.setItem(KEY,JSON.stringify(v))}catch(__e){globalThis.__q?.(__e)}};
   const state=read(); state.visit=state.visit||{}; state.visit[PAGE[0]]=(state.visit[PAGE[0]]||0)+1; state.lastPage=location.href; state.updatedAt=Date.now(); write(state);
   const ACTIVITY_KEY='gichul:activity:v1';
   const GOAL_KEY='gichul:study-goal:v1';
@@ -160,15 +160,15 @@
   function activityRead(){try{return JSON.parse(localStorage.getItem(ACTIVITY_KEY)||'{\"days\":{}}')}catch{return{days:{}}}}
   function dayKey(ts=Date.now()){const d=new Date(ts);return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-')}
   function getGoal(){try{const n=Number(localStorage.getItem(GOAL_KEY));return Number.isFinite(n)&&n>0?Math.min(480,Math.round(n)):45}catch{return 45}}
-  function setGoal(v){try{localStorage.setItem(GOAL_KEY,String(Math.max(10,Math.min(480,Math.round(Number(v)||45)))))}catch{}}
+  function setGoal(v){try{localStorage.setItem(GOAL_KEY,String(Math.max(10,Math.min(480,Math.round(Number(v)||45)))))}catch(__e){globalThis.__q?.(__e)}}
   function daySeconds(key=dayKey()){const a=activityRead();return Number(a.days?.[key]?.seconds||0)}
   function streakDays(){const a=activityRead(),days=a.days||{}, cur=new Date(); let n=0; for(let i=0;i<45;i++){const k=dayKey(cur.getTime()-i*86400000); if(Number(days[k]?.seconds||0)>=60)n++; else if(i===0)continue; else break} return n}
   function last7(){return Array.from({length:7},(_,i)=>{const ts=Date.now()-(6-i)*86400000;const d=new Date(ts);return {key:dayKey(ts),label:`${d.getMonth()+1}/${d.getDate()}`,sec:daySeconds(dayKey(ts))}})}
-  function addStudySeconds(sec){if(!Number.isFinite(sec)||sec<=0)return;try{const a=activityRead(),k=dayKey(),day=a.days[k]||{seconds:0,pages:{}};day.seconds+=Math.round(sec);day.pages=day.pages||{};day.pages[PAGE[0]]=(day.pages[PAGE[0]]||0)+1;a.days[k]=day;const keys=Object.keys(a.days).sort().slice(-45);a.days=Object.fromEntries(keys.map(x=>[x,a.days[x]]));localStorage.setItem(ACTIVITY_KEY,JSON.stringify(a))}catch{}}
+  function addStudySeconds(sec){if(!Number.isFinite(sec)||sec<=0)return;try{const a=activityRead(),k=dayKey(),day=a.days[k]||{seconds:0,pages:{}};day.seconds+=Math.round(sec);day.pages=day.pages||{};day.pages[PAGE[0]]=(day.pages[PAGE[0]]||0)+1;a.days[k]=day;const keys=Object.keys(a.days).sort().slice(-45);a.days=Object.fromEntries(keys.map(x=>[x,a.days[x]]));localStorage.setItem(ACTIVITY_KEY,JSON.stringify(a))}catch(__e){globalThis.__q?.(__e)}}
   let __pageStarted=Date.now();
   addEventListener('pagehide',()=>addStudySeconds((Date.now()-__pageStarted)/1000));
   function recentRead(){try{return JSON.parse(localStorage.getItem(RECENT_KEY)||'[]')}catch{return[]}}
-  function recentWrite(v){try{localStorage.setItem(RECENT_KEY,JSON.stringify(v.slice(0,12)))}catch{}}
+  function recentWrite(v){try{localStorage.setItem(RECENT_KEY,JSON.stringify(v.slice(0,12)))}catch(__e){globalThis.__q?.(__e)}}
   function trackRecent(){ const arr=recentRead().filter(x=>x.href!==location.href); arr.unshift({href:location.href,title:PAGE[0],sub:PAGE[1],at:Date.now()}); recentWrite(arr); }
   trackRecent();
 
@@ -282,7 +282,7 @@
   const TIMER_KEY='gichul:timer:v1';
   function timerRead(){try{return JSON.parse(localStorage.getItem(TIMER_KEY)||'{\"running\":false,\"startedAt\":null,\"base\":0}')}catch{return{running:false,startedAt:null,base:0}}}
   function timerElapsed(){const t=timerRead();return t.running&&t.startedAt?t.base+(Date.now()-t.startedAt):t.base||0}
-  function saveTimer(v){try{localStorage.setItem(TIMER_KEY,JSON.stringify(v))}catch{}}
+  function saveTimer(v){try{localStorage.setItem(TIMER_KEY,JSON.stringify(v))}catch(__e){globalThis.__q?.(__e)}}
   function openTimer(){
     let back=$('.app-timer-backdrop');
     if(!back){
@@ -390,12 +390,12 @@
         }
       }
       localStorage.setItem('gichul:last-route',location.href);
-    }catch{}
+    }catch(__e){globalThis.__q?.(__e)}
   }
 
   const FAVORITES_KEY='gichul:favorites:v1';
   function getFavs(){try{return JSON.parse(localStorage.getItem(FAVORITES_KEY)||'[]')}catch{return[]}}
-  function setFavs(v){try{localStorage.setItem(FAVORITES_KEY,JSON.stringify(v.slice(-30)))}catch{}}
+  function setFavs(v){try{localStorage.setItem(FAVORITES_KEY,JSON.stringify(v.slice(-30)))}catch(__e){globalThis.__q?.(__e)}}
   function toggleFavorite(){
     const href=location.href, arr=getFavs(), i=arr.findIndex(x=>x.href===href);
     if(i>=0){arr.splice(i,1);setFavs(arr);toast('즐겨찾기에서 제거했습니다.')}else{arr.push({href,title:document.title.replace(/\s*[|·].*$/,'')||PAGE[0],page:PAGE[0],at:Date.now()});setFavs(arr);toast('현재 페이지를 즐겨찾기했습니다.','ok')}
@@ -433,14 +433,14 @@
   }
   function toggleTheme(){
     const cur=document.documentElement.dataset.theme==='dark'?'dark':'light';
-    const next=cur==='dark'?'light':'dark'; document.documentElement.dataset.theme=next; try{localStorage.setItem('gichul:theme',next)}catch{}
+    const next=cur==='dark'?'light':'dark'; document.documentElement.dataset.theme=next; try{localStorage.setItem('gichul:theme',next)}catch(__e){globalThis.__q?.(__e)}
     toast(next==='dark'?'다크 모드로 전환했습니다.':'라이트 모드로 전환했습니다.','ok');
   }
-  function toggleFocus(){const on=document.body.classList.toggle('app-focus');try{localStorage.setItem(FOCUS_KEY,on?'1':'0')}catch{} toast(on?'집중 모드를 켰습니다.':'집중 모드를 껐습니다.')}
+  function toggleFocus(){const on=document.body.classList.toggle('app-focus');try{localStorage.setItem(FOCUS_KEY,on?'1':'0')}catch(__e){globalThis.__q?.(__e)} toast(on?'집중 모드를 켰습니다.':'집중 모드를 껐습니다.')}
   function restorePreferences(){
-    try{const t=localStorage.getItem('gichul:theme');if(t)document.documentElement.dataset.theme=t}catch{}
-    try{const p=JSON.parse(localStorage.getItem(PREF_KEY)||'{}'); if(p.reduce)document.documentElement.classList.add('reduce-motion')}catch{}
-    try{if(localStorage.getItem(FOCUS_KEY)==='1')document.body.classList.add('app-focus')}catch{}
+    try{const t=localStorage.getItem('gichul:theme');if(t)document.documentElement.dataset.theme=t}catch(__e){globalThis.__q?.(__e)}
+    try{const p=JSON.parse(localStorage.getItem(PREF_KEY)||'{}'); if(p.reduce)document.documentElement.classList.add('reduce-motion')}catch(__e){globalThis.__q?.(__e)}
+    try{if(localStorage.getItem(FOCUS_KEY)==='1')document.body.classList.add('app-focus')}catch(__e){globalThis.__q?.(__e)}
     if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)document.documentElement.classList.add('reduce-motion');
   }
   function buildOffline(){
@@ -475,7 +475,7 @@
   (function(){
     const SK='app:shortcuts:v1';
     function load(){ try{ return JSON.parse(localStorage.getItem(SK)||'{}') }catch(e){ return {} } }
-    function save(s){ try{ localStorage.setItem(SK, JSON.stringify(s)) }catch(e){} }
+    function save(s){ try{ localStorage.setItem(SK, JSON.stringify(s)) }catch(e){globalThis.__q?.(e)} }
     const DEFS=[
       { id:'g-search',  key:'V', label:'전체 검색 열기',        group:'전체', def:true },
       { id:'g-fav',     key:'W', label:'이 페이지 즐겨찾기',     group:'전체', def:true },
@@ -641,7 +641,7 @@
     if(location.pathname.endsWith('calc.html')) out.push({name:'계산 엔진',ok:!!window.CalcEngine && typeof window.CalcEngine.evaluate==='function',detail:window.CalcEngine?'파서 엔진 로드됨':'calc-engine.js 확인 필요'});
     const cfg=window.CFG; out.push({name:'백엔드 설정',ok:!!cfg && !!cfg.SUPABASE_URL && !String(cfg.SUPABASE_URL).includes('xxxx'),detail:cfg?.SUPABASE_URL?'설정값 감지':'config.js 설정 확인 필요'});
     const studyKeys=[]; const interviewKeys=[]; for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(STUDY_KEYS.test(k))studyKeys.push(k);if(INTERVIEW_KEYS.test(k))interviewKeys.push(k)}
-    let errDetail='최근 앱 오류 없음'; try{const er=JSON.parse(localStorage.getItem('gichul:last-error')||'null'); if(er?.message) errDetail=String(er.message).slice(0,90)}catch{}
+    let errDetail='최근 앱 오류 없음'; try{const er=JSON.parse(localStorage.getItem('gichul:last-error')||'null'); if(er?.message) errDetail=String(er.message).slice(0,90)}catch(__e){globalThis.__q?.(__e)}
     const cr=completionReport();
     out.push({name:'학습 기록',ok:true,detail:`gichul:/prac: 데이터 ${studyKeys.length}개`}); out.push({name:'면접 데이터 분리',ok:!hasStudyInterviewCrossContamination(),detail:`iv-/iv: 데이터 ${interviewKeys.length}개 · 학습 백업 제외`});
     out.push({name:'최근 오류',ok:!localStorage.getItem('gichul:last-error'),detail:errDetail});
@@ -664,10 +664,10 @@
   const isBenignResize = m => /ResizeObserver loop/i.test(String(m||''));
   addEventListener('error', e=>{
     if(isBenignResize(e.message)) return;
-    try{localStorage.setItem('gichul:last-error',JSON.stringify({message:String(e.message||'알 수 없는 오류'),source:String(e.filename||''),line:e.lineno||0,at:Date.now()}))}catch{}; toast('앱에서 오류가 발생했습니다. 앱 상태 진단에서 확인할 수 있습니다.','err');});
+    try{localStorage.setItem('gichul:last-error',JSON.stringify({message:String(e.message||'알 수 없는 오류'),source:String(e.filename||''),line:e.lineno||0,at:Date.now()}))}catch(__e){globalThis.__q?.(__e)}; toast('앱에서 오류가 발생했습니다. 앱 상태 진단에서 확인할 수 있습니다.','err');});
   addEventListener('unhandledrejection', e=>{
     if(isBenignResize(e.reason?.message||e.reason)) return;
-    try{localStorage.setItem('gichul:last-error',JSON.stringify({message:String(e.reason?.message||e.reason||'처리되지 않은 오류'),at:Date.now()}))}catch{}; toast('처리되지 않은 작업 오류가 발생했습니다.','err');});
+    try{localStorage.setItem('gichul:last-error',JSON.stringify({message:String(e.reason?.message||e.reason||'처리되지 않은 오류'),at:Date.now()}))}catch(__e){globalThis.__q?.(__e)}; toast('처리되지 않은 작업 오류가 발생했습니다.','err');});
 
   function buildInterviewIsolation(){
     if(!isInterviewPage() || document.querySelector('.app-interview-isolation')) return;
@@ -700,6 +700,9 @@
     add('브라우저 PWA 지원', 'serviceWorker' in navigator, 'Service Worker API');
     add('공용 AI 채팅 소스', !!document.querySelector('script[src*="ai-chat.js"]') && !!window.APP_CONFIG?.AI_WORKER_URL, 'ai-chat.js + Worker 설정');
     add('접근성 미라벨', completionReport().unlabeled===0, `${completionReport().unlabeled}개`);
+    /* ★ v341 — 빈 catch 가 삼킨 오류 (config.js __q). 0 이 아니어도 앱은 돌지만, 이상할 때 여기부터 봄 */
+    { const E=(window.__errs||[]); const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+      add('묻힌 오류', E.length===0, E.length ? `${E.reduce((a,x)=>a+x.n,0)}번 · 최근: `+E.slice(-3).reverse().map(x=>esc(x.m)+(x.n>1?` ×${x.n}`:'')).join(' / ') : '없음'); }
     const rows2=rows;
     back.querySelector('[data-grid]').innerHTML=rows2.map(x=>`<div class="app-diag-item ${x.ok?'ok':'warn'}"><span>${x.ok?'✓':'!'}</span><div><b>${x.name}</b><small>${x.detail}</small></div></div>`).join('');
     const bad=rows2.filter(x=>!x.ok).length; back.querySelector('[data-summary]').textContent=bad?`${bad}개 점검 필요`:'전체 QA 통과'; back.classList.add('open');
@@ -719,8 +722,8 @@
       const feat=`popup=yes,width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`;
       CALCWIN=window.open('./calc.html?popup=1','gichulCalc',feat);
       if(CALCWIN){ CALCWIN.focus(); return true; }
-    }catch(e){}
-    try{ window.open('./calc.html','_blank','noopener'); return true; }catch(e){}
+    }catch(e){globalThis.__q?.(e)}
+    try{ window.open('./calc.html','_blank','noopener'); return true; }catch(e){globalThis.__q?.(e)}
     return false;
   }
   window.openCalcPopup=openCalcPopup;

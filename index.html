@@ -1249,7 +1249,7 @@ const sb = (window.supabase && CFG.SUPABASE_URL && !CFG.SUPABASE_URL.includes("x
 
 const LS = {
   get:(k,d)=>{try{return JSON.parse(localStorage.getItem(k)) ?? d}catch(e){return d}},
-  set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+  set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){globalThis.__q?.(e)}}
 };
 let S = {
   subjects:[], exams:[], questions:[], exam:null, subject:null,
@@ -1258,7 +1258,7 @@ let S = {
   loggedIn:false, anno:{}   // anno[question_id] = {strokes, page_width}
 };
 /* 진도 표시 층이 상태를 읽을 수 있도록 열어 둔다 (읽기 전용) */
-try{ Object.defineProperty(window,"S",{configurable:true,get:()=>S}); }catch(e){}
+try{ Object.defineProperty(window,"S",{configurable:true,get:()=>S}); }catch(e){globalThis.__q?.(e)}
 
 const $  = s=>document.querySelector(s);
 const $$ = s=>[...document.querySelectorAll(s)];
@@ -1715,7 +1715,7 @@ function setupInkPage(qid, wrap, page, canvas, tools, onEditingChange, zoomCtl){
       state.cur.pts = [pts[0], pts[pts.length-1]];
       straight = true;
       redraw(); paintStroke(state.cur);
-      try{ navigator.vibrate?.(12); }catch(e){}   /* 직선으로 바뀐 순간을 손끝으로 알려준다 */
+      try{ navigator.vibrate?.(12); }catch(e){globalThis.__q?.(e)}   /* 직선으로 바뀐 순간을 손끝으로 알려준다 */
     }, HOLD_MS);
   }
 
@@ -2014,7 +2014,7 @@ const tex = el=>{
   try{ renderMathInElement(el,{delimiters:[
     {left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false},
     {left:"\\[",right:"\\]",display:true},{left:"\\(",right:"\\)",display:false}
-  ],throwOnError:false,ignoredTags:["script","noscript","style","textarea","pre","code","svg"]}); }catch(e){}
+  ],throwOnError:false,ignoredTags:["script","noscript","style","textarea","pre","code","svg"]}); }catch(e){globalThis.__q?.(e)}
 };
 
 /* ═══════════════════════════════════════════════
@@ -2180,7 +2180,7 @@ function hlPaint(block, ranges){
 /* 새로 그린 문항에 저장된 형광펜을 입힌다 — tex() 뒤에 부른다 */
 function hlApply(root){
   root?.querySelectorAll("[data-hl]").forEach(b => {
-    try{ hlPaint(b, hlGet(b.dataset.qid, b.dataset.hl)); }catch(e){}
+    try{ hlPaint(b, hlGet(b.dataset.qid, b.dataset.hl)); }catch(e){globalThis.__q?.(e)}
   });
 }
 
@@ -5386,7 +5386,7 @@ if("serviceWorker" in navigator && location.protocol.startsWith("http"))
 
   function set(mode, remember){
     if(mode === "off") stop(); else play(mode);
-    if(remember !== false){ try{ localStorage.setItem(KEY, mode); }catch(e){} }
+    if(remember !== false){ try{ localStorage.setItem(KEY, mode); }catch(e){globalThis.__q?.(e)} }
     paint();
   }
 
@@ -5426,7 +5426,7 @@ if("serviceWorker" in navigator && location.protocol.startsWith("http"))
        다만 브라우저는 «사람이 무언가 건드리기 전» 에는 소리를 못 내게 막는다.
        그래서 첫 클릭·터치·스크롤을 기다렸다가 그때 시작한다. */
     let saved = "off";
-    try{ saved = localStorage.getItem(KEY) || "off"; }catch(e){}
+    try{ saved = localStorage.getItem(KEY) || "off"; }catch(e){globalThis.__q?.(e)}
     if(saved === "jazz" || saved === "fantasy"){
       const evs = ["pointerdown","keydown","wheel","touchstart"];
       const kick = () => { if(A.mode === "off") set(saved, false); off(); };
@@ -5508,7 +5508,7 @@ if("serviceWorker" in navigator && location.protocol.startsWith("http"))
   const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
   const KEY='gichul:done:v1', SUM='gichul:donesum:v1';
   const rd=k=>{try{return JSON.parse(localStorage.getItem(k)||'{}')}catch(e){return{}}};
-  const wr=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+  const wr=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){globalThis.__q?.(e)}};
   let DONE=rd(KEY);
   const qs=()=>{try{return (window.S&&Array.isArray(S.questions))?S.questions:[]}catch(e){return[]}};
 
@@ -5604,7 +5604,7 @@ if("serviceWorker" in navigator && location.protocol.startsWith("http"))
     /* 회차 목록에서도 보이도록 요약을 남긴다 */
     try{
       const ex=window.S&&S.exam; if(ex&&ex.id&&total){ const s=rd(SUM); s[ex.id]={d:done,t:total}; wr(SUM,s); }
-    }catch(e){}
+    }catch(e){globalThis.__q?.(e)}
   }
 
   /* 회차 목록에 진도 막대 얹기 */
@@ -5623,7 +5623,7 @@ if("serviceWorker" in navigator && location.protocol.startsWith("http"))
   addEventListener('keydown',e=>{
     if(/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName||''))return;
     if(e.key!=='1'&&e.key!=='2')return;
-    const list=qs(); let i=0; try{ i=window.S?.idx|0 }catch(x){}
+    const list=qs(); let i=0; try{ i=window.S?.idx|0 }catch(x){globalThis.__q?.(x)}
     const q=list[i]; if(!q)return;
     e.preventDefault(); bump(q.id,e.key==='1'?'ok':'no');
   });

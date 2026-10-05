@@ -771,10 +771,10 @@ let TERM_F = "전체", REV_BAD = false;
 const draftKey = k => `iv-draft-${k}-${CUR ? CUR.id : "x"}`;
 function bindDraft(id, key){
   const el = $(id); if(!el) return;
-  el.addEventListener("input", () => { try{ localStorage.setItem(draftKey(key), el.value); }catch(e){} });
+  el.addEventListener("input", () => { try{ localStorage.setItem(draftKey(key), el.value); }catch(e){globalThis.__q?.(e)} });
 }
-function loadDraft(id, key){ try{ const v = localStorage.getItem(draftKey(key)); if(v) $(id).value = v; }catch(e){} }
-function clearDraft(key){ try{ localStorage.removeItem(draftKey(key)); }catch(e){} }
+function loadDraft(id, key){ try{ const v = localStorage.getItem(draftKey(key)); if(v) $(id).value = v; }catch(e){globalThis.__q?.(e)} }
+function clearDraft(key){ try{ localStorage.removeItem(draftKey(key)); }catch(e){globalThis.__q?.(e)} }
 
 /* textarea 를 내용에 맞춰 늘린다 — 모바일에서 스크롤 두 번 하는 걸 막는다 */
 function autoGrow(el){
@@ -2141,11 +2141,11 @@ function showPane(t){
   if(!PANES.includes(t)) t = "prep";
   PANES.forEach(k => $("#pane-" + k).className = "pane" + (k === t ? "" : " hide"));
   $$("#subtabs .stb").forEach(b => b.classList.toggle("on", b.dataset.t === t));
-  try{ localStorage.setItem("iv-pane", t); }catch(e){}
+  try{ localStorage.setItem("iv-pane", t); }catch(e){globalThis.__q?.(e)}
   if(t === "brief") drawBrief();
 }
 $$("#subtabs .stb").forEach(b => b.addEventListener("click", () => {
-  try{ localStorage.setItem("iv-pane", b.dataset.t); }catch(e){}
+  try{ localStorage.setItem("iv-pane", b.dataset.t); }catch(e){globalThis.__q?.(e)}
   if(b.dataset.t === "brief") drawBrief();
 }));
 
@@ -2617,7 +2617,7 @@ $("#micHint").textContent = SR
   : "이 브라우저는 받아쓰기를 지원하지 않습니다 — 소리 내어 답한 뒤 요지만 손으로 적으세요.";
 
 function stopRec(){
-  if(MREC){ try{ MREC.stop(); }catch(e){} MREC = null; }
+  if(MREC){ try{ MREC.stop(); }catch(e){globalThis.__q?.(e)} MREC = null; }
   const b = $("#mkMic"); if(b) b.className = "mic";
 }
 function toggleRec(){
@@ -2715,7 +2715,7 @@ function drawBrief(){
   const box = $("#brBody"); if(!box || !CUR) return;
   /* 표에 brief_md 칸이 없어도 브리핑이 사라지지 않게 이 기기에도 남겨 둔다 */
   let md = (STG[SEL] || {}).brief_md || CUR._brief;
-  if(!md){ try{ md = localStorage.getItem(briefKey()) || ""; }catch(e){} }
+  if(!md){ try{ md = localStorage.getItem(briefKey()) || ""; }catch(e){globalThis.__q?.(e)} }
   if(!md){
     box.innerHTML = `<div class="hint">아직 없습니다. 위의 <b>브리핑 만들기</b>를 누르세요.
       지금까지 쌓인 답변·용어·복기를 근거로 한 장으로 뽑습니다.</div>`;
@@ -2739,10 +2739,10 @@ $("#brGen").onclick = async () => {
 ## 내가 물을 역질문 3개
 ## 당일 아침 체크 6줄`, "브리핑을 쓰는 중…");
     CUR._brief = md;
-    try{ localStorage.setItem(briefKey(), md); }catch(e){}
+    try{ localStorage.setItem(briefKey(), md); }catch(e){globalThis.__q?.(e)}
     /* iv_stage 에 brief_md 칸이 없는 경우가 있어 저장 실패는 조용히 넘긴다 —
        화면과 이 기기에는 이미 남아 있다. */
-    try{ await saveStage({ brief_md: md }); }catch(e){}
+    try{ await saveStage({ brief_md: md }); }catch(e){globalThis.__q?.(e)}
     drawBrief(); say("브리핑을 만들었습니다.", "ok");
   }catch(e){ say("실패 — " + e.message, "err"); }
   finally{ $("#brGen").disabled = false; }
@@ -2878,7 +2878,7 @@ sb.auth.onAuthStateChange((evt, session) => {
 
 boot().then(async () => {
   AUTH_READY = true;
-  try{ IV_UID = (await sb.auth.getSession())?.data?.session?.user?.id || null; }catch(e){}
+  try{ IV_UID = (await sb.auth.getSession())?.data?.session?.user?.id || null; }catch(e){globalThis.__q?.(e)}
 }).catch(e => {
   /* 여기서 터지면 예전처럼 화면이 텅 빈다. 무슨 일인지 눈에 보이게 적어 둔다. */
   const g = $("#gate"); if(g) g.className = "gate";

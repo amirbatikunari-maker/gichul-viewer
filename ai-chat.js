@@ -309,7 +309,7 @@ async function doLogout() {
 
     await sb?.auth.signOut();
 
-  } catch {}
+  } catch(__e){globalThis.__q?.(__e)}
 
 
   await readSession();
@@ -432,7 +432,7 @@ const state = {
           const cur = localStorage.getItem("ai:mode");
           if (cur == null || cur === "auto") localStorage.setItem("ai:mode", "sonnet");
         }
-      }catch(e){}
+      }catch(e){globalThis.__q?.(e)}
       return load("ai:mode", "sonnet");
     })(),
 
@@ -504,7 +504,7 @@ function save(
       v
     );
 
-  } catch {}
+  } catch(__e){globalThis.__q?.(__e)}
 
 }
 
@@ -2036,7 +2036,7 @@ function build() {
     e.preventDefault(); e.stopPropagation();
     if (el.wrap.classList.contains("on")) { close(); return; }
     open();
-    setTimeout(() => { try { el.ta && el.ta.focus(); } catch (x) {} }, 60);
+    setTimeout(() => { try { el.ta && el.ta.focus(); } catch(x){globalThis.__q?.(x)} }, 60);
   }, true);
 
 
@@ -2055,7 +2055,7 @@ function build() {
       return v;
     };
     let cur = DEF;
-    try{ cur = +localStorage.getItem(KEY) || DEF; }catch(e){}
+    try{ cur = +localStorage.getItem(KEY) || DEF; }catch(e){globalThis.__q?.(e)}
     apply(cur);
     const g = document.createElement("div");
     g.className = "aic-grip";
@@ -2067,14 +2067,14 @@ function build() {
     g.addEventListener("pointerdown", e => {
       if (narrow()) return;
       e.preventDefault(); drag = true; x0 = e.clientX; w0 = el.panel.getBoundingClientRect().width;
-      try{ g.setPointerCapture(e.pointerId); }catch(x){}
+      try{ g.setPointerCapture(e.pointerId); }catch(x){globalThis.__q?.(x)}
       document.documentElement.classList.add("aic-resizing");
     });
     g.addEventListener("pointermove", e => { if (drag) cur = apply(w0 + (x0 - e.clientX)) || cur; });
     const end = () => { if (!drag) return; drag = false; document.documentElement.classList.remove("aic-resizing");
-      try{ localStorage.setItem(KEY, String(cur)); }catch(x){} };
+      try{ localStorage.setItem(KEY, String(cur)); }catch(x){globalThis.__q?.(x)} };
     g.addEventListener("pointerup", end); g.addEventListener("pointercancel", end);
-    g.addEventListener("dblclick", () => { cur = apply(DEF) || DEF; try{ localStorage.setItem(KEY, String(cur)); }catch(x){} });
+    g.addEventListener("dblclick", () => { cur = apply(DEF) || DEF; try{ localStorage.setItem(KEY, String(cur)); }catch(x){globalThis.__q?.(x)} });
     addEventListener("resize", () => apply(cur));
   })();
 
@@ -2297,7 +2297,7 @@ function build() {
 
       }
 
-    } catch (e) {}
+    } catch(e){globalThis.__q?.(e)}
 
 
     if (el.hint) {
@@ -2327,7 +2327,7 @@ function build() {
 
     try {
       u = localStorage.getItem(NOTION_KEY) || "";
-    } catch (e) {}
+    } catch(e){globalThis.__q?.(e)}
 
 
     if (u && !reset) return u;
@@ -2346,7 +2346,7 @@ function build() {
 
     try {
       localStorage.setItem(NOTION_KEY, u);
-    } catch (e) {}
+    } catch(e){globalThis.__q?.(e)}
 
     return u;
 
@@ -2459,7 +2459,7 @@ function build() {
 
             }
 
-          } catch (e) {}
+          } catch(e){globalThis.__q?.(e)}
 
         }
 
@@ -3591,7 +3591,7 @@ function aicTex(node) {
       throwOnError: false,
       ignoredTags: ["script", "style", "textarea", "pre", "code"]
     });
-  } catch (e) {}
+  } catch(e){globalThis.__q?.(e)}
 }
 
 function md(
@@ -4986,7 +4986,7 @@ async function send(
           ).error ||
           msg;
 
-      } catch {}
+      } catch(__e){globalThis.__q?.(__e)}
 
 
       if (
@@ -5436,7 +5436,7 @@ async function persist(
 
     );
 
-  } catch {}
+  } catch(__e){globalThis.__q?.(__e)}
 
 
   if (!sb)
@@ -5536,7 +5536,7 @@ async function persist(
       );
 
 
-  } catch {}
+  } catch(__e){globalThis.__q?.(__e)}
 
 }
 
@@ -5661,7 +5661,7 @@ async function showHistory() {
           "null"
         );
 
-    } catch {}
+    } catch(__e){globalThis.__q?.(__e)}
 
 
     bubble(

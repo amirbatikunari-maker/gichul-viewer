@@ -191,10 +191,14 @@ function log(msg, cls){
 function hint(why){
   const box = $("#scanMsg");
   let tip = "";
-  if(/403|forbidden|not allowed/i.test(why))
-    tip = `<b>Anthropic 이 요청 자체를 막았습니다.</b> 워커의
-           <code>/selftest</code> 를 브라우저로 열어 보세요 —
-           <code>https://gichul-ai.amirbatikunari.workers.dev/selftest</code><br>
+  /* ★ v340 — 워커 문지기(로그인 확인)에 막힌 것은 Anthropic 쪽 문제가 아님 — 먼저 가려냄 */
+  if(/로그인|허용 목록|허용되지 않은 주소|SUPABASE_URL/.test(why))
+    tip = `<b>워커의 로그인 확인에 막혔습니다.</b> 이 화면에서 허용된 계정으로 로그인돼 있는지 확인하고,
+           새로고침해 보세요. 계속 막히면 워커 변수 <b>ALLOWED_EMAILS</b> · <b>SUPABASE_URL</b> 을 확인해 주세요.`;
+  else if(/403|forbidden|not allowed/i.test(why))
+    tip = `<b>Anthropic 이 요청 자체를 막았습니다.</b> 로그인한 상태로 검수 화면(review)의
+           «워커 점검» 을 눌러 <code>/selftest</code> 결과를 보세요<br>
+           (v340 부터 /selftest 는 로그인이 필요해서 주소창에 바로 치면 401 이 나옵니다).<br>
            거기 나오는 <code>upstream</code> 이 진짜 이유입니다.
            보통 ① API 키가 잘못 붙여넣어졌거나 ② 결제·크레딧이 없거나
            ③ 키가 해지된 경우입니다.`;
@@ -345,7 +349,7 @@ function toMd(sol){
     const loose = x => {
       const fixBs = y => y.replace(/\\\\|\\(?:(?=[A-Za-z]{2,})(?!u[0-9a-fA-F]{4})|(?!["\\/bfnrtu]))/g, m => m.length === 2 ? m : "\\\\");   /* \times·\dfrac 처럼 수식 명령 앞 백슬래시를 살림 */
       for(const y of [x, fixBs(x), fixBs(x).replace(/\r?\n/g, " "), fixBs(x).replace(/\r?\n/g, " ").replace(/,\s*([\]}])/g, "$1")]){
-        try{ return JSON.parse(y); }catch(e){}
+        try{ return JSON.parse(y); }catch(e){globalThis.__q?.(e)}
       }
       return undefined;
     };
@@ -355,7 +359,7 @@ function toMd(sol){
     }
     if(/^\[[\s\S]*\]$/.test(t)){
       const j = loose(t); if(Array.isArray(j)) return j;
-      try{ const j2 = JSON.parse(t.replace(/'/g, '"')); if(Array.isArray(j2)) return j2; }catch(e){}
+      try{ const j2 = JSON.parse(t.replace(/'/g, '"')); if(Array.isArray(j2)) return j2; }catch(e){globalThis.__q?.(e)}
       /* 객체가 들어 있던 글자면 쉼표로 쪼개지 않는다 — 쪼개면 조각난 글자가 화면에 그대로 나온다 */
       if(/^\[\s*\{/.test(t)){
         const objs = [];

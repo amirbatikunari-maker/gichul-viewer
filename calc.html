@@ -384,7 +384,7 @@ function draw(){
   const el=$('#expr');
   el.innerHTML=rrow(ROOT,null,null);
   const on=el.querySelector('.cs.on');
-  if(on&&on.scrollIntoView) try{ on.scrollIntoView({block:'nearest',inline:'nearest'}) }catch(e){}
+  if(on&&on.scrollIntoView) try{ on.scrollIntoView({block:'nearest',inline:'nearest'}) }catch(e){globalThis.__q?.(e)}
 }
 
 /* ── 식을 계산기 엔진이 아는 «한 줄» 로 편다 ── */
@@ -473,7 +473,7 @@ let hi=-1, ASK=null;
 const SKEY='gichul:calc-state';
 function save(){try{localStorage.setItem(SKEY,JSON.stringify({flat:flat(),ans,mem,angle,vars,
   fmt:$('#fmtMode').value,digits:$('#fixDigits').value}));
-  localStorage.setItem('gichul:calc-history',JSON.stringify(hist.slice(0,60)))}catch(e){}}
+  localStorage.setItem('gichul:calc-history',JSON.stringify(hist.slice(0,60)))}catch(e){globalThis.__q?.(e)}}
 function load(){try{const s=JSON.parse(localStorage.getItem(SKEY)||'{}');
   ans=Number.isFinite(+s.ans)?+s.ans:0; mem=Number.isFinite(+s.mem)?+s.mem:0;
   angle=['DEG','RAD','GRA'].includes(s.angle)?s.angle:'DEG';
@@ -481,7 +481,7 @@ function load(){try{const s=JSON.parse(localStorage.getItem(SKEY)||'{}');
   if(['auto','fix','sci','eng'].includes(s.fmt)) $('#fmtMode').value=s.fmt;
   if(s.digits) $('#fixDigits').value=String(s.digits);
   if(s.flat) insChars(s.flat);
-}catch(e){}}
+}catch(e){globalThis.__q?.(e)}}
 
 function fmt(n){
   if(!Number.isFinite(n)) throw new Error('Math ERROR');
@@ -690,7 +690,7 @@ function press(k){
       try{ const v=empty()?0:evalExpr(flat()); mem = sh? mem-v : mem+v }catch(e){ return err('Syntax ERROR') }
       return paint();
     case 'rcl':
-      if(sh){ try{ vars.A=empty()?0:evalExpr(flat()) }catch(e){} return paint() }
+      if(sh){ try{ vars.A=empty()?0:evalExpr(flat()) }catch(e){globalThis.__q?.(e)} return paint() }
       return insChars('A');
     case 'ans': if(sh){ const o=['DEG','RAD','GRA']; angle=o[(o.indexOf(angle)+1)%3]; syncAng(); return paint() }
                 return insChars('ans');
@@ -715,7 +715,7 @@ $$('.rep b').forEach(b=>b.onclick=()=>{const d=b.dataset.rep;
 function syncAng(){$$('[data-ang]').forEach(x=>x.classList.toggle('on',x.dataset.ang===angle))}
 $$('[data-ang]').forEach(b=>b.onclick=()=>{angle=b.dataset.ang;syncAng();paint()});
 $('#fmtMode').onchange=paint; $('#fixDigits').onchange=paint;
-$('#copyKey').onclick=()=>{try{navigator.clipboard.writeText($('#result').textContent||'')}catch(e){}};
+$('#copyKey').onclick=()=>{try{navigator.clipboard.writeText($('#result').textContent||'')}catch(e){globalThis.__q?.(e)}};
 
 $('#solveGo').onclick=()=>sideSolve(0);
 $$('[data-seed]').forEach(b=>b.onclick=()=>sideSolve(+b.dataset.seed));
@@ -740,7 +740,7 @@ function drawMem(){
     b.title='누르면 식에 넣고, 오른쪽 클릭하면 지금 값을 저장합니다';
     b.onclick=()=>{ b.dataset.m==='M'?insChars(fmt(mem)):insChars(b.dataset.m) };
     b.oncontextmenu=e=>{e.preventDefault();
-      try{const v=empty()?0:evalExpr(flat()); if(b.dataset.m==='M')mem=v; else vars[b.dataset.m]=v; paint()}catch(x){}};
+      try{const v=empty()?0:evalExpr(flat()); if(b.dataset.m==='M')mem=v; else vars[b.dataset.m]=v; paint()}catch(x){globalThis.__q?.(x)}};
   });
 }
 function drawHist(){
@@ -773,7 +773,7 @@ document.addEventListener('keydown',e=>{
   const pop=/[?&]popup=1/.test(location.search)||(window.opener&&window.opener!==window);
   if(!pop) return;
   document.body.classList.add('calc-popup'); document.title='계산기';
-  $('#calcPopClose').onclick=()=>{try{window.close()}catch(e){}};
+  $('#calcPopClose').onclick=()=>{try{window.close()}catch(e){globalThis.__q?.(e)}};
   $('#popSide').onclick=()=>$('#side').classList.toggle('show');
 })();
 

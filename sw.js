@@ -9,8 +9,11 @@
      그게 한 달 전송량 12GB 의 원인이었다.
      IMG 캐시는 앱 판번호를 올려도 지우지 않는다 — 파일명이 고정이라
      내용이 바뀔 일이 없기 때문. (그림을 갈아끼웠으면 아래 IMG 를 img-v2 로.) */
-const SHELL = "shell-v338", DATA = "data-v3", IMG = "img-v1";
+const SHELL = "shell-v341", DATA = "data-v3", IMG = "img-v1";
 const FILES = ["./","./index.html","./config.js","./ai-chat.js","./ai-viewer.js","./ai-explain.js","./ncs-gijun.js","./music.js","./manifest.json","./icon.svg","./favicon.ico","./favicon-32.png","./apple-touch-icon.png","./icon-192.png","./icon-512.png","./icon-maskable-512.png","./practice.html","./calc.html","./upload.html","./ingest.html","./interview.html","./portfolio.html","./app-enhance.css","./app-enhance.js","./calc-engine.js","./explain-batch.html","./storage-clean.html","./review.html","./simple.js"];
+/* ★ v341 — practice.html 에서 떼어 낸 스크립트들 (tools/bump.sh 가 목록을 다시 만듦) */
+const PRACTICE_JS = ["./practice/p01.js","./practice/p02.js","./practice/p03.js","./practice/p04.js","./practice/p05.js","./practice/p06.js","./practice/p07.js","./practice/p08.js","./practice/p09.js","./practice/p10.js","./practice/p11.js","./practice/p12.js","./practice/p13.js","./practice/p14.js","./practice/p15.js","./practice/p16.js","./practice/p17.js","./practice/p18.js","./practice/p19.js","./practice/p20.js","./practice/p21.js","./practice/p22.js","./practice/p23.js","./practice/p24.js","./practice/p25.js","./practice/p26.js","./practice/p27.js","./practice/p28.js","./practice/p29.js","./practice/p30.js","./practice/p31.js","./practice/p32.js","./practice/p33.js","./practice/p34.js","./practice/p35.js","./practice/p36.js","./practice/p37.js","./practice/p38.js","./practice/p39.js","./practice/p40.js","./practice/p41.js","./practice/p42.js","./practice/p43.js","./practice/p44.js","./practice/p45.js","./practice/p46.js","./practice/p47.js","./practice/p48.js","./practice/p49.js","./practice/p50.js","./practice/p51.js","./practice/p52.js","./practice/p53.js","./practice/p54.js","./practice/p55.js","./practice/p56.js","./practice/p57.js","./practice/p58.js","./practice/p59.js","./practice/p60.js","./practice/p61.js","./practice/p62.js","./practice/p63.js","./practice/p64.js","./practice/p65.js","./practice/p66.js","./practice/p67.js","./practice/p68.js","./practice/p69.js"];
+FILES.push(...PRACTICE_JS);
 
 /* ★ v235 — 한 파일이라도 못 받으면 addAll 은 통째로 실패하고,
    그러면 서비스워커가 아예 안 깔린다(= 그림 캐시도 안 돈다).
@@ -32,7 +35,7 @@ async function trimImg(){
     const ks = await c.keys();
     if(ks.length <= IMG_MAX) return;
     await Promise.all(ks.slice(0, ks.length - IMG_MAX).map(k => c.delete(k)));
-  }catch(e){}
+  }catch(e){globalThis.__q?.(e)}
 }
 self.addEventListener("activate", e => {
   e.waitUntil(caches.keys().then(ks =>
@@ -85,12 +88,15 @@ self.addEventListener("fetch", e => {
   const isHTML = e.request.mode === "navigate" ||
                  url.pathname.endsWith(".html") ||
                  url.pathname === "/" || url.pathname.endsWith("/");
-  if (isHTML && url.origin === location.origin) {
+  /* ★ v341 — practice/*.js 는 practice.html 과 «한 몸» 이다. HTML 은 새 판, 스크립트는 옛 판이면
+     서로 안 맞아 화면이 깨지므로, HTML 과 똑같이 네트워크 먼저 · 끊겼을 때만 캐시로 한다. */
+  const isPracticeJS = url.origin === location.origin && /\/practice\/[^/]+\.js$/.test(url.pathname);
+  if ((isHTML || isPracticeJS) && url.origin === location.origin) {
     e.respondWith(
       fetch(e.request).then(r => {
         if (r.ok) caches.open(SHELL).then(c => c.put(e.request, r.clone()));
         return r;
-      }).catch(() => caches.match(e.request).then(hit => hit || caches.match("./index.html")))
+      }).catch(() => caches.match(e.request).then(hit => hit || (isPracticeJS ? new Response("", { status: 504 }) : caches.match("./index.html"))))
     );
     return;
   }

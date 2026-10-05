@@ -1277,7 +1277,7 @@ async function askSol(r, depth){
   }finally{ clearTimeout(timer); }
 
   const raw = await res.text();
-  let d = {}; try{ d = JSON.parse(raw); }catch(e){}
+  let d = {}; try{ d = JSON.parse(raw); }catch(e){globalThis.__q?.(e)}
   if(!res.ok){
     const why = d.error || d.detail || raw.slice(0,200) || ("HTTP " + res.status);
     const err = new Error(`HTTP ${res.status} — ${why}`);
@@ -1373,7 +1373,7 @@ function solToMd(sol){
     const loose = x => {
       const fixBs = y => y.replace(/\\\\|\\(?:(?=[A-Za-z]{2,})(?!u[0-9a-fA-F]{4})|(?!["\\/bfnrtu]))/g, m => m.length === 2 ? m : "\\\\");   /* \times·\dfrac 처럼 수식 명령 앞 백슬래시를 살림 */
       for(const y of [x, fixBs(x), fixBs(x).replace(/\r?\n/g, " "), fixBs(x).replace(/\r?\n/g, " ").replace(/,\s*([\]}])/g, "$1")]){
-        try{ return JSON.parse(y); }catch(e){}
+        try{ return JSON.parse(y); }catch(e){globalThis.__q?.(e)}
       }
       return undefined;
     };
@@ -1383,7 +1383,7 @@ function solToMd(sol){
     }
     if(/^\[[\s\S]*\]$/.test(t)){
       const j = loose(t); if(Array.isArray(j)) return j;
-      try{ const j2 = JSON.parse(t.replace(/'/g, '"')); if(Array.isArray(j2)) return j2; }catch(e){}
+      try{ const j2 = JSON.parse(t.replace(/'/g, '"')); if(Array.isArray(j2)) return j2; }catch(e){globalThis.__q?.(e)}
       /* 객체가 들어 있던 글자면 쉼표로 쪼개지 않는다 — 쪼개면 조각난 글자가 화면에 그대로 나온다 */
       if(/^\[\s*\{/.test(t)){
         const objs = [];

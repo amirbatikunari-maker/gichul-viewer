@@ -523,7 +523,7 @@ $("#login").onclick = async () => {
 
 /* ── 저장된 진행 상황 ── */
 const slot = () => `ingest:${$("#scode").value.trim()}:${$("#year").value}:${$("#sess").value}`;
-function save(){ try{ localStorage.setItem(slot(), JSON.stringify(RESULTS)); }catch(e){} }
+function save(){ try{ localStorage.setItem(slot(), JSON.stringify(RESULTS)); }catch(e){globalThis.__q?.(e)} }
 function load(){
   try{ RESULTS = JSON.parse(localStorage.getItem(slot())||"{}"); }catch(e){ RESULTS = {}; }
   stats(); preview();
@@ -744,7 +744,7 @@ function saveBatches(){
       if(b.status === "done" || b.status === "skip")
         m[`${b.from}-${b.to}`] = { status:b.status, count:b.count||0, mode:b.mode||"", msg:b.msg||"" };
     localStorage.setItem(bslot(), JSON.stringify(m));
-  }catch(e){}
+  }catch(e){globalThis.__q?.(e)}
 }
 function loadBatchState(){
   try{ return JSON.parse(localStorage.getItem(bslot()) || "{}"); }catch(e){ return {}; }
@@ -1648,7 +1648,7 @@ refresh().then(load).catch(err => showFatal("초기화 중 오류가 났습니�
     /* 로그인 전에는 실기 화면을 불러오지 않는다 — 가려 둔 곳에서 혼자 돌 이유가 없다 */
     if(name === "practical" && fr && !fr.src && window.INGEST_UNLOCKED)
       fr.src = "./practice.html?only=import";
-    if(remember !== false){ try{ localStorage.setItem("ingest-tab", name); }catch(e){} }
+    if(remember !== false){ try{ localStorage.setItem("ingest-tab", name); }catch(e){globalThis.__q?.(e)} }
   }
   tabs.addEventListener("click", e => {
     const b = e.target.closest(".btab"); if(!b) return;
@@ -1656,7 +1656,7 @@ refresh().then(load).catch(err => showFatal("초기화 중 오류가 났습니�
   });
   /* 실기(서술형)를 기본으로 둔다 — 이 뷰어에서 실제로 넣는 자료가 그쪽이다 */
   let saved = "practical";
-  try{ saved = localStorage.getItem("ingest-tab") || "practical"; }catch(e){}
+  try{ saved = localStorage.getItem("ingest-tab") || "practical"; }catch(e){globalThis.__q?.(e)}
   go(saved, false);
   /* 로그인이 끝난 뒤 다시 한 번 세운다 — 그때가 되어야 iframe 을 불러올 수 있다 */
   window.ingestRetab = () => go(saved, false);
