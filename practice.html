@@ -1157,7 +1157,7 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
 <script src="./practice/p04.js"></script>
 
 <!-- ══ AI 대화 상자 ══ config.js 의 AI_WORKER_URL 을 채워야 작동합니다 -->
-<script src="./ai-chat.js?v=319" defer></script>
+<script src="./ai-chat.js?v=346" defer></script>
 <script src="./ai-viewer.js" defer></script>
 <script src="./practice/p05.js"></script>
 
@@ -5227,6 +5227,9 @@ body.ezx-off .ezxb[data-ezx="open"]{display:none}
 /* ★ v332 — Q&A 칸 새 모양. 예전 이름(.qai)이 AI 단추(ai-viewer.js .qai = 30×30)와 겹쳐 항목이 30px 칸에 찌그러져 펼치기·고치기·지우기가 안 눌리던 것 → qx- 로 이름 바꿈 */
 .ez.hide .qastack{display:none}
 .qastack{margin:14px 0 6px;border:1px solid #d6e0f5;border-radius:12px;background:#fbfcff;overflow:hidden;font-family:var(--font-d,system-ui)}
+/* ★ v346 — 한눈에 쉬운 풀이 칸은 세로 flex 라서, overflow 가 있는 Q&A·쉬운 풀이 상자가 칸 높이에 맞춰 찌그러져 글이 잘리던 것
+   → 줄어들지 않고 글자만큼 늘어나게. 넘치면 칸 전체가 한 번에 스크롤 */
+.ovl .pane.right > .seg > .qastack,.ovl .pane.right > .seg > .ez,#ovl .seg > .qastack,#ovl .seg > .ez{flex:none!important;min-height:auto}
 .qastack .qx-hd{display:flex;align-items:center;gap:8px;padding:7px 10px 7px 12px;background:linear-gradient(180deg,#f1f5ff,#eaf0fe);border-bottom:1px solid #dfe7f8}
 .qastack .qx-hd .qx-tl{font:800 12.5px/1 var(--font-d,system-ui);color:#1e3a8a;letter-spacing:-.01em}
 .qastack .qx-hd .qx-n{font:800 10.5px/1 var(--font-m,monospace);color:#2f4fc4;background:#fff;border:1px solid #c9d7f6;border-radius:99px;padding:3px 7px}

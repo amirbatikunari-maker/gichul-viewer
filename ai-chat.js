@@ -1277,6 +1277,15 @@ const CSS = `
   backdrop-filter:blur(2px)
 }
 
+/* ★ v346 — AI 창을 열어도 뒤 화면을 흐리게·어둡게 하지 않음. 문제·답안을 그대로 보고 스크롤·필기 가능
+   (창 밖을 눌러도 안 닫힘 → ✕ 또는 Esc 로 닫기). 폰(560px 이하, 아래에서 올라오는 창)은 옅게 어둡게만 */
+.aic-wrap{pointer-events:none}
+.aic-wrap > :not(.aic-veil){pointer-events:auto}
+.aic-veil{display:none;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+@media(max-width:560px){
+  .aic-veil{display:block;pointer-events:auto;background:rgba(10,18,30,.18)}
+}
+
 .aic-grip{
   position:absolute;
   left:-5px;
