@@ -1,61 +1,71 @@
 /* ═══════════════════════════════════════════════════════════════
-   v341 · 데이터베이스 자물쇠 (RLS) — 쓰기·지우기는 내 계정만
+   v342 · 데이터베이스 자물쇠 (RLS) — 기출뷰어 표만 «콕 집어서»
 
-   ── 왜 ───────────────────────────────────────────────────
-   config.js 의 anon 키는 원래 누구나 볼 수 있는 값이다. 그래서 진짜 자물쇠는
-   테이블마다 걸린 RLS(행 단위 보안) 정책이다. 이게 꺼져 있거나 «아무나 허용»
-   정책이 걸려 있으면, 키만 들고 문제·풀이·공부 기록을 고치거나 통째로 지울 수 있다.
+   ★ v341 판(모든 표에 일괄 적용)은 쓰지 말 것 — 이 Supabase 는 SNIPER(blog_* · ai_* ·
+     ai-files · blog 저장소)와 같이 쓰고 있어서, 일괄 적용하면 블로그 초안이 공개되고
+     로그인해야 읽히던 practicals 가 오히려 누구나 읽게 열렸다.
 
-   ── 이 파일이 만드는 상태 ──────────────────────────────
-   · 문제·풀이·자료 표 (user_id 칸이 없는 표)
-       읽기: 누구나 (지금처럼 로그인 없이 필기 뷰어를 볼 수 있게)
-       쓰기·고치기·지우기: ADMIN 이메일 계정만
-   · 면접·포트폴리오 표 (user_id 칸이 있는 표)
-       «아무나 허용» 정책만 걷어내고, 남은 정책이 없으면 «자기 것만» 정책을 붙임
-       (공유 링크 pf_shared 는 그대로 동작하도록 건드리지 않음 — 아래 참고)
-   · 뷰(exam_list · subject_list 등): 뷰를 통한 쓰기를 막음 (뷰는 RLS 를 건너뛰기 때문)
-   · 고치기용 함수(rpc): 로그인 안 한 사람은 못 부르게
-   · 저장소 qfig(문제 그림): 올리기·바꾸기·지우기는 ADMIN 만, 보기는 그대로 공개
+   ── 점검 결과로 찾은 구멍 (2026-10-05) ────────────────────
+   · ai_threads / ai_messages : [public ALL true] — 키만 있으면 누구나 AI 대화를 읽고·고치고·지움
+   · ai-files 저장소           : [public INSERT] — 아무나 파일 올림 (용량·전송량 폭탄)
+   · 문제·실기 표 쓰기 정책     : «로그인만 하면 누구나» (authenticated / auth.role())
+       → Supabase 는 기본으로 «아무나 가입» 이 켜져 있어서, 키로 가입만 하면 다 고칠 수 있음
+   · 뷰 exam_list · subject_list: 뷰를 통한 쓰기가 RLS 를 건너뜀
+
+   ── 이 파일이 하는 일 (② 적용) ────────────────────────────
+   · 기출뷰어 표 9개 (annotations · exams · questions · subjects · subject_notes ·
+     practicals · practical_files · practical_marks · practical_subjects)
+       읽기: «지금 걸린 읽기 조건 그대로» (공개는 공개, 로그인 필요는 로그인 필요)
+       쓰기·고치기·지우기: ADMIN 계정만
+   · ai_threads · ai_messages: 읽기·쓰기 모두 ADMIN 만 (AI 는 어차피 ADMIN 만 씀)
+   · 뷰 2개: 뷰를 통한 쓰기 막음
+   · 고치기용 함수 9개: 로그인 안 한 사람은 못 부름
+   · 저장소: ai-files 올리기 · qfig 올리기/바꾸기/지우기(prac 폴더 포함) → ADMIN 만 (보기는 그대로)
+   · 건드리지 않음: blog_* · iv_* · pf_* · blog 저장소 · iv-docs · pf_shared
 
    ── 쓰는 법 ───────────────────────────────────────────────
-   Supabase → SQL Editor 에서 ①②③ 중 필요한 칸만 골라서 «Run».
-     ① 점검      — 읽기만 함. 지금 상태 확인용. 아무것도 안 바꿈
-     ② 적용      — 자물쇠를 검. 지우는 정책은 모두 gv_policy_backup 에 먼저 저장
-     ③ 되돌리기  — ② 이전 상태로 복구 (앱이 이상하면 바로 이것)
+   Supabase → SQL Editor 에서 ①②③ 중 필요한 칸만 «드래그로 골라서» Run.
+   (통째로 Run 하면 ③ 되돌리기까지 같이 돌아서 결국 아무것도 안 바뀜)
+     ① 점검      — 읽기만 함
+     ② 적용      — 지우는 정책은 모두 gv_policy_backup 에 먼저 저장
+     ③ 되돌리기  — ② 이전으로
    여러 번 돌려도 안전함.
 
+   ── 같이 할 것 (클릭 한 번 · 제일 효과 큼) ───────────────────
+   Authentication → Sign In / Providers → «Allow new users to sign up» 끄기
+   (앱에 회원가입 기능이 없음 — 확인함. 끄면 «로그인한 사람» = 내 계정뿐)
+
    ── 돌린 뒤 확인 ─────────────────────────────────────────
-   1) 로그아웃 상태로 필기 뷰어(index) 열기 → 문제·그림이 보여야 정상
-   2) 로그인 후 문제 하나 고쳐서 저장 → 저장돼야 정상
-   3) 실기(practice)에서 회독 체크 → 저장돼야 정상
-   4) 포트폴리오 공유 링크를 시크릿 창으로 열기 → 보여야 정상
-   하나라도 안 되면 ③ 을 돌리고 알려 주세요.
+   1) 로그아웃 상태로 필기 뷰어(index) → 문제·그림 보이면 정상
+   2) 로그인 후 문제 하나 고쳐 저장 → 저장되면 정상
+   3) 실기(practice) 회독 체크 · 그림 올리기 → 되면 정상
+   4) AI 대화 한 번 → 대화 목록에 남으면 정상
+   5) SNIPER 블로그 열기 → 그대로면 정상
+   하나라도 안 되면 ③ 돌리고 알려 주세요.
    ═══════════════════════════════════════════════════════════════ */
 
 
 /* ═══════════════════════════════════════════════════════════════
    ① 점검 — 읽기만 함 (이 칸만 드래그해서 Run)
    ═══════════════════════════════════════════════════════════════ */
--- 표·뷰마다 RLS 가 켜져 있는지, 정책이 몇 개인지
-select c.relname                                   as 이름,
-       case c.relkind when 'v' then '뷰' else '표' end as 종류,
-       case when c.relkind = 'v' then '-' when c.relrowsecurity then '켜짐' else '★꺼짐★' end as rls,
-       (select count(*) from pg_policies p where p.schemaname = 'public' and p.tablename = c.relname) as 정책수,
+select '표' as 구분, c.relname as 이름,
+       case when c.relkind = 'v' then '뷰'
+            when c.relrowsecurity then 'RLS 켜짐' else '★RLS 꺼짐★' end as 상태,
        exists (select 1 from information_schema.columns k
-               where k.table_schema = 'public' and k.table_name = c.relname and k.column_name = 'user_id') as user_id칸
+               where k.table_schema = 'public' and k.table_name = c.relname
+                 and k.column_name = 'user_id') as user_id칸,
+       coalesce((select string_agg(p.policyname || ' [' || array_to_string(p.roles, ',') || ' ' || p.cmd || '] '
+                                   || coalesce(p.qual, '-') || ' / ' || coalesce(p.with_check, '-'), '  ‖  ')
+                 from pg_policies p
+                 where p.schemaname = 'public' and p.tablename = c.relname), '(정책 없음)') as 정책
 from pg_class c join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = 'public' and c.relkind in ('r','p','v')
-order by 2, 1;
-
--- 걸려 있는 정책 전부 (roles 에 anon/public 이 있고 qual 이 true 면 «아무나 허용»)
-select schemaname, tablename, policyname, roles, cmd, qual, with_check
-from pg_policies
-where schemaname = 'public' or (schemaname = 'storage' and tablename = 'objects')
-order by 1, 2, 3;
-
--- 공유 함수가 security definer 인지 (true 여야 ② 가 pf_ 표를 손봐도 공유 링크가 안 깨짐)
-select proname, prosecdef as security_definer
-from pg_proc where pronamespace = 'public'::regnamespace and proname = 'pf_shared';
+union all
+select '저장소', p.policyname, p.cmd, null,
+       array_to_string(p.roles, ',') || ' | ' || coalesce(p.qual, '-') || ' / ' || coalesce(p.with_check, '-')
+from pg_policies p
+where p.schemaname = 'storage' and p.tablename = 'objects'
+order by 1, 2;
 
 
 /* ═══════════════════════════════════════════════════════════════
@@ -80,105 +90,87 @@ revoke all on public.gv_policy_backup from anon, authenticated;
 
 do $$
 declare
-  ADMIN constant text := 'amirbatikunari@gmail.com';   -- ← 쓰기 허용 계정 (config.js ADMIN_EMAILS 와 같게)
-  t record; p record;
-  has_uid boolean; open_pol boolean; pf_definer boolean; n_left int;
+  ADMIN   constant text   := 'amirbatikunari@gmail.com';   -- ← 쓰기 허용 계정 (config.js ADMIN_EMAILS 와 같게)
+  CONTENT constant text[] := array['annotations','exams','questions','subjects','subject_notes',
+                                   'practicals','practical_files','practical_marks','practical_subjects'];
+  PRIVATE constant text[] := array['ai_threads','ai_messages'];
+  FUNCS   constant text[] := array['resync_status','fill_missing_items','fill_missing_all','split_item',
+                                   'renumber_items','drop_item','move_item','set_exam_meta','upsert_exam_bundle'];
+  tname text; p record; f record; is_private boolean; rls_now boolean; roles_txt text;
 begin
-  select coalesce(bool_or(prosecdef), true) into pf_definer
-    from pg_proc where pronamespace = 'public'::regnamespace and proname = 'pf_shared';
+  foreach tname in array CONTENT || PRIVATE loop
+    select c.relrowsecurity into rls_now from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relname = tname and c.relkind in ('r','p');
+    if not found then raise notice '[없음] % — 건너뜀', tname; continue; end if;
+    is_private := tname = any(PRIVATE);
 
-  for t in
-    select c.relname as name, c.relrowsecurity as rls
-    from pg_class c join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'public' and c.relkind in ('r','p') and c.relname <> 'gv_policy_backup'
-  loop
-    has_uid := exists (select 1 from information_schema.columns
-                       where table_schema = 'public' and table_name = t.name and column_name = 'user_id');
-
-    if has_uid and t.name like 'pf\_%' and not pf_definer then
-      raise notice '[건너뜀] % — pf_shared 가 security definer 가 아니라 공유 링크가 깨질 수 있어 손대지 않음', t.name;
-      continue;
+    if not exists (select 1 from public.gv_policy_backup where kind = 'rls' and schemaname = 'public' and tablename = tname) then
+      insert into public.gv_policy_backup(kind, schemaname, tablename, rls_was) values ('rls', 'public', tname, rls_now);
     end if;
+    execute format('alter table public.%I enable row level security', tname);
 
-    -- 지금 RLS 상태 기록 (되돌리기용) — 같은 표는 처음 한 번만
-    if not exists (select 1 from public.gv_policy_backup where kind = 'rls' and schemaname = 'public' and tablename = t.name) then
-      insert into public.gv_policy_backup(kind, schemaname, tablename, rls_was) values ('rls', 'public', t.name, t.rls);
-    end if;
-    execute format('alter table public.%I enable row level security', t.name);
-    execute format('revoke truncate, references, trigger on public.%I from anon, authenticated', t.name);
+    for p in select * from pg_policies where schemaname = 'public' and tablename = tname and policyname not like 'gv\_%' loop
+      -- 공개 표의 순수 읽기 정책은 그대로 둠. 나머지(쓰기 · ALL · 비공개 표의 모든 정책)는 백업 후 걷음
+      if p.cmd = 'SELECT' and not is_private then continue; end if;
+      insert into public.gv_policy_backup(kind, schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check)
+        values ('policy', 'public', tname, p.policyname, p.permissive, p.roles, p.cmd, p.qual, p.with_check);
+      execute format('drop policy %I on public.%I', p.policyname, tname);
 
-    for p in select * from pg_policies where schemaname = 'public' and tablename = t.name and policyname not like 'gv\_%' loop
-      open_pol := coalesce(nullif(trim(p.qual), ''), 'true') = 'true'
-              and coalesce(nullif(trim(p.with_check), ''), 'true') = 'true';
-      -- user_id 없는 표: 기존 정책 전부 걷고 gv_ 두 개로 대신 / user_id 있는 표: «아무나 허용» 만 걷음
-      if (not has_uid) or open_pol then
-        insert into public.gv_policy_backup(kind, schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check)
-          values ('policy', 'public', t.name, p.policyname, p.permissive, p.roles, p.cmd, p.qual, p.with_check);
-        execute format('drop policy %I on public.%I', p.policyname, t.name);
+      -- ALL 정책은 읽기도 겸하고 있었으므로, 읽기 부분만 같은 조건으로 되살림 (읽기 범위 그대로)
+      if p.cmd = 'ALL' and not is_private then
+        select string_agg(case when r = 'public' then 'public' else quote_ident(r) end, ', ') into roles_txt from unnest(p.roles) r;
+        execute format('drop policy if exists %I on public.%I', left('gv_read_' || p.policyname, 63), tname);
+        execute format('create policy %I on public.%I as %s for select to %s using (%s)',
+                       left('gv_read_' || p.policyname, 63), tname, p.permissive, roles_txt, coalesce(p.qual, 'true'));
       end if;
     end loop;
 
-    if not has_uid then
-      execute format('drop policy if exists gv_read on public.%I', t.name);
-      execute format('drop policy if exists gv_admin_write on public.%I', t.name);
-      execute format('create policy gv_read on public.%I for select to anon, authenticated using (true)', t.name);
-      execute format($f$create policy gv_admin_write on public.%I for all to authenticated
-                        using (lower(auth.jwt() ->> 'email') = %L)
-                        with check (lower(auth.jwt() ->> 'email') = %L)$f$, t.name, ADMIN, ADMIN);
-    else
-      select count(*) into n_left from pg_policies
-        where schemaname = 'public' and tablename = t.name and policyname <> 'gv_owner';
-      execute format('drop policy if exists gv_owner on public.%I', t.name);
-      if n_left = 0 then
-        execute format('create policy gv_owner on public.%I for all to authenticated
-                          using (user_id = auth.uid()) with check (user_id = auth.uid())', t.name);
-      end if;
+    execute format('drop policy if exists gv_admin on public.%I', tname);
+    execute format($f$create policy gv_admin on public.%I for all to authenticated
+                      using (lower(auth.jwt() ->> 'email') = %L)
+                      with check (lower(auth.jwt() ->> 'email') = %L)$f$, tname, ADMIN, ADMIN);
+  end loop;
+
+  -- 뷰: 읽기만
+  foreach tname in array array['exam_list','subject_list'] loop
+    if exists (select 1 from pg_views where schemaname = 'public' and viewname = tname) then
+      execute format('revoke insert, update, delete, truncate on public.%I from anon, authenticated', tname);
     end if;
   end loop;
 
-  -- 뷰: 읽기만 (자동 갱신 뷰는 주인 권한으로 표를 고칠 수 있어 RLS 를 건너뜀)
-  for t in select c.relname as name from pg_class c join pg_namespace n on n.oid = c.relnamespace
-           where n.nspname = 'public' and c.relkind = 'v' loop
-    execute format('revoke insert, update, delete, truncate on public.%I from anon, authenticated', t.name);
+  -- 고치기용 함수: 로그인한 사람만
+  for f in select fp.oid::regprocedure::text as sig from pg_proc fp
+           where fp.pronamespace = 'public'::regnamespace and fp.proname = any(FUNCS) loop
+    execute format('revoke execute on function %s from public, anon', f.sig);
+    execute format('grant execute on function %s to authenticated', f.sig);
   end loop;
 
-  -- 함수: 로그인 안 한 사람은 못 부름 (공유용 pf_shared 만 예외). 확장(extension) 함수는 안 건드림
-  for t in
-    select fp.oid::regprocedure::text as sig, fp.proname
-    from pg_proc fp
-    where fp.pronamespace = 'public'::regnamespace and fp.prokind = 'f'
-      and not exists (select 1 from pg_depend d where d.objid = fp.oid and d.deptype = 'e')
-  loop
-    if t.proname = 'pf_shared' then continue; end if;
-    execute format('revoke execute on function %s from public, anon', t.sig);
-    execute format('grant execute on function %s to authenticated', t.sig);
-  end loop;
-
-  raise notice '완료 — 위 «확인» 4가지를 해 보세요. 이상하면 ③ 되돌리기.';
+  raise notice '표 자물쇠 완료 — 파일 맨 위 «확인» 5가지를 해 보세요. 이상하면 ③.';
 end $$;
 
--- 저장소(qfig 그림) — 권한 문제로 실패해도 위 표 작업은 이미 끝난 상태
+-- 저장소 (ai-files 올리기 · qfig 쓰기) — 권한 문제로 실패해도 위 표 작업은 이미 끝난 상태
 do $$
 declare
   ADMIN constant text := 'amirbatikunari@gmail.com';
   p record;
 begin
   for p in select * from pg_policies
-           where schemaname = 'storage' and tablename = 'objects' and policyname not like 'gv\_%'
-             and cmd <> 'SELECT' and (roles && array['anon','public']::name[]) loop
+           where schemaname = 'storage' and tablename = 'objects'
+             and policyname in ('ai-files write', 'qfig write', 'prac files write') loop   -- prac files write = qfig/prac/ 폴더 «로그인한 누구나» 쓰기
     insert into public.gv_policy_backup(kind, schemaname, tablename, policyname, permissive, roles, cmd, qual, with_check)
       values ('policy', 'storage', 'objects', p.policyname, p.permissive, p.roles, p.cmd, p.qual, p.with_check);
     execute format('drop policy %I on storage.objects', p.policyname);
   end loop;
-  drop policy if exists gv_qfig_read  on storage.objects;
-  drop policy if exists gv_qfig_write on storage.objects;
-  create policy gv_qfig_read on storage.objects for select to anon, authenticated using (bucket_id = 'qfig');
+  drop policy if exists gv_qfig_write    on storage.objects;
+  drop policy if exists gv_aifiles_write on storage.objects;
   execute format($f$create policy gv_qfig_write on storage.objects for all to authenticated
                     using (bucket_id = 'qfig' and lower(auth.jwt() ->> 'email') = %L)
                     with check (bucket_id = 'qfig' and lower(auth.jwt() ->> 'email') = %L)$f$, ADMIN, ADMIN);
-  raise notice '저장소 qfig 자물쇠 완료';
+  execute format($f$create policy gv_aifiles_write on storage.objects for insert to authenticated
+                    with check (bucket_id = 'ai-files' and lower(auth.jwt() ->> 'email') = %L)$f$, ADMIN);
+  raise notice '저장소 자물쇠 완료';
 exception when insufficient_privilege then
-  raise notice '저장소 정책은 권한이 없어 못 바꿨습니다 — 대시보드 Storage → Policies 에서 qfig 의 anon 쓰기 정책을 지워 주세요. (표 자물쇠는 이미 적용됨)';
+  raise notice '저장소 정책은 권한이 없어 못 바꿨습니다 — 대시보드 Storage → Policies 에서 «ai-files write» 를 지워 주세요. (표 자물쇠는 이미 적용됨)';
 end $$;
 
 
@@ -186,9 +178,10 @@ end $$;
    ③ 되돌리기 — ② 이전으로 (이 칸만 드래그해서 Run)
    ═══════════════════════════════════════════════════════════════ */
 do $$
-declare b record; t record; roles_txt text;
+declare b record; t record; roles_txt text; tname text;
+  FUNCS constant text[] := array['resync_status','fill_missing_items','fill_missing_all','split_item',
+                                 'renumber_items','drop_item','move_item','set_exam_meta','upsert_exam_bundle'];
 begin
-  -- 붙인 gv_ 정책 걷기
   for t in select schemaname, tablename, policyname from pg_policies
            where policyname like 'gv\_%' and (schemaname = 'public' or (schemaname = 'storage' and tablename = 'objects')) loop
     begin
@@ -198,13 +191,11 @@ begin
     end;
   end loop;
 
-  -- 걷었던 정책 되살리기
   for b in select * from public.gv_policy_backup where kind = 'policy' order by id loop
     if exists (select 1 from pg_policies where schemaname = b.schemaname and tablename = b.tablename and policyname = b.policyname) then
       continue;
     end if;
-    select string_agg(case when r = 'public' then 'public' else quote_ident(r) end, ', ') into roles_txt
-      from unnest(b.roles) r;
+    select string_agg(case when r = 'public' then 'public' else quote_ident(r) end, ', ') into roles_txt from unnest(b.roles) r;
     begin
       execute format('create policy %I on %I.%I as %s for %s to %s %s %s',
         b.policyname, b.schemaname, b.tablename, b.permissive, b.cmd, roles_txt,
@@ -215,7 +206,6 @@ begin
     end;
   end loop;
 
-  -- RLS 켜짐/꺼짐 원래대로
   for b in select * from public.gv_policy_backup where kind = 'rls' loop
     if exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
                where n.nspname = b.schemaname and c.relname = b.tablename) then
@@ -224,21 +214,15 @@ begin
     end if;
   end loop;
 
-  -- 함수 실행 권한을 Supabase 기본값(누구나)으로
-  for t in select p.oid::regprocedure::text as sig from pg_proc p
-           where p.pronamespace = 'public'::regnamespace and p.prokind = 'f'
-             and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e') loop
-    execute format('grant execute on function %s to public, anon, authenticated', t.sig);
+  foreach tname in array array['exam_list','subject_list'] loop
+    if exists (select 1 from pg_views where schemaname = 'public' and viewname = tname) then
+      execute format('grant insert, update, delete, truncate on public.%I to anon, authenticated', tname);
+    end if;
   end loop;
 
-  -- 뷰 쓰기 · 표 truncate 권한을 Supabase 기본값으로
-  for t in select c.relname as name, c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
-           where n.nspname = 'public' and c.relkind in ('r','p','v') and c.relname <> 'gv_policy_backup' loop
-    if t.relkind = 'v' then
-      execute format('grant insert, update, delete, truncate on public.%I to anon, authenticated', t.name);
-    else
-      execute format('grant truncate, references, trigger on public.%I to anon, authenticated', t.name);
-    end if;
+  for t in select fp.oid::regprocedure::text as sig from pg_proc fp
+           where fp.pronamespace = 'public'::regnamespace and fp.proname = any(FUNCS) loop
+    execute format('grant execute on function %s to public, anon, authenticated', t.sig);
   end loop;
 
   delete from public.gv_policy_backup;
