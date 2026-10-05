@@ -234,3 +234,77 @@ setInterval(()=>{ try{
   });
 }catch(e){globalThis.__q?.(e)} }, 900);
 })();
+
+/* ★ v344 — 문항 줄(레일)도 미니맵과 같은 표시로 «연동»
+   한눈에 위쪽 줄(#ovrS)과 일반 보기 줄(#prail)의 칸마다:
+     맞음(진초록) · 틀림(빨강) · 푼 기록만(파랑) · 같은 문제 풂(연두 빗금) · 🔒 해설 고정(금테)
+   미니맵과 같은 기록(prog · 같은 문제 묶음 · 고정 목록)을 그대로 읽는다.
+   칸 글자(«21-1 17»)와 data-y 로 문항을 찾으므로, 줄을 그리는 쪽 코드는 손대지 않음. */
+(function(){
+  'use strict';
+  const rows=()=>{ try{ return Array.isArray(ROWS)?ROWS:[] }catch(e){ return [] } };
+  const prog=()=>{ try{ return (window.__pracProg&&window.__pracProg())||JSON.parse(localStorage.getItem('prac:prog:v1')||'{}')||{} }catch(e){ return {} } };
+  const isFix=id=>{ try{ return !!(window.__ezFixed&&window.__ezFixed(id)); }catch(e){ return false; } };
+  const kinOf=id=>{ try{ return window.__pracKin?window.__pracKin(id):[String(id)] }catch(e){ return [String(id)] } };
+
+  let IDX=new Map(), IDXN=-1, IDXF='';
+  const key=(y,s,n)=>y+'|'+s+'|'+n;
+  function index(){
+    const R=rows(); const f=R.length?String(R[0].id)+'|'+String(R[R.length-1].id):'';
+    if(R.length!==IDXN || f!==IDXF){
+      IDX=new Map(); R.forEach(r=>IDX.set(key(+r.year,+r.session,String(r.no).trim()),r)); IDXN=R.length; IDXF=f;
+    }
+    return IDX;
+  }
+  function rowOf(b){
+    const y=+b.dataset.y; if(!y) return null;
+    const n0=b.firstChild; const t=String(n0&&n0.nodeType===3?n0.nodeValue:b.textContent).trim();
+    const m=t.match(/^\S+?-(\d+)\s+(\S+)/); if(!m) return null;
+    return index().get(key(y,+m[1],m[2]))||null;
+  }
+
+  const st=document.createElement('style');
+  st.textContent=`
+#ovrS .pb.mm-ok:not(.now),#prail .pb.mm-ok:not(.now){background:#22a060!important;border-color:#1b8a52!important;color:#fff!important}
+#ovrS .pb.mm-no:not(.now),#prail .pb.mm-no:not(.now){background:#e5484d!important;border-color:#c93a3f!important;color:#fff!important}
+#ovrS .pb.mm-chk:not(.now),#prail .pb.mm-chk:not(.now){background:#8fb0ee!important;border-color:#5f89d8!important;color:#0b2a6b!important}
+#ovrS .pb.mm-kin:not(.now),#prail .pb.mm-kin:not(.now){background:repeating-linear-gradient(135deg,#d5f0df 0 4px,#eef9f2 4px 8px)!important;border-color:#9fd6b5!important;color:#18794e!important}
+#ovrS .pb.mm-fix,#prail .pb.mm-fix{border:2px solid #d4a017!important;box-shadow:0 0 0 1px #fff6dc}
+#ovrS .pb.now.mm-ok,#prail .pb.now.mm-ok{box-shadow:inset 0 -4px 0 #22a060}
+#ovrS .pb.now.mm-no,#prail .pb.now.mm-no{box-shadow:inset 0 -4px 0 #e5484d}
+#ovrS .pb.now.mm-chk,#prail .pb.now.mm-chk{box-shadow:inset 0 -4px 0 #8fb0ee}
+#ovrS .pb.now.mm-kin,#prail .pb.now.mm-kin{box-shadow:inset 0 -4px 0 #9fd6b5}
+#ovrS .pb .mlk,#prail .pb .mlk{position:absolute;left:-5px;bottom:-5px;font-size:10px;line-height:1;font-style:normal;pointer-events:none;
+  filter:drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff)}
+#ovrS .pb,#prail .pb{position:relative}`;
+  document.head.appendChild(st);
+
+  function deco(){
+    const bs=document.querySelectorAll('#ovrS .pb[data-ovgo], #prail .pb[data-go]');
+    if(!bs.length) return;
+    const P=prog();
+    bs.forEach(b=>{
+      const r=rowOf(b); if(!r) return;
+      const id=String(r.id), p=P[id];
+      const s=p?(p.r==='ok'?'ok':p.r==='no'?'no':'chk'):'';
+      const kin=!s && kinOf(id).some(k=>String(k)!==id && P[k] && (P[k].n|0)>0);
+      const fx=isFix(id);
+      b.classList.toggle('mm-ok',s==='ok'); b.classList.toggle('mm-no',s==='no'); b.classList.toggle('mm-chk',s==='chk');
+      b.classList.toggle('mm-kin',kin); b.classList.toggle('mm-fix',fx);
+      let lk=b.querySelector(':scope > .mlk');
+      if(fx && !lk){ lk=document.createElement('i'); lk.className='mlk'; lk.textContent='🔒'; b.appendChild(lk); }
+      else if(!fx && lk) lk.remove();
+    });
+  }
+  window.__railDeco=deco;
+  let T=0; const soon=()=>{ clearTimeout(T); T=setTimeout(deco,40); };
+  /* 줄이 새로 그려질 때 (칸이 바뀔 때만 — 우리가 붙인 클래스로는 다시 안 돎) */
+  const hook=sel=>{ const el=document.querySelector(sel); if(!el||el.__mmdeco) return !!el; el.__mmdeco=1;
+    new MutationObserver(ms=>{ if(ms.some(m=>m.type==='childList' && [...m.addedNodes].some(n=>n.nodeType===1 && n.classList && n.classList.contains('pb')))) soon(); })
+      .observe(el,{childList:true}); soon(); return true; };
+  const boot=setInterval(()=>{ const a=hook('#prail'), b=hook('#ovrS'); if(a&&b) clearInterval(boot); },400);
+  setTimeout(()=>clearInterval(boot),30000);
+  /* 맞음·틀림·회독·고정은 줄을 다시 안 그리고 바뀔 수 있음 → 가볍게 자주 맞춤 (칸 90개 남짓) */
+  setInterval(()=>{ if(!document.hidden) deco(); },1200);
+  document.addEventListener('click',()=>setTimeout(deco,250),true);
+})();

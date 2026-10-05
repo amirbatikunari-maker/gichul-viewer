@@ -27,7 +27,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 /* ★ v341 — 빌드 번호는 여기 한 곳만. tools/bump.sh 가 앱(sw.js)과 같이 올려 줌 */
-const BUILD = "v345";
+const BUILD = "v346";
 
 const API = "https://api.anthropic.com/v1/messages";
 const VER = "2023-06-01";
@@ -211,7 +211,7 @@ async function notionSave(req, env, H){
           properties:{ title:{ title:[{ text:{ content: title } }] } },
           children: blocks.slice(0, 100) };
     const r = await fetch("https://api.notion.com/v1/pages", {
-      method:"POST", headers: head, body: JSON.stringify(body)
+      method:"POST", headers: head, body: safeJson(body)
     });
     return { r, d: await r.json().catch(() => ({})) };
   }
@@ -228,7 +228,7 @@ async function notionSave(req, env, H){
   for (let i = 100; i < blocks.length; i += 100){
     await fetch("https://api.notion.com/v1/blocks/" + d.id + "/children", {
       method:"PATCH", headers: head,
-      body: JSON.stringify({ children: blocks.slice(i, i + 100) })
+      body: safeJson({ children: blocks.slice(i, i + 100) })
     });
   }
 
@@ -338,6 +338,15 @@ const json = (b, s, h) => new Response(JSON.stringify(b), {
 function b64size(s){ return Math.floor((String(s || "").length * 3) / 4); }
 
 /* Anthropic 호출 — 429·5xx 만 지수 백오프로 다시 시도 */
+/* ★ v346 — 짝 잃은 서로게이트(이모지 반쪽) 걷어내기
+   앱이 화면 글을 길이로 자르다 이모지(🔒 · 🗺 …)를 반으로 쪼개 보내는 일이 있다.
+   JS 는 그걸 \ud83d 처럼 적어 보내는데, Anthropic 은 «짝 없는 반쪽» 을 못 읽고
+   400 "unexpected end of hex escape" 로 요청을 통째로 거절했다 (AI 대화 오류의 원인).
+   보내기 직전에 모든 글에서 반쪽을 «�» 로 바꾼다 — 글 내용엔 영향 없음. */
+const LONE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+const wellFormed = s => (typeof s.toWellFormed === "function") ? s.toWellFormed() : s.replace(LONE, "\uFFFD");
+const safeJson = o => JSON.stringify(o, (k, v) => typeof v === "string" ? wellFormed(v) : v);
+
 async function call(env, payload, tries = 3){
   let wait = 1200, last = null;
   for (let i = 0; i < tries; i++){
@@ -348,7 +357,7 @@ async function call(env, payload, tries = 3){
         "x-api-key": env.ANTHROPIC_API_KEY,
         "anthropic-version": VER
       },
-      body: JSON.stringify(payload)
+      body: safeJson(payload)
     });
     if (res.ok) return res;
     const text = await res.text();
