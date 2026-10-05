@@ -27,7 +27,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 /* ★ v341 — 빌드 번호는 여기 한 곳만. tools/bump.sh 가 앱(sw.js)과 같이 올려 줌 */
-const BUILD = "v341";
+const BUILD = "v343";
 
 const API = "https://api.anthropic.com/v1/messages";
 const VER = "2023-06-01";
@@ -268,6 +268,11 @@ function cors(env, req){
    (모두 Claude 를 부르지 않아 요금이 안 나가는 길)
    ═══════════════════════════════════════════════════════════════ */
 const OPEN_PATHS = new Set(["/", "/health", "/whereami", "/ai/models"]);
+/* ★ v342 — 대시보드에 index.js 만 붙여넣어 배포해도 돌도록 기본값을 코드에 둠
+   (둘 다 원래 공개되는 값 — config.js 에도 그대로 있음). 변수를 넣으면 그게 우선. */
+const DEF_SUPABASE_URL  = "https://nfyyctinvlytykucbgzk.supabase.co";
+const DEF_SUPABASE_ANON = "sb_publishable_tRyg8GTus9I2_wt-VSmaRA_6gbU-lt5";
+const DEF_ALLOWED       = "amirbatikunari@gmail.com";
 const AUTH_CACHE = new Map();          /* 토큰 → { email, until } — 같은 기지 안에서만 유지됨 */
 const AUTH_TTL = 5 * 60 * 1000;        /* 한 번 확인한 토큰은 5분간 다시 안 물어봄 */
 
@@ -280,14 +285,14 @@ function jwtExp(tok){
 }
 
 function emailAllowed(email, env){
-  const list = String(env.ALLOWED_EMAILS || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+  const list = String(env.ALLOWED_EMAILS ?? DEF_ALLOWED).split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
   return list.length === 0 || list.includes(String(email || "").toLowerCase());
 }
 
 async function checkAuth(req, env){
   if (String(env.REQUIRE_AUTH || "").trim() === "0") return { ok: true, email: "(문지기 꺼짐)" };
-  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY)
-    return { ok: false, status: 500, why: "워커 설정에 SUPABASE_URL / SUPABASE_ANON_KEY 가 없습니다 (wrangler.toml [vars])" };
+  const SB_URL  = env.SUPABASE_URL      || DEF_SUPABASE_URL;
+  const SB_ANON = env.SUPABASE_ANON_KEY || DEF_SUPABASE_ANON;
 
   const m = (req.headers.get("Authorization") || "").match(/^Bearer\s+(\S+)$/i);
   if (!m) return { ok: false, status: 401, why: "로그인이 필요합니다 — 앱에서 로그인한 뒤 다시 시도해 주세요" };
@@ -301,8 +306,8 @@ async function checkAuth(req, env){
   if (!hit || hit.until < now){
     let r;
     try{
-      r = await fetch(env.SUPABASE_URL.replace(/\/+$/, "") + "/auth/v1/user", {
-        headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: "Bearer " + tok }
+      r = await fetch(SB_URL.replace(/\/+$/, "") + "/auth/v1/user", {
+        headers: { apikey: SB_ANON, Authorization: "Bearer " + tok }
       });
     }catch(e){
       return { ok: false, status: 503, why: "로그인 확인 서버(Supabase)에 닿지 못했습니다: " + (e.message || e) };

@@ -184,6 +184,21 @@ function solToMd(sol){
     return x.replace(/\u0001(\d+)\u0002/g, (_, i) => "$" + K[+i] + "$").replace(/\$\$(?=\S)/g, "$ $");
   }).join("");
   const line = t => fixMath(mathify(unxml(oTxt(t)))).replace(/\n{2,}/g, "\n").trim();
+  /* ★ v343 — 답 칸이 «$» 없이 맨 TeX 로 오는 일이 있다 ("L=2 \times 10^{-3}\,[\mathrm{H/km}]").
+     그대로 두면 백슬래시 명령이 글자로 찍혀 «답» 상자만 깨져 보였다.
+     $ 가 하나도 없고 TeX 표시(\명령 · ^{ · _{)가 있으면 통째로 수식으로 감싼다 (한글은 \text{}). */
+  const BARE_TEX = /\\[A-Za-z]+|[\^_]\{/;
+  const bareWrap = x => {
+    if(!x || x.includes("$") || !BARE_TEX.test(x)) return x;
+    const m = x.match(/^(\(\s*\d{1,2}\s*\)\s*)([\s\S]*)$/);          /* 앞의 «(1)» 은 글자로 남김 */
+    const [pre, body] = m ? [m[1], m[2]] : ["", x];
+    return pre + fixMath("$" + wrapHan(tex(body) || "") + "$");
+  };
+  const ansLine = t => {
+    const s0 = unxml(oTxt(t)).replace(/\n+/g, " ").trim();
+    if(!s0 || s0.includes("$") || !BARE_TEX.test(s0)) return line(t);
+    return bareWrap(s0);
+  };
 
   if(sol.gist) L.push(`**${line(sol.gist)}**`, "");
   /* ★ v309 — 비전공자용 «쉽게 말하면» */
@@ -259,7 +274,7 @@ function solToMd(sol){
       const sy0 = line(s.say);
       L.push(/^\s*(\(\d+\)|[①-⑳]|\d+\s*[).])/.test(sy0) ? `${sy0}` : `${i+1}. ${sy0}`, "");
       /* ★ v277 — 소문항 답은 그 단계 바로 밑에 먼저 (단답·서술은 «답 → 왜» 순서) */
-      if(s.ans) L.push(`> ${line(s.ans).replace(/\n+/g, " ")}`, "");
+      if(s.ans) L.push(`> ${ansLine(s.ans).replace(/\n+/g, " ")}`, "");
       /* ★ v327 — 식 바꾸는 과정 «한 줄에 법칙 하나» (논리식 드모르간 등) — 표: 번호 · 식 · 이 줄에서 한 것 */
       const tcl = t => line(t).replace(/\n+/g, " ").replace(/\|/g, "∣").trim() || " ";
       /* ★ v328 — 식 안의 게이트 이름(NAND·NOR…)은 변수처럼 기울지 않게 똑바른 글씨로 */
@@ -304,10 +319,10 @@ function solToMd(sol){
     LGR.forEach(x => { x.used = true; if(x.g.q) L.push(`▸ ${lgCl(x.g.q)}`, ""); lgTables(x.g); });
   }
   /* 답에 이미 단위가 붙어 온 경우 또 붙이지 않는다 (70[mm^2]mm^2 처럼 되던 것) */
-  const ansT = line(sol.answer).trim();
+  const ansT = line(sol.answer).trim();   /* 소문항별로 나눈 뒤 조각마다 bareWrap (통째로 감싸면 (1)(2) 나누기가 깨짐) */
   const unitT = String(sol.unit || "").trim();
   /* ★ v277 — «(2)» 앞에서 줄을 나눈다 (띄어쓰기가 없어도) */
-  const ansLines = ansT.split(/\n+|(?=\(\d{1,2}\))/).map(x => x.trim()).filter(Boolean);
+  const ansLines = ansT.split(/\n+|(?=\(\d{1,2}\))/).map(x => bareWrap(x.trim())).filter(Boolean);
   const many = ansLines.length > 1;                 /* 소문항이 여럿인 답 */
   /* ★ v316 — «1[m]» + 단위 «\\mathrm{m}» 처럼 모양만 달라도 같은 단위면 또 안 붙임 (1[m]m 로 나오던 것) */
   const uN = t => String(t || "").replace(/\\(?:mathrm|text|rm|mathit)\s*\{([^{}]*)\}/g, "$1").replace(/\\[,;:! ]|\\quad/g, "").replace(/[\s$\[\]{}()\\]/g, "").toLowerCase();
@@ -354,7 +369,7 @@ function solToMd(sol){
   if(!stepAns && ansT){
     L.push("**답**", "");
     if(many) ansLines.forEach(x => L.push(`> ${x}`, ""));
-    else L.push(`> ${ansT}${unitT && !dup ? " " + unitT : ""}`, "");
+    else L.push(`> ${bareWrap(ansT)}${unitT && !dup ? " " + unitT : ""}`, "");
   }
   if(sol.why_answer) L.push("**왜 이 답인가**", "", line(sol.why_answer), "");
   if(sol.check)      L.push("**검산**", "", line(sol.check), "");
@@ -904,4 +919,24 @@ document.addEventListener('click', e=>{
 setInterval(() => { mount(); paintEzOnly(); applyFs(curFs()); }, 1200); setTimeout(mount, 900);
 window.__pxSol=makeSol; window.__pxCut=openCut;
 window.__pxSolOne=solOne; window.__pxRows=allRows; window.__pxNowId=ovNowId; window.__pxToast=toast;
+})();
+
+/* ★ v343 — 이미 저장돼 있는 해설에도 적용: «> 맨 TeX» 답 줄(달러 없이 \times · ^{ … 가 그대로 온 것)을
+   그리기 직전에 $…$ 로 감싼다. 새로 만드는 해설은 solToMd 의 ansLine 이 처음부터 감싸서 저장함.
+   (예: «> L=2 \times 10^{-3}\,[\mathrm{H/km}]» 가 답 상자에서 글자 그대로 찍히던 것) */
+(function(){
+  const BT = /\\[A-Za-z]+|[\^_]\{/;
+  const han = x => x.replace(/\\(?:text|mathrm|mathbf)\{[^{}]*\}|([가-힣][가-힣0-9 ·]*[가-힣]|[가-힣])/g,
+                             (m, h) => h ? `\\text{${h.trim()}}` : m);
+  const fix = md => String(md == null ? "" : md).replace(/^([ \t]*>[ \t]*)(\(\s*\d{1,2}\s*\)[ \t]*)?([^\n]*)$/gm, (m, a, b, c) => {
+    if(!c || c.includes("$") || !BT.test(c)) return m;
+    return a + (b || "") + "$" + han(c.trim()) + "$";
+  });
+  window.__bareAnsFix = fix;
+  if(typeof window.mdLite === "function" && !window.mdLite.__bare){
+    const raw = window.mdLite;
+    const w = function(md){ return raw.call(this, fix(md)); };
+    Object.assign(w, raw);          /* 앞 손질들(__tex · __sci) 표시를 그대로 이어 받음 — 두 번 감싸지 않게 */
+    w.__bare = 1; window.mdLite = w;
+  }
 })();
