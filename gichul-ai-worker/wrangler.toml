@@ -7,9 +7,25 @@ compatibility_date = "2026-09-01"
 # 하나만 쓰고 싶으면 셋 다 같은 값을 넣어도 됨.
 # 셋 다 쓰고 싶지 않으면 MODEL 하나만 넣으면 됨.
 MODEL = "claude-opus-5"
+# ★ v341 — 등급 나눔. 해설·변환(/get-data · /explain)은 계속 최고 등급(Opus)
+#   균형(Sonnet): 그림 경계 찾기(/split-hint) · AI 대화 기본값 · 해설 틀 못 지킬 때 대타
+#   빠름(Haiku): AI 대화에서 «빠름» 고를 때
+MODEL_BEST = "claude-opus-5"
+MODEL_MID  = "claude-sonnet-5"
+MODEL_FAST = "claude-haiku-4-5-20251001"
 
 # 이 주소에서만 부를 수 있게 막음. 비워 두면 아무데서나 부를 수 있으니 꼭 채울 것.
 ALLOWED_ORIGINS = "https://gichul-viewer.pages.dev,https://sniper.amirbatikunari.workers.dev,http://localhost:8788"
+
+# ── v340 문지기 — 요금이 새지 않게 하는 진짜 자물쇠 ──────────────
+# 워커가 요청에 실린 Supabase 로그인 토큰을 Supabase 에 직접 물어 확인합니다.
+# (ALLOWED_ORIGINS 는 브라우저만 막을 뿐, curl 같은 건 못 막습니다)
+SUPABASE_URL      = "https://nfyyctinvlytykucbgzk.supabase.co"
+SUPABASE_ANON_KEY = "sb_publishable_tRyg8GTus9I2_wt-VSmaRA_6gbU-lt5"
+# 로그인했더라도 이 이메일만 AI 를 쓸 수 있음(쉼표 구분). 비우면 로그인한 사람 전부.
+ALLOWED_EMAILS    = "amirbatikunari@gmail.com"
+# "0" 으로 바꾸면 문지기를 끔 — 급할 때 잠깐만. 평소엔 이 줄을 건드리지 말 것.
+REQUIRE_AUTH      = "1"
 
 # ── 시크릿은 여기 적지 말고 명령으로 넣을 것 ──
 #   npx wrangler secret put ANTHROPIC_API_KEY     (필수)

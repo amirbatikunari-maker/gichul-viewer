@@ -26,6 +26,9 @@
    ALLOWED_ORIGINS                       쉼표로 구분한 허용 주소
    ═══════════════════════════════════════════════════════════════ */
 
+/* ★ v341 — 빌드 번호는 여기 한 곳만. tools/bump.sh 가 앱(sw.js)과 같이 올려 줌 */
+const BUILD = "v341";
+
 const API = "https://api.anthropic.com/v1/messages";
 const VER = "2023-06-01";
 
@@ -246,6 +249,83 @@ function cors(env, req){
   if (allow) h["Access-Control-Allow-Origin"] = allow;
   return h;
 }
+/* ═══════════════════════════════════════════════════════════════
+   ★ v340 — 문지기 (로그인 확인)
+
+   v339 까지는 ALLOWED_ORIGINS 만 믿었는데, 그건 «브라우저가 답을 못 읽게» 할 뿐
+   요청 자체는 그대로 처리했다. curl 로 부르면 Origin 을 아무렇게나 붙이거나
+   아예 안 붙여도 Claude 가 돌고 요금이 나갔다.
+
+   지금은: 요청에 실린 Supabase 로그인 토큰을 워커가 Supabase 에 직접 물어 확인하고,
+   ALLOWED_EMAILS 에 있는 계정만 통과시킨다. 브라우저를 조작해도 못 뚫는다.
+
+   ── 변수 ([vars]) ──────────────────────────────────────
+   SUPABASE_URL / SUPABASE_ANON_KEY   토큰 확인용 (원래 공개되는 값)
+   ALLOWED_EMAILS                     쉼표 구분. 비우면 로그인한 사람 전부
+   REQUIRE_AUTH                       "0" 일 때만 문지기를 끔 (기본은 켬)
+
+   문지기 없이 열려 있는 길: OPTIONS · /health · / · /whereami · /ai/models
+   (모두 Claude 를 부르지 않아 요금이 안 나가는 길)
+   ═══════════════════════════════════════════════════════════════ */
+const OPEN_PATHS = new Set(["/", "/health", "/whereami", "/ai/models"]);
+const AUTH_CACHE = new Map();          /* 토큰 → { email, until } — 같은 기지 안에서만 유지됨 */
+const AUTH_TTL = 5 * 60 * 1000;        /* 한 번 확인한 토큰은 5분간 다시 안 물어봄 */
+
+function jwtExp(tok){
+  try{
+    const p = tok.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const o = JSON.parse(atob(p + "===".slice((p.length + 3) % 4)));
+    return Number(o.exp) > 0 ? Number(o.exp) * 1000 : 0;
+  }catch(e){ return 0; }
+}
+
+function emailAllowed(email, env){
+  const list = String(env.ALLOWED_EMAILS || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+  return list.length === 0 || list.includes(String(email || "").toLowerCase());
+}
+
+async function checkAuth(req, env){
+  if (String(env.REQUIRE_AUTH || "").trim() === "0") return { ok: true, email: "(문지기 꺼짐)" };
+  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY)
+    return { ok: false, status: 500, why: "워커 설정에 SUPABASE_URL / SUPABASE_ANON_KEY 가 없습니다 (wrangler.toml [vars])" };
+
+  const m = (req.headers.get("Authorization") || "").match(/^Bearer\s+(\S+)$/i);
+  if (!m) return { ok: false, status: 401, why: "로그인이 필요합니다 — 앱에서 로그인한 뒤 다시 시도해 주세요" };
+  const tok = m[1];
+  const now = Date.now();
+
+  const exp = jwtExp(tok);
+  if (exp && exp < now) return { ok: false, status: 401, why: "로그인이 만료됐습니다 — 새로고침하거나 다시 로그인해 주세요" };
+
+  let hit = AUTH_CACHE.get(tok);
+  if (!hit || hit.until < now){
+    let r;
+    try{
+      r = await fetch(env.SUPABASE_URL.replace(/\/+$/, "") + "/auth/v1/user", {
+        headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: "Bearer " + tok }
+      });
+    }catch(e){
+      return { ok: false, status: 503, why: "로그인 확인 서버(Supabase)에 닿지 못했습니다: " + (e.message || e) };
+    }
+    if (!r.ok) return { ok: false, status: 401, why: `로그인 확인 실패 (${r.status}) — 다시 로그인해 주세요` };
+    const u = await r.json().catch(() => ({}));
+    hit = { email: String(u.email || "").toLowerCase(), until: Math.min(now + AUTH_TTL, exp || now + AUTH_TTL) };
+    if (AUTH_CACHE.size > 200) AUTH_CACHE.clear();
+    AUTH_CACHE.set(tok, hit);
+  }
+  if (!emailAllowed(hit.email, env))
+    return { ok: false, status: 403, why: `이 계정(${hit.email || "?"})은 AI 사용 허용 목록에 없습니다` };
+  return { ok: true, email: hit.email };
+}
+
+/* 허용 목록이 있고, Origin 이 붙어 왔는데 목록에 없으면 처리하지 않고 돌려보냄.
+   (Origin 이 아예 없는 요청 — curl 등 — 은 여기서 거르지 않고 위 문지기가 막음) */
+function originBlocked(env, req){
+  const origin = req.headers.get("Origin") || "";
+  const list = (env.ALLOWED_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean);
+  return !!(origin && list.length && !list.includes(origin));
+}
+
 const json = (b, s, h) => new Response(JSON.stringify(b), {
   status: s, headers: { "Content-Type": "application/json; charset=utf-8", ...h }
 });
@@ -614,6 +694,7 @@ const SYS_SOL = [
   "- 계산이 있는 소문항만 sym·plain·num·unit 을 채운다.",
   "- answer 에는 소문항 번호를 붙여 줄을 나눠 «전부» 적는다.",
   "- 답안지에 소문항이 넷이면 풀이 단계도 최소 넷이어야 한다. 세면서 확인한다.",
+  "- ★ (1) 부터 시작한다. 그림·도면을 보고 푸는 앞 소문항((1) 변압기 용량 · (2) 정격전압 같은 것)도 이 문제의 소문항이다 — '앞 문항 결과' 로 여기고 건너뛰지 않는다.",
   "- 소문항 하나를 끝내는 단계에는 ans 에 그 소문항 답을 적는다. 화면은 «단계 이름 → 답 → 식 → 왜» 순서로 보여 준다.",
   "",
   "문제 유형(kind) — 먼저 정하고, 그 유형에 «필요한 칸만» 채운다",
@@ -872,7 +953,7 @@ async function explain(req, env, H){
   /* ★ v281 — full 12000 → 20000. 표가 큰 문제를 자세히 쓰면 12000 에서 잘려 뒤 소문항이 사라졌다 */
   const DEPTH = { low: 3000, mid: 6000, full: 20000 };
   const depth = DEPTH[b.depth] ? b.depth : (b.depth ? "full" : "full");
-  const maxTok = b.max_tokens || DEPTH[depth];
+  const maxTok = Math.min(Number(b.max_tokens) || DEPTH[depth], 32000);   /* ★ v340 상한 */
   const ask = depth === "low"
     ? "짧게 요점만 적는다."
     : depth === "mid"
@@ -1006,8 +1087,14 @@ async function explain(req, env, H){
     const n = Math.max(1, needOf(s));
     if (!steps.length) P.push("steps(풀이 단계)가 비었다 — 소문항마다 한 단계씩, 객체 배열로 반드시 넣는다");
     else if (steps.length < n) P.push(`소문항이 ${n}개인데 풀이 단계가 ${steps.length}개뿐이다`);
-    /* ★ v331 — 단계 수는 충분한데 이름표만 덜 붙은 것은 «보충» 으로 (다시 부르지 않음 — 시간 초과 원인) */
-    if (n > 1 && covered(s) < n) (steps.length >= n ? S : P).push(`단계 이름(say)이 (1)~(${n}) 소문항을 다 다루지 않았다 — ${covered(s)}개만`);
+    /* ★ v339 — «어느 번호가 빠졌나» 를 먼저 본다. 답(answer)·답안지 글(a_text)에 있는 (n) 인데 풀이 단계 이름에 없는 번호 = 진짜로 건너뛴 것 → 필수
+       (18-3 7: 답은 (1)~(7) 인데 풀이가 (3) 부터 — v331 의 «단계 수만 차면 보충» 에 걸려 그냥 저장됐음) */
+    const want = new Set([...subNums(s.answer, false), ...subNums(a_text, true)]);
+    const have = new Set(steps.map(x => (String(x.say || "").match(/^\s*\(\s*(\d{1,2})\s*\)/) || [])[1]).filter(Boolean));
+    const miss = [...want].filter(k => !have.has(k)).sort((p, q) => p - q);
+    if (want.size > 1 && miss.length) P.push(`소문항 (${miss.join(")·(")}) 의 풀이 단계가 없다 — 답안지의 (1)부터 하나도 건너뛰지 말고, say 를 '(${miss[0]}) …' 처럼 번호로 시작해 따로 단계를 만든다 ('앞 문항 결과' 로 넘기지 않는다)`);
+    /* ★ v331 — 번호는 다 있는데 잎(①②) 수만 덜 붙은 것은 «보충» 으로 (다시 부르지 않음 — 시간 초과 원인) */
+    else if (n > 1 && covered(s) < n) (steps.length >= n ? S : P).push(`단계 이름(say)이 (1)~(${n}) 소문항을 다 다루지 않았다 — ${covered(s)}개만`);
     if (!String(s.answer || "").trim()) P.push("answer 가 비었다");
     /* 자리표시(임시·TBD·…)로 채운 칸 */
     const PH = /^\s*(임시|미정|작성\s*예정|추후|tbd|todo|placeholder|\.{2,}|…+)\s*[.。]?\s*$/i;
@@ -1188,6 +1275,13 @@ function tidyKind(s){
    ★ v297 — 예전엔 ①②③ 도 셌다. 그런데 ①②③ 은 «3가지 쓰시오» 같은 나열형 답의 «항목» 번호라,
      소문항이 하나뿐인 나열형이 «소문항 3개인데 단계가 (1)(2)(3) 을 안 다뤘다» 로 늘 걸려
      다시 받기(요금)만 되풀이하고 저장도 안 됐다. 소문항 표기는 (1)(2) 뿐이다. */
+/* ★ v339 — 글 속 소문항 번호 (n) 모음. lead=true 면 줄 맨 앞 (n) 만 (답안지 글의 식 속 괄호를 번호로 잘못 세지 않게) */
+function subNums(t, lead){
+  const x = String(t || ""), out = new Set();
+  const re = lead ? /(?:^|\n)\s*\(\s*(\d{1,2})\s*\)/g : /\(\s*(\d{1,2})\s*\)/g;
+  let m; while ((m = re.exec(x))) { const k = +m[1]; if (k >= 1 && k <= 20) out.add(String(k)); }
+  return out;
+}
 function subCount(ans){
   const t = String(ans || "");
   const a = new Set((t.match(/\(\s*(\d{1,2})\s*\)/g) || []).map(x => x.replace(/\D/g, "")));
@@ -1351,7 +1445,9 @@ async function splitHint(req, env, H){
     ? "이 그림은 «답» 자리에 들어간 것이다. 위쪽에 문제가 섞여 들어왔으면 답이 시작되는 높이를 표시해 줘. 처음부터 답만 있으면 found 를 false 로 해라."
     : "이 그림에서 답이 시작되는 높이를 표시해 줘.";
   const res = await call(env, {
-    model: b.model || tiers(env).best,
+    /* ★ v341 — 경계 높이 하나 찾는 일이라 Opus 까지 필요 없음 → «균형» 등급(기본 Sonnet).
+       MODEL_SPLIT 를 넣으면 그걸 씀. 결과가 미덥지 않으면 wrangler.toml 에서 MODEL_SPLIT = Opus 로 */
+    model: b.model || env.MODEL_SPLIT || tiers(env).mid,
     max_tokens: 700,
     system: SYS_CUT,
     tools: [CUT_TOOL],
@@ -1382,6 +1478,16 @@ export default {
     const path = new URL(req.url).pathname.replace(/\/+$/, "") || "/";
     const T = tiers(env);
 
+    /* ★ v340 — 남의 사이트에서 온 요청은 아예 처리하지 않음 */
+    if (originBlocked(env, req))
+      return json({ error: "허용되지 않은 주소에서 온 요청입니다", detail: "허용되지 않은 주소에서 온 요청입니다" }, 403, H);
+
+    /* ★ v340 — 요금이 나가는 길은 전부 로그인 확인부터 */
+    if (!OPEN_PATHS.has(path)){
+      const a = await checkAuth(req, env);
+      if (!a.ok) return json({ ok: false, error: a.why, detail: a.why, auth: false }, a.status, H);
+    }
+
     /* v230 — 어느 나라 기지에서 도는지 본다.
        열쇠도 모델도 멀쩡한데 403 이 나면, 워커가 «Anthropic 이 막은 지역»
        기지(HKG 등)에서 돌고 있는 것이다. 그건 코드로는 못 고친다. */
@@ -1395,7 +1501,7 @@ export default {
         판정: 막힌곳.includes(colo)
           ? `${colo} 기지는 Anthropic 이 막는 지역입니다 — 403 의 원인입니다.`
           : `${colo} 기지는 보통 허용됩니다.`,
-        빌드: "v332"
+        빌드: BUILD
       }, 200, H);
     }
 
@@ -1451,7 +1557,7 @@ export default {
         keyHead: String(env.ANTHROPIC_API_KEY).slice(0,14) + "…",
         keyLen: String(env.ANTHROPIC_API_KEY).length,
         keyTrimmed: String(env.ANTHROPIC_API_KEY) === String(env.ANTHROPIC_API_KEY).trim(),
-        빌드: "v332",
+        빌드: BUILD,
         기지: (req.cf && req.cf.colo) || "?",
         upstream: parsed || body.slice(0,600),
         vision
@@ -1459,7 +1565,7 @@ export default {
     }
 
     if (path === "/health" || path === "/")
-      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: "v332" }, 200, H);
+      return json({ ok: true, provider: "anthropic", models: T, hasKey: !!env.ANTHROPIC_API_KEY, 기지: (req.cf && req.cf.colo) || "?", 빌드: BUILD }, 200, H);
 
     if (env.APP_KEY && req.headers.get("x-app-key") !== env.APP_KEY)
       return json({ error: "x-app-key 가 맞지 않습니다", detail: "x-app-key 가 맞지 않습니다" }, 401, H);
@@ -1486,8 +1592,10 @@ export default {
       if (path === "/split-hint") return await splitHint(req, env, H);
       if (path === "/raw"){
         const b = await req.json();
+        /* ★ v340 — 모델은 워커에 정해 둔 것 중에서만, 길이는 8000 까지 */
+        const okModel = Object.values(T).includes(b.model) ? b.model : T.best;
         const r = await call(env, {
-          model: b.model || T.best, max_tokens: b.max_tokens || 4000,
+          model: okModel, max_tokens: Math.min(Number(b.max_tokens) || 4000, 8000),
           system: b.system, messages: b.messages || []
         });
         return json(await r.json(), 200, H);
