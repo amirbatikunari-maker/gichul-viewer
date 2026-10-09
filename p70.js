@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   v347·v348 · 📐 공식 모음 — 미니맵 옆 «📐 공식» 단추 → 맨 위에 뜨는 창
+   v347–v350 · 📐 공식 모음 — 미니맵 옆 «📐 공식» 단추 → 맨 위에 뜨는 창
    · 이 문제   : 지금 문항에 필요한 공식(정석식) + 해설에 쓴 기호식
    · 공식별    : 단원 → 공식 → 그 공식이 나온 문항(19년 3회 7번 …) — 누르면 그 문항으로
    · 번호별    : 회차 → 번호 → 그 문항의 공식
@@ -84,6 +84,8 @@ const LIB=[
  v:'단상 3선 40 % 이하 · 3상 30 % 이하',m:{q:/불평형\s*률|설비\s*불평형/}},
 
 /* ── 변압기 ── */
+{id:'ocp',cat:'수용·부하',name:'과부하 보호 협조 (KEC)',tex:R`I_B\le I_n\le I_Z`,alt:[R`I_2\le1.45\,I_Z`],v:'IB 설계전류 · In 보호장치 정격전류 · IZ 전선 허용전류 · I2 보호장치 확실한 동작전류',m:{q:/보호\s*협조|과부하\s*보호|설계\s*전류|I_?\{?[BZ]\b/,x:/허용\s*전류|1\.45|I_?\{?Z/}},
+{id:'feed',cat:'수용·부하',name:'전동기 간선 허용전류 (KEC 이전)',tex:R`I_a\ge1.25\sum I_M+\sum I_H\quad(\sum I_M\le50\,\text{A})`,alt:[R`I_a\ge1.1\sum I_M+\sum I_H\quad(\sum I_M>50\,\text{A})`],v:'IM 전동기 정격전류 합 · IH 전동기 외 부하전류 합 — 2021 KEC 이전 기출',m:{q:/간선\s*(의)?\s*(허용\s*전류|굵기|최소|전선)/,x:/전동기/}},
 {id:'treff',cat:'변압기',name:'변압기 효율',tex:R`\eta=\dfrac{mP\cos\theta}{mP\cos\theta+P_i+m^2P_c}\times100\;[\%]`,
  v:'m 부하율 · Pi 철손 · Pc 전부하 동손',m:{q:/변압기/,x:/철손|동손|무부하\s*손|부하\s*손/,no:/전일\s*효율/}},
 {id:'trmax',cat:'변압기',name:'최대 효율 조건',tex:R`P_i=m^2P_c\quad\Rightarrow\quad m=\sqrt{\dfrac{P_i}{P_c}}`,v:'철손 = 동손 일 때 최대',m:{q:/최대\s*효율/}},
@@ -118,6 +120,12 @@ const LIB=[
 {id:'err',cat:'CT·PT·계전기',name:'오차율 · 보정률',tex:R`\text{오차율}=\dfrac{M-T}{T}\times100,\qquad \text{보정률}=\dfrac{T-M}{M}\times100`,v:'M 측정값 · T 참값',m:{q:/오차\s*율|보정\s*률/}},
 
 /* ── 조명 ── */
+{id:'w2',cat:'측정·계기',name:'2전력계법',tex:R`P=W_1+W_2`,alt:[R`Q=\sqrt3\,(W_1-W_2)`,R`\cos\theta=\dfrac{W_1+W_2}{2\sqrt{W_1^2+W_2^2-W_1W_2}}`],kf:[R`P=W_2+W_1`],v:'W1·W2 두 전력계 지시값 — 한쪽이 음(−)이면 빼서 더함',m:{q:/(2|두)\s*전력계|전력계\s*(2|두)\s*(대|개)/}},
+{id:'v3',cat:'측정·계기',name:'3전압계법',tex:R`P=\dfrac{V_3^2-V_1^2-V_2^2}{2R}`,alt:[R`\cos\theta=\dfrac{V_3^2-V_1^2-V_2^2}{2V_1V_2}`],v:'R 직렬로 넣은 기지 저항 · V3 전체 전압',m:{q:/(3|세)\s*전압계/}},
+{id:'a3',cat:'측정·계기',name:'3전류계법',tex:R`P=\dfrac{R}{2}\left(A_3^2-A_1^2-A_2^2\right)`,alt:[R`\cos\theta=\dfrac{A_3^2-A_1^2-A_2^2}{2A_1A_2}`],v:'R 병렬로 넣은 기지 저항 · A3 전체 전류',m:{q:/(3|세)\s*전류계/}},
+{id:'mult',cat:'측정·계기',name:'배율기 · 분류기',tex:R`R_m=(n-1)\,R_v`,alt:[R`R_s=\dfrac{R_a}{n-1}`,R`n=\dfrac{V}{V_v}=1+\dfrac{R_m}{R_v}`],v:'n 배율 (늘리려는 측정 범위 ÷ 원래 범위) · Rv 전압계 내부저항 · Ra 전류계 내부저항',m:{q:/배율기|분류기/}},
+{id:'kohl',cat:'측정·계기',name:'접지저항 측정 (콜라우시 브리지)',tex:R`R_x=\dfrac12\left(R_{ab}+R_{ca}-R_{bc}\right)`,v:'a 측정할 접지극 · b·c 보조 접지극 — 두 극 사이 저항 3개로 a 만 남김',m:{q:/콜라?우시|코올라우시|접지\s*저항/,x:/콜라?우시|코올라우시|R_?\{?(ab|bc|ca)|\b(ab|bc|ca)\s*(간|사이)|보조\s*접지/i}},
+{id:'wenner',cat:'측정·계기',name:'대지 저항률 (위너 4전극법)',tex:R`\rho=2\pi a R\;[\Omega\cdot\text{m}]`,v:'a 전극 간격 [m] · R 측정 저항 [Ω]',m:{q:/대지\s*(저항률|고유\s*저항)|위너|웨너|wenner|4\s*전극/i}},
 {id:'lamp',cat:'조명',name:'광속법 (등 수 · 평균 조도)',tex:R`N=\dfrac{D\,A\,E}{F\,U}=\dfrac{A\,E}{F\,U\,M}`,alt:[R`E=\dfrac{F\,U\,N}{D\,A}`,R`F=\dfrac{D\,A\,E}{N\,U}`],
  v:'D 감광보상률 · A 면적 · E 조도 · F 등 1개 광속 · U 조명률 · M 보수율(=1/D)',m:{q:/(등\s*(의)?\s*수|등수|등\s*기구\s*(의)?\s*수|소요\s*등|램프\s*(의)?\s*수|평균\s*조도|조명\s*률|몇\s*등)/,x:/조도|lx|룩스|조명/}},
 {id:'ridx',cat:'조명',name:'실지수',tex:R`K=\dfrac{X\,Y}{H\,(X+Y)}`,v:'X·Y 방 가로·세로 · H 등~작업면 높이',m:{q:/실\s*지수/}},
@@ -145,6 +153,7 @@ const LIB=[
 {id:'gen',cat:'전동기·동력',name:'자가발전기 용량 (전동기 기동)',tex:R`P_G\ge\left(\dfrac{1}{e}-1\right)x_d'\,P_s\;[\text{kVA}]`,v:'e 허용 전압강하율 · x′d 과도리액턴스 · Ps 기동 용량',m:{q:/발전기\s*(의)?\s*용량|자가\s*발전/}},
 
 /* ── 축전지·정류 ── */
+{id:'heat',cat:'전동기·동력',name:'전열기 용량 (물 데우기)',tex:R`P=\dfrac{m\,c\,(T_2-T_1)}{860\,\eta\,t}\;[\text{kW}]`,alt:[R`H=0.24\,I^2Rt\;[\text{cal}]`,R`860\,P\,t\,\eta=m\,c\,(T_2-T_1)`],v:'m 질량 [kg·L] · c 비열 (물 1) · t 시간 [h] · 1 kWh = 860 kcal',m:{q:/전열기|전기\s*(온수기|보일러|난로)|가열|온도\s*를?\s*\d|℃\s*(로|까지)\s*(올|높|데우|가열)/,x:/kW|kWh|용량|전력|시간|kcal|열량/,no:/발전기|연료/}},
 {id:'bat',cat:'축전지·정류',name:'축전지 용량',tex:R`C=\dfrac{1}{L}\,K\,I\;[\text{Ah}]`,v:'L 보수율 · K 용량환산시간 · I 방전전류',m:{q:/축전지\s*(의)?\s*용량|용량\s*환산\s*시간/}},
 {id:'cell',cat:'축전지·정류',name:'축전지 셀 수',tex:R`n=\dfrac{V}{V_{\text{cell}}}`,v:'연(납) 2.0 V/셀 · 알칼리 1.2 V/셀',m:{q:/(셀|cell)\s*(의)?\s*(수|개수)|축전지\s*(의)?\s*(개수|수)/i}},
 {id:'float',cat:'축전지·정류',name:'부동충전 2차 전류',tex:R`I=\dfrac{\text{축전지 정격용량}}{\text{정격 방전율}}+\dfrac{\text{상시 부하}}{\text{표준 전압}}`,v:'연축전지 방전율 10 h · 알칼리 5 h',m:{q:/부동\s*충전|충전기\s*(의)?\s*(2\s*차)?\s*전류/}},
@@ -159,6 +168,9 @@ const LIB=[
 {id:'hipot',cat:'접지·지락·절연',name:'절연내력 시험전압',tex:R`V_t=V_m\times k`,
  alt:[R`7\text{kV 이하 }1.5\ (\min 500\text{V})\quad 7{\sim}25\text{kV 다중접지 }0.92\quad 7{\sim}60\text{kV }1.25\ (\min 10.5\text{kV})`,R`60\text{kV 초과 비접지 }1.25\quad \text{중성점 접지 }1.1\ (\min 75\text{kV})\quad \text{직접접지 }170\text{kV 이하 }0.72,\ \text{초과 }0.64`],
  v:'Vm 최대사용전압 · 10분간',m:{q:/절연\s*내력|시험\s*전압/}},
+{id:'bil',cat:'접지·지락·절연',name:'BIL (기준충격절연강도)',tex:R`\text{BIL}=5E+50\;[\text{kV}]`,alt:[R`E=\dfrac{\text{BIL}-50}{5}`],kf:[R`\text{BIL}=\text{절연계급}\times5+50`,R`\text{BIL}=5\times\text{절연계급}+50`,R`\text{절연계급}=\dfrac{\text{BIL}-50}{5}`],v:'E 절연계급(호) — 비유효접지계 · 절연계급 20호 이상일 때 (50 기본 여유분 · 5 한 호당 늘어나는 kV)',m:{q:/BIL|기준\s*충격\s*절연|충격\s*절연\s*강도/}},
+{id:'insc',cat:'접지·지락·절연',name:'절연계급 ↔ 공칭전압',tex:R`E=\dfrac{V_n}{1.1}`,alt:[R`V_n=1.1\,E`],kf:[R`\text{공칭전압}=\text{절연계급}\times1.1`,R`\text{공칭전압}=1.1\times\text{절연계급}`],v:'E 절연계급(호) · Vn 공칭전압 [kV]',m:{q:/절연\s*계급/}},
+{id:'vrat',cat:'접지·지락·절연',name:'정격전압 (공칭전압 기준)',tex:R`V_r=V_n\times\dfrac{1.2}{1.1}`,kf:[R`\text{정격전압}=\text{공칭전압}\times\dfrac{1.2}{1.1}`],v:'Vn 공칭전압 — 1.2/1.1 은 공칭전압에 대한 최고(정격)전압 비 (예: 22.9 kV → 25.8 kV 표준값)',m:{q:/정격\s*전압/,x:/공칭\s*전압|절연\s*계급|BIL/,no:/피뢰기/}},
 {id:'insR',cat:'접지·지락·절연',name:'절연저항 · 누설전류',tex:R`I=\dfrac{V}{R_{\text{절연}}}`,m:{q:/절연\s*저항/,x:/누설|전류/}},
 
 /* ── 송배전 ── */
@@ -167,6 +179,13 @@ const LIB=[
 {id:'gmd',cat:'송배전',name:'등가 선간거리',tex:R`D=\sqrt[3]{D_{12}D_{23}D_{31}}`,m:{q:/등가\s*선간\s*거리|기하\s*평균\s*거리/}},
 
 /* ── 논리회로 ── */
+{id:'ind',cat:'송배전',name:'선로 인덕턴스',tex:R`L=0.05+0.4605\log_{10}\dfrac{D}{r}\;[\text{mH/km}]`,v:'D 등가 선간거리 · r 전선 반지름 (같은 단위)',m:{q:/인덕턴스\s*(을|를)?\s*(구하|계산|산출)|인덕턴스.{0,12}(몇|얼마)/,x:/log|선간\s*거리|반지름|지름|등가/}},
+{id:'cap',cat:'송배전',name:'선로 작용 정전용량',tex:R`C=\dfrac{0.02413}{\log_{10}\dfrac{D}{r}}\;[\mu\text{F/km}]`,v:'D 등가 선간거리 · r 전선 반지름',m:{q:/정전\s*용량\s*(을|를)?\s*(구하|계산|산출)|정전\s*용량.{0,12}(몇|얼마)/,x:/log|선간\s*거리|반지름|지름|등가/,no:/콘덴서|역률/}},
+{id:'corona',cat:'송배전',name:'코로나 임계전압',tex:R`E_0=24.3\,m_0\,m_1\,\delta\,d\log_{10}\dfrac{D}{r}\;[\text{kV}]`,v:'m0 표면 계수 · m1 날씨 계수 · δ 상대 공기밀도 · d 지름 [cm]',m:{q:/코로나/,x:/임계\s*전압|E_?0|24\.3/}},
+{id:'ptx',cat:'송배전',name:'송전 전력 (상차각)',tex:R`P=\dfrac{V_s\,V_r}{X}\sin\delta`,v:'Vs 송전단 전압 · Vr 수전단 전압 · X 선로 리액턴스 · δ 상차각',m:{q:/송전\s*(전력|용량)|상차각|부하각/,x:/sin|δ|상차각|부하각/}},
+{id:'pet',cat:'송배전',name:'소호 리액터',tex:R`\omega L=\dfrac{1}{3\,\omega C}`,alt:[R`L=\dfrac{1}{3\,\omega^2 C}`],v:'C 한 선의 대지 정전용량 — 3선 대지 정전용량과 병렬 공진',m:{q:/소호\s*리액터|페테르센/}},
+{id:'symc',cat:'송배전',name:'대칭좌표법 · 1선 지락전류',tex:R`I_g=\dfrac{3E_a}{Z_0+Z_1+Z_2}`,alt:[R`I_0=\dfrac{I_a+I_b+I_c}{3}`],v:'Z0 영상 · Z1 정상 · Z2 역상 임피던스 · Ea 상전압',m:{q:/대칭\s*좌표|영상\s*(분|전류|임피던스|전압)|정상\s*(분|임피던스)|역상\s*(분|전류|임피던스)/}},
+{id:'guy',cat:'송배전',name:'지선 장력 · 소선 수',tex:R`T=\dfrac{T_0}{\cos\theta}`,alt:[R`n\ge\dfrac{k\,T}{t}`],v:'T0 수평 장력 · θ 지선과 전주 사이 각 · k 안전율 · t 소선 1가닥 인장하중',m:{q:/지선/,x:/장력|가닥|소선|안전\s*율/}},
 {id:'demorgan',cat:'논리회로',name:'드모르간 정리',tex:R`\overline{A+B}=\overline{A}\cdot\overline{B},\qquad \overline{A\cdot B}=\overline{A}+\overline{B}`,
  v:'NAND 만으로 · NOR 만으로 바꿀 때',m:{q:/드\s*모르간|NAND|NOR|무접점|논리\s*(식|회로)/}},
 {id:'bool',cat:'논리회로',name:'불 대수 간략화',tex:R`A+AB=A,\qquad A(A+B)=A,\qquad A+\overline{A}B=A+B,\qquad A+\overline{A}=1`,
@@ -246,10 +265,29 @@ touch:{ko:R`【접촉전압】=【지락전류】\times【접지저항】`,sy:[[
 gsv:{ko:R`【건전상 대지전압】=\sqrt{3}\times【평상시 대지전압】=【선간전압】`,sy:[['E','이','평상시 대지(상)전압','V'],['V','브이','선간전압','V']]},
 gw:{ko:R`【단면적】=\dfrac{\sqrt{【고장전류】^2\times【시간】}}{【재질계수】}`,sy:[['S','에스','보호도체 단면적','mm²'],['I','아이','고장전류','A'],['t','티','차단 시간','s'],['k','케이','재질·절연 계수','—']]},
 hipot:{ko:R`【시험전압】=【최대사용전압】\times【배수】`,sy:[['V_t','브이 티','시험전압','V'],['V_m','브이 엠','최대사용전압','V'],['k','케이','배수','—']]},
+bil:{ko:R`【BIL】=【절연계급】\times5+50`,sy:[[R`\text{BIL}`,'비 아이 엘','기준충격절연강도 (뇌임펄스에 견디는 전압)','kV'],['E','이','절연계급','호']]},
+insc:{ko:R`【절연계급】=\dfrac{【공칭전압】}{1.1}`,sy:[['E','이','절연계급','호'],['V_n','브이 엔','공칭전압','kV']]},
+vrat:{ko:R`【정격전압】=【공칭전압】\times\dfrac{1.2}{1.1}`,sy:[['V_r','브이 알','정격(최고)전압','kV'],['V_n','브이 엔','공칭전압','kV']]},
 insR:{ko:R`【누설전류】=\dfrac{【전압】}{【절연저항】}`,sy:[['I','아이','누설전류','A'],['V','브이','대지전압','V'],[R`R_{\text{절연}}`,'알 절연','절연저항','Ω']]},
 sag:{ko:R`【이도】=\dfrac{【전선 무게】\times【경간】^2}{8\times【수평장력】}`,sy:[['D','디','이도','m'],['W','더블유','전선 1 m 무게','kg/m'],['S','에스','경간','m'],['T','티','수평장력 = 인장하중/안전율','kg'],['L','엘','전선 실제 길이','m']]},
 chg:{ko:R`【충전전류】=2\pi\times【주파수】\times【정전용량】\times【대지전압】\times【길이】`,sy:[['I_c','아이 씨','충전전류','A'],['C','씨','작용 정전용량','F/km'],['E','이','대지전압 V/√3','V'],['l','엘','선로 길이','km']]},
 gmd:{ko:R`【등가 선간거리】=\sqrt[3]{【거리1】\times【거리2】\times【거리3】}`,sy:[['D','디','등가 선간거리','m']]},
+w2:{ko:R`【유효전력】=【전력계1】+【전력계2】`,sy:[['P','피','3상 유효전력','W'],['W_1,W_2','더블유 일·이','전력계 지시값','W'],['Q','큐','무효전력','Var']]},
+v3:{ko:R`【전력】=\dfrac{【전체 전압】^2-【저항 전압】^2-【부하 전압】^2}{2\times【저항】}`,sy:[['V_3','브이 삼','전체 전압','V'],['V_1','브이 일','저항 R 양단 전압','V'],['V_2','브이 이','부하 전압','V'],['R','알','직렬 기지 저항','Ω']]},
+a3:{ko:R`【전력】=\dfrac{【저항】}{2}\times(【전체 전류】^2-【저항 전류】^2-【부하 전류】^2)`,sy:[['A_3','에이 삼','전체 전류','A'],['A_1','에이 일','저항 R 전류','A'],['A_2','에이 이','부하 전류','A'],['R','알','병렬 기지 저항','Ω']]},
+mult:{ko:R`【배율기 저항】=(【배율】-1)\times【전압계 내부저항】`,sy:[['R_m','알 엠','배율기 저항 (직렬)','Ω'],['R_s','알 에스','분류기 저항 (병렬)','Ω'],['n','엔','배율','배'],['R_v','알 브이','전압계 내부저항','Ω'],['R_a','알 에이','전류계 내부저항','Ω']]},
+kohl:{ko:R`【접지저항】=\dfrac{1}{2}(【a-b 저항】+【c-a 저항】-【b-c 저항】)`,sy:[['R_x','알 엑스','측정 접지극 저항','Ω'],['R_{ab}','알 에이비','a-b 사이 저항','Ω'],['R_{ca}','알 씨에이','c-a 사이 저항','Ω'],['R_{bc}','알 비씨','b-c 사이 저항','Ω']]},
+wenner:{ko:R`【대지 저항률】=2\pi\times【전극 간격】\times【측정 저항】`,sy:[[R`\rho`,'로','대지 저항률','Ω·m'],['a','에이','전극 간격','m'],['R','알','측정 저항','Ω']]},
+heat:{ko:R`【전력】=\dfrac{【질량】\times【비열】\times【온도 차】}{860\times【효율】\times【시간】}`,sy:[['P','피','전열기 용량','kW'],['m','엠','물의 질량','kg'],['c','씨','비열 (물 1)','kcal/kg·℃'],['T_2-T_1','티 이 빼기 티 일','온도 차','℃'],[R`\eta`,'에타','효율','—'],['t','티','시간','h']]},
+ocp:{ko:R`【설계전류】\le【보호장치 정격전류】\le【전선 허용전류】`,sy:[['I_B','아이 비','설계전류','A'],['I_n','아이 엔','보호장치 정격전류','A'],['I_Z','아이 제트','전선 허용전류','A'],['I_2','아이 투','보호장치 동작전류','A']]},
+feed:{ko:R`【간선 허용전류】\ge1.25\times【전동기 전류 합】+【기타 부하 전류 합】`,sy:[['I_a','아이 에이','간선 허용전류','A'],[R`\sum I_M`,'시그마 아이 엠','전동기 정격전류 합','A'],[R`\sum I_H`,'시그마 아이 에이치','전동기 외 부하전류 합','A']]},
+ind:{ko:R`【인덕턴스】=0.05+0.4605\log_{10}\dfrac{【선간거리】}{【반지름】}`,sy:[['L','엘','한 선의 인덕턴스','mH/km'],['D','디','등가 선간거리','m'],['r','알','전선 반지름','m']]},
+cap:{ko:R`【정전용량】=\dfrac{0.02413}{\log_{10}\dfrac{【선간거리】}{【반지름】}}`,sy:[['C','씨','작용 정전용량','μF/km'],['D','디','등가 선간거리','m'],['r','알','전선 반지름','m']]},
+corona:{ko:R`【임계전압】=24.3\times【표면계수】\times【날씨계수】\times【공기밀도】\times【지름】\times\log_{10}\dfrac{【선간거리】}{【반지름】}`,sy:[['E_0','이 제로','코로나 임계전압','kV'],['m_0','엠 제로','전선 표면 계수','—'],['m_1','엠 원','날씨 계수','—'],[R`\delta`,'델타','상대 공기밀도','—'],['d','디','전선 지름','cm']]},
+ptx:{ko:R`【송전 전력】=\dfrac{【송전단 전압】\times【수전단 전압】}{【리액턴스】}\sin【상차각】`,sy:[['P','피','송전 전력','MW'],['V_s','브이 에스','송전단 전압','kV'],['V_r','브이 알','수전단 전압','kV'],['X','엑스','선로 리액턴스','Ω'],[R`\delta`,'델타','상차각','°']]},
+pet:{ko:R`【리액터 리액턴스】=\dfrac{1}{3\times【각주파수】\times【대지 정전용량】}`,sy:[['L','엘','소호 리액터 인덕턴스','H'],[R`\omega`,'오메가','각주파수 2πf','rad/s'],['C','씨','한 선 대지 정전용량','F']]},
+symc:{ko:R`【지락전류】=\dfrac{3\times【상전압】}{【영상】+【정상】+【역상】}`,sy:[['I_g','아이 지','1선 지락전류','A'],['E_a','이 에이','a상 상전압','V'],['Z_0','제트 제로','영상 임피던스','Ω'],['Z_1','제트 원','정상 임피던스','Ω'],['Z_2','제트 투','역상 임피던스','Ω'],['I_0','아이 제로','영상 전류','A']]},
+guy:{ko:R`【지선 장력】=\dfrac{【수평 장력】}{\cos【각도】}`,sy:[['T','티','지선 장력','kN'],['T_0','티 제로','수평 장력','kN'],[R`\theta`,'세타','지선과 전주 사이 각','°'],['n','엔','소선 가닥 수','가닥'],['k','케이','안전율','—'],['t','티','소선 1가닥 인장하중','kN']]},
 demorgan:{ko:R`\overline{【A 또는 B】}=【A 아님】\ 【그리고】\ 【B 아님】`,sy:[[R`\overline{A}`,'에이 바','A 의 부정 (b접점)','—'],[R`A\cdot B`,'에이 앤드 비','직렬 (AND)','—'],['A+B','에이 오어 비','병렬 (OR)','—']]},
 bool:{sy:[[R`\overline{A}`,'에이 바','A 의 부정','—']]}
 };
@@ -309,6 +347,10 @@ const nrm=t=>T(t)
   .replace(/\\left|\\right|\\[,;:!]|\\q?quad|\\displaystyle/g,'')
   .replace(/\\[dt]frac/g,'\\frac').replace(/\\cdot|\\times/g,'*')
   .replace(/[{}\s]/g,'').replace(/\(\)/g,'').replace(/\[[^\]]*\]$/,'');
+/* 한글 말식(\text{절연계급}=…)은 글자를 살려서 견줌 */
+const HAN=/\\text\{[^{}]*[가-힣]/;
+const nrmK=t=>nrm(T(t).replace(/\\text\{([^{}]*)\}/g,(m,w)=>'〔'+w.replace(/\s/g,'')+'〕')).replace(/[〔〕]/g,'');
+function keysOf(t){ if(HAN.test(T(t))) return eqKeys(nrmK(t)); const s=eqKeys(nrm(t)); if(/\\text\{/.test(T(t))) eqKeys(nrmK(t)).forEach(k=>s.add(k)); return s; }
 function eqKeys(n){
   const out=new Set(); if(!n || n.length<4 || !n.includes('=')) return out;
   const p=n.split('='); out.add(n);
@@ -317,12 +359,12 @@ function eqKeys(n){
 }
 const pieces=t=>T(t).split(/\\q?quad|,\s*\\;|;\s/).map(x=>x.replace(/^[\s,]+|[\s,]+$/g,'')).filter(x=>x.includes('='));
 function formsOf(f){
-  if(f.__fk===f.tex+'|'+(f.alt||[]).join('|')) return f.__forms;
-  const s=new Set(); [f.tex,...(f.alt||[])].forEach(t=>pieces(t).forEach(p=>eqKeys(nrm(p)).forEach(k=>s.add(k))));
-  f.__fk=f.tex+'|'+(f.alt||[]).join('|'); f.__forms=s; return s;
+  const fk=f.tex+'|'+(f.alt||[]).join('|')+'|'+(f.ko||''); if(f.__fk===fk) return f.__forms;
+  const s=new Set(); [f.tex,...(f.alt||[]),...(f.kf||[]),f.ko||''].forEach(t=>pieces(t).forEach(p=>keysOf(p).forEach(k=>s.add(k))));
+  f.__fk=fk; f.__forms=s; return s;
 }
 function symMatch(line, all){
-  const ks=[...eqKeys(nrm(line))]; if(!ks.length) return null;
+  const ks=[...keysOf(line)]; if(!ks.length) return null;
   for(const f of all){ const F=formsOf(f); if(ks.some(k=>F.has(k))) return f; }
   return null;
 }
@@ -401,10 +443,26 @@ const isSym=t=>{
   const nums=(t.replace(/_\{?\d+\}?|\^\{?\d+\}?|\\sqrt\{?3\}?|\\dfrac|\\frac/g,'').match(/\d+(\.\d+)?/g)||[]);
   return nums.length<2;
 };
+/* 기호가 따로 없는 공식(BIL=절연계급×5+50 처럼 한글로만 쓴 식)도 «식» 으로 봄
+   — 등호 하나 · 오른쪽에 변수가 있음 · 숫자 대입식/단위식 아님 */
+const isKoEq=t=>{
+  if(!t || !HAN.test(t) || /상수|\\Rightarrow|\\therefore/.test(t)) return false;
+  const p=t.split(/(?<![<>\\!])=/); if(p.length!==2) return false;
+  const L=p[0].trim(), Rt=p[1].trim(); if(!L || !Rt || /\[/.test(L) || /^\s*(\\left)?\[/.test(t)) return false;
+  const vars=s=>{ const x=s.replace(/\[[^\]]*\]|\\left\[[\s\S]*?\\right\]/g,'').replace(/\\text\{([^{}]*)\}/g,' $1 ').replace(/\\(d?frac|t?frac|times|cdot|sqrt|left|right|quad|qquad|[,;:!])/g,' ');
+    return /[가-힣]{2,}|(?<!\\)\b[A-Za-z]{1,4}(_\{?\w+\}?)?\b/.test(x); };
+  return vars(L) && vars(Rt);
+};
+const isKoLine=t=>HAN.test(t);
 function symLines(md){
-  const out=[], seen=new Set();
-  blocks(md).forEach(b=>bLines(b.body).forEach(t=>{ if(!isSym(t)) return; const k=t.replace(/\s/g,''); if(seen.has(k)) return; seen.add(k); out.push(t); }));
-  return out.slice(0,12);
+  const out=[], seen=new Set(), ko=new Set();
+  blocks(md).forEach(b=>bLines(b.body).forEach(t=>{
+    const sym=isSym(t); if(!sym && !isKoEq(t)) return;
+    const k=t.replace(/\s/g,''); if(seen.has(k)) return; seen.add(k); out.push(t);
+  }));
+  /* 기호식이 있으면 그 «말로» 짝은 따로 세우지 않음 */
+  out.filter(t=>!isKoLine(t)).forEach(t=>{ const m=koFor(md,t); if(m) ko.add(m.replace(/\s/g,'')); });
+  return out.filter(t=>!(isKoLine(t) && ko.has(t.replace(/\s/g,'')))).slice(0,12);
 }
 /* 기호식 바로 뒤의 «말로» 식 (한글 \text 가 든 식) */
 function koFor(md, line){
@@ -436,8 +494,8 @@ function symsFor(md, line){
     mean=mean.replace(/·\s*이 문제:.*$/,'').replace(/\$/g,'').trim();
     out.push([x[1].trim(), (x[2]||'').trim(), mean, unit]);
   }
-  const n=nrm(line);
-  return out.filter(s=>{ const k=nrm(s[0]); return k && n.includes(k); });
+  const kl=isKoLine(line), N=kl?nrmK:nrm, n=N(line);
+  return out.filter(s=>{ const k=N(s[0]); return k && n.includes(k); });
 }
 
 /* ══ ⑤ 그리기 도우미 ══ */
@@ -466,7 +524,7 @@ function goTo(id){
 
 /* ══ ⑥ 창 ══ */
 const KEY='prac:fx:v1';
-let S={ tab:'now', x:null, y:null, w:460, h:620, open:{}, sort:'cat', cat:'', ny:'', ns:'' };
+let S={ tab:'now', x:null, y:null, w:400, h:620, open:{}, sort:'cat', cat:'', ny:'', ns:'' };
 try{ Object.assign(S, JSON.parse(localStorage.getItem(KEY)||'{}')||{}) }catch(e){ q_(e) }
 const save=()=>{ try{ localStorage.setItem(KEY, JSON.stringify(S)) }catch(e){ q_(e) } };
 const phone=()=>{ try{ return matchMedia('(max-width:700px)').matches }catch(e){ return innerWidth<700 } };
@@ -575,6 +633,49 @@ css.textContent=`
 .fxpop .cat:first-child{margin-top:2px}
 .fxpop .hl{animation:fxhl 1.4s ease}
 @keyframes fxhl{0%{box-shadow:0 0 0 3px #818cf8}100%{box-shadow:0 0 0 0 transparent}}
+.fxpop{min-width:280px}
+.fxpop .fxhd{padding:4px 5px 4px 9px;gap:4px}
+.fxpop .fxhd b{font-size:12.5px}
+.fxpop .fxtabs{margin-left:4px}
+.fxpop .fxtabs button{height:25px;padding:0 9px;font-size:11.5px}
+.fxpop .fxx{width:26px;height:26px;font-size:14px}
+.fxpop .fxbar{padding:5px 7px;gap:4px}
+.fxpop .fxbar select,.fxpop .fxbar input,.fxpop .fxbar .bt{height:26px;font-size:11.5px;border-radius:7px}
+.fxpop .fxbar select{padding:0 20px 0 7px;background-position:right 7px center}
+.fxpop .fxbar .bt{padding:0 7px}
+.fxpop .fxbd{padding:6px 6px 10px}
+.fxpop .fxnow b{font-size:13.5px}
+.fxpop .fxnow .fol{padding:2px 6px;font-size:10px}
+.fxpop .fxty{font-size:11px;margin:1px 2px 2px}
+.fxpop .fxh{margin:9px 1px 5px;font-size:11.5px}
+.fxpop .fxc{border-radius:9px;margin:0 0 5px}
+.fxpop .fxc > summary{padding:6px 8px;gap:6px}
+.fxpop .fxc > summary .nm{font-size:12.5px}
+.fxpop .fxc > summary .rt,.fxpop .fxc > summary .ct{padding:3px 6px;font-size:10px}
+.fxpop .eqs{padding:3px 7px 0}
+.fxpop .eqr{grid-template-columns:34px minmax(0,1fr);gap:5px;padding:2px 0}
+.fxpop .syt{margin:3px 7px 4px}
+.fxpop .syt .sh{padding:3px 7px}
+.fxpop .syt .sr{grid-template-columns:minmax(80px,max-content) minmax(0,1fr) auto;gap:6px;padding:1px 7px;min-height:22px}
+.fxpop .fxc .v{padding:1px 8px 4px;font-size:11px}
+.fxpop .fxc .st{padding:4px 8px;margin:1px 7px 4px;gap:2px 8px;font-size:10.5px}
+.fxpop .fxc .chips{padding:1px 7px 7px;gap:3px}
+.fxpop .chip{height:21px;padding:0 7px;line-height:19px;font-size:10px}
+.fxpop .acts{padding:0 7px 6px;gap:4px}
+.fxpop .acts button,.fxpop .sym .add,.fxpop .lnk button{height:23px;padding:0 8px;font-size:10.5px}
+.fxpop .sym{border-radius:9px;margin:0 0 5px;padding:3px 7px 5px}
+.fxpop .sym .ft{margin-top:3px;font-size:10.5px}
+.fxpop .lnk select{height:25px}
+.fxpop .fxsec > summary{list-style:none;cursor:pointer}
+.fxpop .fxsec > summary::-webkit-details-marker{display:none}
+.fxpop .fxsec > summary::before{display:none}
+.fxpop .fxsec > summary .car{color:#94a3b8;font-size:9px;transition:transform .15s}
+.fxpop .fxsec[open] > summary .car{transform:rotate(90deg);color:#4338ca}
+.fxpop .sess{margin:8px 1px 4px;padding-top:6px;font-size:12px}
+.fxpop .prow{padding:4px 6px;gap:6px;margin-bottom:3px;border-radius:7px}
+.fxpop .prow .no{min-width:34px;font-size:11.5px;line-height:20px}
+.fxpop .prow .fs .fn{font-size:10.5px;line-height:18px;padding:0 6px}
+.fxpop .cat{margin:10px 1px 5px;font-size:12px}
 @media(max-width:700px){ .fxpop{left:6px!important;right:6px!important;width:auto!important;top:auto!important;bottom:6px!important;height:68vh!important;resize:none} .fxpop .fxhd{cursor:default} .fxpop .fxtabs button{padding:0 9px} }
 body.rd-night .fxpop{background:#0b1220;border-color:#33415c;color:#e5e7eb}
 body.rd-night .fxpop .fxhd,body.rd-night .fxpop .fxbar{background:#111827;border-color:#33415c}
@@ -635,7 +736,7 @@ function pop(){
       U.links[rid+'|'+sel.value]={ on:true, t:Date.now() }; usave(); say('이 문제에 연결했음'); return paint(true); }
     const pr=t.closest('[data-row]'); if(pr){ VIEW=''; goTo(pr.dataset.row); setTimeout(()=>paint(true),250); }
   });
-  EL.addEventListener('toggle', e=>{ const d=e.target; if(S.tab==='f' && d.classList && d.classList.contains('fxc') && d.dataset.id){ if(d.open) S.open[d.dataset.id]=1; else delete S.open[d.dataset.id]; save(); } }, true);
+  EL.addEventListener('toggle', e=>{ const d=e.target; if(d.classList && d.classList.contains('fxsec') && d.dataset.sec){ SECOPEN[d.dataset.sec]=d.open; return; } if(S.tab==='now' && d.classList && d.classList.contains('fxc') && d.dataset.id){ if(d.open) NOWOPEN.add(d.dataset.id); else NOWOPEN.delete(d.dataset.id); return; } if(S.tab==='f' && d.classList && d.classList.contains('fxc') && d.dataset.id){ if(d.open) S.open[d.dataset.id]=1; else delete S.open[d.dataset.id]; save(); } }, true);
   /* 끌어 옮기기 */
   const hd=$('.fxhd',EL); let D=null;
   hd.addEventListener('pointerdown', e=>{ if(phone() || e.target.closest('button,input,select')) return;
@@ -652,7 +753,7 @@ let PLACING=false;
 function place(){
   if(!EL || phone()) return;
   PLACING=true; requestAnimationFrame(()=>requestAnimationFrame(()=>{ PLACING=false; }));
-  const w=Math.min(S.w||460, innerWidth-12), h=Math.min(S.h||620, innerHeight-12);
+  const w=Math.min((S.w===460?400:S.w)||400, innerWidth-12), h=Math.min(S.h||620, innerHeight-12);
   let x=S.x, y=S.y;
   if(x==null){ x=innerWidth-w-16; y=64; }
   x=Math.max(0,Math.min(innerWidth-Math.min(w,160), x)); y=Math.max(0,Math.min(innerHeight-60, y));
@@ -709,12 +810,13 @@ function rowMatch(r,q){
 
 /* 해설 기호식 → 내 공식으로 */
 let SYMS=[];
+const NOWOPEN=new Set(), SECOPEN={};   /* 이 문제 탭 — 기본은 접힘, 이번에 편 것만 기억 */
 function addFromSym(i){
   const r=rowOf(viewId()); const line=SYMS[i]; if(!r || !line) return;
   const def=stepFor(r.easy_md,line) || '새 공식';
   const name=prompt('공식 이름 (나중에 공식별에서 찾을 이름)', def); if(name==null) return;
   const id='u'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
-  U.items[id]={ id, name:(name.trim()||def), cat:CUSTOM_CAT, tex:line, ko:koFor(r.easy_md,line), sy:symsFor(r.easy_md,line), t:Date.now() };
+  U.items[id]={ id, name:(name.trim()||def), cat:CUSTOM_CAT, tex:line, ko:isKoLine(line)?'':koFor(r.easy_md,line), sy:symsFor(r.easy_md,line), t:Date.now() };
   U.links[String(r.id)+'|'+id]={ on:true, t:Date.now() };
   usave(); say(`📐 «${name.trim()||def}» 공식으로 추가 — 같은 식을 쓴 다른 문항에도 저절로 붙음`); paint(true);
 }
@@ -723,6 +825,7 @@ let PSIG='';
 function paint(force, focus, keepFocus){
   if(!isOpen()) return;
   const I=build(), me=viewId();
+  if(me!==paint.__me){ paint.__me=me; NOWOPEN.clear(); }
   const sig=S.tab+'|'+me+'|'+Q+'|'+ISIG+'|'+S.cat+'|'+S.sort+'|'+S.ny+'|'+S.ns;
   if(!force && sig===PSIG) return; PSIG=sig;
   $$('.fxtabs [data-tab]',EL).forEach(b=>b.classList.toggle('on', b.dataset.tab===S.tab));
@@ -741,22 +844,24 @@ function paint(force, focus, keepFocus){
       const main=ids.filter(f=>!f.basic), base=ids.filter(f=>f.basic);
       h+=`<div class="fxnow"><b>${esc(pnameLong(r))}</b>${!VIEW||VIEW===curId()?'<span class="fol">지금 보는 문항</span>':''}</div>${tyC(r)?`<div class="fxty">유형 · ${esc(tyC(r))}</div>`:''}`;
       h+=`<div class="fxh">이 문제에 쓰는 공식 <small>정석식 · 말로 · 부호 · 출제율</small></div>`;
-      h+= main.length ? main.map(f=>card(f,{open:true,chips:false,unlink:true})).join('') : '<div class="fxemp">딱 맞는 공식을 못 찾음 — 단답·서술형이거나 목록에 없는 식 (아래 «해설에 쓴 식» 에서 추가)</div>';
-      if(base.length) h+=`<div class="fxh">기본식 <small>여러 문제에 두루 쓰임</small></div>`+base.map(f=>card(f,{open:false,chips:false,unlink:true})).join('');
+      h+= main.length ? main.map(f=>card(f,{open:NOWOPEN.has(f.id),chips:false,unlink:true})).join('') : '<div class="fxemp">딱 맞는 공식을 못 찾음 — 단답·서술형이거나 목록에 없는 식 (아래 «해설에 쓴 식» 에서 추가)</div>';
+      if(base.length) h+=`<div class="fxh">기본식 <small>여러 문제에 두루 쓰임</small></div>`+base.map(f=>card(f,{open:NOWOPEN.has(f.id),chips:false,unlink:true})).join('');
       SYMS=symLines(r.easy_md);
       const all=ALL();
       if(SYMS.length){
-        h+=`<div class="fxh">해설에 쓴 식 <small>목록에 없는 식은 ＋ 로 내 공식에 추가</small></div>`;
+        const nNew=SYMS.filter(l=>!symMatch(l, all)).length;
+        h+=`<details class="fxsec" data-sec="sym"${SECOPEN.sym?' open':''}><summary class="fxh"><span class="car">▶</span>해설에 쓴 식 <small>${SYMS.length}개${nNew?` · 목록에 없는 식 ${nNew}개 (＋ 로 추가)`:''}</small></summary>`;
         h+=SYMS.map((l,i)=>{
-          const f=symMatch(l, all), linked=f && ids.some(x=>x.id===f.id), ko=koFor(r.easy_md,l), stp=stepFor(r.easy_md,l);
+          const kl=isKoLine(l), f=symMatch(l, all), linked=f && ids.some(x=>x.id===f.id), ko=kl?'':koFor(r.easy_md,l), stp=stepFor(r.easy_md,l);
           const ft = f ? (linked ? `<span>✓ «${esc(f.name)}» 와 같은 식</span>` : `<span>«${esc(f.name)}» 와 같은 식</span><button type="button" class="add" data-linksym="${esc(f.id)}">이 문제에 연결</button>`)
                        : `<button type="button" class="add" data-addsym="${i}">＋ 공식으로 추가</button>`;
-          return `<div class="sym"><div class="eqr"><span class="k">기호</span><div class="m">${tex(l,true)}</div></div>${ko?`<div class="eqr"><span class="k ko">말로</span><div class="m">${tex(ko,true)}</div></div>`:''}<div class="ft">${stp?`<span class="stp">${esc(stp)}</span>`:''}${ft}</div></div>`;
+          return `<div class="sym"><div class="eqr"><span class="k${kl?' ko':''}">${kl?'말로':'기호'}</span><div class="m">${tex(l,true)}</div></div>${ko?`<div class="eqr"><span class="k ko">말로</span><div class="m">${tex(ko,true)}</div></div>`:''}<div class="ft">${stp?`<span class="stp">${esc(stp)}</span>`:''}${ft}</div></div>`;
         }).join('');
+        h+='</details>';
       }
       const have=new Set(ids.map(f=>f.id));
       const pickable=all.filter(f=>!have.has(f.id));
-      h+=`<div class="fxh">공식 직접 연결 <small>빠진 공식을 이 문제에 붙이기</small></div><div class="lnk"><select aria-label="연결할 공식"><option value="">공식 고르기…</option>${uniq(pickable.map(f=>f.cat)).map(c=>`<optgroup label="${esc(c)}">${pickable.filter(f=>f.cat===c).map(f=>`<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('')}</optgroup>`).join('')}</select><button type="button" data-linkpick>＋ 연결</button></div>`;
+      h+=`<details class="fxsec" data-sec="lnk"${SECOPEN.lnk?' open':''}><summary class="fxh"><span class="car">▶</span>공식 직접 연결 <small>빠진 공식을 이 문제에 붙이기</small></summary><div class="lnk"><select aria-label="연결할 공식"><option value="">공식 고르기…</option>${uniq(pickable.map(f=>f.cat)).map(c=>`<optgroup label="${esc(c)}">${pickable.filter(f=>f.cat===c).map(f=>`<option value="${esc(f.id)}">${esc(f.name)}</option>`).join('')}</optgroup>`).join('')}</select><button type="button" data-linkpick>＋ 연결</button></div></details>`;
     }
   }else if(S.tab==='f'){
     const all=ALL(); const cats=uniq(all.map(f=>f.cat));
@@ -820,5 +925,5 @@ setInterval(()=>{ try{ mount();
 document.addEventListener('click', e=>{ const c=e.target.closest && e.target.closest('#list > .pcard[data-id]'); if(c) LASTCARD=String(c.dataset.id); }, true);
 addEventListener('resize', ()=>{ try{ place() }catch(e){ q_(e) } });
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && isOpen()) pull(true).catch(q_); });
-window.__pracFx={ open, close, lib:LIB, all:ALL, build, symLines, symMatch, nrm, koFor, symsFor };
+window.__pracFx={ open, close, lib:LIB, all:ALL, build, symLines, symMatch, nrm, nrmK, isKoEq, koFor, symsFor };
 })();
