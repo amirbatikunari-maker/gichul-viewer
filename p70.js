@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   v347–v350 · 📐 공식 모음 — 미니맵 옆 «📐 공식» 단추 → 맨 위에 뜨는 창
+   v347–v351 · 📐 공식 모음 — 미니맵 옆 «📐 공식» 단추 → 맨 위에 뜨는 창
    · 이 문제   : 지금 문항에 필요한 공식(정석식) + 해설에 쓴 기호식
    · 공식별    : 단원 → 공식 → 그 공식이 나온 문항(19년 3회 7번 …) — 누르면 그 문항으로
    · 번호별    : 회차 → 번호 → 그 문항의 공식
@@ -22,16 +22,17 @@ const q_=e=>{ try{ globalThis.__q?.(e) }catch(x){} };
    정의된 것은 모두 맞아야 짝지음. basic=true 는 «기본식» (여러 문항에 두루 쓰임 — 이 문제 탭에서 뒤로) */
 const LIB=[
 /* ── 전력·역률 ── */
-{id:'p3',cat:'전력·역률',name:'3상 유효전력',tex:R`P=\sqrt{3}\,V I\cos\theta`,
+{id:'p3',cat:'전력·역률',name:'3상 유효전력',kf:[R`\cos\theta=\dfrac{P}{\sqrt3\,V\,I}`,R`\cos\theta=\dfrac{P}{\sqrt3\,V\,I}\times100`,R`P_a=\sqrt3\,V\,I`,R`P_a=\sqrt3\,V\,I\times10^{-3}`],tex:R`P=\sqrt{3}\,V I\cos\theta`,
  alt:[R`I=\dfrac{P}{\sqrt{3}\,V\cos\theta}`,R`P_a=\sqrt{3}\,VI\;(\text{피상}),\quad Q=\sqrt{3}\,VI\sin\theta\;(\text{무효})`],
  v:'V 선간전압 · I 선전류 · cosθ 역률',basic:1,
  m:{q:/3\s*상|3\s*[φΦ∅ϕ]/,x:/(√\s*3|\\sqrt\s*\{?\s*3)[^\n]{0,60}(cos|역률|0\.\d)|역률/}},
+{id:'vph',cat:'전력·역률',name:'상전압 ↔ 선간전압 (Y결선)',tex:R`E=\dfrac{V}{\sqrt3}`,alt:[R`V=\sqrt3\,E`],kf:[R`V_1=\dfrac{V_l}{\sqrt3}`,R`V_p=\dfrac{V_l}{\sqrt3}`,R`E=\dfrac{V_l}{\sqrt3}`],v:'E 상전압(대지전압) · V 선간전압',basic:1},
 {id:'p1',cat:'전력·역률',name:'단상 유효전력',tex:R`P=VI\cos\theta`,alt:[R`I=\dfrac{P}{V\cos\theta}`],
  v:'V 전압 · I 전류 · cosθ 역률',basic:1,m:{q:/단상/,x:/역률|cos/}},
-{id:'pq',cat:'전력·역률',name:'피상·유효·무효전력 관계',tex:R`P_a=\sqrt{P^2+Q^2},\quad \cos\theta=\dfrac{P}{P_a},\quad Q=P\tan\theta`,
+{id:'pq',cat:'전력·역률',name:'피상·유효·무효전력 관계',kf:[R`P_a=\dfrac{P}{\cos\theta}`,R`P=P_a\cos\theta`,R`P_r=P_a\sin\theta`,R`Q=P_a\sin\theta`,R`P_a=\sqrt{P^2+P_r^2}`,R`\cos\theta=\dfrac{P}{\sqrt{P^2+Q^2}}`,R`\cos\theta=\dfrac{P}{\sqrt{P^2+Q^2}}\times100`,R`\cos\theta=\dfrac{P}{P_a}\times100`,R`P_a=\dfrac{P}{\eta\cos\theta}`],tex:R`P_a=\sqrt{P^2+Q^2},\quad \cos\theta=\dfrac{P}{P_a},\quad Q=P\tan\theta`,
  alt:[R`\sin\theta=\sqrt{1-\cos^2\theta}`,R`\tan\theta=\dfrac{\sin\theta}{\cos\theta}=\dfrac{\sqrt{1-\cos^2\theta}}{\cos\theta}`],
  v:'P 유효 · Q 무효 · Pa 피상',m:{q:/피상\s*전력|무효\s*전력/}},
-{id:'pcomb',cat:'전력·역률',name:'합성(종합) 역률',tex:R`\cos\theta=\dfrac{\sum P}{\sqrt{\left(\sum P\right)^2+\left(\sum Q\right)^2}}`,
+{id:'pcomb',cat:'전력·역률',name:'합성(종합) 역률',kf:[R`Q=\dfrac{P_1}{\cos\theta_1}\sin\theta_1+\dfrac{P_2}{\cos\theta_2}\sin\theta_2`],tex:R`\cos\theta=\dfrac{\sum P}{\sqrt{\left(\sum P\right)^2+\left(\sum Q\right)^2}}`,
  v:'부하마다 P·Q 를 따로 더한 뒤 계산',m:{q:/합성\s*역률|종합\s*역률|전체\s*(의)?\s*역률|평균\s*역률/}},
 
 /* ── 역률 개선 ── */
@@ -47,11 +48,11 @@ const LIB=[
 {id:'qcloss',cat:'역률 개선',name:'역률 개선 시 손실 감소',tex:R`\dfrac{P_{l2}}{P_{l1}}=\left(\dfrac{\cos\theta_1}{\cos\theta_2}\right)^2`,
  alt:[R`\text{감소율}=\left[1-\left(\dfrac{\cos\theta_1}{\cos\theta_2}\right)^2\right]\times100`],
  v:'손실은 전류² 에 비례 → 역률² 에 반비례',m:{q:/역률/,x:/손실[^.\n]{0,20}(감소|줄|경감|저감)|(감소|저감)[^.\n]{0,10}손실/}},
-{id:'srx',cat:'역률 개선',name:'직렬 리액터 용량',tex:R`X_L=0.04\,X_C\;(\text{이론}),\qquad X_L=0.06\,X_C\;(\text{실제})`,
+{id:'srx',cat:'역률 개선',name:'직렬 리액터 용량',kf:[R`\omega L=\dfrac{1}{5^2}\cdot\dfrac{1}{\omega C}`],tex:R`X_L=0.04\,X_C\;(\text{이론}),\qquad X_L=0.06\,X_C\;(\text{실제})`,
  v:'제5고조파 억제 — 5ωL > 1/(5ωC)',m:{q:/직렬\s*리액터/}},
 
 /* ── 전압강하·전선 ── */
-{id:'vd3',cat:'전압강하·전선',name:'3상 전압강하',tex:R`e=\sqrt{3}\,I\left(R\cos\theta+X\sin\theta\right)`,
+{id:'vd3',cat:'전압강하·전선',name:'3상 전압강하',kf:[R`e=\dfrac{P}{V_r}\left(R+X\tan\theta\right)`,R`P=\dfrac{e\,V}{R+X\tan\theta}`,R`V_B=V_A-\sqrt3\,I_1\left(R_1\cos\theta+X_1\sin\theta\right)`,R`V_C=V_B-\sqrt3\,I_2\left(R_2\cos\theta+X_2\sin\theta\right)`],tex:R`e=\sqrt{3}\,I\left(R\cos\theta+X\sin\theta\right)`,
  alt:[R`e=\dfrac{P}{V}\left(R+X\tan\theta\right)`],v:'R·X 한 선(상)의 저항·리액턴스',
  m:{q:/전압\s*강하/,x:/리액턴스|X\s*sin|sin\s*θ|\\sin|Ω\s*\/\s*km|\[\s*Ω\s*\/\s*km\s*\]/,no:/단상\s*2\s*선/}},
 {id:'vd1',cat:'전압강하·전선',name:'단상 2선식 전압강하',tex:R`e=2I\left(R\cos\theta+X\sin\theta\right)`,
@@ -73,10 +74,10 @@ const LIB=[
 {id:'lossf',cat:'전력손실',name:'손실계수',tex:R`H=\alpha F+(1-\alpha)F^2`,v:'F 부하율 · α 0.1~0.4',m:{q:/손실\s*계수/}},
 
 /* ── 수용·부하 ── */
-{id:'demand',cat:'수용·부하',name:'수용률',tex:R`\text{수용률}=\dfrac{\text{최대 수용전력}}{\text{설비용량}}\times100\;[\%]`,m:{q:/수용\s*률/}},
-{id:'divers',cat:'수용·부하',name:'부등률',tex:R`\text{부등률}=\dfrac{\text{개별 최대 수용전력의 합}}{\text{합성 최대 수용전력}}\ \ (\ge 1)`,m:{q:/부등\s*률/}},
-{id:'loadf',cat:'수용·부하',name:'부하율',tex:R`\text{부하율}=\dfrac{\text{평균 전력}}{\text{최대 전력}}\times100\;[\%]`,alt:[R`\text{평균 전력}=\dfrac{\text{사용 전력량}}{\text{시간}}`],m:{q:/부하\s*율/,no:/최대\s*효율|철손|동손|전일\s*효율/}},
-{id:'trcap',cat:'수용·부하',name:'변압기 용량 산정',tex:R`P_{TR}\ge\dfrac{\sum\left(\text{설비용량}\times\text{수용률}\right)}{\text{부등률}\times\cos\theta}\;[\text{kVA}]`,
+{id:'demand',cat:'수용·부하',name:'수용률',kf:[R`\text{수용률}=\dfrac{\text{최대수요전력}}{\text{부하설비합계}}\times100`,R`\text{수용률}=\dfrac{\text{최대수요전력}}{\text{설비용량}}\times100`],tex:R`\text{수용률}=\dfrac{\text{최대 수용전력}}{\text{설비용량}}\times100\;[\%]`,m:{q:/수용\s*률/}},
+{id:'divers',cat:'수용·부하',name:'부등률',kf:[R`\text{합성최대수요전력}=\dfrac{\text{설비용량}\times\text{수용률}}{\text{부등률}}`,R`\text{합성최대전력}=\dfrac{\text{설비용량}\times\text{수용률}}{\text{부등률}}`],tex:R`\text{부등률}=\dfrac{\text{개별 최대 수용전력의 합}}{\text{합성 최대 수용전력}}\ \ (\ge 1)`,m:{q:/부등\s*률/}},
+{id:'loadf',cat:'수용·부하',name:'부하율',kf:[R`\text{일부하율}=\dfrac{\text{평균수요전력}}{\text{최대수요전력}}\times100`,R`\text{부하율}=\dfrac{\text{평균수요전력}}{\text{최대수요전력}}\times100`],tex:R`\text{부하율}=\dfrac{\text{평균 전력}}{\text{최대 전력}}\times100\;[\%]`,alt:[R`\text{평균 전력}=\dfrac{\text{사용 전력량}}{\text{시간}}`],m:{q:/부하\s*율/,no:/최대\s*효율|철손|동손|전일\s*효율/}},
+{id:'trcap',cat:'수용·부하',name:'변압기 용량 산정',kf:[R`\text{변압기용량}=\dfrac{\text{설비용량}\times\text{수용률}}{\text{부등률}\times\text{역률}\times\text{효율}}`,R`\text{변압기용량}=\dfrac{\text{설비용량}\times\text{수용률}}{\text{부등률}\times\text{역률}}`,R`P_{Tr}=\dfrac{\text{설비용량}\times\text{수용률}}{\text{부등률}\times\text{역률}}`],tex:R`P_{TR}\ge\dfrac{\sum\left(\text{설비용량}\times\text{수용률}\right)}{\text{부등률}\times\cos\theta}\;[\text{kVA}]`,
  v:'계산값보다 한 단계 큰 표준 용량을 고름',m:{q:/변압기\s*(의)?\s*(용량|표준\s*용량|정격\s*용량|크기)/,x:/수용\s*률|부등\s*률/}},
 {id:'branch',cat:'수용·부하',name:'분기회로 수',tex:R`N=\dfrac{\text{부하 설비용량}[\text{VA}]}{\text{사용전압}\times\text{분기회로 전류}}`,
  v:'소수점은 올림 (16 A·20 A 분기 등)',m:{q:/분기\s*회로\s*(수|를|의\s*수)?/}},
@@ -84,31 +85,34 @@ const LIB=[
  v:'단상 3선 40 % 이하 · 3상 30 % 이하',m:{q:/불평형\s*률|설비\s*불평형/}},
 
 /* ── 변압기 ── */
-{id:'ocp',cat:'수용·부하',name:'과부하 보호 협조 (KEC)',tex:R`I_B\le I_n\le I_Z`,alt:[R`I_2\le1.45\,I_Z`],v:'IB 설계전류 · In 보호장치 정격전류 · IZ 전선 허용전류 · I2 보호장치 확실한 동작전류',m:{q:/보호\s*협조|과부하\s*보호|설계\s*전류|I_?\{?[BZ]\b/,x:/허용\s*전류|1\.45|I_?\{?Z/}},
-{id:'feed',cat:'수용·부하',name:'전동기 간선 허용전류 (KEC 이전)',tex:R`I_a\ge1.25\sum I_M+\sum I_H\quad(\sum I_M\le50\,\text{A})`,alt:[R`I_a\ge1.1\sum I_M+\sum I_H\quad(\sum I_M>50\,\text{A})`],v:'IM 전동기 정격전류 합 · IH 전동기 외 부하전류 합 — 2021 KEC 이전 기출',m:{q:/간선\s*(의)?\s*(허용\s*전류|굵기|최소|전선)/,x:/전동기/}},
-{id:'treff',cat:'변압기',name:'변압기 효율',tex:R`\eta=\dfrac{mP\cos\theta}{mP\cos\theta+P_i+m^2P_c}\times100\;[\%]`,
+{id:'subarea',cat:'수용·부하',name:'변전실 추정 면적',tex:R`A=k\times(\text{변압기 용량 [kVA]})^{0.7}\;[\text{m}^2]`,v:'k 추정계수 (형식·전압별 표값)',m:{q:/변전실.{0,80}(추정\s*)?(면적|넓이)/}},
+{id:'contract',cat:'수용·부하',name:'계약전력 (설비용량 환산)',tex:R`P_{\text{계약}}=\sum\left(\text{구간 설비용량}\times\text{환산율}\right)`,v:'처음 75 kW 100% · 다음 75 kW 85% · 다음 75 kW 75% · 다음 75 kW 65% · 300 kW 초과분 60% (한전 약관)',m:{q:/계약\s*(최대\s*)?전력/,x:/환산\s*율/,no:/아파트|세대/}},
+{id:'spot',cat:'수용·부하',name:'스폿 네트워크 변압기 용량',tex:R`P_T=\dfrac{P_m}{n-1}\times\dfrac{100}{\alpha}`,kf:[R`\text{변압기용량}=\dfrac{\text{최대수요전력}}{\text{최대회선수}-1}\times\dfrac{100}{\text{과부하율}}`],v:'Pm 최대 수요전력 · n 회선 수 (한 회선 빠져도 버팀) · α 과부하율 [%]',m:{q:/스폿|spot\s*network/i,x:/과부하\s*율|회선\s*수\s*-\s*1|n\s*-\s*1/}},
+{id:'lcen',cat:'수용·부하',name:'부하 중심 거리',tex:R`L=\dfrac{\sum L_i\,I_i}{\sum I_i}`,kf:[R`L=\dfrac{L_1I_1+L_2I_2+L_3I_3}{I_1+I_2+I_3}`],v:'Li 각 부하까지 거리 · Ii 부하 전류(또는 전력) — 좌표면 X·Y 따로',m:{q:/부하\s*중심/}},
+{id:'treff',cat:'변압기',name:'변압기 효율',kf:[R`\eta=\dfrac{m\,P_a\cos\theta}{m\,P_a\cos\theta+P_i+m^2P_c}\times100`],tex:R`\eta=\dfrac{mP\cos\theta}{mP\cos\theta+P_i+m^2P_c}\times100\;[\%]`,
  v:'m 부하율 · Pi 철손 · Pc 전부하 동손',m:{q:/변압기/,x:/철손|동손|무부하\s*손|부하\s*손/,no:/전일\s*효율/}},
 {id:'trmax',cat:'변압기',name:'최대 효율 조건',tex:R`P_i=m^2P_c\quad\Rightarrow\quad m=\sqrt{\dfrac{P_i}{P_c}}`,v:'철손 = 동손 일 때 최대',m:{q:/최대\s*효율/}},
 {id:'trday',cat:'변압기',name:'전일 효율',tex:R`\eta_d=\dfrac{\sum hP}{\sum hP+24P_i+\sum h\,m^2P_c}\times100`,v:'h 시간 · 철손은 24시간 내내',m:{q:/전일\s*효율/}},
-{id:'vconn',cat:'변압기',name:'V 결선',tex:R`P_V=\sqrt{3}\,P_1,\qquad \text{이용률}=\dfrac{\sqrt3}{2}=0.866,\qquad \text{출력비}=\dfrac{1}{\sqrt3}=0.577`,
+{id:'tap',cat:'변압기',name:'변압기 탭 조정',tex:R`E_1'=E_1\times\dfrac{V_2}{V_2'}`,kf:[R`E_1=\dfrac{V_1}{V_2}\times E_2`],v:'E1 지금 탭 전압 · V2 지금 2차 전압 · V2′ 맞추려는 2차 전압 — 계산값에 가까운 탭 선택',m:{q:/[탭랩].{0,80}(얼마|몇)/,x:/(고압|1\s*차)\s*측/,no:/계전기/}},
+{id:'vconn',cat:'변압기',name:'V 결선',kf:[R`P_1=\dfrac{P_V}{\sqrt3}`,R`P_1=\dfrac{P_v}{\sqrt3}`],tex:R`P_V=\sqrt{3}\,P_1,\qquad \text{이용률}=\dfrac{\sqrt3}{2}=0.866,\qquad \text{출력비}=\dfrac{1}{\sqrt3}=0.577`,
  v:'P₁ 변압기 1대 용량',m:{q:/V\s*결선|V\s*-\s*V\s*결선|이용\s*률|출력\s*비/}},
 {id:'trpar',cat:'변압기',name:'병렬운전 부하분담',tex:R`\dfrac{P_a}{P_b}=\dfrac{P_A}{P_B}\cdot\dfrac{\%Z_b}{\%Z_a}`,v:'분담은 용량에 비례 · %Z 에 반비례',m:{q:/병렬\s*운전/,x:/분담|부하/}},
 {id:'auto',cat:'변압기',name:'단권변압기 자기용량',tex:R`\dfrac{\text{자기용량}}{\text{부하용량}}=\dfrac{V_h-V_l}{V_h}`,m:{q:/단권\s*변압기/}},
 {id:'trreg',cat:'변압기',name:'변압기 전압변동률',tex:R`\varepsilon=p\cos\theta+q\sin\theta`,v:'p %저항강하 · q %리액턴스강하',m:{q:/전압\s*변동\s*률/,x:/변압기/}},
 
 /* ── %임피던스·단락·차단 ── */
-{id:'pz',cat:'%임피던스·단락',name:'%임피던스 ↔ 옴',tex:R`\%Z=\dfrac{I_nZ}{E}\times100=\dfrac{P\,Z}{10\,V^2}`,alt:[R`Z=\dfrac{10\,V^2\,\%Z}{P}\;[\Omega]`],
+{id:'pz',cat:'%임피던스·단락',name:'%임피던스 ↔ 옴',kf:[R`X=\dfrac{\%X\times10\,V^2}{P}`],tex:R`\%Z=\dfrac{I_nZ}{E}\times100=\dfrac{P\,Z}{10\,V^2}`,alt:[R`Z=\dfrac{10\,V^2\,\%Z}{P}\;[\Omega]`],
  v:'P [kVA] · V [kV] · Z [Ω]',m:{q:/(%\s*[ZXR]|퍼센트\s*(임피던스|리액턴스)|%\s*임피던스|%\s*리액턴스)/,x:/\[\s*Ω\s*\]|Ω|옴/}},
-{id:'pzb',cat:'%임피던스·단락',name:'기준용량 환산',tex:R`\%Z'=\%Z\times\dfrac{P_{\text{기준}}}{P_{\text{자기}}}`,v:'모든 %Z 를 같은 기준 용량으로 맞춘 뒤 더함',
+{id:'pzb',cat:'%임피던스·단락',name:'기준용량 환산',kf:[R`\%Z_{new}=\dfrac{P_{new}}{P_{old}}\times\%Z_{old}`],tex:R`\%Z'=\%Z\times\dfrac{P_{\text{기준}}}{P_{\text{자기}}}`,v:'모든 %Z 를 같은 기준 용량으로 맞춘 뒤 더함',
  m:{q:/(%\s*[ZX]|%\s*임피던스|%\s*리액턴스)/,x:/기준|환산|\[\s*MVA\s*\]\s*기준|MVA\s*기준/}},
-{id:'is',cat:'%임피던스·단락',name:'단락전류',tex:R`I_s=\dfrac{100}{\%Z}\,I_n`,alt:[R`I_n=\dfrac{P_n}{\sqrt3\,V_n}`,R`I_s=\dfrac{E}{Z}\;(\text{옴법})`],v:'In 기준용량의 정격전류',m:{q:/단락\s*전류/}},
-{id:'ps',cat:'%임피던스·단락',name:'단락용량',tex:R`P_s=\dfrac{100}{\%Z}\,P_n`,v:'Pn 기준용량',m:{q:/단락\s*용량/}},
+{id:'is',cat:'%임피던스·단락',name:'단락전류',kf:[R`I_s=\dfrac{100}{\%Z}\,I_n`],tex:R`I_s=\dfrac{100}{\%Z}\,I_n`,alt:[R`I_n=\dfrac{P_n}{\sqrt3\,V_n}`,R`I_s=\dfrac{E}{Z}\;(\text{옴법})`],v:'In 기준용량의 정격전류',m:{q:/단락\s*전류/}},
+{id:'ps',cat:'%임피던스·단락',name:'단락용량',kf:[R`\%Z_s=\dfrac{P_n}{P_s}\times100`,R`\%Z=\dfrac{P_n}{P_s}\times100`],tex:R`P_s=\dfrac{100}{\%Z}\,P_n`,v:'Pn 기준용량',m:{q:/단락\s*용량/}},
 {id:'cb',cat:'%임피던스·단락',name:'차단기 차단용량',tex:R`P_s=\sqrt3\,V_n\,I_s`,v:'Vn 정격전압 · Is 정격차단전류 — 계산값보다 한 단계 큰 표준값',m:{q:/차단\s*(기\s*(의)?\s*)?(용량|정격\s*차단\s*전류)|정격\s*차단\s*(용량|전류)/}},
 {id:'pz3',cat:'%임피던스·단락',name:'3권선 변압기 %X',tex:R`\%X_1=\tfrac12\left(\%X_{12}+\%X_{13}-\%X_{23}\right)`,
  alt:[R`\%X_2=\tfrac12\left(\%X_{12}+\%X_{23}-\%X_{13}\right),\quad \%X_3=\tfrac12\left(\%X_{13}+\%X_{23}-\%X_{12}\right)`],v:'먼저 모두 같은 기준용량으로 환산',m:{q:/3\s*권선/}},
 {id:'pzsum',cat:'%임피던스·단락',name:'%Z 합성 (직렬·병렬)',tex:R`\%Z_{\text{직렬}}=\%Z_1+\%Z_2,\qquad \%Z_{\text{병렬}}=\dfrac{\%Z_1\,\%Z_2}{\%Z_1+\%Z_2}`,
  m:{q:/(%\s*[ZX]|%\s*임피던스|%\s*리액턴스)/,x:/합성|직렬|병렬/}},
-{id:'in',cat:'%임피던스·단락',name:'정격(부하)전류',tex:R`I_n=\dfrac{P_n}{\sqrt3\,V_n}`,v:'3상 · P [kVA] · V [kV] → I [A]',basic:1,m:{q:/정격\s*전류|부하\s*전류|전부하\s*전류/,x:/3\s*상|√\s*3|\\sqrt\s*\{?3/}},
+{id:'in',cat:'%임피던스·단락',name:'정격(부하)전류',kf:[R`I=\dfrac{P}{\sqrt3\,V}`,R`I_n=\dfrac{P}{\sqrt3\,V}`,R`I_1=\dfrac{P}{\sqrt3\,V}`,R`I=\dfrac{P}{\sqrt3\,V\cos\theta}`,R`I=\dfrac{P}{\sqrt3\,V\cos\theta\,\eta}`,R`P_n=\sqrt3\,V\,I_n`],tex:R`I_n=\dfrac{P_n}{\sqrt3\,V_n}`,v:'3상 · P [kVA] · V [kV] → I [A]',basic:1,m:{q:/정격\s*전류|부하\s*전류|전부하\s*전류/,x:/3\s*상|√\s*3|\\sqrt\s*\{?3/}},
 
 /* ── CT·PT·계전기·계기 ── */
 {id:'ct',cat:'CT·PT·계전기',name:'CT 1차 정격전류 선정',tex:R`I_1=\dfrac{P}{\sqrt3\,V}\times(1.25\sim1.5)`,v:'계산값 바로 위 표준값(…100·150·200 A) 선택',m:{q:/(CT|변류기)/,x:/변류\s*비|정격\s*전류|1\s*차\s*(정격)?\s*전류|선정|(CT|변류기)\s*\d*\s*(의)?\s*(변류)?\s*비\s*(를|을)\s*(구|선정|정하)/}},
@@ -116,75 +120,98 @@ const LIB=[
  v:'과전류 계전기(OCR) 정정은 보통 부하전류의 150 %',m:{q:/(계전기|OCR|과전류\s*계전기)/,x:/(탭|tap|TAP|정정|흐르는\s*전류|2\s*차\s*전류)/i}},
 {id:'burden',cat:'CT·PT·계전기',name:'CT 부담',tex:R`P=I^2Z\;[\text{VA}]`,alt:[R`Z=\dfrac{P}{I^2}`],v:'CT 2차 정격 5 A',m:{q:/부담/,x:/CT|변류기|VA|\[\s*VA\s*\]/}},
 {id:'meter',cat:'CT·PT·계전기',name:'계기 지시 → 실제 전력',tex:R`P=\text{지시값}\times\text{CT비}\times\text{PT비}`,m:{q:/(PT|계기용\s*변압기|변성기|MOF)/,x:/(지시|측정|전력계|배율|수전\s*전력)/}},
-{id:'wh',cat:'CT·PT·계전기',name:'전력량계 계기정수',tex:R`P=\dfrac{3600\,n}{t\,K}\times\text{CT비}\times\text{PT비}\;[\text{kW}]`,v:'n 회전수 · t 초 · K 계기정수[rev/kWh]',m:{q:/계기\s*정수|원판|rev\s*\/\s*kWh/i,x:/전력량\s*계|적산\s*전력계|계기\s*정수/}},
-{id:'err',cat:'CT·PT·계전기',name:'오차율 · 보정률',tex:R`\text{오차율}=\dfrac{M-T}{T}\times100,\qquad \text{보정률}=\dfrac{T-M}{M}\times100`,v:'M 측정값 · T 참값',m:{q:/오차\s*율|보정\s*률/}},
+{id:'wh',cat:'CT·PT·계전기',name:'전력량계 계기정수',kf:[R`P_M=\dfrac{3600\,n}{t\,k}`,R`P=\dfrac{3600\,n}{t\,K}`],tex:R`P=\dfrac{3600\,n}{t\,K}\times\text{CT비}\times\text{PT비}\;[\text{kW}]`,v:'n 회전수 · t 초 · K 계기정수[rev/kWh]',m:{q:/계기\s*정수|원판|rev\s*\/\s*kWh/i,x:/전력량\s*계|적산\s*전력계|계기\s*정수/}},
+{id:'err',cat:'CT·PT·계전기',name:'오차율 · 보정률',kf:[R`\varepsilon=\dfrac{M-T}{T}\times100`,R`\varepsilon=\dfrac{T-M}{M}\times100`,R`\alpha=\dfrac{T-M}{M}\times100`,R`\varepsilon=M-T`,R`\alpha=T-M`,R`T=\dfrac{M}{1+\varepsilon}`],tex:R`\text{오차율}=\dfrac{M-T}{T}\times100,\qquad \text{보정률}=\dfrac{T-M}{M}\times100`,v:'M 측정값 · T 참값',m:{q:/오차\s*율|보정\s*률/}},
 
 /* ── 조명 ── */
+{id:'w1',cat:'측정·계기',name:'1전력계법 (평형 3상)',tex:R`P_3=3\,W`,kf:[R`W_3=3W`,R`P=3W`],v:'W 전력계 1대 지시값 (한 상의 전력) — 평형 3상이라 3배',m:{q:/평형\s*3\s*상|3\s*상\s*평형/,x:/전력계\s*(의)?\s*지시/,no:/(2|두)\s*(개|대)\s*(의)?\s*전력계|전력계\s*(2|두)|(2|두)\s*전력계/}},
 {id:'w2',cat:'측정·계기',name:'2전력계법',tex:R`P=W_1+W_2`,alt:[R`Q=\sqrt3\,(W_1-W_2)`,R`\cos\theta=\dfrac{W_1+W_2}{2\sqrt{W_1^2+W_2^2-W_1W_2}}`],kf:[R`P=W_2+W_1`],v:'W1·W2 두 전력계 지시값 — 한쪽이 음(−)이면 빼서 더함',m:{q:/(2|두)\s*전력계|전력계\s*(2|두)\s*(대|개)/}},
 {id:'v3',cat:'측정·계기',name:'3전압계법',tex:R`P=\dfrac{V_3^2-V_1^2-V_2^2}{2R}`,alt:[R`\cos\theta=\dfrac{V_3^2-V_1^2-V_2^2}{2V_1V_2}`],v:'R 직렬로 넣은 기지 저항 · V3 전체 전압',m:{q:/(3|세)\s*전압계/}},
-{id:'a3',cat:'측정·계기',name:'3전류계법',tex:R`P=\dfrac{R}{2}\left(A_3^2-A_1^2-A_2^2\right)`,alt:[R`\cos\theta=\dfrac{A_3^2-A_1^2-A_2^2}{2A_1A_2}`],v:'R 병렬로 넣은 기지 저항 · A3 전체 전류',m:{q:/(3|세)\s*전류계/}},
-{id:'mult',cat:'측정·계기',name:'배율기 · 분류기',tex:R`R_m=(n-1)\,R_v`,alt:[R`R_s=\dfrac{R_a}{n-1}`,R`n=\dfrac{V}{V_v}=1+\dfrac{R_m}{R_v}`],v:'n 배율 (늘리려는 측정 범위 ÷ 원래 범위) · Rv 전압계 내부저항 · Ra 전류계 내부저항',m:{q:/배율기|분류기/}},
-{id:'kohl',cat:'측정·계기',name:'접지저항 측정 (콜라우시 브리지)',tex:R`R_x=\dfrac12\left(R_{ab}+R_{ca}-R_{bc}\right)`,v:'a 측정할 접지극 · b·c 보조 접지극 — 두 극 사이 저항 3개로 a 만 남김',m:{q:/콜라?우시|코올라우시|접지\s*저항/,x:/콜라?우시|코올라우시|R_?\{?(ab|bc|ca)|\b(ab|bc|ca)\s*(간|사이)|보조\s*접지/i}},
-{id:'wenner',cat:'측정·계기',name:'대지 저항률 (위너 4전극법)',tex:R`\rho=2\pi a R\;[\Omega\cdot\text{m}]`,v:'a 전극 간격 [m] · R 측정 저항 [Ω]',m:{q:/대지\s*(저항률|고유\s*저항)|위너|웨너|wenner|4\s*전극/i}},
-{id:'lamp',cat:'조명',name:'광속법 (등 수 · 평균 조도)',tex:R`N=\dfrac{D\,A\,E}{F\,U}=\dfrac{A\,E}{F\,U\,M}`,alt:[R`E=\dfrac{F\,U\,N}{D\,A}`,R`F=\dfrac{D\,A\,E}{N\,U}`],
+{id:'a3',cat:'측정·계기',name:'3전류계법',kf:[R`P=\dfrac{R}{2}\left(A_1^2-A_2^2-A_3^2\right)`,R`\cos\theta=\dfrac{A_1^2-A_2^2-A_3^2}{2A_2A_3}`],tex:R`P=\dfrac{R}{2}\left(A_3^2-A_1^2-A_2^2\right)`,alt:[R`\cos\theta=\dfrac{A_3^2-A_1^2-A_2^2}{2A_1A_2}`],v:'R 병렬로 넣은 기지 저항 · A3 전체 전류',m:{q:/(3|세)\s*전류계/}},
+{id:'mult',cat:'측정·계기',name:'배율기 · 분류기',kf:[R`\text{분류저항}=\dfrac{1}{\text{배율}-1}\times\text{전류계내부저항}`],tex:R`R_m=(n-1)\,R_v`,alt:[R`R_s=\dfrac{R_a}{n-1}`,R`n=\dfrac{V}{V_v}=1+\dfrac{R_m}{R_v}`],v:'n 배율 (늘리려는 측정 범위 ÷ 원래 범위) · Rv 전압계 내부저항 · Ra 전류계 내부저항',m:{q:/배율기|분류기/}},
+{id:'kohl',cat:'측정·계기',name:'접지저항 측정 (콜라우시 브리지)',kf:[R`R_3=\dfrac12\left(R_{13}+R_{32}-R_{12}\right)`,R`R_{13}+R_{32}-R_{12}=2R_3`],tex:R`R_x=\dfrac12\left(R_{ab}+R_{ca}-R_{bc}\right)`,v:'a 측정할 접지극 · b·c 보조 접지극 — 두 극 사이 저항 3개로 a 만 남김',m:{q:/콜라?우시|코올라우시|접지\s*저항/,x:/콜라?우시|코올라우시|R_?\{?(ab|bc|ca)|\b(ab|bc|ca)\s*(간|사이)|보조\s*접지|접지\s*판|상호\s*간/i,no:/전위\s*강하|전자식\s*접지\s*저항계/}},
+{id:'rod',cat:'접지·지락·절연',name:'접지봉 접지저항',tex:R`R=\dfrac{\rho}{2\pi l}\ln\dfrac{2l}{r}`,alt:[R`R=\dfrac{\rho}{2\pi l}\ln\dfrac{4l}{d}`],v:'ρ 대지 저항률 [Ω·m] · l 접지봉 길이 [m] · r 반지름 · d 지름 (같은 단위)',m:{q:/접지\s*봉/,x:/저항률|고유\s*저항/}},
+{id:'wenner',cat:'측정·계기',name:'대지 저항률 (위너 4전극법)',tex:R`\rho=2\pi a R\;[\Omega\cdot\text{m}]`,v:'a 전극 간격 [m] · R 측정 저항 [Ω]',m:{q:/위너|웨너|wenner|4\s*전극|대지\s*(저항률|고유\s*저항)\s*(을|를)?\s*(측정|구|계산)/i}},
+{id:'cterr',cat:'측정·계기',name:'변류기 비오차',tex:R`\varepsilon=\dfrac{K_n-K}{K}\times100\;[\%]`,alt:[R`K=\dfrac{I_1}{I_2}`],v:'Kn 공칭 변류비 · K 실제 변류비 (1차 전류 ÷ 2차 전류)',m:{q:/비\s*오차/}},
+{id:'thd',cat:'측정·계기',name:'고조파 왜형률 (THD)',tex:R`\text{THD}=\dfrac{\sqrt{V_3^2+V_5^2+\cdots}}{V_1}\times100\;[\%]`,alt:[R`V_3=\sqrt{V_p^2-V_1^2}\;(\text{상전압에 3고조파만 있을 때})`],kf:[R`\text{왜형률}=\dfrac{V_3}{V_1}\times100`,R`\text{THD}=\dfrac{V_3}{V_1}\times100`,R`THD=\dfrac{\sqrt{V_3^2+V_5^2+V_n^2}}{V_1}`,R`V_3=\sqrt{V_P^2-V_1^2}`],v:'V1 기본파 · V3·V5 고조파 실효값 — 선간전압엔 3고조파가 안 나타남',m:{q:/왜형률|THD|종합\s*고조파/i}},
+{id:'murray',cat:'측정·계기',name:'머레이 루프법 (고장점 거리)',tex:R`x=\dfrac{2L\,b}{a+b}`,alt:[R`a\,x=b\,(2L-x)`],kf:[R`a\times x=b\times(2L-x)`,R`x=\dfrac{2bL}{a+b}`,R`P\,X=Q\,(2L-X)`,R`X=\dfrac{Q}{P+Q}\times2L`],v:'L 선로 길이 · a·b 브리지 저항 (휘트스톤 평형) — 왕복이라 2L',m:{q:/머레이|murray/i,no:/열거|구분하여/}},
+{id:'fop',cat:'측정·계기',name:'전위강하법 (접지저항)',tex:R`R_E=\dfrac{V}{I}`,alt:[R`\dfrac{\overline{EP}}{\overline{EC}}=0.618\;(61.8\%\ \text{법칙})`],kf:[R`\dfrac{P}{C}=0.618`],v:'E 측정 접지극 · P 전위 보조극 · C 전류 보조극 — P 를 E~C 거리의 61.8 % 에 두면 참값',m:{q:/전위\s*강하\s*법/}},
+{id:'probe',cat:'측정·계기',name:'오실로스코프 감쇄 프로브',tex:R`V_o=\dfrac{R_s}{R_p+R_s}\,V_i`,alt:[R`\tau=R_{th}\,C_s,\quad T=\dfrac{1}{f}`],kf:[R`V_0=\dfrac{R_s}{R_p+R_s}V_i`,R`E_{th}=\dfrac{R_s}{R_p+R_s}V_i`],v:'Rs 스코프 입력저항 · Rp 프로브 저항 — 10:1 이면 Rp = 9 Rs',m:{q:/오실로스코프|감쇄\s*프로브/}},
+{id:'rc',cat:'측정·계기',name:'직렬 회로 역률 · 전력 (R-X)',tex:R`\cos\theta=\dfrac{R}{\sqrt{R^2+X_C^2}}`,alt:[R`P=I^2R=\dfrac{V^2R}{R^2+X_C^2},\quad X_C=\dfrac{1}{2\pi fC}`],kf:[R`\cos\theta=\dfrac{R}{\sqrt{R^2+X_c^2}}`,R`P=\dfrac{V^2R}{R^2+X_c'^2}`],v:'주파수가 바뀌면 Xc 가 f 에 반비례해서 바뀜',m:{q:/(정전\s*용량|커패시터|콘덴서).{0,30}직렬\s*회로|직렬\s*회로.{0,40}역률/,x:/주파수/}},
+{id:'dy',cat:'측정·계기',name:'Y → Δ 등가 변환',tex:R`R_{ab}=\dfrac{R_aR_b+R_bR_c+R_cR_a}{R_c}`,alt:[R`R_a=\dfrac{R_{ab}R_{ca}}{R_{ab}+R_{bc}+R_{ca}}\;(\Delta\to Y)`],kf:[R`R_{bc}=\dfrac{R_aR_b+R_bR_c+R_cR_a}{R_a}`,R`R_{ca}=\dfrac{R_aR_b+R_bR_c+R_cR_a}{R_b}`],v:'분자는 셋 다 같음 (두 개씩 곱한 합) · 분모는 마주 보는 저항',m:{q:/(Y|Δ|△|스|A)\s*결선\s*회로.{0,10}등가/}},
+{id:'lamp',cat:'조명',name:'광속법 (등 수 · 평균 조도)',kf:[R`N=\dfrac{A\,E}{F\,U\,M}`,R`N=\dfrac{E\,A}{F\,U\,M}`],tex:R`N=\dfrac{D\,A\,E}{F\,U}=\dfrac{A\,E}{F\,U\,M}`,alt:[R`E=\dfrac{F\,U\,N}{D\,A}`,R`F=\dfrac{D\,A\,E}{N\,U}`],
  v:'D 감광보상률 · A 면적 · E 조도 · F 등 1개 광속 · U 조명률 · M 보수율(=1/D)',m:{q:/(등\s*(의)?\s*수|등수|등\s*기구\s*(의)?\s*수|소요\s*등|램프\s*(의)?\s*수|평균\s*조도|조명\s*률|몇\s*등)/,x:/조도|lx|룩스|조명/}},
-{id:'ridx',cat:'조명',name:'실지수',tex:R`K=\dfrac{X\,Y}{H\,(X+Y)}`,v:'X·Y 방 가로·세로 · H 등~작업면 높이',m:{q:/실\s*지수/}},
+{id:'ridx',cat:'조명',name:'실지수',kf:[R`H=H_{\text{천장}}-H_{\text{작업면}}`,R`RI=\dfrac{X\,Y}{H\,(X+Y)}`],tex:R`K=\dfrac{X\,Y}{H\,(X+Y)}`,v:'X·Y 방 가로·세로 · H 등~작업면 높이',m:{q:/실\s*지수/}},
 {id:'maint',cat:'조명',name:'감광보상률 · 보수율',tex:R`D=\dfrac{1}{M}`,m:{q:/감광\s*보상\s*률|보수\s*율|유지\s*율/,no:/축전지/}},
-{id:'illum',cat:'조명',name:'점광원 조도 (거리 역제곱)',tex:R`E_n=\dfrac{I}{r^2},\qquad E_h=\dfrac{I}{r^2}\cos\theta,\qquad E_v=\dfrac{I}{r^2}\sin\theta`,
+{id:'illum',cat:'조명',name:'점광원 조도 (거리 역제곱)',kf:[R`E_h=\dfrac{I}{h^2}\cos^3\theta`,R`E_h=\dfrac{I}{R^2}\cos\theta`],tex:R`E_n=\dfrac{I}{r^2},\qquad E_h=\dfrac{I}{r^2}\cos\theta,\qquad E_v=\dfrac{I}{r^2}\sin\theta`,
  alt:[R`E_h=\dfrac{I\,h}{\left(h^2+d^2\right)^{3/2}}`],v:'n 법선 · h 수평면 · v 수직면 · r 광원까지 거리',m:{q:/(법선|수평\s*면|수직\s*면)\s*(의)?\s*조도|조도[^.\n]{0,25}(구하|계산)/,x:/광도|\[\s*cd\s*\]|cd|칸델라/}},
+{id:'leff',cat:'조명',name:'램프 효율 · 발광 효율',tex:R`\eta=\dfrac{F}{P}\;[\text{lm/W}]`,alt:[R`\varepsilon=\dfrac{F}{\phi}\;(\text{발광 효율})`],v:'F 전광속 · P 소비전력 · φ 방사속',m:{q:/(램프|전등|발광|광원)\s*(의)?\s*효율/}},
+{id:'lcost',cat:'조명',name:'전구 경제성 비교',tex:R`C=\dfrac{\text{전구 값}}{\text{수명}}+P\times\text{전력량 요금}`,v:'1시간(또는 cd 당) 쓰는 데 드는 돈 = 전구 값 몫 + 전기요금 몫 — 작은 쪽이 유리',m:{q:/어느\s*(것|전구|전등|쪽)?.{0,20}(유리|경제)/,x:/전구|전등/}},
 {id:'emit',cat:'조명',name:'광속발산도',tex:R`R=\dfrac{F}{S}`,alt:[R`R=\rho E\;(\text{반사}),\qquad R=\tau E\;(\text{투과})`],v:'F 나가는 광속 · S 면적',m:{q:/광속\s*발산도/}},
 {id:'globe',cat:'조명',name:'글로브 효율 (완전 확산 구)',tex:R`\eta=\dfrac{\tau}{1-\rho}`,alt:[R`R=\dfrac{F}{S}\,\eta=\dfrac{4\pi I}{4\pi r^2}\cdot\dfrac{\tau}{1-\rho}=\dfrac{\tau I}{r^2(1-\rho)}`],
  v:'τ 투과율 · ρ 반사율',m:{q:/글로브|완전\s*확산/}},
 {id:'flux',cat:'조명',name:'광원 모양별 전광속',tex:R`F=4\pi I\;(\text{구}),\qquad F=\pi^2 I\;(\text{원통}),\qquad F=\pi I\;(\text{평판})`,v:'I 광도[cd]',m:{q:/(전\s*광속|광속)/,x:/광도|\[\s*cd\s*\]|cd|칸델라/,no:/광속\s*발산도/}},
 {id:'lum',cat:'조명',name:'휘도',tex:R`B=\dfrac{I}{S}\;[\text{cd/m}^2]`,v:'S 보이는(투영) 면적',m:{q:/휘도/}},
-{id:'road',cat:'조명',name:'도로 조명 (등 간격)',tex:R`E=\dfrac{F\,U\,N}{D\,A},\qquad A=\dfrac{B\,S}{2}\;(\text{양쪽 배치}),\quad A=B\,S\;(\text{한쪽, 중앙})`,
+{id:'road',cat:'조명',name:'도로 조명 (등 간격)',kf:[R`\text{면적}=\dfrac12\times\text{도로폭}\times\text{등간격}`,R`F=\dfrac{E\,B\,S}{2\,U\,M}`,R`F=\dfrac{E\,B\,S\,D}{2\,U}`],tex:R`E=\dfrac{F\,U\,N}{D\,A},\qquad A=\dfrac{B\,S}{2}\;(\text{양쪽 배치}),\quad A=B\,S\;(\text{한쪽, 중앙})`,
  v:'B 도로 폭 · S 등 간격',m:{q:/도로|가로\s*등|등\s*간격|가로\s*조명/,x:/조도|lx|룩스|광속|조명\s*률/}},
 
 /* ── 전동기·동력 ── */
-{id:'pump',cat:'전동기·동력',name:'펌프(양수) 전동기 출력',tex:R`P=\dfrac{9.8\,Q\,H\,K}{\eta}\;[\text{kW}]\;(Q:\text{m}^3/\text{s})`,alt:[R`P=\dfrac{Q\,H\,K}{6.12\,\eta}\;[\text{kW}]\;(Q:\text{m}^3/\text{min})`],
+{id:'pump',cat:'전동기·동력',name:'펌프(양수) 전동기 출력',kf:[R`P=\dfrac{9.8\,Q\,H\,k}{\eta_p}`,R`P=\dfrac{9.8\,Q\,H\,K}{\eta_p}`,R`P=\dfrac{Q\,H\,K}{6.12\,\eta_p}`,R`Q=\dfrac{6.12\,P\,\eta_p}{H\,K}`],tex:R`P=\dfrac{9.8\,Q\,H\,K}{\eta}\;[\text{kW}]\;(Q:\text{m}^3/\text{s})`,alt:[R`P=\dfrac{Q\,H\,K}{6.12\,\eta}\;[\text{kW}]\;(Q:\text{m}^3/\text{min})`],
  v:'H 양정[m] · K 여유계수 · η 효율',m:{q:/펌프|양수/}},
 {id:'hoist',cat:'전동기·동력',name:'권상기·엘리베이터 출력',tex:R`P=\dfrac{W\,V}{6.12\,\eta}\;[\text{kW}]`,alt:[R`P=\dfrac{9.8\,W\,v}{\eta}\;(W:\text{t},\ v:\text{m/s})`],
  v:'W 무게[t] · V 속도[m/min]',m:{q:/권상|크레인|호이스트|엘리베이터|승강기/}},
 {id:'fan',cat:'전동기·동력',name:'송풍기 출력',tex:R`P=\dfrac{Q\,H\,K}{6120\,\eta}\;[\text{kW}]`,v:'Q [m³/min] · H 풍압[mmAq]',m:{q:/송풍기|환풍기|팬/}},
-{id:'ns',cat:'전동기·동력',name:'동기속도 · 슬립',tex:R`N_s=\dfrac{120\,f}{p},\qquad s=\dfrac{N_s-N}{N_s}`,alt:[R`N=(1-s)\,N_s`],m:{q:/동기\s*속도|슬립|회전\s*(속도|수)|극\s*수/}},
+{id:'ns',cat:'전동기·동력',name:'동기속도 · 슬립',kf:[R`N_s=\dfrac{120\,f}{P}`],tex:R`N_s=\dfrac{120\,f}{p},\qquad s=\dfrac{N_s-N}{N_s}`,alt:[R`N=(1-s)\,N_s`],m:{q:/동기\s*속도|슬립|회전\s*(속도|수)|극\s*수/}},
 {id:'torque',cat:'전동기·동력',name:'토크',tex:R`T=0.975\,\dfrac{P}{N}\;[\text{kg}\cdot\text{m}]=9.55\,\dfrac{P}{N}\;[\text{N}\cdot\text{m}]`,v:'P [W] · N [rpm]',m:{q:/토크/}},
-{id:'yd',cat:'전동기·동력',name:'Y-Δ 기동',tex:R`I_Y=\dfrac13 I_\Delta,\qquad T_Y=\dfrac13 T_\Delta`,v:'기동전류·기동토크 모두 1/3',m:{q:/Y\s*-?\s*Δ|Y\s*-?\s*델타|와이\s*델타|성형\s*-?\s*삼각/}},
-{id:'ind2',cat:'전동기·동력',name:'유도전동기 2차 관계',tex:R`P_2:P_{c2}:P_o=1:s:(1-s)`,alt:[R`\eta_2=1-s`],v:'P₂ 2차 입력 · Pc₂ 2차 동손 · Po 기계 출력',m:{q:/2\s*차\s*(동손|효율|입력)/}},
-{id:'gen',cat:'전동기·동력',name:'자가발전기 용량 (전동기 기동)',tex:R`P_G\ge\left(\dfrac{1}{e}-1\right)x_d'\,P_s\;[\text{kVA}]`,v:'e 허용 전압강하율 · x′d 과도리액턴스 · Ps 기동 용량',m:{q:/발전기\s*(의)?\s*용량|자가\s*발전/}},
+{id:'yd',cat:'전동기·동력',name:'Y-Δ 기동',kf:[R`I_{Yl}=\dfrac{V}{\sqrt3\,Z}`,R`I_{Yp}=\dfrac{V}{\sqrt3\,Z}`],tex:R`I_Y=\dfrac13 I_\Delta,\qquad T_Y=\dfrac13 T_\Delta`,v:'기동전류·기동토크 모두 1/3',m:{q:/Y\s*-?\s*(Δ|△|A|델타)\s*기동|와이\s*-?\s*델타\s*기동|성형\s*-?\s*삼각\s*기동/,x:/1\s*\/\s*3|√\s*3|\\sqrt|기동\s*(전류|토크)/}},
+{id:'ks',cat:'전동기·동력',name:'동기발전기 단락비',tex:R`K_s=\dfrac{I_s}{I_n}`,alt:[R`K_s=\dfrac{100}{\%Z_s}`],v:'Is 3상 단락전류 (무부하 정격전압 낼 때 여자로) · In 정격전류',m:{q:/단락\s*비/}},
+{id:'gen',cat:'전동기·동력',name:'자가발전기 용량 (전동기 기동)',tex:R`P_G\ge\left(\dfrac{1}{e}-1\right)x_d'\,P_s\;[\text{kVA}]`,v:'e 허용 전압강하율 · x′d 과도리액턴스 · Ps 기동 용량',m:{q:/발전기\s*(의)?\s*용량|자가\s*발전/,no:/수력|낙차/}},
 
 /* ── 축전지·정류 ── */
-{id:'heat',cat:'전동기·동력',name:'전열기 용량 (물 데우기)',tex:R`P=\dfrac{m\,c\,(T_2-T_1)}{860\,\eta\,t}\;[\text{kW}]`,alt:[R`H=0.24\,I^2Rt\;[\text{cal}]`,R`860\,P\,t\,\eta=m\,c\,(T_2-T_1)`],v:'m 질량 [kg·L] · c 비열 (물 1) · t 시간 [h] · 1 kWh = 860 kcal',m:{q:/전열기|전기\s*(온수기|보일러|난로)|가열|온도\s*를?\s*\d|℃\s*(로|까지)\s*(올|높|데우|가열)/,x:/kW|kWh|용량|전력|시간|kcal|열량/,no:/발전기|연료/}},
-{id:'bat',cat:'축전지·정류',name:'축전지 용량',tex:R`C=\dfrac{1}{L}\,K\,I\;[\text{Ah}]`,v:'L 보수율 · K 용량환산시간 · I 방전전류',m:{q:/축전지\s*(의)?\s*용량|용량\s*환산\s*시간/}},
-{id:'cell',cat:'축전지·정류',name:'축전지 셀 수',tex:R`n=\dfrac{V}{V_{\text{cell}}}`,v:'연(납) 2.0 V/셀 · 알칼리 1.2 V/셀',m:{q:/(셀|cell)\s*(의)?\s*(수|개수)|축전지\s*(의)?\s*(개수|수)/i}},
-{id:'float',cat:'축전지·정류',name:'부동충전 2차 전류',tex:R`I=\dfrac{\text{축전지 정격용량}}{\text{정격 방전율}}+\dfrac{\text{상시 부하}}{\text{표준 전압}}`,v:'연축전지 방전율 10 h · 알칼리 5 h',m:{q:/부동\s*충전|충전기\s*(의)?\s*(2\s*차)?\s*전류/}},
+{id:'heat',cat:'전동기·동력',name:'전열기 용량 (물 데우기)',tex:R`P=\dfrac{m\,c\,(T_2-T_1)}{860\,\eta\,t}\;[\text{kW}]`,alt:[R`H=0.24\,I^2Rt\;[\text{cal}]`,R`860\,P\,t\,\eta=m\,c\,(T_2-T_1)`],v:'m 질량 [kg·L] · c 비열 (물 1) · t 시간 [h] · 1 kWh = 860 kcal',m:{q:/(물|수)\s*.{0,30}(℃|°C|도)\s*(에서|로|까지)|온도\s*를?\s*(높|올|상승)|가열\s*(하|할|시)/,x:/860|kcal|비열/,no:/발전기|연료/}},
+{id:'hydro',cat:'전동기·동력',name:'수력 발전 출력',tex:R`P=9.8\,Q\,H\,\eta\;[\text{kW}]`,alt:[R`P_a=\dfrac{9.8\,Q\,H\,\eta}{\cos\theta}\;[\text{kVA}]`],v:'Q 사용 수량 [m³/s] · H 유효 낙차 [m] · η 수차×발전기 종합 효율',m:{q:/낙차|수력\s*발전/}},
+{id:'fuel',cat:'전동기·동력',name:'발전기 연료량 · 운전시간',tex:R`860\,P\,t=m\,H\,\eta`,alt:[R`t=\dfrac{m\,H\,\eta}{860\,P}`,R`P=\dfrac{m\,H\,\eta_g\,\eta_t}{860\,t\cos\theta}\;[\text{kVA}]`],kf:[R`t=\dfrac{MH\eta}{860\,P}`,R`P=\dfrac{MH\eta_g\eta_t}{860\,t\cos\theta}`,R`P=\dfrac{MH\eta_g\eta_t}{860\,T\cos\theta}`,R`\eta=\dfrac{860Pt}{mH}`,R`\eta=\dfrac{860\,P\,t}{M\,H}`],v:'1 kWh = 860 kcal · m 연료량 · H 발열량 [kcal/kg·L] · η 종합 효율',m:{q:/(연료|중유|석탄|경유|벙커)/,x:/kcal|발열량|열량/,no:/연료\s*소비율|g\s*\/\s*ps/}},
+{id:'wind',cat:'전동기·동력',name:'풍력 발전 출력',tex:R`P=\dfrac12\,\rho\,A\,V^3`,alt:[R`A=\dfrac{\pi}{4}d^2`],v:'ρ 공기 밀도 1.225 kg/m³ · A 회전면 넓이 · V 풍속 — W 를 kW 로 ×10⁻³',m:{q:/풍력|풍차/,x:/풍속/}},
+{id:'dce',cat:'전동기·동력',name:'직류기 유기기전력',tex:R`E=\dfrac{p\,Z}{60\,a}\,\phi\,N`,alt:[R`E=V+I_aR_a\;(\text{발전기}),\quad E=V-I_aR_a\;(\text{전동기})`],kf:[R`E=V+I_a\,R_a`,R`R_a=\dfrac{E-V}{I_a}`],v:'p 극수 · Z 도체 수 · a 병렬회로 수 (파권 2 · 중권 p) · φ 자속 · N 회전수',m:{q:/직류\s*(발전기|전동기|기)/,x:/기전력|전기자/}},
+{id:'esc',cat:'전동기·동력',name:'에스컬레이터 전동기 용량',tex:R`P=\dfrac{9.8\,G\,V\sin\theta\,\beta}{\eta}\;[\text{kW}]`,v:'G 적재하중 [t] · V 속도 [m/s] · θ 경사각 · β 승객 유입률 · η 효율',m:{q:/에스컬레이터/}},
+{id:'bat',cat:'축전지·정류',name:'축전지 용량',kf:[R`C=\dfrac{1}{L}\left[K_1I_1+K_2(I_2-I_1)+K_3(I_3-I_2)+K_4(I_4-I_3)\right]`,R`C=\dfrac{1}{L}\left[K_1I_1+K_2(I_2-I_1)+K_3(I_3-I_2)\right]`,R`C=\dfrac{1}{L}\left[K_1I_1+K_2(I_2-I_1)\right]`],tex:R`C=\dfrac{1}{L}\,K\,I\;[\text{Ah}]`,v:'L 보수율 · K 용량환산시간 · I 방전전류',m:{q:/축전지\s*(의)?\s*용량|용량\s*환산\s*시간/}},
+{id:'cell',cat:'축전지·정류',name:'축전지 셀 수',tex:R`n=\dfrac{V}{V_{\text{cell}}}`,alt:[R`V_{\text{cell}}=\dfrac{V_a+e}{n}\;(\text{셀당 허용 최저전압})`],v:'연(납) 2.0 V/셀 · 알칼리 1.2 V/셀',m:{q:/(셀|cell)\s*(의)?\s*(수|개수)|축전지\s*(의)?\s*(개수|수)/i}},
+{id:'float',cat:'축전지·정류',name:'부동충전 2차 전류',kf:[R`I_2=\dfrac{\text{축전지 정격용량}}{\text{정격 방전율}}+\dfrac{\text{상시 부하}}{\text{표준 전압}}`,R`I_2=\dfrac{\text{축전지 정격용량[Ah]}}{\text{정격 방전율[h]}}+\dfrac{\text{상시 부하용량[VA]}}{\text{표준전압[V]}}`],tex:R`I=\dfrac{\text{축전지 정격용량}}{\text{정격 방전율}}+\dfrac{\text{상시 부하}}{\text{표준 전압}}`,v:'연축전지 방전율 10 h · 알칼리 5 h',m:{q:/부동\s*충전|충전기\s*(의)?\s*(2\s*차)?\s*전류/}},
 {id:'rect',cat:'축전지·정류',name:'정류 직류전압',tex:R`E_d=0.45E\;(\text{단상 반파}),\quad 0.9E\;(\text{단상 전파}),\quad 1.17E\;(\text{3상 반파}),\quad 1.35E\;(\text{3상 전파})`,v:'E 교류 실효값',m:{q:/정류\s*(회로|기|전압|방식)|다이오드|SCR|사이리스터|(반파|전파)\s*정류/}},
 
 /* ── 접지·지락·절연 ── */
+{id:'r2',cat:'접지·지락·절연',name:'변압기 중성점 접지저항',tex:R`R=\dfrac{150}{I_g}`,alt:[R`R=\dfrac{300}{I_g}\;(\text{2초 이내 자동차단}),\quad R=\dfrac{600}{I_g}\;(\text{1초 이내})`],kf:[R`R=\dfrac{300}{I_g}`,R`R=\dfrac{600}{I_g}`],v:'Ig 고압측 1선 지락전류 — 혼촉 시 저압측 대지전압 150 V 이하로 (KEC 142.5)',m:{q:/지락\s*전류\s*(가|는|이)?\s*\d|지락\s*사고\s*시\s*(의)?\s*지락\s*전류/,x:/접지\s*저항/,no:/접촉\s*전압|외함/}},
+{id:'neut',cat:'접지·지락·절연',name:'중성선 전류 (3상 4선 불평형)',tex:R`\dot I_n=\dot I_a+\dot I_b+\dot I_c`,alt:[R`\dot I_n=I_a\angle0^\circ+I_b\angle-120^\circ+I_c\angle120^\circ`],v:'역률 1 부하 — 각 상 전류를 120° 씩 돌려서 벡터로 더함 (평형이면 0)',m:{q:/중성선\s*(에\s*흐르는|의)?\s*전류/}},
 {id:'ig',cat:'접지·지락·절연',name:'지락전류 (대지 정전용량)',tex:R`I_g=3\omega C E=\sqrt3\,\omega C V`,v:'E 대지(상)전압 · C 한 선의 대지 정전용량',m:{q:/지락\s*전류/,x:/정전\s*용량|μF|대지/}},
-{id:'leak',cat:'접지·지락·절연',name:'누설전류 한도',tex:R`I_{\text{누설}}\le I_{\max}\times\dfrac{1}{2000}`,m:{q:/누설\s*전류/}},
 {id:'touch',cat:'접지·지락·절연',name:'접촉·대지 전위',tex:R`E=I_g\,R`,alt:[R`I_g=\dfrac{E}{R_2+R_3}\;(\text{접지 저항 직렬})`],v:'Rg 접지저항',m:{q:/접촉\s*전압|대지\s*전위|전위\s*상승/,x:/접지/}},
-{id:'gsv',cat:'접지·지락·절연',name:'1선 지락 시 건전상 대지전압',tex:R`V_{\text{건전}}=\sqrt3\,E=V\;(\text{비접지})`,alt:[R`E=\dfrac{V}{\sqrt3}\;(\text{평상시 대지전압})`],v:'E 평상시 대지(상)전압 · V 선간전압 — 지락 상은 0 V',m:{q:/(지락|접지\s*사고|누전)/,x:/대지\s*전압/}},
-{id:'gw',cat:'접지·지락·절연',name:'보호도체(접지선) 굵기',tex:R`S=\dfrac{\sqrt{I^2\,t}}{k}\;[\text{mm}^2]`,v:'I 고장전류 · t 차단 시간 · k 재질 계수',m:{q:/(접지\s*(선|도체)|보호\s*도체)\s*(의)?\s*(굵기|단면적)/}},
+{id:'gsv',cat:'접지·지락·절연',name:'1선 지락 시 건전상 대지전압',tex:R`V_{\text{건전}}=\sqrt3\,E=V\;(\text{비접지})`,v:'E 평상시 대지(상)전압 · V 선간전압 — 지락 상은 0 V',m:{q:/(지락|접지\s*사고|누전)/,x:/대지\s*전압/}},
+{id:'gw',cat:'접지·지락·절연',name:'보호도체(접지선) 굵기',kf:[R`S=\dfrac{\sqrt{I^2t}}{K}`],tex:R`S=\dfrac{\sqrt{I^2\,t}}{k}\;[\text{mm}^2]`,v:'I 고장전류 · t 차단 시간 · k 재질 계수',m:{q:/(접지\s*(선|도체)|보호\s*도체)\s*(의)?\s*(최소\s*)?(굵기|단면적)/}},
 {id:'hipot',cat:'접지·지락·절연',name:'절연내력 시험전압',tex:R`V_t=V_m\times k`,
  alt:[R`7\text{kV 이하 }1.5\ (\min 500\text{V})\quad 7{\sim}25\text{kV 다중접지 }0.92\quad 7{\sim}60\text{kV }1.25\ (\min 10.5\text{kV})`,R`60\text{kV 초과 비접지 }1.25\quad \text{중성점 접지 }1.1\ (\min 75\text{kV})\quad \text{직접접지 }170\text{kV 이하 }0.72,\ \text{초과 }0.64`],
  v:'Vm 최대사용전압 · 10분간',m:{q:/절연\s*내력|시험\s*전압/}},
 {id:'bil',cat:'접지·지락·절연',name:'BIL (기준충격절연강도)',tex:R`\text{BIL}=5E+50\;[\text{kV}]`,alt:[R`E=\dfrac{\text{BIL}-50}{5}`],kf:[R`\text{BIL}=\text{절연계급}\times5+50`,R`\text{BIL}=5\times\text{절연계급}+50`,R`\text{절연계급}=\dfrac{\text{BIL}-50}{5}`],v:'E 절연계급(호) — 비유효접지계 · 절연계급 20호 이상일 때 (50 기본 여유분 · 5 한 호당 늘어나는 kV)',m:{q:/BIL|기준\s*충격\s*절연|충격\s*절연\s*강도/}},
 {id:'insc',cat:'접지·지락·절연',name:'절연계급 ↔ 공칭전압',tex:R`E=\dfrac{V_n}{1.1}`,alt:[R`V_n=1.1\,E`],kf:[R`\text{공칭전압}=\text{절연계급}\times1.1`,R`\text{공칭전압}=1.1\times\text{절연계급}`],v:'E 절연계급(호) · Vn 공칭전압 [kV]',m:{q:/절연\s*계급/}},
-{id:'vrat',cat:'접지·지락·절연',name:'정격전압 (공칭전압 기준)',tex:R`V_r=V_n\times\dfrac{1.2}{1.1}`,kf:[R`\text{정격전압}=\text{공칭전압}\times\dfrac{1.2}{1.1}`],v:'Vn 공칭전압 — 1.2/1.1 은 공칭전압에 대한 최고(정격)전압 비 (예: 22.9 kV → 25.8 kV 표준값)',m:{q:/정격\s*전압/,x:/공칭\s*전압|절연\s*계급|BIL/,no:/피뢰기/}},
+{id:'vrat',cat:'접지·지락·절연',name:'정격전압 (공칭전압 기준)',tex:R`V_r=V_n\times\dfrac{1.2}{1.1}`,kf:[R`\text{정격전압}=\text{공칭전압}\times\dfrac{1.2}{1.1}`],v:'Vn 공칭전압 — 1.2/1.1 은 공칭전압에 대한 최고(정격)전압 비 (예: 22.9 kV → 25.8 kV 표준값)',m:{q:/(차단기|VCB|OCB|GCB|CB)\s*(의)?\s*정격\s*전압\s*(은|을|는)?\s*(몇|얼마|구)/,x:/1\.2/,no:/피뢰기/}},
+{id:'la',cat:'접지·지락·절연',name:'피뢰기 정격전압',tex:R`V_n=\alpha\,\beta\,V_m`,kf:[R`V_m=V_{\text{공칭}}\times1.15`,R`\text{계통최고허용전압}=\text{공칭전압}\times1.15`],v:'α 접지계수 · β 유도계수(여유도) · Vm 계통 최고허용전압 (공칭 × 1.15 · 154 kV → 170 kV) — 계산값 바로 위 표준값',m:{q:/피뢰기\s*(의)?\s*정격\s*전압/,x:/접지\s*계수|유도\s*계수/}},
+{id:'rtemp',cat:'접지·지락·절연',name:'온도에 따른 저항',tex:R`R_t=R_0\left[1+\alpha_0\,(t-t_0)\right]`,alt:[R`\alpha_0=\dfrac{1}{234.5}\;(\text{연동선 } 0℃)`],v:'R0 처음 온도 t0 의 저항 · α0 온도계수 — 온도를 구할 땐 t 로 풀어씀',m:{q:/저항.{0,80}온도\s*(를|은|는)?\s*(구|얼마|몇)/}},
+{id:'strand',cat:'송배전',name:'연선 가닥 수 · 바깥지름',tex:R`N=3n(n+1)+1`,alt:[R`D=(2n+1)\,d`],v:'n 층수 · d 소선 지름 — 7·19·37·61 가닥이 1·2·3·4 층',m:{q:/연선/,x:/외경|바깥\s*지름|가닥/}},
 {id:'insR',cat:'접지·지락·절연',name:'절연저항 · 누설전류',tex:R`I=\dfrac{V}{R_{\text{절연}}}`,m:{q:/절연\s*저항/,x:/누설|전류/}},
 
 /* ── 송배전 ── */
-{id:'sag',cat:'송배전',name:'이도 · 전선 실제 길이',tex:R`D=\dfrac{W\,S^2}{8\,T},\qquad L=S+\dfrac{8D^2}{3S}`,v:'W 단위길이 무게 · S 경간 · T 수평장력(=인장하중/안전율)',m:{q:/이도|처짐|딥|dip/i}},
-{id:'chg',cat:'송배전',name:'충전전류',tex:R`I_c=\omega C E\,l=2\pi f\,C\,\dfrac{V}{\sqrt3}\,l`,v:'C 작용 정전용량[F/km] · l 길이',m:{q:/충전\s*전류/,no:/축전지|충전기|부동\s*충전|균등\s*충전/}},
+{id:'still',cat:'송배전',name:'경제적 송전전압 (Still 식)',tex:R`V=5.5\sqrt{0.6\,l+\dfrac{P}{100}}\;[\text{kV}]`,alt:[R`P=\left[\left(\dfrac{V}{5.5}\right)^2-0.6\,l\right]\times100\;[\text{kW}]`],v:'l 송전 거리 [km] · P 송전 전력 [kW]',m:{q:/still|스틸/i}},
+{id:'abcd',cat:'송배전',name:'4단자 정수 (송전단 ↔ 수전단)',tex:R`V_s=A\,V_r+\sqrt3\,B\,I_r`,alt:[R`I_s=\dfrac{C}{\sqrt3}\,V_r+D\,I_r`,R`V_r=\dfrac{V_s}{A}\;(\text{무부하 } I_r=0)`],kf:[R`I_r=\dfrac{V_s-A\,V_r}{\sqrt3\,B}`],v:'AD − BC = 1 · 선간전압 기준이라 √3',m:{q:/4\s*단자\s*정수|일반\s*회로\s*정수/}},
+{id:'resv',cat:'송배전',name:'연가 불완전 시 잔류전압',tex:R`E_n=\dfrac{\sqrt{C_a(C_a-C_b)+C_b(C_b-C_c)+C_c(C_c-C_a)}}{C_a+C_b+C_c}\times\dfrac{V}{\sqrt3}`,v:'Ca·Cb·Cc 각 선의 대지 정전용량 — 셋이 같으면 0',m:{q:/잔류\s*전압/,x:/연가|정전\s*용량/}},
+{id:'emi',cat:'송배전',name:'전자유도 전압',tex:R`E_m=j\omega M\,l\times3I_0`,v:'M 전력선~통신선 상호 인덕턴스 · l 나란한 길이 · 3I0 지락(영상) 전류',m:{q:/전자\s*유도\s*(전압|장해)/}},
+{id:'sag',cat:'송배전',name:'이도 · 전선 실제 길이',tex:R`D=\dfrac{W\,S^2}{8\,T},\qquad L=S+\dfrac{8D^2}{3S}`,v:'W 단위길이 무게 · S 경간 · T 수평장력(=인장하중/안전율)',m:{q:/이도(?!로|면|록)|처짐|dip/i}},
+{id:'chg',cat:'송배전',name:'충전전류',kf:[R`I_c=\omega\,C\,E`,R`I_c=2\pi f\,C\,E`,R`I_c=2\pi f\,C\,l\,\dfrac{V}{\sqrt3}`],tex:R`I_c=\omega C E\,l=2\pi f\,C\,\dfrac{V}{\sqrt3}\,l`,v:'C 작용 정전용량[F/km] · l 길이',m:{q:/충전\s*전류/,no:/축전지|충전기|부동\s*충전|균등\s*충전/}},
 {id:'gmd',cat:'송배전',name:'등가 선간거리',tex:R`D=\sqrt[3]{D_{12}D_{23}D_{31}}`,m:{q:/등가\s*선간\s*거리|기하\s*평균\s*거리/}},
 
 /* ── 논리회로 ── */
-{id:'ind',cat:'송배전',name:'선로 인덕턴스',tex:R`L=0.05+0.4605\log_{10}\dfrac{D}{r}\;[\text{mH/km}]`,v:'D 등가 선간거리 · r 전선 반지름 (같은 단위)',m:{q:/인덕턴스\s*(을|를)?\s*(구하|계산|산출)|인덕턴스.{0,12}(몇|얼마)/,x:/log|선간\s*거리|반지름|지름|등가/}},
 {id:'cap',cat:'송배전',name:'선로 작용 정전용량',tex:R`C=\dfrac{0.02413}{\log_{10}\dfrac{D}{r}}\;[\mu\text{F/km}]`,v:'D 등가 선간거리 · r 전선 반지름',m:{q:/정전\s*용량\s*(을|를)?\s*(구하|계산|산출)|정전\s*용량.{0,12}(몇|얼마)/,x:/log|선간\s*거리|반지름|지름|등가/,no:/콘덴서|역률/}},
 {id:'corona',cat:'송배전',name:'코로나 임계전압',tex:R`E_0=24.3\,m_0\,m_1\,\delta\,d\log_{10}\dfrac{D}{r}\;[\text{kV}]`,v:'m0 표면 계수 · m1 날씨 계수 · δ 상대 공기밀도 · d 지름 [cm]',m:{q:/코로나/,x:/임계\s*전압|E_?0|24\.3/}},
-{id:'ptx',cat:'송배전',name:'송전 전력 (상차각)',tex:R`P=\dfrac{V_s\,V_r}{X}\sin\delta`,v:'Vs 송전단 전압 · Vr 수전단 전압 · X 선로 리액턴스 · δ 상차각',m:{q:/송전\s*(전력|용량)|상차각|부하각/,x:/sin|δ|상차각|부하각/}},
-{id:'pet',cat:'송배전',name:'소호 리액터',tex:R`\omega L=\dfrac{1}{3\,\omega C}`,alt:[R`L=\dfrac{1}{3\,\omega^2 C}`],v:'C 한 선의 대지 정전용량 — 3선 대지 정전용량과 병렬 공진',m:{q:/소호\s*리액터|페테르센/}},
-{id:'symc',cat:'송배전',name:'대칭좌표법 · 1선 지락전류',tex:R`I_g=\dfrac{3E_a}{Z_0+Z_1+Z_2}`,alt:[R`I_0=\dfrac{I_a+I_b+I_c}{3}`],v:'Z0 영상 · Z1 정상 · Z2 역상 임피던스 · Ea 상전압',m:{q:/대칭\s*좌표|영상\s*(분|전류|임피던스|전압)|정상\s*(분|임피던스)|역상\s*(분|전류|임피던스)/}},
+{id:'ptx',cat:'송배전',name:'송전 전력 (상차각)',tex:R`P=\dfrac{V_s\,V_r}{X}\sin\delta`,v:'Vs 송전단 전압 · Vr 수전단 전압 · X 선로 리액턴스 · δ 상차각',m:{q:/송전\s*(전력|용량)|상차각|부하각/,x:/sin|δ|상차각|부하각/,no:/지락|영상/}},
+{id:'pet',cat:'송배전',name:'소호 리액터',tex:R`\omega L=\dfrac{1}{3\,\omega C}`,alt:[R`Q_L=2\pi f\,C\,V^2\times10^{-3}\;[\text{kVA}]\;(\text{소호 리액터 용량})`,R`L=\dfrac{1}{3\,\omega^2 C}`],v:'C 한 선의 대지 정전용량 — 3선 대지 정전용량과 병렬 공진',m:{q:/소호\s*리액터|페테르센/}},
+{id:'symc',cat:'송배전',name:'대칭좌표법 · 1선 지락전류',tex:R`I_g=\dfrac{3E_a}{Z_0+Z_1+Z_2}`,alt:[R`I_0=\dfrac{I_a+I_b+I_c}{3}`],v:'Z0 영상 · Z1 정상 · Z2 역상 임피던스 · Ea 상전압',m:{q:/대칭\s*(좌표|분)|영상\s*분|정상\s*분|역상\s*분|불평형\s*3\s*상\s*(전류|전압)/}},
 {id:'guy',cat:'송배전',name:'지선 장력 · 소선 수',tex:R`T=\dfrac{T_0}{\cos\theta}`,alt:[R`n\ge\dfrac{k\,T}{t}`],v:'T0 수평 장력 · θ 지선과 전주 사이 각 · k 안전율 · t 소선 1가닥 인장하중',m:{q:/지선/,x:/장력|가닥|소선|안전\s*율/}},
 {id:'demorgan',cat:'논리회로',name:'드모르간 정리',tex:R`\overline{A+B}=\overline{A}\cdot\overline{B},\qquad \overline{A\cdot B}=\overline{A}+\overline{B}`,
  v:'NAND 만으로 · NOR 만으로 바꿀 때',m:{q:/드\s*모르간|NAND|NOR|무접점|논리\s*(식|회로)/}},
@@ -288,6 +315,38 @@ ptx:{ko:R`【송전 전력】=\dfrac{【송전단 전압】\times【수전단 �
 pet:{ko:R`【리액터 리액턴스】=\dfrac{1}{3\times【각주파수】\times【대지 정전용량】}`,sy:[['L','엘','소호 리액터 인덕턴스','H'],[R`\omega`,'오메가','각주파수 2πf','rad/s'],['C','씨','한 선 대지 정전용량','F']]},
 symc:{ko:R`【지락전류】=\dfrac{3\times【상전압】}{【영상】+【정상】+【역상】}`,sy:[['I_g','아이 지','1선 지락전류','A'],['E_a','이 에이','a상 상전압','V'],['Z_0','제트 제로','영상 임피던스','Ω'],['Z_1','제트 원','정상 임피던스','Ω'],['Z_2','제트 투','역상 임피던스','Ω'],['I_0','아이 제로','영상 전류','A']]},
 guy:{ko:R`【지선 장력】=\dfrac{【수평 장력】}{\cos【각도】}`,sy:[['T','티','지선 장력','kN'],['T_0','티 제로','수평 장력','kN'],[R`\theta`,'세타','지선과 전주 사이 각','°'],['n','엔','소선 가닥 수','가닥'],['k','케이','안전율','—'],['t','티','소선 1가닥 인장하중','kN']]},
+vph:{ko:R`【상전압】=\dfrac{【선간전압】}{\sqrt3}`,sy:[['E','이','상전압 (대지전압)','V'],['V','브이','선간전압','V']]},
+w1:{ko:R`【3상 전력】=3\times【전력계 지시값】`,sy:[['P_3','피 삼','3상 전력','W'],['W','더블유','전력계 지시값 (한 상)','W']]},
+cterr:{ko:R`【비오차】=\dfrac{【공칭 변류비】-【실제 변류비】}{【실제 변류비】}\times100`,sy:[[R`\varepsilon`,'엡실론','비오차','%'],['K_n','케이 엔','공칭 변류비','—'],['K','케이','실제 변류비 = I1/I2','—']]},
+thd:{ko:R`【왜형률】=\dfrac{【고조파 실효값】}{【기본파 실효값】}\times100`,sy:[['V_1','브이 원','기본파 전압','V'],['V_3','브이 쓰리','제3고조파 전압','V'],['V_p','브이 피','고조파 포함 상전압','V']]},
+murray:{ko:R`【고장점 거리】=\dfrac{2\times【선로 길이】\times【b 저항】}{【a 저항】+【b 저항】}`,sy:[['x','엑스','고장점까지 거리','km'],['L','엘','선로 길이 (편도)','km'],['a,b','에이·비','브리지 저항','Ω']]},
+fuel:{ko:R`860\times【출력】\times【시간】=【연료량】\times【발열량】\times【효율】`,sy:[['P','피','발전기 출력','kW'],['t','티','운전 시간','h'],['m','엠','연료량','kg·L'],['H','에이치','발열량','kcal/kg'],[R`\eta`,'에타','종합 효율','—']]},
+wind:{ko:R`【풍력 출력】=\dfrac12\times【공기 밀도】\times【회전면 넓이】\times【풍속】^3`,sy:[['P','피','출력','W'],[R`\rho`,'로','공기 밀도','kg/m³'],['A','에이','회전면 넓이','m²'],['V','브이','풍속','m/s']]},
+dce:{ko:R`【유기기전력】=\dfrac{【극수】\times【도체 수】}{60\times【병렬회로 수】}\times【자속】\times【회전수】`,sy:[['E','이','유기기전력','V'],['p','피','극수','—'],['Z','제트','전기자 도체 수','—'],['a','에이','병렬회로 수','—'],[R`\phi`,'파이','1극 자속','Wb'],['N','엔','회전수','rpm'],['I_a','아이 에이','전기자 전류','A'],['R_a','알 에이','전기자 저항','Ω']]},
+contract:{ko:R`【계약전력】=\sum(【구간 설비용량】\times【환산율】)`,sy:[[R`P_{\text{계약}}`,'피 계약','계약전력','kW']]},
+spot:{ko:R`【변압기 용량】=\dfrac{【최대 수요전력】}{【회선 수】-1}\times\dfrac{100}{【과부하율】}`,sy:[['P_T','피 티','변압기 1대 용량','kVA'],['P_m','피 엠','최대 수요전력','kVA'],['n','엔','회선 수','—'],[R`\alpha`,'알파','과부하율','%']]},
+lcen:{ko:R`【부하 중심 거리】=\dfrac{\sum(【거리】\times【전류】)}{\sum【전류】}`,sy:[['L','엘','부하 중심까지 거리','m'],['L_i','엘 아이','각 부하까지 거리','m'],['I_i','아이 아이','각 부하 전류','A']]},
+tap:{ko:R`【새 탭 전압】=【지금 탭 전압】\times\dfrac{【지금 2차 전압】}{【원하는 2차 전압】}`,sy:[[R`E_1'`,'이 원 프라임','새 탭 전압','V'],['E_1','이 원','지금 탭 전압','V'],['V_2','브이 투','지금 2차 전압','V'],[R`V_2'`,'브이 투 프라임','원하는 2차 전압','V']]},
+leff:{ko:R`【램프 효율】=\dfrac{【전광속】}{【소비전력】}`,sy:[[R`\eta`,'에타','램프 효율','lm/W'],['F','에프','전광속','lm'],['P','피','소비전력','W']]},
+lcost:{ko:R`【비용】=\dfrac{【전구 값】}{【수명】}+【소비전력】\times【전력량 요금】`,sy:[['C','씨','시간당 비용','원'],['P','피','소비전력','kW']]},
+still:{ko:R`【송전전압】=5.5\sqrt{0.6\times【거리】+\dfrac{【송전전력】}{100}}`,sy:[['V','브이','송전전압','kV'],['l','엘','송전 거리','km'],['P','피','송전전력','kW']]},
+la:{ko:R`【피뢰기 정격전압】=【접지계수】\times【유도계수】\times【최고허용전압】`,sy:[['V_n','브이 엔','피뢰기 정격전압','kV'],[R`\alpha`,'알파','접지계수','—'],[R`\beta`,'베타','유도계수 (여유도)','—'],['V_m','브이 엠','계통 최고허용전압','kV']]},
+rtemp:{ko:R`【t℃ 저항】=【처음 저항】\times(1+【온도계수】\times【온도 차】)`,sy:[['R_t','알 티','t℃ 저항','Ω'],['R_0','알 제로','처음(t0) 저항','Ω'],[R`\alpha_0`,'알파 제로','t0 에서 온도계수','1/℃'],['t','티','나중 온도','℃']]},
+strand:{ko:R`【총 가닥 수】=3\times【층수】\times(【층수】+1)+1`,sy:[['N','엔','소선 총 가닥 수','가닥'],['n','엔','층수 (중심 제외)','층'],['D','디','연선 바깥지름','mm'],['d','디','소선 지름','mm']]},
+r2:{ko:R`【접지저항】=\dfrac{150}{【1선 지락전류】}`,sy:[['R','알','변압기 중성점 접지저항','Ω'],['I_g','아이 지','고압측 1선 지락전류','A']]},
+neut:{ko:R`【중성선 전류】=【a상 전류】+【b상 전류】+【c상 전류】\;(【벡터 합】)`,sy:[[R`\dot I_n`,'아이 엔','중성선 전류','A'],[R`\dot I_a`,'아이 에이','a상 전류 (0°)','A'],[R`\dot I_b`,'아이 비','b상 전류 (−120°)','A'],[R`\dot I_c`,'아이 씨','c상 전류 (120°)','A']]},
+ks:{ko:R`【단락비】=\dfrac{【단락전류】}{【정격전류】}`,sy:[['K_s','케이 에스','단락비','—'],['I_s','아이 에스','3상 단락전류','A'],['I_n','아이 엔','정격전류','A']]},
+abcd:{ko:R`【송전단 전압】=A\times【수전단 전압】+\sqrt3\times B\times【수전단 전류】`,sy:[['V_s','브이 에스','송전단 선간전압','kV'],['V_r','브이 알','수전단 선간전압','kV'],['I_r','아이 알','수전단 전류','A'],['A,B,C,D','에이·비·씨·디','4단자 정수','—']]},
+rod:{ko:R`【접지저항】=\dfrac{【대지 저항률】}{2\pi\times【봉 길이】}\ln\dfrac{2\times【봉 길이】}{【봉 반지름】}`,sy:[['R','알','접지저항','Ω'],[R`\rho`,'로','대지 저항률','Ω·m'],['l','엘','접지봉 길이','m'],['r','알','접지봉 반지름','m']]},
+hydro:{ko:R`【출력】=9.8\times【수량】\times【낙차】\times【효율】`,sy:[['P','피','발전 출력','kW'],['Q','큐','사용 수량','m³/s'],['H','에이치','유효 낙차','m'],[R`\eta`,'에타','종합 효율','—']]},
+fop:{ko:R`【접지저항】=\dfrac{【전압계 지시】}{【전류계 지시】}`,sy:[['R_E','알 이','접지저항','Ω'],['V','브이','E~P 사이 전압','V'],['I','아이','E~C 로 흘린 전류','A']]},
+probe:{ko:R`【스코프 입력 전압】=\dfrac{【스코프 저항】}{【프로브 저항】+【스코프 저항】}\times【측정 전압】`,sy:[['V_o','브이 오','스코프에 걸리는 전압','V'],['V_i','브이 아이','측정할 전압','V'],['R_s','알 에스','스코프 입력저항','Ω'],['R_p','알 피','프로브 직렬저항','Ω']]},
+rc:{ko:R`【역률】=\dfrac{【저항】}{\sqrt{【저항】^2+【용량 리액턴스】^2}}`,sy:[['R','알','저항','Ω'],['X_C','엑스 씨','용량 리액턴스 = 1/(2πfC)','Ω']]},
+dy:{ko:R`R_{ab}=\dfrac{【두 개씩 곱한 합】}{【마주 보는 저항】}`,sy:[['R_a,R_b,R_c','알 에이·비·씨','Y 쪽 저항','Ω'],['R_{ab}','알 에이비','Δ 쪽 a-b 저항','Ω']]},
+esc:{ko:R`【출력】=\dfrac{9.8\times【적재하중】\times【속도】\times\sin【경사각】\times【유입률】}{【효율】}`,sy:[['P','피','전동기 용량','kW'],['G','지','적재하중','t'],['V','브이','속도','m/s'],[R`\theta`,'세타','경사각','°'],[R`\beta`,'베타','승객 유입률','—'],[R`\eta`,'에타','효율','—']]},
+subarea:{ko:R`【변전실 면적】=【추정계수】\times【변압기 용량】^{0.7}`,sy:[['A','에이','변전실 추정 면적','m²'],['k','케이','추정계수','—']]},
+resv:{ko:R`【잔류전압】=\dfrac{\sqrt{…}}{【정전용량 합】}\times【상전압】`,sy:[['E_n','이 엔','중성점 잔류전압','V'],['C_a,C_b,C_c','씨 에이·비·씨','각 선 대지 정전용량','μF']]},
+emi:{ko:R`【유도 전압】=j\times【각주파수】\times【상호 인덕턴스】\times【길이】\times3\times【영상 전류】`,sy:[['E_m','이 엠','전자유도 전압','V'],['M','엠','상호 인덕턴스','H/km'],['l','엘','나란한 길이','km'],['I_0','아이 제로','영상 전류','A']]},
 demorgan:{ko:R`\overline{【A 또는 B】}=【A 아님】\ 【그리고】\ 【B 아님】`,sy:[[R`\overline{A}`,'에이 바','A 의 부정 (b접점)','—'],[R`A\cdot B`,'에이 앤드 비','직렬 (AND)','—'],['A+B','에이 오어 비','병렬 (OR)','—']]},
 bool:{sy:[[R`\overline{A}`,'에이 바','A 의 부정','—']]}
 };
@@ -358,15 +417,206 @@ function eqKeys(n){
   return out;
 }
 const pieces=t=>T(t).split(/\\q?quad|,\s*\\;|;\s/).map(x=>x.replace(/^[\s,]+|[\s,]+$/g,'')).filter(x=>x.includes('='));
+/* ══ 식 같음 판정 (숫자 대입) — 순서·곱셈 기호·이항이 달라도 같은 식이면 같다고 봄 ══ */
+const EQV=(()=>{
+  const GREEK='alpha beta gamma delta epsilon varepsilon zeta eta theta vartheta iota kappa lambda mu nu xi rho sigma tau phi varphi chi psi omega Delta Phi Omega Theta Lambda Sigma Psi'.split(' ');
+  const FN={sin:Math.sin,cos:Math.cos,tan:Math.tan,ln:Math.log,log:Math.log10,exp:Math.exp};
+  function clean(s){
+    s=String(s==null?'':s).replace(/\$/g,'')
+      .replace(/\\left|\\right|\\displaystyle|\\[,;:!]|\\q?quad|~/g,' ')
+      .replace(/\\(dot|vec|hat|bar|mathbf|boldsymbol|mathit)\s*\{([^{}]*)\}/g,'$2')
+      .replace(/\\(mathrm|textrm|operatorname|textbf)\s*\{/g,'\\text{')
+      .replace(/\\%/g,'%').replace(/[×✕]/g,'*').replace(/[·⋅]/g,'*').replace(/−/g,'-');
+    return s.trim();
+  }
+  /* 끝에 붙은 단위 [kW] · (조건 설명) 떼기 */
+  function stripTail(s){
+    for(let k=0;k<4;k++){
+      const o=s;
+      s=s.replace(/\s*\[[^\[\]=+]*\]\s*$/,'').replace(/\s*\\text\{\s*\[[^{}]*\]\s*\}\s*$/,'')
+         .replace(/\s*\(\s*\\text\{[^{}]*\}\s*\)\s*$/,'').replace(/\s*\([^()]*[:가-힣][^()]*\)\s*$/,'')
+         .replace(/\s*\\text\{\s*[^{}]*(이하|이상|초과|미만|일 때|경우)[^{}]*\}\s*$/,'').trim();
+      if(s===o) break;
+    }
+    return s;
+  }
+  function lex(s){
+    const t=[]; let i=0;
+    const bad=()=>{ throw 0 };
+    while(i<s.length){
+      const c=s[i];
+      if(/\s/.test(c)){ i++; continue; }
+      const num=s.slice(i).match(/^\d+(\.\d+)?/); if(num){ t.push({k:'n',v:+num[0]}); i+=num[0].length; continue; }
+      if(c==='\\'){
+        const m=s.slice(i+1).match(/^[A-Za-z]+/); if(!m){ i+=2; continue; }
+        const w=m[0]; i+=1+w.length;
+        if(/^[dt]?frac$/.test(w)){ t.push({k:'frac'}); continue; }
+        if(w==='sqrt'){ t.push({k:'sqrt'}); continue; }
+        if(w==='times'||w==='cdot'||w==='ast'){ t.push({k:'*'}); continue; }
+        if(w==='div'){ t.push({k:'/'}); continue; }
+        if(w==='pi'){ t.push({k:'n',v:Math.PI}); continue; }
+        if(w==='sum'){ continue; }
+        if(FN[w]){ t.push({k:'f',v:w}); continue; }
+        if(GREEK.includes(w)){ t.push({k:'v',v:w==='varepsilon'?'epsilon':w==='vartheta'?'theta':w==='varphi'?'phi':w}); continue; }
+        if(w==='text'){
+          const j=s.indexOf('}',i); if(s[i]!=='{'||j<0) bad();
+          const x=s.slice(i+1,j).replace(/\s/g,''); i=j+1;
+          if(!x) continue;
+          if(/^[\[\]A-Za-z%°Ω/μ0-9^·.]*$/.test(x) && /^\[.*\]$/.test(x)) continue;   /* [kW] 같은 단위 */
+          t.push({k:'v',v:'〈'+x+'〉'}); continue;
+        }
+        bad();
+      }
+      if(c==='%'){ if(/[A-Za-z]/.test(s[i+1]||'')){ const m=s.slice(i+1).match(/^[A-Za-z]/); t.push({k:'v',v:'%'+m[0]}); i+=2; continue; } i++; continue; }
+      if(/[A-Za-z]/.test(c)){ t.push({k:'v',v:c}); i++; continue; }
+      if(/[가-힣]/.test(c)){ const m=s.slice(i).match(/^[가-힣]+/); t.push({k:'v',v:'〈'+m[0]+'〉'}); i+=m[0].length; continue; }
+      if(c==='_'){ /* 아래 첨자 — 바로 앞 변수 이름에 붙임 */
+        i++; let sub='';
+        if(s[i]==='{'){ let d=1,j=i+1; while(j<s.length&&d){ if(s[j]==='{')d++; else if(s[j]==='}')d--; j++; } sub=s.slice(i+1,j-1); i=j; }
+        else if(s[i]==='\\'){ const m=s.slice(i+1).match(/^[A-Za-z]+/); sub=m?m[0]:''; i+=1+(m?m[0].length:0); }
+        else { sub=s[i]||''; i++; }
+        sub=sub.replace(/\\text\{([^{}]*)\}|\\mathrm\{([^{}]*)\}/g,'$1$2').replace(/[\s{}\\]/g,'');
+        const p=t[t.length-1];
+        if(p && p.k==='v') p.v+='_'+sub;
+        else if(p && p.k==='f' && p.v==='log'){ p.base=+sub||10; }
+        else bad();
+        continue;
+      }
+      if(c==="'"){ const p=t[t.length-1]; if(p&&p.k==='v'){ p.v+="'"; i++; continue; } bad(); }
+      if('+-*/^(){}[]|'.includes(c)){ t.push({k:c}); i++; continue; }
+      bad();
+    }
+    return t;
+  }
+  function parse(tok){
+    let p=0;
+    const peek=()=>tok[p], eat=k=>{ if(!tok[p]||tok[p].k!==k) throw 0; return tok[p++]; };
+    const starts=x=>x && (x.k==='n'||x.k==='v'||x.k==='frac'||x.k==='sqrt'||x.k==='f'||x.k==='('||x.k==='{'||x.k==='['||x.k==='|');
+    function expr(){
+      let neg=false; if(peek()&&(peek().k==='-'||peek().k==='+')){ neg=peek().k==='-'; p++; }
+      let a=term(); if(neg){ const x=a; a=e=>-x(e); }
+      while(peek()&&(peek().k==='+'||peek().k==='-')){ const o=tok[p++].k, b=term(), x=a; a=o==='+'?e=>x(e)+b(e):e=>x(e)-b(e); }
+      return a;
+    }
+    function term(){
+      let a=power();
+      for(;;){
+        const x=peek(); if(!x) break;
+        if(x.k==='*'||x.k==='/'){ p++; const b=power(), y=a; a=x.k==='*'?e=>y(e)*b(e):e=>y(e)/b(e); continue; }
+        if(starts(x)){ const b=power(), y=a; a=e=>y(e)*b(e); continue; }
+        break;
+      }
+      return a;
+    }
+    function power(){
+      let a=prim();
+      while(peek()&&peek().k==='^'){ p++; const b=expo(), x=a; a=e=>Math.pow(x(e),b(e)); }
+      return a;
+    }
+    function expo(){ const x=peek(); if(x&&x.k==='{'){ p++; const a=expr(); eat('}'); return a; } if(x&&x.k==='n'){ p++; return ()=>x.v; } if(x&&x.k==='v'){ p++; return e=>e[x.v]; } throw 0; }
+    function group(){ const x=peek(); if(x&&x.k==='{'){ p++; const a=expr(); eat('}'); return a; } return prim(); }
+    function prim(){
+      const x=tok[p++]; if(!x) throw 0;
+      if(x.k==='n') return ()=>x.v;
+      if(x.k==='v') return e=>e[x.v];
+      if(x.k==='('){ const a=expr(); eat(')'); return a; }
+      if(x.k==='{'){ const a=expr(); eat('}'); return a; }
+      if(x.k==='['){ const a=expr(); eat(']'); return a; }
+      if(x.k==='|'){ const a=expr(); eat('|'); return e=>Math.abs(a(e)); }
+      if(x.k==='frac'){ const a=group(), b=group(); return e=>a(e)/b(e); }
+      if(x.k==='sqrt'){
+        if(peek()&&peek().k==='['){ p++; const n=expr(); eat(']'); const a=group(); return e=>Math.pow(a(e),1/n(e)); }
+        const a=group(); return e=>Math.sqrt(a(e));
+      }
+      if(x.k==='f'){
+        let pw=null; if(peek()&&peek().k==='^'){ p++; pw=expo(); }
+        const a=power(), f=FN[x.v], base=x.base;
+        const g= x.v==='log' && base ? (v=>Math.log(v)/Math.log(base)) : f;
+        return pw? e=>Math.pow(g(a(e)),pw(e)) : e=>g(a(e));
+      }
+      throw 0;
+    }
+    const f=expr(); if(p!==tok.length) throw 0; return f;
+  }
+  /* 한 쪽 식 → { f, vars } */
+  function side(s){
+    s=stripTail(clean(s)); if(!s) return null;
+    try{ const tk=lex(s); if(!tk.length) return null; const f=parse(tk); return { f, vars:new Set(tk.filter(x=>x.k==='v').map(x=>x.v)) }; }catch(e){ return null; }
+  }
+  /* 식 한 줄 → 등호 짝들 [{L,R,vars,sig}] */
+  function eqs(line){
+    const s=clean(line);
+    if(/\\(overline|neq|le|ge|leq|geq|approx|simeq|Rightarrow|therefore|to|rightarrow)\b|[<>≤≥≒≈]/.test(s)) return [];
+    const parts=s.split('=').map(x=>x.trim()); if(parts.length<2) return [];
+    const out=[];
+    for(let i=0;i<parts.length-1;i++){
+      const L=side(parts[i]), R=side(parts[i+1]); if(!L||!R) continue;
+      const vars=new Set([...L.vars,...R.vars]); if(vars.size<2) continue;
+      out.push({ L:L.f, R:R.f, vars:[...vars].sort(), sig:[...vars].sort().join('|') });
+    }
+    return out;
+  }
+  /* 난수 (고정 씨앗) */
+  function rnd(seed){ let x=seed>>>0||1; return ()=>{ x^=x<<13; x>>>=0; x^=x>>17; x^=x<<5; x>>>=0; return 1.15+((x%100000)/100000)*1.7; }; }
+  const D=(q,e)=>q.L(e)-q.R(e);
+  /* q1 에서 변수 v 를 풀어서 q2 에 넣어 봄 */
+  function same(q1,q2){
+    if(q1.sig!==q2.sig) return false;
+    for(let s=1;s<=2;s++){
+      const r=rnd(7919*s+q1.sig.length), env={}; q1.vars.forEach(v=>{ const x=r(); env[v]=/^(theta|phi|delta)/.test(v)? 0.15+(x-1.15)*0.6 : x; });
+      let ok=false;
+      for(const v of q1.vars){
+        /* 할선법 */
+        let a=env[v], b=a*1.3, fa, fb, e1=Object.assign({},env);
+        e1[v]=a; fa=D(q1,e1); e1[v]=b; fb=D(q1,e1);
+        if(!isFinite(fa)||!isFinite(fb)) continue;
+        for(let k=0;k<80 && Math.abs(fb)>1e-12*(1+Math.abs(q1.R(e1))); k++){
+          const den=fb-fa; if(!den) break; const c=b-fb*(b-a)/den; a=b; fa=fb; b=c; e1[v]=b; fb=D(q1,e1); if(!isFinite(fb)) break;
+        }
+        if(!isFinite(fb) || Math.abs(fb)>1e-9*(1+Math.abs(q1.R(e1)))) continue;
+        if(!isFinite(b)) continue;
+        const d2=D(q2,e1), sc=1+Math.abs(q2.L(e1))+Math.abs(q2.R(e1));
+        if(!isFinite(d2)) continue;
+        if(Math.abs(d2)<=1e-7*sc){ ok=true; break; }
+        return false;
+      }
+      if(!ok) return false;
+    }
+    return true;
+  }
+  return { eqs, same, side, clean };
+})();
+
 function formsOf(f){
   const fk=f.tex+'|'+(f.alt||[]).join('|')+'|'+(f.ko||''); if(f.__fk===fk) return f.__forms;
-  const s=new Set(); [f.tex,...(f.alt||[]),...(f.kf||[]),f.ko||''].forEach(t=>pieces(t).forEach(p=>keysOf(p).forEach(k=>s.add(k))));
+  const s=new Set(); [f.tex,...(f.alt||[]),...(f.kf||[]),f.ko||''].forEach(t=>pieces(t).forEach(p=>{ keysOf(p).forEach(k=>s.add(k)); eqKeys(nrm(p)).forEach(k=>s.add(k)); eqKeys(nrmK(p)).forEach(k=>s.add(k)); }));
   f.__fk=fk; f.__forms=s; return s;
 }
+/* 숫자 대입으로 견줄 공식 꼴 — 변수 묶음(sig)별로 모아 둠 */
+let QIX=null, QSIG='', QALL=null;
+function qIndex(all){
+  if(QIX && all===QALL) return QIX;
+  QALL=all;
+  const sg=all.length+'|'+all.map(f=>f.id+':'+(f.tex||'').length+':'+(f.ko||'').length).join(',');
+  if(QIX && sg===QSIG) return QIX;
+  const m=new Map();
+  all.forEach(f=>[f.tex,...(f.alt||[]),...(f.kf||[]),f.ko||''].forEach(t=>pieces(t).forEach(p=>EQV.eqs(p).forEach(q=>{ if(!m.has(q.sig)) m.set(q.sig,[]); m.get(q.sig).push({f,q}); }))));
+  QIX=m; QSIG=sg; return m;
+}
+const SMC=new Map();
 function symMatch(line, all){
-  const ks=[...keysOf(line)]; if(!ks.length) return null;
+  const ks=[...keysOf(line)];
   for(const f of all){ const F=formsOf(f); if(ks.some(k=>F.has(k))) return f; }
-  return null;
+  /* 모양이 달라도(순서·곱셈 기호·이항) 숫자를 넣어 같으면 같은 식 */
+  const ix=qIndex(all), ck=QSIG.length+'|'+line;
+  if(SMC.has(ck)){ const id=SMC.get(ck); return id?all.find(f=>f.id===id)||null:null; }
+  let hit=null;
+  for(const p of pieces(line).length?pieces(line):[line]){
+    for(const q of EQV.eqs(p)){ const c=ix.get(q.sig)||[]; const h=c.find(x=>EQV.same(q,x.q)); if(h){ hit=h.f; break; } }
+    if(hit) break;
+  }
+  if(SMC.size>20000) SMC.clear();
+  SMC.set(ck, hit?hit.id:''); return hit;
 }
 
 /* ══ ④ 문항 → 공식 짝짓기 · 출제율 ══ */
@@ -397,12 +647,14 @@ function build(){
     const A=T(r.a_text)+'\n'+T(r.a_md)+'\n'+T(r.easy_md);
     const X=Q+'\n'+A;
     const hit=new Set();
+    const Qc=Q.replace(/\s+/g,''), Ac=A.replace(/\s+/g,''), Xc=Qc+'\n'+Ac;
+    const ok=(re,a,b)=>re.test(b);   /* 공백 뺀 글로만 — 원래 규칙은 \s* 라 같은 결과, 줄바꿈으로 끊긴 낱말도 잡힘 */
     for(const f of LIB){
       const m=f.m; if(!m) continue;
-      if(m.q && !m.q.test(Q)) continue;
-      if(m.a && !m.a.test(A)) continue;
-      if(m.x && !m.x.test(X)) continue;
-      if(m.no && m.no.test(Q)) continue;
+      if(m.q && !ok(m.q,Q,Qc)) continue;
+      if(m.a && !ok(m.a,A,Ac)) continue;
+      if(m.x && !ok(m.x,X,Xc)) continue;
+      if(m.no && ok(m.no,Q,Qc)) continue;
       hit.add(f.id);
     }
     /* 해설에 같은 식이 그대로 있으면 연결 (목록 공식 · 내가 추가한 공식 모두) */
@@ -925,5 +1177,5 @@ setInterval(()=>{ try{ mount();
 document.addEventListener('click', e=>{ const c=e.target.closest && e.target.closest('#list > .pcard[data-id]'); if(c) LASTCARD=String(c.dataset.id); }, true);
 addEventListener('resize', ()=>{ try{ place() }catch(e){ q_(e) } });
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && isOpen()) pull(true).catch(q_); });
-window.__pracFx={ open, close, lib:LIB, all:ALL, build, symLines, symMatch, nrm, nrmK, isKoEq, koFor, symsFor };
+window.__pracFx={ open, close, lib:LIB, all:ALL, build, symLines, symMatch, nrm, nrmK, isKoEq, EQV, koFor, symsFor };
 })();
