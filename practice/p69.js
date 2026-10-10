@@ -75,13 +75,13 @@ addEventListener('resize', ()=>{ try{ apply() }catch(e){globalThis.__q?.(e)} });
 try{ new MutationObserver(()=>{ try{ apply() }catch(e){globalThis.__q?.(e)} }).observe(document.body,{ attributes:true, attributeFilter:['class'] }); }catch(e){globalThis.__q?.(e)}
 })();
 
-/* ★ v345 — 한눈에: 문제·답안 그림 크기 −/＋ (60~100%)
+/* ★ v345 — 한눈에: 문제·답안 그림 크기 −/＋ (v352 부터 30~100%)
    · 문제 칸·답안 칸 이름줄에 각각 «− 80% ＋» — 칸마다 따로, 기기에 기억됨
    · 꾹 누르고 있으면 쭉 내려가고/올라감 (0.35초 뒤부터 0.08초마다 5%씩)
    · 그림 상자(.imgbox) 폭을 줄이는 방식 — 필기 층·여백 자르기는 «좁은 화면» 처럼 그대로 따라옴 */
 (function(){
   'use strict';
-  const MIN=60, MAX=100, STEP=5;
+  const MIN=30, MAX=100, STEP=5;   /* ★ v352 — 30% 까지 */
   const KEY=f=>'prac:ovz:'+f;
   const get=f=>{ let v=100; try{ v=+localStorage.getItem(KEY(f))||100 }catch(e){globalThis.__q?.(e)} return Math.max(MIN,Math.min(MAX,Math.round(v/STEP)*STEP)); };
   const put=(f,v)=>{ try{ localStorage.setItem(KEY(f),String(v)) }catch(e){globalThis.__q?.(e)} };
@@ -134,7 +134,7 @@ html body.rd-night #ovl .gvz b{color:#cfe0ff}`;
   function mount(f){
     const l=lab(f); if(!l) return;
     if(!l.querySelector('.gvz')){
-      const w=document.createElement('span'); w.className='gvz'; w.title='그림 크기 (60~100%) — 꾹 누르면 쭉';
+      const w=document.createElement('span'); w.className='gvz'; w.title='그림 크기 (30~100%) — 꾹 누르면 쭉';
       w.innerHTML='<button type="button" data-z="-1" aria-label="그림 작게">−</button><b>100%</b><button type="button" data-z="1" aria-label="그림 크게">＋</button>';
       holdable(w.querySelector('[data-z="-1"]'),f,-1);
       holdable(w.querySelector('[data-z="1"]'),f,1);
@@ -152,4 +152,73 @@ html body.rd-night #ovl .gvz b{color:#cfe0ff}`;
     mo.observe(L,{childList:true}); mo.observe(R,{childList:true,subtree:true});
     mountAll();
   })();
+})();
+
+/* ★ v352 — 이지뷰(넓은 화면): 문제 칸 ↕ 답안 칸 사이 손잡이로 높이 조절
+   · 왼쪽 열의 문제·답안 사이에 가로 손잡이 — 위아래로 끌면 문제 칸 높이가 바뀌고 답안이 나머지를 씀
+   · 비율로 기기에 기억 · 두 번 클릭 = 처음 높이 · 단답(solo)은 한 칸이라 손잡이 숨김 */
+(function(){
+  'use strict';
+  const KEY='prac:evd:v1';
+  const wide=()=>{ try{ return matchMedia('(min-width:900px)').matches }catch(e){ return innerWidth>=900 } };
+  let R=0; try{ R=+localStorage.getItem(KEY)||0 }catch(e){ R=0 }
+  const save=()=>{ try{ R? localStorage.setItem(KEY,String(R)) : localStorage.removeItem(KEY) }catch(e){globalThis.__q?.(e)} };
+  const ob=()=>document.querySelector('#ovl .ob');
+  const st=document.createElement('style');
+  st.textContent=`
+.evgripd{display:none}
+@media(min-width:900px){
+  html body.easyview #ovl .ob{grid-template-rows:var(--evd1,fit-content(58%)) 10px minmax(0,1fr)!important}
+  html body.easyview #ovl .pane.left{grid-row:1!important}
+  html body.easyview #ovl .ob[style*="--evd1"] > .pane.left{min-height:0!important;max-height:none!important;overflow:auto}
+  html body.easyview #ovl .pane.right > .seg[data-seg="a"]{grid-column:1;grid-row:3!important}
+  html body.easyview #ovl .pane.right > .seg[data-seg="e"]{grid-column:2;grid-row:1 / span 3!important}
+  html body.easyview #ovl.solo .pane.left{grid-row:1 / span 3!important}
+  html body.easyview #ovl .evgripd{display:flex;grid-column:1;grid-row:2;align-items:center;justify-content:center;cursor:row-resize;touch-action:none;
+    -webkit-user-select:none;user-select:none;background:var(--surface-2,#f1f5f9);border-top:1px solid var(--line,#e2e8f0);border-bottom:1px solid var(--line,#e2e8f0);z-index:2}
+  html body.easyview #ovl .evgripd:hover i{background:#64748b}
+  html body.easyview #ovl .evgripd i{display:block;width:44px;height:4px;border-radius:99px;background:#94a3b8;transition:width .12s,background .12s}
+  html body.easyview #ovl .evgripd.on i{width:72px;background:#1d4ed8}
+  html body.easyview #ovl.solo .evgripd{display:none!important}
+  html body.evdrag, body.evdrag *{-webkit-user-select:none!important;user-select:none!important;cursor:row-resize!important}
+}
+html body.rd-night #ovl .evgripd{background:#111827;border-color:#33415c}`;
+  document.head.appendChild(st);
+  function apply(){
+    const o=ob(); if(!o) return;
+    if(!(wide() && document.body.classList.contains('easyview')) || !R){ o.style.removeProperty('--evd1'); return; }
+    const H=o.clientHeight; if(H<100) return;
+    const v=Math.max(60, Math.min(H-10-80, Math.round(R*H)))+'px';
+    if(o.style.getPropertyValue('--evd1')!==v) o.style.setProperty('--evd1', v);
+  }
+  let D=null, last=0;
+  function mount(){
+    const o=ob(); if(!o) return;
+    if(!o.querySelector(':scope > .evgripd')){
+      const g=document.createElement('div'); g.className='evgripd'; g.setAttribute('role','separator');
+      g.title='위아래로 끌어 문제·답안 칸 높이 조절 · 두 번 클릭 = 처음 높이'; g.innerHTML='<i></i>';
+      o.appendChild(g);
+      g.addEventListener('pointerdown', e=>{
+        const now=Date.now();
+        if(now-last<320){ R=0; save(); apply(); last=0; return; }
+        last=now;
+        const L=document.getElementById('ovLeft'); if(!L) return;
+        D={ y:e.clientY, h:L.getBoundingClientRect().height, H:o.clientHeight };
+        g.classList.add('on'); document.body.classList.add('evdrag');
+        try{ g.setPointerCapture(e.pointerId) }catch(x){globalThis.__q?.(x)}
+        e.preventDefault();
+      });
+      g.addEventListener('pointermove', e=>{
+        if(!D) return;
+        const h=Math.max(60, Math.min(D.H-10-80, D.h+(e.clientY-D.y)));   /* 답안 칸이 최소 80px 은 남게 */
+        o.style.setProperty('--evd1', Math.round(h)+'px'); R=h/D.H; e.preventDefault();
+      });
+      const up=()=>{ if(!D) return; g.classList.remove('on'); document.body.classList.remove('evdrag'); D=null; save(); };
+      g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
+    }
+    apply();
+  }
+  setInterval(()=>{ try{ mount() }catch(e){globalThis.__q?.(e)} }, 600);
+  addEventListener('resize', ()=>{ try{ apply() }catch(e){globalThis.__q?.(e)} });
+  try{ new MutationObserver(()=>{ try{ apply() }catch(e){globalThis.__q?.(e)} }).observe(document.body,{ attributes:true, attributeFilter:['class'] }); }catch(e){globalThis.__q?.(e)}
 })();

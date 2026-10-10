@@ -27,7 +27,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 /* ★ v341 — 빌드 번호는 여기 한 곳만. tools/bump.sh 가 앱(sw.js)과 같이 올려 줌 */
-const BUILD = "v349";
+const BUILD = "v352";
 
 const API = "https://api.anthropic.com/v1/messages";
 const VER = "2023-06-01";
