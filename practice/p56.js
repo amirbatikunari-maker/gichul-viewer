@@ -785,8 +785,11 @@ function drawSegs(){
       <select data-row>${opts}</select>
       <select data-slot>
         <option value="q"${slotDef==='q'?' selected':''}>문제</option>
+        <option value="qc">문제 — 이어붙이기 (이미 있는 문제 그림 아래에)</option>
         <option value="a"${slotDef==='a'?' selected':''}>답</option>
+        <option value="ac">답 — 이어붙이기 (이미 있는 답 그림 아래에)</option>
       </select>
+      <span class="pxjoin" hidden></span>
       <div class="pxatt" data-att="${i}">
         <div class="pxatt-bar">
           <span class="pxnote">빠진 부분 붙이기</span>
@@ -798,6 +801,36 @@ function drawSegs(){
     </div>`;
   }).join('') || '<p class="pxnote">그림 위를 눌러 절단선을 그으세요.</p>';
   $$('.pxatt', wrap).forEach(el=>attDraw(+el.dataset.att));
+  paintJoin();
+}
+/* ★ v360 — 같은 문항·같은 칸(문제/답)으로 고른 칸이 여럿이면 «덮어쓰기» 가 아니라 «위에서 아래로 이어붙임»
+   (예전엔 칸1·칸2·칸3 을 모두 «7번 문제» 로 넣으면 마지막 칸만 남았다)
+   «이어붙이기» 를 고르면 저장소에 이미 있는 그림 아래에 붙인다 */
+function joinPlan(){
+  const G=new Map();
+  $$('.pxseg',OVX).forEach(el=>{
+    if($('[data-use]',el).value!=='y') return;
+    const sl=$('[data-slot]',el).value, slot=sl[0], cont=sl.length>1;
+    const k=$('[data-row]',el).value+'|'+slot;
+    if(!G.has(k)) G.set(k,{ id:$('[data-row]',el).value, slot, cont:false, segs:[] });
+    const g=G.get(k); if(!g.segs.length && cont) g.cont=true;
+    g.segs.push(el);
+  });
+  return G;
+}
+function paintJoin(){
+  if(!OVX) return;
+  $$('.pxjoin',OVX).forEach(x=>{ x.hidden=true; x.textContent=''; });
+  joinPlan().forEach(g=>{
+    g.segs.forEach((el,j)=>{
+      const tag=$('.pxjoin',el), r=rowById(g.id), nm=`${r?r.no+'번':''} ${g.slot==='q'?'문제':'답'}`;
+      if(j===0 && !g.cont && g.segs.length===1) return;
+      tag.hidden=false;
+      tag.textContent = j===0
+        ? (g.cont ? `↳ 이미 있는 ${nm} 그림 아래에 이어붙임` : `① ${nm} 맨 위 — 아래 칸 ${g.segs.length-1}개가 이어붙음`)
+        : `↳ 위 칸(칸 ${+g.segs[j-1].dataset.i+1}) 아래로 이어붙여 ${nm} 한 장으로`;
+    });
+  });
 }
 
 /* ══ ★ v359 — 칸에 «빠진 부분» 그림 붙이기 ══════════════════════════════
@@ -950,6 +983,7 @@ document.addEventListener('change', e=>{
   if(!OVX || !OVX.contains(e.target)) return;
   const fi=e.target.closest('[data-attfile]');
   if(fi){ const f=fi.files&&fi.files[0]; if(f) attSet(+fi.dataset.attfile, f); fi.value=''; return; }
+  if(e.target.closest('.pxseg select')) paintJoin();
   const ps=e.target.closest('[data-attpos]');
   if(ps){ const t=ATT.get(+ps.dataset.attpos); if(t){ t.pos=ps.value; attPrev(+ps.dataset.attpos); } }
 });
@@ -974,6 +1008,7 @@ document.addEventListener('change', e=>{
 .pxcbox i[data-e="l"]{left:-5px} .pxcbox i[data-e="r"]{right:-5px}
 .pxprev{border:1px solid var(--line,#e2e8f0);background:#fff;margin-top:4px;max-height:420px;overflow:auto}
 .pxseg.cur{outline:2px solid #93c5fd}
+.pxjoin{flex-basis:100%;font:800 11px/1.3 var(--font-d,system-ui);color:#6b2fb3;background:#f6f1fd;border:1px solid #d8c4f2;border-radius:6px;padding:5px 8px}
 `; document.head.appendChild(st); })();
 
 async function openCut(id, src){
@@ -1056,17 +1091,30 @@ async function save(){
   const msg=$('#pxMsg',OVX);
   let done=0;
   try{
-    for(const el of rows){
-      const a=+el.dataset.a, b=+el.dataset.b;
-      const tgt=rowById($('[data-row]',el).value);
-      const slot=$('[data-slot]',el).value;
-      if(!tgt) continue;
-      msg.textContent=`${tgt.no}번 ${slot==='q'?'문제':'답'} — 자르는 중…`;
-      /* ★ v359 — 붙인 그림이 있으면 합친 모양으로 */
-      const ci=+el.dataset.i;
-      const blob = ATT.has(ci)
-        ? await new Promise((ok,no)=>compose(ci,1600).toBlob(bl=>bl?ok(bl):no(new Error('그림을 만들지 못했습니다')),'image/jpeg',0.88))
-        : await crop(IMG, a, b);
+    const segCv=el=>{
+      const ci=+el.dataset.i, a=+el.dataset.a, b=+el.dataset.b;
+      if(ATT.has(ci)) return compose(ci,1600);
+      const W=IMG.naturalWidth, H=IMG.naturalHeight, sc=Math.min(1,1600/W);
+      const sy=Math.round(H*a), sh=Math.max(1,Math.round(H*(b-a)));
+      const cv=document.createElement('canvas'); cv.width=Math.max(1,Math.round(W*sc)); cv.height=Math.max(1,Math.round(sh*sc));
+      cv.getContext('2d').drawImage(IMG,0,sy,W,sh,0,0,cv.width,cv.height); return cv;
+    };
+    for(const g of joinPlan().values()){
+      const tgt=rowById(g.id); if(!tgt) continue;
+      const slot=g.slot, nm=`${tgt.no}번 ${slot==='q'?'문제':'답'}`;
+      msg.textContent=`${nm} — ${g.segs.length>1||g.cont?'이어붙이는':'자르는'} 중…`;
+      const parts=g.segs.map(segCv);
+      if(g.cont){
+        const old=slot==='q'?tgt.q_url:tgt.a_url;
+        if(old){ try{ const im=await loadImg(old); const c=document.createElement('canvas'); c.width=im.naturalWidth; c.height=im.naturalHeight; c.getContext('2d').drawImage(im,0,0); parts.unshift(c); }
+                 catch(e){ throw new Error(`${nm} — 이미 있는 그림을 못 읽어 이어붙이지 못함 (${e.message||e})`); } }
+      }
+      const W=Math.max(...parts.map(c=>c.width)), gap=parts.length>1?6:0;
+      const hs=parts.map(c=>Math.round(c.height*W/c.width));
+      const out=document.createElement('canvas'); out.width=W; out.height=hs.reduce((x,y)=>x+y,0)+gap*(parts.length-1);
+      const gx=out.getContext('2d'); gx.fillStyle='#fff'; gx.fillRect(0,0,out.width,out.height);
+      let y=0; parts.forEach((c,k)=>{ gx.drawImage(c,0,y,W,hs[k]); y+=hs[k]+gap; });
+      const blob=await new Promise((ok,no)=>out.toBlob(bl=>bl?ok(bl):no(new Error('그림을 만들지 못했습니다')),'image/jpeg',0.88));
       const url=await put(pathOf(tgt, slot), blob);
       const patch={ [slot==='q'?'q_url':'a_url']: url, ['st_'+slot]:'draft' };
       let up=await sbx.from('practicals').update(patch).eq('id', tgt.id);
@@ -1074,7 +1122,7 @@ async function save(){
         up=await sbx.from('practicals').update({ [slot==='q'?'q_url':'a_url']: url }).eq('id', tgt.id);
       if(up.error) throw new Error(up.error.message);
       Object.assign(tgt, patch);
-      done++;
+      done+=g.segs.length;
     }
     msg.textContent=`${done}칸 넣었습니다.`;
     toast(`그림 ${done}칸을 잘라 넣었습니다`);

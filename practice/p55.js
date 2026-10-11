@@ -38,6 +38,7 @@ function bag(){
   return BAG;
 }
 function remember(){
+  if(!window.__viewReady) return;   /* ★ v360 — 켜지는 동안(자리 돌려놓기 전)엔 «0번째» 를 적지 않는다 */
   const rs=shown(); if(!rs.length) return;
   const r=rs[Math.min(at(), rs.length-1)]; if(!r) return;
   const b=bag();
@@ -79,6 +80,8 @@ function restore(){
   if(BUSY) return;
   const rs=shown(); if(!rs.length) return;
   const s=sig();
+  /* ★ v360 — 켜질 때 자리는 p52 가 맡는다. 그게 끝난 «그 묶음» 은 건너뛰고, 그 뒤로 바뀐 묶음만 본다 */
+  if(!window.__viewReady){ LASTSIG=s; return; }
   if(s===LASTSIG) return;          /* 같은 조건 안에서는 건드리지 않는다 */
   LASTSIG=s;
   /* ★ v253 — 자리표의 «열쇠» 는 거른 조건을 통째로 이어 붙인 긴 글이다.
