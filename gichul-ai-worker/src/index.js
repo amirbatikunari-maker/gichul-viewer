@@ -27,7 +27,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 /* ★ v341 — 빌드 번호는 여기 한 곳만. tools/bump.sh 가 앱(sw.js)과 같이 올려 줌 */
-const BUILD = "v352";
+const BUILD = "v353";
 
 const API = "https://api.anthropic.com/v1/messages";
 const VER = "2023-06-01";
@@ -696,6 +696,94 @@ const TOOL = {
     }
   }
 };
+/* ═══════════════════════════════════════════════════════════════
+   ★ v353 — 필기(객관식) 해설 틀 · write_mcq
+   실기 틀(write_solution)을 바탕으로, 필기에 맞게:
+     문제 개요 → (회로·결선도면) 전체 시퀀스 → 기호(읽는 법 · 쉬운 풀이 · 이 문제의 값)
+     → 주어진 값 → 풀이(식이면 기호식 = 한글식 = 숫자대입식 = 단위식 + 왜)
+     → 보기별 판단(①~④ 왜 맞고 틀린지 한 줄씩) → 정답 → 관련 개념 정리(3~5줄)
+   한 번만 부르고(다시 받기 없음) 짧게 — 2,400문항 단위로 돌리기 때문
+   ═══════════════════════════════════════════════════════════════ */
+const TOOL_MCQ = {
+  name: "write_mcq",
+  description: "자격시험 필기(4지선다) 한 문항의 쉬운 해설을 정해진 칸에 나눠 적는다. 그 과목을 배운 적 없는 사람이 혼자 읽고 이해할 만큼.",
+  input_schema: {
+    type: "object",
+    required: ["kind", "gist", "symbols", "steps", "opts", "answer", "concept"],
+    properties: {
+      kind:    { type: "string", enum: ["계산", "개념", "법규", "회로·시퀀스"], description: "계산=값을 구함 · 개념=원리·특성 · 법규=법령·기준 숫자 · 회로·시퀀스=회로·결선도·접점 동작" },
+      gist:    { type: "string", description: "문제 개요 — 무엇을 묻는 문제인지 한두 문장" },
+      easy:    { type: "array", items: { type: "string" }, description: "쉽게 말하면 — 생활 비유 한 줄 + 핵심 한 줄. 1~2개" },
+      sequence:{ type: "array", items: { type: "string" }, description: "회로·시퀀스(결선도) 문제만 — 이 회로 전체가 어떤 순서로 동작하는지 3~7줄(전원 → 누름 → 코일 여자 → 접점 → 램프·자기유지 …). 다른 유형은 빈 배열" },
+      symbols: { type: "array", description: "문제·풀이에 나오는 기호·약호. 없으면 빈 배열",
+                 items: { type: "object", required: ["sym", "say", "mean"], properties: {
+                   sym:  { type: "string", description: "기호. KaTeX, $ 없이" },
+                   say:  { type: "string", description: "읽는 법 (한글 발음). 예: X_L '엑스 엘'" },
+                   mean: { type: "string", description: "쉬운 풀이 — 무엇을 뜻하는지 쉬운 말 한 줄" },
+                   val:  { type: "string", description: "이 문제에서의 값 (없으면 빈 문자열)" },
+                   unit: { type: "string", description: "단위" } } } },
+      given:   { type: "array", items: { type: "string" }, description: "문제에 나온 숫자·조건 전부. '이름 = 값 단위' 꼴 글자. 기호는 $…$ KaTeX" },
+      steps:   { type: "array", minItems: 1, description: "풀이 단계. 계산이면 식 네 줄을 반드시 채운다. 개념·법규면 say 와 why 만",
+                 items: { type: "object", required: ["say"], properties: {
+                   say:   { type: "string", description: "이 단계 이름" },
+                   sym:   { type: "string", description: "①기호식 — 기호만으로. KaTeX, $ 없이" },
+                   plain: { type: "string", description: "②한글식 — ①과 생김새가 똑같고 기호 자리에만 한글 이름. 한글은 \\text{} 로. KaTeX, $ 없이" },
+                   num:   { type: "string", description: "③숫자대입식 — 숫자를 넣고 결과까지. KaTeX, $ 없이" },
+                   unit:  { type: "string", description: "④단위식 — 숫자 대신 단위만 넣어 결과 단위가 맞는지. KaTeX, $ 없이" },
+                   why:   { type: "string", description: "왜 — 2~4줄 핵심만. 기호는 $…$ KaTeX" } } } },
+      opts:    { type: "array", minItems: 4, maxItems: 4, description: "★ 보기별 판단 — ①②③④ 네 개 모두. 정답인 것과 틀린 것 각각 근거 한 줄",
+                 items: { type: "object", required: ["n", "ok", "why"], properties: {
+                   n:   { type: "integer", description: "보기 번호 1~4" },
+                   ok:  { type: "boolean", description: "이 보기가 정답(문제가 고르라는 것)이면 true" },
+                   why: { type: "string", description: "왜 맞고 왜 틀린지 한 줄 (40자 안팎). 틀린 보기는 «무엇이 맞는 말인지» 를 적는다. 기호는 $…$ KaTeX" } } } },
+      answer:  { type: "string", description: "정답. 예: '③ 3C'. 답안지 정답을 그대로 따른다" },
+      concept: { type: "array", items: { type: "string" }, description: "★ 관련 개념 정리 — 시험에 같이 나오는 개념 3~5줄. 한 줄에 하나, 40자 안팎" },
+      trap:    { type: "string", description: "흔한 실수 한 줄 (없으면 빈 문자열)" },
+      memo:    { type: "string", description: "외우는 요령 한 줄 (없으면 빈 문자열)" }
+    }
+  }
+};
+const SYS_MCQ = [
+  "너는 국가기술자격 필기시험(4지선다) 해설 작성자다. 전공을 모르는 사람이 이 해설만 읽고 이해하도록 쉬운 말로 쓴다.",
+  "답안지(교재 해설·정답)가 같이 주어진다 — 정답은 반드시 답안지를 따른다. 답안지와 다른 답을 만들지 않는다.",
+  "write_mcq 를 딱 한 번, 모든 칸을 채운 완성본으로 호출한다. '임시' · 'TBD' 같은 자리표시 금지.",
+  "수식은 KaTeX. 식 칸(sym · plain · num · unit)에는 $ 를 붙이지 않는다. 글 칸에서 기호를 쓸 때만 $…$ 로 감싼다. 백슬래시를 $ 밖에 쓰지 않는다.",
+  "계산 문제는 steps 에 식 네 줄(기호식 = 한글식 = 숫자대입식 = 단위식)을 반드시 채운다.",
+  "회로·결선도·시퀀스 문제는 sequence 에 전체 동작 순서를 먼저 적고, 그 다음 문항(보기)을 판단한다.",
+  "opts 는 ①~④ 네 개 모두 — 맞는 보기와 틀린 보기 각각 한 줄 근거. 법규 문제는 틀린 보기의 «맞는 숫자·기준» 을 적는다.",
+  "concept 은 3~5줄로 짧게. 길게 늘이지 않는다."
+].join("\n");
+
+async function explainMcq(b, parts, model, env, H){
+  const t0 = Date.now(), BILL = [];
+  if (b.ans_label) parts.push({ type: "text", text: `── 답안지 정답 ──\n${b.ans_label}` });
+  parts.push({ type: "text", text: "── 할 일 ──\n위 필기 문항의 쉬운 해설을 write_mcq 로 적는다. 문제 개요 → (회로면) 전체 시퀀스 → 기호(읽는 법·쉬운 풀이·이 문제 값) → 풀이(식이면 네 줄) → 보기별 판단 ①~④ → 정답 → 관련 개념 3~5줄." });
+  const ask = async () => {
+    const res = await call(env, {
+      model, max_tokens: 8000, system: SYS_MCQ,
+      tools: [TOOL_MCQ], tool_choice: { type: "tool", name: "write_mcq" },
+      messages: [{ role: "user", content: parts }]
+    });
+    const out = await res.json();
+    BILL.push({ model, u: out.usage || null });
+    const c = (out.content || []).find(x => x.type === "tool_use" && x.name === "write_mcq");
+    return { out, sol: c ? fixSol(c.input || {}) : null };
+  };
+  const bad = s => !s || !Array.isArray(s.steps) || !s.steps.length || !Array.isArray(s.opts) || s.opts.length < 4 || !String(s.answer || "").trim();
+  let { out, sol } = await ask();
+  if (bad(sol)) { try{ const r2 = await ask(); if (!bad(r2.sol) || !sol){ out = r2.out; sol = r2.sol; } }catch(e){} }   /* 칸이 비었을 때만 한 번 더 */
+  if (!sol) return json({ error: "정해진 틀로 답하지 않았습니다", said: textOf(out).slice(0, 400) }, 502, H);
+  sol.exam = "필기";
+  if (Array.isArray(sol.concept) && sol.concept.length > 5) sol.concept = sol.concept.slice(0, 5);
+  const problems = [];
+  if (!Array.isArray(sol.steps) || !sol.steps.length) problems.push("풀이 단계가 없음");
+  if (!Array.isArray(sol.opts) || sol.opts.length < 4) problems.push("보기별 판단(①~④)이 모자람");
+  if (!String(sol.answer || "").trim()) problems.push("정답이 없음");
+  return json({ ok: true, sol, model, asked: model, fallback: false, depth: "mcq", problems, notes: [],
+                stop: out.stop_reason || null, usage: out.usage || null, bill: billOf(BILL, env),
+                secs: Math.round((Date.now() - t0) / 1000) }, 200, H);
+}
+
 const SYS_SOL = [
   "너는 전기기사 실기 채점 기준을 아는 해설 작성자다.",
   "읽는 사람은 전기를 전공하지 않았고, 이 단원을 처음 본다고 여긴다.",
@@ -957,6 +1045,8 @@ async function explain(req, env, H){
 
   const T = tiers(env);
   const model = b.model || T.best;
+  /* ★ v353 — 필기(객관식)는 따로 짧은 틀로 */
+  if (String(b.exam || "") === "필기") return explainMcq(b, parts, model, env, H);
 
   /* v209 — «생각(thinking)» 과 «이 도구를 반드시 써라(tool_choice: tool)» 는
      같이 쓸 수 없다. 둘 다 보내면 요청이 통째로 거절된다.
@@ -1372,7 +1462,7 @@ function fixSol(sol){
     }
     return v;
   };
-  for (const k of ["steps", "symbols", "items", "given", "background", "keys", "tags", "mnemos", "easy", "min_ans", "terms", "formula_why", "pairs"]) if (k in sol) sol[k] = toArr(sol[k]);
+  for (const k of ["steps", "symbols", "items", "given", "background", "keys", "tags", "mnemos", "easy", "min_ans", "terms", "formula_why", "pairs", "opts", "concept", "sequence"]) if (k in sol) sol[k] = toArr(sol[k]);
   /* ★ v327 — 단계 안의 derive · gates 도 글자(JSON)로 오면 풀어 줌 · truth 가 글자면 풀어 줌 */
   if (Array.isArray(sol.steps)) sol.steps.forEach(st => { if (st && typeof st === "object") for (const k of ["derive", "gates"]) if (k in st){ const v = toArr(st[k]); st[k] = Array.isArray(v) ? v : []; } });
   /* ★ v329 — 논리식 변환·게이트 표는 어디에 적어 오든 logic 한 곳으로 모은다

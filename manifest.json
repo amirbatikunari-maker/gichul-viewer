@@ -1,7 +1,8 @@
 {
   "name": "기출 해설 노트",
   "short_name": "해설노트",
-  "start_url": "./index.html",
+  "id": "./index.html",
+  "start_url": "./practice.html?w=1",
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#1d4ed8",

@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>필기 가져오기 · 기출 해설 노트</title>
+<link rel="icon" href="./favicon.ico">
+<style>
+:root{--bg:#f6f3ec;--card:#fffdf8;--ink:#111827;--mute:#64748b;--rule:#e5e0d4;--acc:#1d4ed8;--ok:#18794e;--bad:#b42331}
+@media (prefers-color-scheme:dark){:root{--bg:#0f141c;--card:#161d28;--ink:#e5e9f0;--mute:#94a3b8;--rule:#283244;--acc:#7fb0ff;--ok:#5fd39a;--bad:#ff8b94}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+.nav3{display:flex;gap:4px;padding:10px 16px;border-bottom:1px solid var(--rule);overflow-x:auto}
+.nav3 a{padding:6px 12px;border-radius:9px;color:var(--mute);text-decoration:none;white-space:nowrap;font-weight:600;font-size:14px}
+.nav3 a.on{background:var(--ink);color:var(--bg)}
+main{max-width:760px;margin:0 auto;padding:22px 16px 60px}
+h1{font-size:22px;margin:4px 0 6px}
+.lead{color:var(--mute);margin:0 0 18px}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:16px;margin-bottom:14px}
+.card h2{font-size:15px;margin:0 0 10px}
+label{display:block;font-size:13px;color:var(--mute);margin:8px 0 4px}
+input[type=text],input[type=email],input[type=password]{width:100%;padding:9px 11px;border:1px solid var(--rule);border-radius:9px;background:var(--bg);color:var(--ink);font:inherit}
+input[type=file]{font:inherit;max-width:100%}
+button{font:inherit;font-weight:700;padding:9px 16px;border-radius:10px;border:1px solid var(--rule);background:var(--card);color:var(--ink);cursor:pointer}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+button:disabled{opacity:.45;cursor:default}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.bar{height:10px;border-radius:99px;background:var(--rule);overflow:hidden;margin:12px 0 6px}
+.bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
+.stat{font:600 13px/1.4 ui-monospace,monospace;color:var(--mute)}
+.log{max-height:220px;overflow:auto;font:12px/1.5 ui-monospace,monospace;background:var(--bg);border:1px solid var(--rule);border-radius:9px;padding:8px;margin-top:8px;white-space:pre-wrap}
+.ok{color:var(--ok)}.bad{color:var(--bad)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+td,th{border-bottom:1px solid var(--rule);padding:4px 6px;text-align:left}
+.small{font-size:13px;color:var(--mute)}
+</style>
+</head>
+<body>
+<nav class="nav3"><a href="./practice.html?w=1" class="on">필기뷰어</a><a href="./practice.html">실기뷰어</a><a href="./calc.html">계산기</a><a href="./ingest.html">자동 변환</a></nav>
+<main>
+  <h1>필기 기출문제집 가져오기</h1>
+  <p class="lead">미리 잘라 둔 문제·해설 그림 묶음(ZIP)을 새 필기 화면에 넣습니다. 이미 있는 문항은 건너뛰고, 기존 문제는 지우지 않습니다.</p>
+
+  <div class="card" id="loginCard" hidden>
+    <h2>로그인</h2>
+    <label>이메일</label><input type="email" id="em" autocomplete="username">
+    <label>비밀번호</label><input type="password" id="pw" autocomplete="current-password">
+    <div class="row"><button class="pri" id="loginBtn">로그인</button><span id="loginMsg" class="small"></span></div>
+  </div>
+
+  <div class="card" id="mainCard" hidden>
+    <h2>① 묶음 파일 고르기</h2>
+    <input type="file" id="zip" accept=".zip">
+    <div id="info" class="small" style="margin-top:8px"></div>
+
+    <h2 style="margin-top:16px">② 넣을 과목</h2>
+    <label>과목 이름 (없으면 새로 만듭니다 · 이름에 «필기» 가 들어가야 필기 화면에 보임)</label>
+    <input type="text" id="subName">
+
+    <div class="row">
+      <button class="pri" id="go" disabled>가져오기 시작</button>
+      <button id="stop" disabled>■ 멈춤</button>
+      <span class="small">멈췄다가 다시 누르면 남은 것만 이어서 합니다.</span>
+    </div>
+    <div class="bar"><i id="barI"></i></div>
+    <div class="stat" id="stat">대기 중</div>
+    <div class="log" id="log"></div>
+    <div class="row"><a id="openW" href="./practice.html?w=1" hidden><button class="pri">필기 화면으로 가기 →</button></a></div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="./config.js"></script>
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   v353 · 필기 기출문제집 가져오기
+   ZIP 안: manifest.json + img/*.webp
+     manifest = { book, subject, items:[{year,session,no,subj,ans,ans_label,q_file,a_file,q_text,a_text}] }
+   하는 일:
+     · 과목(practical_subjects)을 이름으로 찾거나 만든다
+     · 그림을 qfig/wr/<과목id>/ 에 올린다 (같은 이름이면 덮어씀 — 다시 돌려도 안전)
+     · practicals 에 문항을 넣는다 — (과목·연도·회차·번호)가 이미 있으면 «건너뜀» (기존 문항은 안 건드림)
+   ═══════════════════════════════════════════════════════════════ */
+const $ = s => document.querySelector(s);
+const CFG = window.APP_CONFIG || {};
+const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+const BUCKET = "qfig";
+let ZIP = null, MAN = null, STOP = false, RUN = false;
+
+const log = (m, cls) => { const d = document.createElement("div"); if(cls) d.className = cls; d.textContent = m; $("#log").prepend(d); };
+const stat = t => $("#stat").textContent = t;
+const bar = (a, b) => $("#barI").style.width = (b ? Math.round(a / b * 100) : 0) + "%";
+
+async function boot(){
+  const { data } = await sb.auth.getSession();
+  const on = !!data?.session;
+  $("#loginCard").hidden = on; $("#mainCard").hidden = !on;
+}
+$("#loginBtn").onclick = async () => {
+  $("#loginMsg").textContent = "…";
+  const { error } = await sb.auth.signInWithPassword({ email: $("#em").value.trim(), password: $("#pw").value });
+  $("#loginMsg").textContent = error ? "실패 — " + error.message : "";
+  if(!error) boot();
+};
+
+$("#zip").onchange = async e => {
+  const f = e.target.files[0]; if(!f) return;
+  $("#info").textContent = "여는 중…"; $("#go").disabled = true;
+  try{
+    ZIP = await JSZip.loadAsync(f);
+    MAN = JSON.parse(await ZIP.file("manifest.json").async("string"));
+    const it = MAN.items || [];
+    const ses = new Set(it.map(x => x.year + "-" + x.session));
+    $("#info").innerHTML = `<b>${MAN.book || "기출문제집"}</b> — ${it.length.toLocaleString()}문항 · ${ses.size}회차 · 그림 ${Object.keys(ZIP.files).filter(n => /\.webp$/.test(n)).length.toLocaleString()}장`;
+    if(!$("#subName").value) $("#subName").value = MAN.subject || "필기";
+    $("#go").disabled = false;
+  }catch(err){ $("#info").textContent = "묶음 파일을 읽지 못했습니다 — " + (err.message || err); }
+};
+
+async function subjectId(name){
+  const f = await sb.from("practical_subjects").select("id,name,sort_order").order("sort_order", { ascending:false });
+  if(f.error) throw new Error("과목을 못 읽음 — " + f.error.message);
+  const hit = (f.data || []).find(s => s.name === name);
+  if(hit) return hit.id;
+  const top = (f.data || [])[0]?.sort_order ?? 0;
+  const r = await sb.from("practical_subjects").insert({ name, sort_order: top + 1 }).select().single();
+  if(r.error) throw new Error("과목을 못 만듦 — " + r.error.message);
+  log(`새 과목 «${name}» 을 만들었습니다`, "ok");
+  return r.data.id;
+}
+async function existing(sid){
+  const have = new Set(); let from = 0;
+  for(;;){
+    const r = await sb.from("practicals").select("year,session,no").eq("subject_id", sid).range(from, from + 999);
+    if(r.error) throw new Error("기존 문항을 못 읽음 — " + r.error.message);
+    (r.data || []).forEach(x => have.add(`${x.year}-${x.session}-${x.no}`));
+    if(!r.data || r.data.length < 1000) break; from += 1000;
+  }
+  return have;
+}
+async function upload(sid, file){
+  if(!file) return null;
+  const blob = await ZIP.file("img/" + file).async("blob");
+  const path = `wr/${sid}/${file}`;
+  for(let k = 0; k < 3; k++){
+    const r = await sb.storage.from(BUCKET).upload(path, new Blob([blob], { type:"image/webp" }), { upsert:true, contentType:"image/webp", cacheControl:"31536000" });
+    if(!r.error) return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+    if(k === 2) throw new Error("그림 올리기 실패 — " + r.error.message);
+    await new Promise(z => setTimeout(z, 800 * (k + 1)));
+  }
+}
+
+$("#stop").onclick = () => { STOP = true; stat("멈추는 중… (지금 올리는 것만 끝내고 멈춤)"); };
+$("#go").onclick = async () => {
+  if(RUN || !MAN) return;
+  const name = $("#subName").value.trim();
+  if(!name) return alert("과목 이름을 적어 주세요");
+  if(!/필기/.test(name) && !confirm(`«${name}» 에는 «필기» 가 없어서 필기 화면에 안 보이고 실기 화면에 보입니다.\n그래도 할까요?`)) return;
+  RUN = true; STOP = false; $("#go").disabled = true; $("#stop").disabled = false; $("#openW").hidden = true;
+  let ok = 0, skip = 0, bad = 0;
+  try{
+    const sid = await subjectId(name);
+    stat("기존 문항 확인 중…");
+    const have = await existing(sid);
+    const todo = (MAN.items || []).filter(x => { const k = `${x.year}-${x.session}-${x.no}`; if(have.has(k)){ skip++; return false; } return true; });
+    log(`이미 있는 ${skip}문항은 건너뜀 · 넣을 것 ${todo.length}문항`);
+    const total = todo.length; let done = 0, buf = [];
+    const flush = async () => {
+      if(!buf.length) return;
+      const rows = buf; buf = [];
+      const r = await sb.from("practicals").upsert(rows, { onConflict:"subject_id,year,session,no", ignoreDuplicates:true });
+      if(r.error){ bad += rows.length; ok -= rows.length; log("문항 넣기 실패 — " + r.error.message, "bad"); }
+    };
+    let idx = 0;
+    const worker = async () => {
+      while(idx < todo.length && !STOP){
+        const x = todo[idx++];
+        try{
+          const [q_url, a_url] = await Promise.all([upload(sid, x.q_file), upload(sid, x.a_file)]);
+          buf.push({
+            subject_id: sid, year: x.year, session: x.session, no: x.no,
+            q_url, a_url,
+            q_text: x.q_text || null,
+            a_text: ((x.ans_label ? "정답 " + x.ans_label : "") + (x.a_text ? "\n" + x.a_text : "")).trim() || null,
+            source: [MAN.book, x.subj].filter(Boolean).join(" · ") || null,
+            st_q: "raw", st_a: "raw"
+          });
+          ok++;
+          if(buf.length >= 50) await flush();
+        }catch(e){ bad++; log(`${x.year}-${x.session} ${x.no}번 — ${e.message || e}`, "bad"); }
+        done++; bar(done, total);
+        stat(`${done.toLocaleString()} / ${total.toLocaleString()} · 성공 ${ok.toLocaleString()} · 실패 ${bad} · 건너뜀 ${skip}`);
+      }
+    };
+    await Promise.all(Array.from({ length: 6 }, worker));
+    await flush();
+    stat(`${STOP ? "멈춤" : "끝"} — 넣음 ${ok.toLocaleString()} · 실패 ${bad} · 건너뜀 ${skip}`);
+    log(STOP ? "멈췄습니다. 다시 누르면 남은 것만 이어서 합니다." : "모두 끝났습니다.", "ok");
+    try{ localStorage.setItem("prac:sub:w", String(sid)); }catch(e){globalThis.__q?.(e)}
+    $("#openW").hidden = false;
+  }catch(e){
+    stat("멈춤 — " + (e.message || e)); log(e.message || String(e), "bad");
+  }finally{ RUN = false; $("#go").disabled = false; $("#stop").disabled = true; }
+};
+boot();
+</script>
+</body>
+</html>
