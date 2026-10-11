@@ -231,9 +231,21 @@ function solToMd(sol){
     arr(sol.given).forEach(g => L.push(`- ${line(g)}`));
     L.push("");
   }
-  if(arr(sol.symbols).length){
+  /* ★ v356 — 기호 칸이 비었거나(→ «$$» 가 찍혀 아래 글이 통째로 수식으로 먹히던 것)
+     «방재계획» 같은 낱말을 기호 칸에 넣어 온 것(→ 기호 표가 세로로 깨지던 것)을 가른다.
+     진짜 기호만 «기호» 표로, 낱말은 «용어» 목록으로 */
+  const SYMS = arr(sol.symbols).filter(x => typeof x === "string" ? String(x).trim() : String(x && x.sym || "").trim());
+  const isWord = x => typeof x === "object" && (HAN.test(String(x.sym || "")) || String(x.sym || "").length > 14);
+  const WORDS = MCQ ? SYMS.filter(isWord) : [];
+  const REAL  = MCQ ? SYMS.filter(x => !isWord(x)) : SYMS;
+  if(WORDS.length){
+    L.push("**용어**", "");
+    WORDS.forEach(x => L.push(`- **${String(x.sym).replace(/\$/g, "").trim()}** — ${line(x.mean || "")}${x.val ? ` · 이 문제: ${line(x.val)}` : ""}`));
+    L.push("");
+  }
+  if(REAL.length){
     L.push(MCQ ? "**기호**" : "**부호**", "");
-    arr(sol.symbols).forEach(x => {
+    REAL.forEach(x => {
       if(typeof x === "string") return void L.push(`- ${line(x)}`);
       const u = x.unit ? ` · 단위 ${inlineTex(x.unit)}` : "";
       const v = x.val  ? ` · 이 문제: ${inlineTex(x.val)}` : "";
@@ -956,7 +968,10 @@ window.__pxSolOne=solOne; window.__pxRows=allRows; window.__pxNowId=ovNowId; win
   const BT = /\\[A-Za-z]+|[\^_]\{/;
   const han = x => x.replace(/\\(?:text|mathrm|mathbf)\{[^{}]*\}|([가-힣][가-힣0-9 ·]*[가-힣]|[가-힣])/g,
                              (m, h) => h ? `\\text{${h.trim()}}` : m);
-  const fix = md => String(md == null ? "" : md).replace(/^([ \t]*>[ \t]*)(\(\s*\d{1,2}\s*\)[ \t]*)?([^\n]*)$/gm, (m, a, b, c) => {
+  const fix = md => String(md == null ? "" : md)
+    /* ★ v356 — 이미 저장된 해설의 «- $$ «…» — …» 줄 (빈 기호 칸이 남긴 것) → 아래가 통째로 수식으로 먹히지 않게 */
+    .replace(/^([ \t]*-[ \t]*)\$\$(?=[ \t]+«)/gm, "$1")
+    .replace(/^([ \t]*>[ \t]*)(\(\s*\d{1,2}\s*\)[ \t]*)?([^\n]*)$/gm, (m, a, b, c) => {
     if(!c || c.includes("$") || !BT.test(c)) return m;
     return a + (b || "") + "$" + han(c.trim()) + "$";
   });

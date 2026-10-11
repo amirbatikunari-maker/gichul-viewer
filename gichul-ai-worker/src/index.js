@@ -27,7 +27,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 /* ★ v341 — 빌드 번호는 여기 한 곳만. tools/bump.sh 가 앱(sw.js)과 같이 올려 줌 */
-const BUILD = "v353";
+const BUILD = "v356";
 
 const API = "https://api.anthropic.com/v1/messages";
 const VER = "2023-06-01";
@@ -715,9 +715,9 @@ const TOOL_MCQ = {
       gist:    { type: "string", description: "문제 개요 — 무엇을 묻는 문제인지 한두 문장" },
       easy:    { type: "array", items: { type: "string" }, description: "쉽게 말하면 — 생활 비유 한 줄 + 핵심 한 줄. 1~2개" },
       sequence:{ type: "array", items: { type: "string" }, description: "회로·시퀀스(결선도) 문제만 — 이 회로 전체가 어떤 순서로 동작하는지 3~7줄(전원 → 누름 → 코일 여자 → 접점 → 램프·자기유지 …). 다른 유형은 빈 배열" },
-      symbols: { type: "array", description: "문제·풀이에 나오는 기호·약호. 없으면 빈 배열",
+      symbols: { type: "array", description: "★ 수식 기호·약호만 (예: X_L, I, cosθ, MCCB). 낱말·개념(예: 방재계획)은 넣지 않는다. 개념·법규 문제처럼 기호가 없으면 빈 배열",
                  items: { type: "object", required: ["sym", "say", "mean"], properties: {
-                   sym:  { type: "string", description: "기호. KaTeX, $ 없이" },
+                   sym:  { type: "string", description: "기호 (반드시 채움 · 한글 낱말 금지). KaTeX, $ 없이" },
                    say:  { type: "string", description: "읽는 법 (한글 발음). 예: X_L '엑스 엘'" },
                    mean: { type: "string", description: "쉬운 풀이 — 무엇을 뜻하는지 쉬운 말 한 줄" },
                    val:  { type: "string", description: "이 문제에서의 값 (없으면 빈 문자열)" },

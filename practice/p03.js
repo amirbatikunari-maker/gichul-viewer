@@ -3892,6 +3892,10 @@ function ezEnqueue(id){
    2.5초쯤 머무른 문항만 «정말 보는 것» 으로 치고 만든다. */
 let EZWAIT = null;
 function ezEnqueueSoon(id){
+  /* ★ v356 — 문항을 열기만 해도 2.5초 뒤 AI 해설을 «자동으로» 돌리던 것을 끔 (요금이 말없이 나감).
+     해설은 «✎ 해설 돌리기» · «상세 Opus/Sonnet» 처럼 손으로 누를 때만.
+     예전처럼 켜려면 콘솔에서 localStorage.setItem('prac:ezauto','1') */
+  try{ if(localStorage.getItem("prac:ezauto") !== "1") return; }catch(e){ return; }
   clearTimeout(EZWAIT);
   EZWAIT = setTimeout(() => ezEnqueue(id), 2500);
 }
