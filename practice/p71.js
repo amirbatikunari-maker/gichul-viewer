@@ -439,3 +439,125 @@ function paint(){
 }
 setInterval(()=>{ try{ mount() }catch(e){q_(e)} }, 800);
 })();
+
+/* ═══════════════════════════════════════════════════════════════
+   v371 · 단축키 새로 — 예전 단축키는 모두 끄고 아래만 쓴다 (한눈에 · 일반 보기 둘 다)
+     Esc 닫기(한눈에 나가기) · ← → 앞뒤 문항 · ↑ ↓ 회독 +1 / −1 (넘어가지 않음)
+     M 미니맵 · N 공식 · N 두 번 = 상세 Opus · S 상세 Sonnet
+     Q 연도 칸 · W 회차 칸 · E 번호 칸 (칸 안에 있어도 이동)
+     R/T 해설 글자 크게/작게 · F/G 수식 크게/작게 · V/B 줄간격 넓게/좁게 · V 두 번 = 이지뷰↔원래대로
+     L 최신순 · C 두 번 = 잘라 넣기 · K 쉬운해설 고정 · P 접기/펼치기 · X 틀림 · O 회독 +1 하고 다음
+   · 글 쓰는 칸(입력·글상자·AI 창 등)에서는 아무것도 안 함. Ctrl·Alt·⌘ 가 같이 눌리면 건드리지 않음
+   · 목록 칸(연도·회차·번호 등 select)에 있을 때 ← → ↑ ↓ 는 그 칸 안에서만 움직임 (Q W E Esc 만 따로)
+   · 한글 자판이어도 같은 자리 키로 동작 (e.code)
+   ═══════════════════════════════════════════════════════════════ */
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const q_=e=>{ try{ globalThis.__q?.(e) }catch(x){} };
+const say=m=>{ try{ (window.__pxToast||console.log)(m) }catch(e){} };
+const ovOn=()=>!!$('#ovl')?.classList.contains('on');
+const curId=()=>{
+  if(ovOn()){ try{ if(OVID!=null) return String(OVID) }catch(e){} }
+  const R=Array.isArray(window.SHOWN)?window.SHOWN:[]; const r=R[window.ONEAT|0]; return r?String(r.id):'';
+};
+const card=()=>$('#list > .pcard.show')||$('#list > .pcard');
+/* 지금 보는 곳(한눈에 / 카드)의 단추 */
+const here=sel=> ovOn() ? ($('#ovLeft '+sel)||$('#ovRight '+sel)||$('#ovl '+sel)) : (card()?.querySelector(sel)||null);
+const typing=t=> !!t && (t.isContentEditable || /^(INPUT|TEXTAREA)$/.test(t.tagName||'') ||
+  !!(t.closest && t.closest('[contenteditable=""],[contenteditable="true"],.aic-panel,.aic,[class*="aic-"],.edw,.qastack .qed,.qastack .qx-ed,.pxrun')));
+const popOpen=()=>!!$('.pxov.on, #qtPop.on, .mmpop.on, .fxpop.on, .pxrun.on, .ovf71pop.on, .dmenu.open, .qtbd.on');
+
+(function(){ const st=document.createElement('style'); st.textContent='select.kfocus{outline:3px solid #f59e0b!important;outline-offset:1px}'; document.head.appendChild(st); })();
+function closeTop(){
+  if($('.pxov.on')){ $('#pxClose')?.click(); return; }
+  if($('#qtPop.on')){ window.__qtClose ? window.__qtClose() : $('#qtPop').classList.remove('on'); return; }
+  if($('.ovf71pop.on')){ $('.ovf71pop.on').classList.remove('on'); return; }
+  if($('.pxrun.on')){ const x=$('.pxrun.on [data-x]'); x ? x.click() : $('.pxrun.on').classList.remove('on'); return; }
+  if($('.fxpop.on')){ $('.fxpop.on').classList.remove('on'); $$('.fxb.open').forEach(b=>b.classList.remove('open')); return; }
+  if($('.mmpop.on')){ $('.mmpop.on').classList.remove('on'); $$('.mmb.open').forEach(b=>b.classList.remove('open')); return; }
+  if($('.qtbd.on')){ $('.qtbd.on').classList.remove('on'); return; }
+  $$('.dmenu.open').forEach(m=>m.classList.remove('open'));
+}
+function go(d){
+  if(ovOn()){ if(typeof ovStep==='function') ovStep(d); else $(d>0?'#ovNext':'#ovPrev')?.click(); return; }
+  const R=Array.isArray(window.SHOWN)?window.SHOWN:[], i=(window.ONEAT|0)+d;
+  if(i<0||i>=R.length||typeof window.showAt!=='function') return;
+  window.showAt(i); $('#list > .pcard.show')?.scrollIntoView({block:'start',behavior:'smooth'});
+}
+function rd(d){
+  const id=curId(); if(!id || !window.__pracChkAdj) return;
+  const n=window.__pracChkAdj(id, d);
+  try{ window.__pracProgSave && window.__pracProgSave() }catch(e){q_(e)}
+  say(`회독 ${n}`);
+}
+function pick(k){
+  const sel = ovOn() ? $({y:'#pxSelY',s:'#pxSelS',n:'#pxSelN'}[k]) : (card()?.querySelector(`.pxhd.l select[data-k="${k}"]`) || $({y:'#fYear',s:'#fSess',n:null}[k]||'#__none'));
+  if(!sel) return;
+  /* 펼치지는 않고 칸에 들어가기만 — 펼치면 그 창이 키를 다 먹어서 Q·W·E 로 옮겨 갈 수 없다. 칸 안에서 ↑ ↓ 로 고름 */
+  sel.focus();
+  sel.classList.add('kfocus'); setTimeout(()=>sel.classList.remove('kfocus'), 900);
+}
+function seq(){
+  const s=$('#dRand [data-rand="seq"]'); if(!s) return say('최신순 단추를 찾지 못했습니다');
+  const on=s.classList.contains('on'); on ? $('#randClear')?.click() : s.click();
+  say(on?'최신순 끔':'최신순 켬');
+}
+const sol=w=>{ const id=curId(); if(id && window.__pxSol) window.__pxSol(id, w, null); };
+
+/* 두 번 누르기 — V·N 은 한 번이면 잠깐 기다렸다가 한 번 동작, C 는 두 번일 때만 */
+const DBL=300; let LAST={ code:'', t:0, tm:0 };
+function tap(code, one, two){
+  const now=Date.now();
+  if(LAST.code===code && now-LAST.t<DBL){ clearTimeout(LAST.tm); LAST={code:'',t:0,tm:0}; two&&two(); return; }
+  clearTimeout(LAST.tm);
+  LAST={ code, t:now, tm: one ? setTimeout(()=>{ LAST.tm=0; one(); }, DBL) : 0 };
+}
+const clickAny=sel=>{ const b=here(sel)||$(sel); if(b){ b.click(); return true; } return false; };
+
+const ACT={
+  ArrowLeft:()=>go(-1), ArrowRight:()=>go(1),
+  ArrowUp:()=>rd(1), ArrowDown:()=>rd(-1),
+  KeyM:()=>{ clickAny('.mmb') || say('미니맵 단추가 없습니다'); },
+  KeyN:()=>tap('KeyN', ()=>{ clickAny('.fxb') || say('공식 단추가 없습니다'); }, ()=>sol('opus')),
+  KeyS:()=>sol('sonnet'),
+  KeyQ:()=>pick('y'), KeyW:()=>pick('s'), KeyE:()=>pick('n'),
+  KeyR:()=>$('#ovFs [data-ezfs="1"]')?.click(),  KeyT:()=>$('#ovFs [data-ezfs="-1"]')?.click(),
+  KeyF:()=>$('#ovTs [data-ts="1"]')?.click(),    KeyG:()=>$('#ovTs [data-ts="-1"]')?.click(),
+  KeyV:()=>tap('KeyV', ()=>{ $('.ezgap [data-gap="1"]')?.click(); }, ()=>{ clickAny('.ezxb[data-ezx="off"]'); }),
+  KeyB:()=>$('.ezgap [data-gap="-1"]')?.click(),
+  KeyL:()=>seq(),
+  KeyC:()=>tap('KeyC', null, ()=>{ const id=curId(); if(id && window.__pxCut) window.__pxCut(id); }),
+  KeyK:()=>{ const id=curId(); if(id && window.__ezFixToggle) window.__ezFixToggle(id); },
+  KeyP:()=>{ clickAny('.ezxb[data-ezx="open"]'); },
+  KeyX:()=>{ ovOn() ? $('#ovl .oh [data-ova="no"]')?.click() : clickAny('.no71'); },
+  KeyO:()=>{ clickAny('.rdk [data-rd="1"]'); }
+};
+const REPEAT=new Set(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','KeyR','KeyT','KeyF','KeyG','KeyB']);
+
+addEventListener('keydown', e=>{
+  if(e.ctrlKey||e.metaKey||e.altKey) return;
+  const t=e.target;
+  if(typing(t)) return;                                  /* 글 쓰는 중 — 그대로 */
+  /* Esc — 다른 창(잘라 넣기·유형·미니맵·공식·고르기 창 …)이 열려 있으면 그쪽이 닫히게 둔다 */
+  if(e.key==='Escape'){
+    if(popOpen()){ e.preventDefault(); e.stopImmediatePropagation(); closeTop(); return; }   /* 열린 창 하나만 닫고 끝 (한눈에는 그대로) */
+    if(ovOn()){ e.preventDefault(); e.stopImmediatePropagation(); try{ typeof ovClose==='function' ? ovClose() : $('#ovClose')?.click(); }catch(x){q_(x)} }
+    return;
+  }
+  const inSel = t && t.tagName==='SELECT';
+  if(inSel){
+    if(/^Key[QWE]$/.test(e.code)){ e.preventDefault(); e.stopImmediatePropagation(); ACT[e.code](); }
+    else if(/^Arrow/.test(e.code)){ e.stopImmediatePropagation(); window.__selArrow={ t:Date.now(), d:/Up|Left/.test(e.code)?-1:1 }; }   /* 칸 안에서만 움직이게 — 다른 단축키로 새지 않음 */
+    return;
+  }
+  if(popOpen() && /^Arrow/.test(e.code)) return;         /* 열린 창 안 목록 이동은 그 창 몫 */
+  /* 예전 단축키는 모두 끔 — 글자·숫자·화살표·기호 키는 여기서 멈춘다 (기본 동작은 그대로: 스크롤 등) */
+  const mine=ACT[e.code];
+  if(e.key && (e.key.length===1 || /^Arrow|^Process$|^Unidentified$/.test(e.key) || /^(Key|Digit|Numpad)/.test(e.code))) e.stopImmediatePropagation();
+  if(!mine) return;
+  if(e.repeat && !REPEAT.has(e.code)) return;
+  e.preventDefault();
+  try{ mine(); }catch(x){ q_(x); }
+}, true);
+})();

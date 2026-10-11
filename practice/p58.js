@@ -40,18 +40,25 @@ function mount(){
     const k=document.createElement('span'); k.className='pxsel'; k.id='pxPick';
     k.innerHTML=`<select id="pxSelY" title="년도"></select><select id="pxSelS" title="회차"></select><select id="pxSelN" title="번호"></select>`;
     ot.before(k);   /* 제목칸 «밖» 에 — 제목칸이 줄어들어도 잘리지 않게 */
-    k.addEventListener('keydown',e=>e.stopPropagation());   /* ← → 가 문항 넘기기로 새지 않게 */
+    k.addEventListener('keydown',e=>{ e.stopPropagation(); if(/^Arrow(Up|Down|Left|Right)$/.test(e.key)){ k.__kt=Date.now(); k.__kd=/Up|Left/.test(e.key)?-1:1; } });   /* ← → 가 문항 넘기기로 새지 않게 */
     k.addEventListener('change',e=>{
       const w={pxSelY:'y',pxSelS:'s',pxSelN:'n'}[e.target.id];
       /* ★ v369 — 빠진 번호(«14번 — 없음») 를 고르면 빈 문항을 만들지 묻는다 */
+      /* 키보드 ↑ ↓ 로 지나가다 «없음» 칸에 닿으면 만들기를 묻지 않고 그 너머 번호로 건너뛴다 */
+      if(w==='n' && /^new:/.test(e.target.value) && Date.now()-((window.__selArrow||{}).t||0)<250){
+        const el=e.target, o=[...el.options], i=el.selectedIndex, d=(window.__selArrow||{}).d||1;
+        let j=i; do{ j+=d; }while(j>=0 && j<o.length && /^new:/.test(o[j].value));
+        if(j<0||j>=o.length){ PICKSIG=''; setTimeout(()=>paintAt(true),30); return; }
+        el.selectedIndex=j;
+      }
       if(w==='n' && /^new:/.test(e.target.value)){ const no=+e.target.value.slice(4); try{ e.target.blur() }catch(x){} PICKSIG=''; setTimeout(paintAt,50); return void makeMissing(no); }
       const hit=pickTarget($('#pxSelY').value,$('#pxSelS').value,$('#pxSelN').value,w);
       /* ★ v365 — 고른 뒤 칸에서 손을 뗀다. 칸이 «눌린 채»(focus) 남아 있으면 아래 paintAt 이 건너뛰어서,
          연도를 바꿔도 회차 목록이 옛 연도 것(18년인데 1·2회만)으로 남았다 */
-      try{ e.target.blur() }catch(x){}
+      /* ★ v371 — 칸에서 손을 떼지 않는다 (키보드 ↑ ↓ 로 계속 고를 수 있게). 대신 칸이 눌려 있어도 강제로 다시 채운다 */
       PICKSIG='';
       if(hit) goRow(hit);
-      setTimeout(paintAt, 50);
+      setTimeout(()=>paintAt(true), 50);
     });
   }
 }
@@ -224,11 +231,11 @@ function paintInfo(){
   box.innerHTML=infoHtml(id);
 }
 let PICKSIG='';
-function paintAt(){
+function paintAt(force){
   if(!$('#ovl')?.classList.contains('on')) return;
   paintInfo();
   const Y=$('#pxSelY'), S=$('#pxSelS'), N=$('#pxSelN'); if(!Y) return;
-  if([Y,S,N].includes(document.activeElement)) return;   /* 펼쳐 놓은 동안엔 안 건드림 */
+  if(force!==true && [Y,S,N].includes(document.activeElement)) return;   /* 펼쳐 놓은 동안엔 안 건드림 */
   const r=nowRow(); if(!r) return;
   const o=selOpts(r);
   if(o.sig===PICKSIG) return; PICKSIG=o.sig;
