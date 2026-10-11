@@ -263,13 +263,19 @@ st.textContent=`
 #ovf71 button.t-r{background:#f3efe9;border-color:#cbbba5;color:#5b4a35} #ovf71 button.t-r.on{background:#6b5640;border-color:#6b5640;color:#fff}
 #ovf71 button.sel{padding:0 8px 0 9px} #ovf71 button.sel.on{background:#eef3ff;border-color:#93acec;color:#1e3a8a}
 #ovf71 .n71{font:800 9px/1 var(--font-d,system-ui);margin-left:3px;opacity:.8}
-.ovf71pop{position:fixed;z-index:2147483100;display:none;min-width:150px;max-height:60vh;overflow:auto;background:#fff;border:1px solid #cdd5e0;border-radius:10px;
+.ovf71pop{position:fixed;z-index:2147483100;display:none;min-width:150px;max-height:70vh;overflow:auto;background:#fff;border:1px solid #cdd5e0;border-radius:10px;
   box-shadow:0 10px 30px rgba(15,23,42,.18);padding:6px}
 .ovf71pop.on{display:block}
-.ovf71pop label{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:7px;cursor:pointer;font:600 12.5px/1.2 var(--font-d,system-ui);color:#172033;white-space:nowrap}
+.ovf71pop .gr{display:grid;grid-template-columns:repeat(4,auto);gap:3px;user-select:none;-webkit-user-select:none;touch-action:none}
+.ovf71pop .gr.s{grid-template-columns:repeat(3,auto)}
+.ovf71pop label{display:flex;align-items:center;gap:4px;padding:3px 7px 3px 5px;border:1px solid #e3e8f0;border-radius:6px;cursor:pointer;
+  font:700 11.5px/1.15 var(--font-d,system-ui);color:#172033;white-space:nowrap;background:#fff}
+.ovf71pop label input{margin:0;width:12px;height:12px;pointer-events:none}
 .ovf71pop label:hover{background:#f3f6fb}
+.ovf71pop label.ck{background:#eef3ff;border-color:#93acec;color:#1e3a8a}
+.ovf71pop .tip{font:600 10px/1.3 var(--font-d,system-ui);color:#64748b;padding:2px 2px 5px}
 .ovf71pop .ft{display:flex;gap:6px;border-top:1px solid #eef1f6;margin-top:4px;padding-top:6px}
-.ovf71pop .ft button{flex:1;height:26px;border:1px solid #cdd5e0;border-radius:7px;background:#fff;font:700 11px/1 var(--font-d,system-ui);cursor:pointer}
+.ovf71pop .ft button{flex:1;height:26px;border:1px solid #cdd5e0;border-radius:7px;background:#fff;color:#172033;font:700 11px/1 var(--font-d,system-ui);cursor:pointer}
 .ovf71pop .ft button.go{background:#172033;border-color:#172033;color:#fff}
 `;
 document.head.appendChild(st);
@@ -277,7 +283,9 @@ document.head.appendChild(st);
 /* ── 연도·회차 여러 개 · 틀림만 ── */
 const SEL={ y:new Set(), s:new Set() };
 let WRONG=false, MINE=false;          /* MINE = «이것만» 목록을 지금 이 칸이 걸었나 */
-const optsOf=k=>{ const el=$(k==='y'?'#fYear':'#fSess'); return el?[...el.options].map(o=>o.value).filter(Boolean):[]; };
+/* ★ v364 — 연도는 2026~2008 만 (그 앞 옛 자료는 목록에서 뺌) */
+const optsOf=k=>{ const el=$(k==='y'?'#fYear':'#fSess'); const v=el?[...el.options].map(o=>o.value).filter(Boolean):[];
+  return k==='y' ? v.filter(x=>+x>=2008 && +x<=2026).sort((a,b)=>b-a) : v; };
 const wrongIds=()=>{ const P=(window.__pracProg&&window.__pracProg())||{}; return new Set(Object.keys(P).filter(k=>{ const p=P[k]; return p && ((p.no|0)>0 || p.r==='no'); })); };
 function apply(){
   const fy=$('#fYear'), fs=$('#fSess'); if(!fy||!fs) return;
@@ -325,6 +333,26 @@ function pop(){
     if(b.dataset.a==='ok'){ SEL[PK]=new Set($$('input:checked',POP).map(i=>i.value)); close(); apply(); }
   });
   POP.addEventListener('keydown', e=>e.stopPropagation());
+  /* ★ v364 — 누르고 끌면 드르륵 체크 (처음 누른 칸의 반대 상태로 쭉) */
+  let DR=null;
+  const setL=(l,on)=>{ const i=l.querySelector('input'); if(i.checked!==on){ i.checked=on; l.classList.toggle('ck',on); } };
+  POP.addEventListener('pointerdown', e=>{
+    const l=e.target.closest('.gr label'); if(!l) return;
+    e.preventDefault();
+    const all=[...POP.querySelectorAll('.gr label')];
+    DR={ on:!l.querySelector('input').checked, all, a:all.indexOf(l), was:all.map(x=>x.querySelector('input').checked) }; setL(l, DR.on);
+    try{ POP.setPointerCapture(e.pointerId) }catch(x){}
+  });
+  POP.addEventListener('pointermove', e=>{
+    if(!DR) return;
+    const l=document.elementFromPoint(e.clientX,e.clientY)?.closest?.('.ovf71pop .gr label'); if(!l) return;
+    /* 처음 칸 ~ 지금 칸 사이를 «순서대로» 전부 (26→19 로 끌면 26·25·…·19) — 범위 밖은 원래대로 */
+    const b=DR.all.indexOf(l), lo=Math.min(DR.a,b), hi=Math.max(DR.a,b);
+    DR.all.forEach((x,i)=>setL(x, (i>=lo&&i<=hi) ? DR.on : DR.was[i]));
+  });
+  const end=()=>{ DR=null; };
+  POP.addEventListener('pointerup', end); POP.addEventListener('pointercancel', end);
+  POP.addEventListener('click', e=>{ if(e.target.closest('.gr label')) e.preventDefault(); }, true);   /* 라벨 기본 토글 막음 (위에서 직접) */
   document.addEventListener('pointerdown', e=>{ if(POP.classList.contains('on') && !POP.contains(e.target) && !e.target.closest('#ovf71 .sel')) close(); }, true);
   return POP;
 }
@@ -332,8 +360,9 @@ function open(k, anchor){
   const P=pop(); if(P.classList.contains('on') && PK===k) return close();
   PK=k; pull();
   const vs=optsOf(k);
-  P.innerHTML=vs.map(v=>`<label><input type="checkbox" value="${v}"${SEL[k].has(v)?' checked':''}> ${k==='y'?v+'년':'제'+v+'회'}</label>`).join('')
-    + `<div class="ft"><button type="button" data-a="all">전체</button><button type="button" class="go" data-a="ok">적용</button></div>`;
+  P.innerHTML=`<div class="tip">누르고 끌면 쭉 체크 · 다시 누르고 끌면 쭉 해제</div><div class="gr ${k}">`
+    + vs.map(v=>`<label class="${SEL[k].has(v)?'ck':''}"><input type="checkbox" value="${v}"${SEL[k].has(v)?' checked':''}>${k==='y'?String(v).slice(2)+'년':v+'회'}</label>`).join('')
+    + `</div><div class="ft"><button type="button" data-a="all">전체</button><button type="button" class="go" data-a="ok">적용</button></div>`;
   P.classList.add('on');
   const r=anchor.getBoundingClientRect();
   P.style.left=Math.max(8, Math.min(r.left, innerWidth-P.offsetWidth-8))+'px';
@@ -356,11 +385,11 @@ function mount(){
       </span>
       <span class="g">
         <button type="button" class="c" data-f="hot" title="빈출 랜덤 + 확률 높은 순 — 다시 누르면 끔">🔥 빈출+확률순</button>
+        <button type="button" class="c" data-f="seq" title="최신 회차부터 차례로 — 다시 누르면 끔">📅 최신순</button>
         <button type="button" class="c t t-g" data-f="tier" data-k="g" title="금 등급 (여러 개 함께)">금</button>
         <button type="button" class="c t t-s" data-f="tier" data-k="s" title="은 등급">은</button>
         <button type="button" class="c t t-b" data-f="tier" data-k="b" title="동 등급">동</button>
         <button type="button" class="c t t-r" data-f="tier" data-k="r" title="똥 등급">똥</button>
-        <button type="button" class="c" data-f="seq" title="최신 회차부터 차례로 — 다시 누르면 끔">📅 최신순</button>
       </span>
       <span class="g">
         <button type="button" class="c" data-f="ck" title="N번 푼(회독한) 문항 빼기">회독 −<span class="n71"></span></button>
