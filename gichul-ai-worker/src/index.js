@@ -27,7 +27,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 /* ★ v341 — 빌드 번호는 여기 한 곳만. tools/bump.sh 가 앱(sw.js)과 같이 올려 줌 */
-const BUILD = "v356";
+const BUILD = "v358";
 
 const API = "https://api.anthropic.com/v1/messages";
 const VER = "2023-06-01";
@@ -1193,9 +1193,18 @@ async function explain(req, env, H){
     else if (steps.length < n) P.push(`소문항이 ${n}개인데 풀이 단계가 ${steps.length}개뿐이다`);
     /* ★ v339 — «어느 번호가 빠졌나» 를 먼저 본다. 답(answer)·답안지 글(a_text)에 있는 (n) 인데 풀이 단계 이름에 없는 번호 = 진짜로 건너뛴 것 → 필수
        (18-3 7: 답은 (1)~(7) 인데 풀이가 (3) 부터 — v331 의 «단계 수만 차면 보충» 에 걸려 그냥 저장됐음) */
-    const want = new Set([...subNums(s.answer, false), ...subNums(a_text, true)]);
+    /* ★ v358 — 답안지 글(a_text)의 (n) 은 «문제 글에도 그 (n) 이 있을 때만» 필수로 센다.
+       답안 글자 뽑기가 ③④⑤ 같은 동그라미 번호를 (3)(4)(5) 로 읽거나, 옆 문항 답이 섞여 들어오면
+       소문항이 (1)(2) 뿐인 문제(장점 4가지 · 단점 4가지)에 «(3)·(4)·(5) 풀이가 없다» 로 세 번 다시 받고 확인 창까지 떴다.
+       문제 글이 없으면(그림만) 예전처럼 a_text 를 믿되, 모델 답·문제 글 어디에도 없는 번호는 «보충» 으로만 */
+    const qN = subNums(q_text, false), aN = subNums(a_text, true), sN = subNums(s.answer, false);
+    const want = new Set(sN), soft = new Set();
+    aN.forEach(k => { if (qN.has(k)) want.add(k); else if (!String(q_text || "").trim() && (!sN.size || +k <= Math.max(...[...sN].map(Number)))) want.add(k); else if (!sN.has(k)) soft.add(k); });
+    qN.forEach(k => { if (aN.has(k) || sN.has(k)) want.add(k); });
     const have = new Set(steps.map(x => (String(x.say || "").match(/^\s*\(\s*(\d{1,2})\s*\)/) || [])[1]).filter(Boolean));
     const miss = [...want].filter(k => !have.has(k)).sort((p, q) => p - q);
+    const missS = [...soft].filter(k => !have.has(k) && !want.has(k));
+    if (missS.length && !miss.length) S.push(`답안지 글에 (${missS.join(")·(")}) 가 보이지만 문제 글엔 없다 — 소문항이 아닐 수 있어 보충으로만 봄`);
     if (want.size > 1 && miss.length) P.push(`소문항 (${miss.join(")·(")}) 의 풀이 단계가 없다 — 답안지의 (1)부터 하나도 건너뛰지 말고, say 를 '(${miss[0]}) …' 처럼 번호로 시작해 따로 단계를 만든다 ('앞 문항 결과' 로 넘기지 않는다)`);
     /* ★ v331 — 번호는 다 있는데 잎(①②) 수만 덜 붙은 것은 «보충» 으로 (다시 부르지 않음 — 시간 초과 원인) */
     else if (n > 1 && covered(s) < n) (steps.length >= n ? S : P).push(`단계 이름(say)이 (1)~(${n}) 소문항을 다 다루지 않았다 — ${covered(s)}개만`);
