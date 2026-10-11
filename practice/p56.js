@@ -774,22 +774,33 @@ function drawSegs(){
     `<option value="${x.id}"${String(x.id)===String(BASE.id)?' selected':''}>${x.no}번</option>`).join('');
   wrap.innerHTML=list.map(([a,b],i)=>{
     /* 첫 칸은 문제, 둘째 칸은 답이 가장 흔한 모양임 */
-    const useDef = i<2 ? 'y' : 'n';
-    const slotDef = i===1 ? 'a' : 'q';
+    /* ★ v366 — 칸이 하나뿐(선 없음)이면 «지금 고른 그림 칸(문제/답) 통째로 바꾸기» 가 기본 */
+    const one = list.length===1;
+    const useDef = (one || i<2) ? 'y' : 'n';
+    const slotDef = one ? SRC : (i===1 ? 'a' : 'q');
     return `<div class="pxseg" data-i="${i}" data-a="${a}" data-b="${b}">
       <span class="n">칸 ${i+1} · 세로 ${Math.round(H*a)}~${Math.round(H*b)}px</span>
-      <select data-use>
+      <select data-use hidden>
         <option value="n"${useDef==='n'?' selected':''}>— 안 씀 —</option>
         <option value="y"${useDef==='y'?' selected':''}>넣기</option>
       </select>
-      <select data-row>${opts}</select>
-      <select data-slot>
+      <select data-slot hidden>
         <option value="q"${slotDef==='q'?' selected':''}>문제</option>
-        <option value="qc">문제 — 이어붙이기 (이미 있는 문제 그림 아래에)</option>
+        <option value="qc">문제 이어붙이기</option>
         <option value="a"${slotDef==='a'?' selected':''}>답</option>
-        <option value="ac">답 — 이어붙이기 (이미 있는 답 그림 아래에)</option>
+        <option value="ac">답 이어붙이기</option>
       </select>
-      <span class="pxjoin" hidden></span>
+      <div class="pxpick2">
+        <button type="button" class="pxuse" data-usebtn="${i}"></button>
+        <select data-row title="몇 번 문항에 넣을까">${opts}</select>
+        <span class="pxslot" role="group" aria-label="어디에">
+          <button type="button" data-sv="q"><b>문제</b> 그림 바꾸기</button>
+          <button type="button" data-sv="qc"><b>문제</b> 아래에 잇기</button>
+          <button type="button" data-sv="a"><b>답</b> 그림 바꾸기</button>
+          <button type="button" data-sv="ac"><b>답</b> 아래에 잇기</button>
+        </span>
+      </div>
+      <span class="pxjoin"></span>
       <div class="pxatt" data-att="${i}">
         <div class="pxatt-bar">
           <span class="pxnote">빠진 부분 붙이기</span>
@@ -820,18 +831,35 @@ function joinPlan(){
 }
 function paintJoin(){
   if(!OVX) return;
-  $$('.pxjoin',OVX).forEach(x=>{ x.hidden=true; x.textContent=''; });
+  /* ★ v366 — 칸마다 «어디에 어떻게 들어가는지» 를 늘 한 줄로 (바꿈 / 이어붙임 / 저장 안 함) */
+  $$('.pxseg',OVX).forEach(el=>{
+    const use=$('[data-use]',el).value==='y', sv=$('[data-slot]',el).value;
+    const ub=$('[data-usebtn]',el); if(ub){ ub.textContent=use?'☑ 이 칸 넣기':'☐ 이 칸 안 씀'; ub.classList.toggle('on',use); }
+    $$('.pxslot [data-sv]',el).forEach(b=>b.classList.toggle('on', b.dataset.sv===sv));
+    $('.pxslot',el)?.classList.toggle('off', !use); const rw=$('[data-row]',el); if(rw) rw.disabled=!use;
+    const tag=$('.pxjoin',el); tag.className='pxjoin'+(use?'':' off');
+    if(!use) tag.textContent='— 이 칸은 저장하지 않음';
+  });
   joinPlan().forEach(g=>{
     g.segs.forEach((el,j)=>{
-      const tag=$('.pxjoin',el), r=rowById(g.id), nm=`${r?r.no+'번':''} ${g.slot==='q'?'문제':'답'}`;
-      if(j===0 && !g.cont && g.segs.length===1) return;
-      tag.hidden=false;
+      const tag=$('.pxjoin',el), r=rowById(g.id), nm=`${r?r.no+'번':''} «${g.slot==='q'?'문제':'답'}» 그림`;
+      const att=ATT.has(+el.dataset.i)?' (+ 붙인 그림)':'';
+      tag.classList.toggle('cont', g.cont || j>0);
       tag.textContent = j===0
-        ? (g.cont ? `↳ 이미 있는 ${nm} 그림 아래에 이어붙임` : `① ${nm} 맨 위 — 아래 칸 ${g.segs.length-1}개가 이어붙음`)
-        : `↳ 위 칸(칸 ${+g.segs[j-1].dataset.i+1}) 아래로 이어붙여 ${nm} 한 장으로`;
+        ? (g.cont ? `↳ ${nm}의 지금 그림 «아래에» 이 칸${att}을 이어붙임`
+                  : (g.segs.length>1 ? `→ ${nm}을 «바꿈» — 이 칸${att}이 맨 위, 아래 칸 ${g.segs.length-1}개가 이어서 붙음 (지금 그림은 덮어씀)`
+                                     : `→ ${nm}을 이 칸${att}으로 «바꿈» (지금 그림은 덮어씀)`))
+        : `↳ 위 칸(칸 ${+g.segs[j-1].dataset.i+1}) 아래로 이 칸${att}을 이어붙여 ${nm} 한 장으로`;
     });
   });
 }
+document.addEventListener('click', e=>{
+  if(!OVX || !OVX.contains(e.target)) return;
+  const u=e.target.closest('[data-usebtn]');
+  if(u){ const el=u.closest('.pxseg'), sel=$('[data-use]',el); sel.value=sel.value==='y'?'n':'y'; return void paintJoin(); }
+  const v=e.target.closest('.pxslot [data-sv]');
+  if(v){ const el=v.closest('.pxseg'); $('[data-use]',el).value='y'; $('[data-slot]',el).value=v.dataset.sv; return void paintJoin(); }
+});
 
 /* ══ ★ v359 — 칸에 «빠진 부분» 그림 붙이기 ══════════════════════════════
    잘못 잘려서 (1)(2) 같은 줄이 빠진 칸에, 복사한 그림(Ctrl+V)·그림 파일을 위/아래로 이어 붙인다.
@@ -868,7 +896,7 @@ async function attSet(i, blob){
   const img=await imgFromBlob(blob);
   ATT.set(i, { img, pos:(ATT.get(i)||{}).pos||'top', box:inkBox(img,0,0,img.naturalWidth,img.naturalHeight), sc:1 });
   const sel=$(`.pxseg[data-i="${i}"] [data-use]`, OVX); if(sel) sel.value='y';
-  attDraw(i);
+  attDraw(i); paintJoin();
   toast('그림을 붙였습니다 — 자르기 테두리·크기를 맞춘 뒤 «잘라서 넣기»');
 }
 function segBox(i){
@@ -913,7 +941,7 @@ function attDraw(i){
   if(!t){ host.innerHTML=''; return; }
   host.innerHTML=`
     <div class="pxatt-row">
-      <select data-attpos="${i}"><option value="top"${t.pos==='top'?' selected':''}>칸 위에 붙이기</option><option value="bottom"${t.pos==='bottom'?' selected':''}>칸 아래에 붙이기</option></select>
+      <span class="pxslot pxpos"><button type="button" data-attpos2="${i}|top" class="${t.pos==='top'?'on':''}">⬆ 칸 <b>위에</b> 붙이기</button><button type="button" data-attpos2="${i}|bottom" class="${t.pos==='bottom'?'on':''}">⬇ 칸 <b>아래에</b> 붙이기</button></span>
       <span class="pxatt-sc"><button type="button" data-attsc="${i}|-1" data-hold>−</button><b>${Math.round(t.sc*100)}%</b><button type="button" data-attsc="${i}|1" data-hold>＋</button></span>
       <button type="button" class="pxb" data-attauto="${i}" title="여백을 다시 저절로 잘라냅니다">✂ 여백 자동</button>
       <button type="button" class="pxb" data-attfull="${i}" title="자르기를 없애고 붙인 그림 전체">전체</button>
@@ -964,12 +992,13 @@ document.addEventListener('paste', e=>{
   const f=[...(e.clipboardData?.items||[])].find(x=>/^image\//.test(x.type));
   if(!f) return;
   e.preventDefault();
+  if(PASTETO==='src' || !IMG){ setSrc(f.getAsFile()); return; }      /* ★ v366 — «통째 교체» 를 눌렀거나 그림이 없으면 위 그림을 바꿈 */
   const i=$(`.pxseg[data-i="${ATTCUR}"]`, OVX) ? ATTCUR : 0;
   attSet(i, f.getAsFile());
 }, true);
 document.addEventListener('click', e=>{
   if(!OVX || !OVX.contains(e.target)) return;
-  const seg=e.target.closest('.pxseg'); if(seg) { ATTCUR=+seg.dataset.i; $$('.pxseg',OVX).forEach(x=>x.classList.toggle('cur', x===seg)); }
+  const seg=e.target.closest('.pxseg'); if(seg) { ATTCUR=+seg.dataset.i; PASTETO=''; $$('.pxseg',OVX).forEach(x=>x.classList.toggle('cur', x===seg)); }
   const q=(k)=>e.target.closest(`[${k}]`);
   let b;
   if((b=q('data-attpaste'))) return void attPaste(+b.dataset.attpaste);
@@ -977,7 +1006,9 @@ document.addEventListener('click', e=>{
     t.sc=Math.min(2, Math.max(0.3, Math.round((t.sc+d*0.05)*100)/100)); b.parentNode.querySelector('b').textContent=Math.round(t.sc*100)+'%'; return void attPrev(i); }
   if((b=q('data-attauto'))){ const i=+b.dataset.attauto, t=ATT.get(i); if(!t) return; t.box=inkBox(t.img,0,0,t.img.naturalWidth,t.img.naturalHeight); return void attDraw(i); }
   if((b=q('data-attfull'))){ const i=+b.dataset.attfull, t=ATT.get(i); if(!t) return; t.box={x0:0,y0:0,x1:1,y1:1}; return void attDraw(i); }
-  if((b=q('data-attdel'))){ const i=+b.dataset.attdel; ATT.delete(i); return void attDraw(i); }
+  if((b=q('data-attpos2'))){ const [i,p]=b.dataset.attpos2.split('|'); const t=ATT.get(+i); if(!t) return; t.pos=p;
+    $$(`[data-attpos2^="${i}|"]`,OVX).forEach(x=>x.classList.toggle('on', x===b)); return void attPrev(+i); }
+  if((b=q('data-attdel'))){ const i=+b.dataset.attdel; ATT.delete(i); paintJoin(); return void attDraw(i); }
 });
 document.addEventListener('change', e=>{
   if(!OVX || !OVX.contains(e.target)) return;
@@ -1008,7 +1039,21 @@ document.addEventListener('change', e=>{
 .pxcbox i[data-e="l"]{left:-5px} .pxcbox i[data-e="r"]{right:-5px}
 .pxprev{border:1px solid var(--line,#e2e8f0);background:#fff;margin-top:4px;max-height:420px;overflow:auto}
 .pxseg.cur{outline:2px solid #93c5fd}
-.pxjoin{flex-basis:100%;font:800 11px/1.3 var(--font-d,system-ui);color:#6b2fb3;background:#f6f1fd;border:1px solid #d8c4f2;border-radius:6px;padding:5px 8px}
+.pxpick2{flex-basis:100%;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pxpick2 select{height:30px;border-radius:8px;padding:0 8px;border:1px solid var(--line,#e2e8f0);background:#fff;font:700 12px/1 var(--font-d,system-ui)}
+.pxuse{height:30px;padding:0 10px;border-radius:8px;border:1px solid #cdd5e0;background:#fff;color:#64748b;font:800 12px/1 var(--font-d,system-ui);cursor:pointer}
+.pxuse.on{background:#172033;border-color:#172033;color:#fff}
+.pxslot{display:inline-flex;border:1px solid #cdd5e0;border-radius:9px;overflow:hidden;background:#fff}
+.pxslot button{height:30px;padding:0 10px;border:0;background:#fff;color:#334155;font:600 11.5px/1 var(--font-d,system-ui);cursor:pointer;white-space:nowrap}
+.pxslot button + button{border-left:1px solid #e3e8f0}
+.pxslot button b{font-weight:900}
+.pxslot button.on{background:#1d4ed8;color:#fff}
+.pxslot.off{opacity:.4;pointer-events:none}
+.pxjoin{flex-basis:100%;font:800 12px/1.35 var(--font-d,system-ui);color:#14532d;background:#ecfdf3;border:1px solid #a7e3bf;border-radius:7px;padding:7px 10px}
+.pxjoin.cont{color:#6b2fb3;background:#f6f1fd;border-color:#d8c4f2}
+.pxjoin.off{color:#94a3b8;background:#f8fafc;border-color:#e2e8f0;font-weight:600}
+.pxsrcnew{display:inline-flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.pxpos button{height:28px}
 `; document.head.appendChild(st); })();
 
 async function openCut(id, src){
@@ -1031,6 +1076,11 @@ async function openCut(id, src){
           <span class="pxnote">자를 그림</span>
           <select id="pxSrc"><option value="q">문제 그림</option><option value="a">답 그림</option></select>
           <span class="pxnote" id="pxHint"></span>
+          <span class="pxsrcnew">
+            <button type="button" class="pxb" id="pxSrcPaste" title="복사해 둔 그림으로 위 그림을 통째로 바꿔 놓고 시작 (Ctrl+V 도 됨) — 아래 칸에서 어디에 넣을지 고른 뒤 저장">📋 붙여넣어 통째 교체</button>
+            <label class="pxb pxfile" title="그림 파일로 위 그림을 통째로 바꿔 놓고 시작">📁 파일로 통째 교체<input type="file" accept="image/*" id="pxSrcFile" hidden></label>
+            <button type="button" class="pxb" id="pxSrcBack" hidden title="붙인 그림을 버리고 원래 그림으로">↩ 원래 그림</button>
+          </span>
         </div>
         <div class="pxstage" id="pxStage"><img id="pxImg" alt="자를 그림"></div>
         <div id="pxSegs"></div>
@@ -1055,6 +1105,20 @@ async function openCut(id, src){
       LINES.push(y); LINES.sort((a,b)=>a-b); drawLines(); drawSegs();
     });
     $('#pxSave',OVX).onclick=save;
+    /* ★ v366 — 위 그림을 «통째로» 붙인 그림·파일로 바꿔 놓고 시작 */
+    $('#pxSrcPaste',OVX).onclick=async()=>{
+      PASTETO='src';
+      try{
+        if(navigator.clipboard && navigator.clipboard.read){
+          const items=await navigator.clipboard.read();
+          for(const it of items){ const ty=it.types.find(x=>/^image\//.test(x)); if(ty) return void setSrc(await it.getType(ty)); }
+          return void toast('클립보드에 그림이 없습니다 — 그림을 복사한 뒤 다시 누르세요');
+        }
+      }catch(x){ globalThis.__q?.(x); }
+      toast('이제 Ctrl+V 로 붙이세요 — 위 그림이 통째로 바뀝니다');
+    };
+    $('#pxSrcFile',OVX).onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(f) setSrc(f); e.target.value=''; };
+    $('#pxSrcBack',OVX).onclick=()=>{ LINES=[]; ATT.clear(); load(); };
     document.addEventListener('keydown',e=>{
       if(OVX&&OVX.classList.contains('on')&&e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); close(); }
     },true);
@@ -1065,7 +1129,22 @@ async function openCut(id, src){
 }
 function close(){ if(OVX) OVX.classList.remove('on'); }
 
+let SRCNEW=false, PASTETO='';
+async function setSrc(blob){
+  if(!blob || !/^image\//.test(blob.type||'image/')) return void toast('그림이 아닙니다');
+  try{
+    IMG=await imgFromBlob(blob); SRCNEW=true; PASTETO='';
+    LINES=[]; ATT.clear(); ATTCUR=0;
+    $('#pxImg',OVX).src=IMG.src;
+    $$('.pxline',$('#pxStage',OVX)).forEach(n=>n.remove());
+    $('#pxHint',OVX).textContent=`📋 새로 붙인 그림 (아직 저장 안 됨) — ${BASE.year}년 제${BASE.session}회 ${BASE.no}번`;
+    $('#pxSrcBack',OVX).hidden=false;
+    $('#pxMsg',OVX).textContent=`${IMG.naturalWidth}×${IMG.naturalHeight}px — 그대로 저장하면 ${BASE.no}번 «${SRC==='a'?'답':'문제'}» 그림이 통째로 바뀝니다 (선을 그어 나눠 넣어도 됨)`;
+    drawSegs();
+  }catch(e){ toast('그림을 읽지 못했습니다 — '+(e.message||e)); }
+}
 async function load(){
+  SRCNEW=false; try{ $('#pxSrcBack',OVX).hidden=true; }catch(e){}
   const url = SRC==='a' ? BASE.a_url : BASE.q_url;
   const msg=$('#pxMsg',OVX), hint=$('#pxHint',OVX);
   $('#pxSegs',OVX).innerHTML=''; $$('.pxline',$('#pxStage',OVX)).forEach(n=>n.remove());
