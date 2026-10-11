@@ -4965,11 +4965,13 @@ body.ezx-off .mnb{display:none}
 /* ④ 부호 → 세 칸 */
 body:not(.ezx-off) .ezx ul.ezsym{padding:2px 8px!important;margin-left:0!important;background:#fff;border:1px solid #e3e9f7;border-radius:8px;
   display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));column-gap:14px}
-body:not(.ezx-off) .ezx ul.ezsym > li{list-style:none;display:grid;grid-template-columns:minmax(44px,max-content) minmax(0,1fr) auto;column-gap:8px;
+body:not(.ezx-off) .ezx ul.ezsym > li{list-style:none;display:grid;grid-template-columns:minmax(44px,max-content) minmax(7em,1fr) minmax(0,max-content);column-gap:8px;
   align-items:baseline;margin:0!important;padding:2px 0;border-bottom:1px dashed #eef2f9}
 body:not(.ezx-off) .ezx ul.ezsym .ezs-s{text-align:center}
 body:not(.ezx-off) .ezx ul.ezsym .ezs-m{color:#334155}
-body:not(.ezx-off) .ezx ul.ezsym .ezs-v{text-align:right;font-weight:800;color:#1e3a8a;white-space:nowrap}
+/* ★ v367 — 값이 길면(«0.386 곱하기 기압 나누기 …») 값 칸이 늘어나 뜻 칸을 한 글자 폭으로 짜부라뜨리던 것 → 값은 최대 13글자 폭에서 줄바꿈 */
+body:not(.ezx-off) .ezx ul.ezsym .ezs-v{text-align:right;font-weight:800;color:#1e3a8a;white-space:normal;max-width:13em;overflow-wrap:anywhere;word-break:keep-all}
+body:not(.ezx-off) .ezx ul.ezsym .ezs-m{min-width:0;overflow-wrap:anywhere}
 body:not(.ezx-off) .ezx ul.ezsym .ezdash{display:none}
 body:not(.ezx-off) .ezx ul.ezsym .ezvk{font-weight:600;font-size:.8em;color:#8a94a6;margin-right:3px}
 
