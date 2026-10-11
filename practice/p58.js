@@ -189,6 +189,7 @@ function goRow(r){
 let PAN=null, RUN=null, PICK=new Set(), STATE={};
 function panel(){
   if(PAN) return PAN;
+  { const st=document.createElement('style'); st.textContent='.pxrun .mini button.on{background:#1d4ed8;border-color:#1d4ed8;color:#fff}'; document.head.appendChild(st); }   /* ★ v357 */
   PAN=document.createElement('div'); PAN.className='pxrun'; PAN.id='pxRun';
   PAN.innerHTML=`
     <div class="hd"><b>✎ 해설 돌리기</b><button class="x" type="button" data-x>✕</button></div>
@@ -219,6 +220,8 @@ function panel(){
       OPT[g] = g==='c' ? +sb.dataset.v : sb.dataset.v; keep(); return void paint(); }
     const p=e.target.closest('[data-p]');
     if(p){ if(RUN) return; const rs=sessRows();
+      /* ★ v357 — «목록 전체» 일 때는 «해설 없는 것 / 전체» 가 목록 전체에 걸린다 (번호 고르기로 바뀌지 않음) */
+      if(OPT.sc==='list' && p.dataset.p!=='none'){ OPT.re = p.dataset.p==='all'; keep(); return void paint(); }
       if(p.dataset.p==='none') PICK.clear();
       else rs.forEach(r=>{ if(!fx(r) && (p.dataset.p==='all' || !r.easy_md)) PICK.add(String(r.id)); });
       OPT.sc='pick'; keep(); return void paint(); }
@@ -264,6 +267,10 @@ function paint(){
     b.disabled=!!RUN;
   });
   $('#pxRe',PAN).checked=!!OPT.re;
+  { const L=OPT.sc==='list', e=$('[data-p="empty"]',PAN), a=$('[data-p="all"]',PAN);
+    e.textContent = L ? '목록 전체 · 해설 없는 것만' : '해설 없는 것';
+    a.textContent = L ? '목록 전체 · 다 다시' : '전체';
+    e.classList.toggle('on', L && !OPT.re); a.classList.toggle('on', L && !!OPT.re); }
   const r=nowRow(), rs=sessRows();
   $('#pxSessNm',PAN).textContent = r ? `${r.year}년 ${r.session}회` : '번호';
   const nowS=r?String(r.id):'';
@@ -284,7 +291,7 @@ function paint(){
     go.textContent='■ 중지'; go.classList.add('stop'); go.disabled=RUN.halt;
   }else{
     $('#pxSum',PAN).innerHTML = ts.length
-      ? `<b>${ts.length}문항</b> · ${NM[OPT.m]} · 약 ${(ts.length*COST[OPT.m]).toLocaleString()}원${skip?` · 해설 있는 ${skip}개 건너뜀`:''}${fixT}`
+      ? `<b>${ts.length}문항</b>${(OPT.sc==='list'||OPT.sc==='sess')&&!OPT.re?' (해설 없는 것만)':''} · ${NM[OPT.m]} · 약 ${(ts.length*COST[OPT.m]).toLocaleString()}원${skip?` · 해설 있는 ${skip}개 건너뜀`:''}${fixT}`
       : (OPT.sc==='one' && fixN ? '이 문제는 🔒 쉬운해설 고정입니다'
         : OPT.sc==='pick' ? '번호를 눌러 고르세요' : '돌릴 문항이 없습니다'+fixT);
     go.textContent='▶ 시작'; go.classList.remove('stop'); go.disabled=!ts.length;
