@@ -6,7 +6,7 @@ const $=s=>document.querySelector(s);
 const KEY='prac:where:v1';
 let restored=false, booted=Date.now();
 
-const subNow=()=>{ try{ return localStorage.getItem('prac:sub')||'' }catch(e){ return '' } };
+const subNow=()=>{ try{ return localStorage.getItem(/[?&]w=1\b/.test(location.search)?'prac:sub:w':'prac:sub')||'' }catch(e){ return '' } };
 
 /* 지금 보고 있는 문항 — 한 문항씩 모드면 그 문항, 목록이면 화면에 걸친 첫 장 */
 function hereId(){

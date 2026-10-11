@@ -74,6 +74,9 @@ $("#logoutBtn").onclick = async () => { await sb.auth.signOut(); gate(); };
    같은 목록을 쓰면 필기에만 있는 과목이 실기 칸에 뜨고 반대도 마찬가지라 헷갈린다.
    ═══════════════════════════════════════════════ */
 let SUBJECTS = [];
+/* ★ v353 — 필기도 이 화면으로. practice.html?w=1 이면 이름에 «필기» 가 든 과목만, 아니면 그 밖의 과목만 */
+const W_MODE = /[?&]w=1\b/.test(location.search);
+const SUBKEY = W_MODE ? "prac:sub:w" : "prac:sub";
 async function loadSubjects(){
   const { data, error } = await sb.from("practical_subjects").select("*")
     .order("sort_order").order("id");
@@ -86,28 +89,30 @@ async function loadSubjects(){
       : "과목을 불러오지 못했습니다 — " + error.message, "err");
     return;
   }
-  SUBJECTS = data || [];
+  SUBJECTS = (data || []).filter(s => /필기/.test(String(s.name || "")) === W_MODE);
   const opt = SUBJECTS.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join("");
   $("#fSub").innerHTML   = opt || `<option value="">과목을 먼저 만드세요</option>`;
   $("#impSub").innerHTML = opt || `<option value="">과목을 먼저 만드세요</option>`;
-  const keep = localStorage.getItem("prac:sub");
+  const keep = localStorage.getItem(SUBKEY);
   if(keep && SUBJECTS.some(s => String(s.id) === keep)){ $("#fSub").value = keep; $("#impSub").value = keep; }
   const has = !!SUBJECTS.length;
   $("#subRen").disabled = !has; $("#subDel").disabled = !has;
-  if(!has) $("#list").innerHTML = `<div class="empty">실기 과목이 아직 없습니다. <b>+ 과목</b> 을 눌러
+  if(!has) $("#list").innerHTML = W_MODE ? `<div class="empty">필기 과목이 아직 없습니다. <a href="./written-import.html">필기 가져오기</a> 로 기출문제집을 넣거나, <b>+ 과목</b> 으로 «… 필기» 과목을 만드세요.</div>` : `<div class="empty">실기 과목이 아직 없습니다. <b>+ 과목</b> 을 눌러
     "전기기사 실기" 처럼 이름을 지어 주세요.</div>`;
 }
 
 $("#subAdd").onclick = async () => {
-  const name = prompt("실기 과목 이름 (예: 전기기사 실기)", "");
+  let name = prompt(W_MODE ? "필기 과목 이름 (예: 소방설비기사 필기)" : "실기 과목 이름 (예: 전기기사 실기)", "");
   if(name === null) return;
   if(!name.trim()) return;
+  /* ★ v353 — 필기 화면에서 만든 과목은 이름에 «필기» 를 붙여 이쪽 목록에 남게 */
+  if(W_MODE && !/필기/.test(name)) name = name.trim() + " 필기";
   const r = await sb.from("practical_subjects")
     .insert({ name:name.trim(), sort_order:(SUBJECTS.at(-1)?.sort_order ?? 0) + 1 }).select().single();
   if(r.error) return say($("#im"), "만들지 못했습니다 — " + r.error.message, "err");
   await loadSubjects();
   $("#fSub").value = r.data.id; $("#impSub").value = r.data.id;
-  localStorage.setItem("prac:sub", String(r.data.id));
+  localStorage.setItem(SUBKEY, String(r.data.id));
   await loadList(); paintScope(); await loadFiles();
 };
 
@@ -130,7 +135,7 @@ $("#subDel").onclick = async () => {
   if(!confirm(`"${cur?.name}" 과목을 지웁니다.`)) return;
   const r = await sb.from("practical_subjects").delete().eq("id", id);
   if(r.error) return say($("#im"), "지우지 못했습니다 — " + r.error.message, "err");
-  localStorage.removeItem("prac:sub");
+  localStorage.removeItem(SUBKEY);
   await loadSubjects(); await loadList({ force:true }); await loadFiles();
 };
 
@@ -249,7 +254,7 @@ async function loadList(opt){
   const sid = +$("#fSub").value;
   if(!sid) return;
   const force = !!(opt && opt.force);
-  localStorage.setItem("prac:sub", String(sid));
+  localStorage.setItem(SUBKEY, String(sid));
   $("#list").innerHTML = `<div class="empty">불러오는 중…</div>`;
 
   /* ── ① 캐시가 쓸 만한지 먼저 본다 ── */
@@ -2551,6 +2556,9 @@ function mdRich(src){
 
   while(i < lines.length){
     let t = lines[i].trim();
+    /* ★ v353 — 옛 필기에서 옮겨 온 그림 줄 ![설명](주소) → 그림 */
+    { const im = t.match(/^!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)$/);
+      if(im){ close(); out += `<div class="imgbox"><img src="${im[2]}" alt="${im[1]}" loading="lazy" style="max-width:100%"></div>`; i++; continue; } }
     if(!t){
       close();
       /* 빈 줄이 둘 이상 이어지면 — 엔터를 한 번 더 쳐서 일부러 더 띄운 것이니,

@@ -8,6 +8,7 @@ const CF=window.APP_CONFIG||{};
 const WK=(CF.CLAUDE_WORKER_URL||CF.WORKER_URL||'https://gichul-ai.amirbatikunari.workers.dev').replace(/\/$/,'');
 const APPKEY=CF.CLAUDE_APP_KEY||'';
 const BUCKET='qfig';
+const IS_W=/[?&]w=1\b/.test(location.search);   /* ★ v353 — 필기 화면 (practice.html?w=1) */
 const MODEL={ opus:'claude-opus-5', sonnet:'claude-sonnet-5' };
 const NAME ={ opus:'Opus', sonnet:'Sonnet' };
 
@@ -200,7 +201,9 @@ function solToMd(sol){
     return bareWrap(s0);
   };
 
-  if(sol.gist) L.push(`**${line(sol.gist)}**`, "");
+  /* ★ v353 — 필기(객관식) 틀: 문제 개요 → (회로면) 전체 시퀀스 → 기호 → 풀이 → 보기별 판단 → 정답 → 관련 개념 */
+  const MCQ = sol.exam === "필기";
+  if(sol.gist) MCQ ? L.push("**문제 개요**", "", line(sol.gist), "") : L.push(`**${line(sol.gist)}**`, "");
   /* ★ v309 — 비전공자용 «쉽게 말하면» */
   if(arr(sol.easy).length){
     L.push("**쉽게 말하면**", "");
@@ -208,6 +211,11 @@ function solToMd(sol){
     L.push("");
   }
 
+  if(arr(sol.sequence).length){
+    L.push("**전체 시퀀스 (이 회로가 도는 순서)**", "");
+    arr(sol.sequence).forEach((t, k) => L.push(`${k+1}. ${line(t)}`));
+    L.push("");
+  }
   if(arr(sol.background).length){
     L.push("**먼저 알아야 할 것**", "");
     arr(sol.background).forEach(b => L.push(`- ${line(b)}`));   /* ★ v330 — 객체로 오면 [object Object] 로 나오던 것 */
@@ -224,7 +232,7 @@ function solToMd(sol){
     L.push("");
   }
   if(arr(sol.symbols).length){
-    L.push("**부호**", "");
+    L.push(MCQ ? "**기호**" : "**부호**", "");
     arr(sol.symbols).forEach(x => {
       if(typeof x === "string") return void L.push(`- ${line(x)}`);
       const u = x.unit ? ` · 단위 ${inlineTex(x.unit)}` : "";
@@ -365,6 +373,16 @@ function solToMd(sol){
     arr(sol.keys).forEach(k => L.push(`- ${line(k)}`));
     L.push("");
   }
+  /* ★ v353 — 보기별 판단 ①~④ (필기) */
+  const OPT = arr(sol.opts).filter(o => o && typeof o === "object");
+  if(OPT.length){
+    L.push("**보기별 판단**", "");
+    OPT.sort((a, b) => (+a.n || 0) - (+b.n || 0)).forEach(o => {
+      const n = "①②③④⑤"[(+o.n || 1) - 1] || o.n;
+      L.push(`- ${n} ${o.ok ? "⭕" : "❌"} ${line(o.why || "")}`);
+    });
+    L.push("");
+  }
   /* ★ v277 — 소문항 답을 단계마다 적었으면 맨 아래 «답» 몰아 쓰기는 뺀다 */
   if(!stepAns && ansT){
     L.push("**답**", "");
@@ -373,6 +391,11 @@ function solToMd(sol){
   }
   if(sol.why_answer) L.push("**왜 이 답인가**", "", line(sol.why_answer), "");
   if(sol.check)      L.push("**검산**", "", line(sol.check), "");
+  if(arr(sol.concept).length){
+    L.push("**관련 개념 정리**", "");
+    arr(sol.concept).forEach(c => L.push(`- ${line(c)}`));
+    L.push("");
+  }
   /* ★ v327 — 진리표 검산 (입력 조합 전부 · 원래 식과 바꾼 회로 출력 나란히) */
   const TR = sol.truth && typeof sol.truth === "object" ? sol.truth : null;
   if(TR && arr(TR.cols).length && arr(TR.rows).length){
@@ -464,7 +487,10 @@ async function askSol(r, which){
         q_url:r.q_url, q_text:r.q_text||r.q_md, a_url:r.a_url, a_text:r.a_text||r.a_md,
         year:r.year, session:r.session, no:r.no, points:r.points,
         depth:'full', effort:'high', model:MODEL[which]||MODEL.opus,
-        kind:(window.__ezKindFor && window.__ezKindFor(r.id)) || undefined
+        kind:(window.__ezKindFor && window.__ezKindFor(r.id)) || undefined,
+        /* ★ v353 — 필기 화면이면 객관식 틀(write_mcq)로 · 답안지 정답 표기를 같이 */
+        exam: IS_W ? '필기' : undefined,
+        ans_label: IS_W ? ((String(r.a_text||r.a_md||'').match(/정답\s*([①②③④][①②③④,\s]*|전항정답|정답없음)/)||[])[1]||'').trim() || undefined : undefined
       })
     });
   }catch(e){
