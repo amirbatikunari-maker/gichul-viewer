@@ -81,8 +81,8 @@ function arrange(){
     let sw=Q.querySelector(':scope > .ezxb[data-ezx="off"]');
     if(!sw){ sw=document.createElement('button'); sw.type='button'; sw.className='ezxb'; sw.dataset.ezx='off'; }
     const cut=mk(Q,'cut71','✂ 잘라 넣기',{'data-pxcut':'',title:'가로 절단선을 긋고 칸마다 문제·답으로 나눠 넣습니다'});
-    /* 순서 [ev][sw][cut][미니맵] — 뒤에서부터 하나씩 앞에 붙인다 (제자리면 안 건드림 → 계속 옮기며 도는 일 없음) */
-    place(cut, Q, mm, 'before'); place(sw, Q, cut, 'before'); place(ev, Q, sw, 'before');
+    place(ev, Q, mm, 'before'); place(sw, Q, mm||null, 'before'); place(cut, Q, mm||null, 'before');
+    if(mm){ place(sw, Q, mm, 'before'); place(ev, Q, sw, 'before'); place(cut, Q, mm, 'before'); }
     try{ window.__ezxPaintSw && window.__ezxPaintSw() }catch(e){q_(e)}
     const gz=Q.querySelector(':scope > .gvz'), qt=keep('qtBtn');
     if(qt) place(qt, Q, gz, 'after');

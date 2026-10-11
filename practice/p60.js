@@ -1049,7 +1049,7 @@ setInterval(()=>{ try{ const row=$('#tagRow'); if(row && !$('#qtBoardBtn')){ con
 
 /* ══ ① 머리줄 단추 — ✂ 바로 오른쪽 ══ */
 function mountBtn(){
-  const oh=$('#ovl .oh'); if(!oh || $('#qtBtn',oh)) return;
+  const oh=$('#ovl .oh'); if(!oh || $('#qtBtn')) return;   /* ★ v361 — 문제 이름줄로 옮겨 가도 다시 만들지 않게 */
   const cut=oh.querySelector('[data-cutsplit="ov"]'); if(!cut) return;
   const b=document.createElement('button');
   b.type='button'; b.className='qtbtn'; b.id='qtBtn';

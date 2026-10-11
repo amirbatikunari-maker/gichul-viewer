@@ -30,7 +30,7 @@ const fx=r=>{ try{ return !!(r && window.__ezFixed && window.__ezFixed(r.id||r))
 function mount(){
   const oh=$('#ovl .oh'); if(!oh) return;
   const close=$('#ovClose',oh), ot=$('.ot',oh);
-  if(close && !$('#pxRunBtn',oh)){
+  if(close && !$('#pxRunBtn')){   /* ★ v361 — 단추가 쉬운 풀이 이름줄로 옮겨 가도 다시 만들지 않게 (전체에서 찾음) */
     const run=document.createElement('button'); run.type='button'; run.className='pxrunbtn'; run.id='pxRunBtn';
     run.textContent='✎ 해설 돌리기';
     close.after(run);

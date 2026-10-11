@@ -267,6 +267,8 @@ function paintBtns(){
      ['off',  '', off?'지금 «원래대로» — 누르면 이지뷰(식 상자·접기·부호 표로 정리)':'지금 «이지뷰» — 누르면 원래대로(정리 끄고 예전 모양)']
     ].forEach(([k,txt,tip])=>{
       let b=lab.querySelector(`:scope > .ezxb[data-ezx="${k}"]`);
+      /* ★ v361 — 한눈에서는 «이지뷰|원래대로» 를 문제 이름줄(미니맵 왼쪽)에 둔다 (p71) */
+      if(k==='off' && lab.closest('#ovl')){ if(b) b.remove(); return; }
       if(!b){
         b=document.createElement('button'); b.type='button'; b.className='ezxb'; b.dataset.ezx=k;
         const before=lab.querySelector(':scope > .ezsol, :scope > .ezfix, :scope > .edb');
@@ -281,7 +283,16 @@ function paintBtns(){
       b.classList.toggle('on', k==='open' ? open : false);
     });
   });
+  paintSw();
 }
+/* ★ v361 — 어디에 있든 «이지뷰|원래대로» 토글을 지금 상태로 칠한다 */
+function paintSw(){
+  const off=B.classList.contains('ezx-off');
+  const h=`<span class="${off?'':'cur'}">이지뷰</span><span class="${off?'cur':''}">원래대로</span>`;
+  $$('.ezxb[data-ezx="off"]').forEach(b=>{ b.classList.add('ezsw'); if(b.innerHTML!==h) b.innerHTML=h;
+    b.title=off?'지금 «원래대로» — 누르면 이지뷰(식 상자·접기·부호 표로 정리)':'지금 «이지뷰» — 누르면 원래대로(정리 끄고 예전 모양)'; });
+}
+window.__ezxPaintSw=paintSw;
 function resetTog(){ $$('.ezx .ezf.tog').forEach(el=>el.classList.remove('tog')); }
 /* ★ v279 — 식 줄 사이 간격 [+] 줄간격 [-] (기기에 기억) */
 const GKEY='prac:eqgap', GMIN=-5, GMAX=10;   /* ★ v359 — 더 촘촘하게 (−5 = 줄 높이 1.0) */
