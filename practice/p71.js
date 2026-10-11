@@ -551,6 +551,44 @@ const ACT={
 };
 const REPEAT=new Set(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','KeyR','KeyT','KeyF','KeyG','KeyB']);
 
+/* ★ v373 — « . » 을 누르고 있는 동안만 단축키 표를 반투명으로 (떼면 사라짐) */
+const HELP=[
+  ['이동',[['←  →','앞 / 뒤 문항'],['Esc','열린 창 닫기 · 한눈에 나가기'],['Q','연도 칸'],['W','회차 칸'],['E','번호 칸']]],
+  ['회독',[['↑  ↓','회독 +1 / −1 (그대로)'],['O','회독 +1 하고 다음'],['X','틀림 (기록하고 다음)']]],
+  ['보기',[['M','미니맵'],['N','공식'],['P','접기 / 펼치기'],['V V','이지뷰 ↔ 원래대로 (칸 배치)'],['L','최신순 켜기 / 끄기']]],
+  ['크기',[['R  T','해설 글자 크게 / 작게'],['F  G','수식 크게 / 작게'],['V  B','줄간격 넓게 / 좁게']]],
+  ['해설',[['S','상세 Sonnet 해설'],['N N','상세 Opus 해설'],['K','쉬운해설 고정 / 풀기'],['C C','잘라 넣기']]]
+];
+let HEL=null;
+function helpOn(){
+  if(!HEL){
+    HEL=document.createElement('div'); HEL.id='kHelp71';
+    HEL.innerHTML='<div class="hd">단축키 <small>« . » 을 떼면 닫힘 · V V 처럼 두 글자는 빠르게 두 번</small></div><div class="gr">'
+      + HELP.map(([g,rows])=>`<div class="col"><b class="g">${g}</b>${rows.map(([k,t])=>`<div class="r"><span class="k">${k.split(/\s+/).map(x=>`<kbd>${x}</kbd>`).join('')}</span><span class="t">${t}</span></div>`).join('')}</div>`).join('')
+      + '</div>';
+    const st=document.createElement('style');
+    st.textContent=`#kHelp71{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2147483600;pointer-events:none;
+      background:rgba(15,23,42,.78);color:#fff;border-radius:16px;padding:16px 20px 18px;box-shadow:0 20px 60px rgba(0,0,0,.35);
+      backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);width:min(1120px,96vw);box-sizing:border-box;display:none;font-family:var(--font-d,system-ui)}
+      #kHelp71.on{display:block}
+      #kHelp71 .hd{font:800 15px/1.2 var(--font-d,system-ui);margin-bottom:12px}
+      #kHelp71 .hd small{font-weight:600;font-size:11px;opacity:.7;margin-left:8px}
+      #kHelp71 .gr{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px 22px}
+      #kHelp71 .g{display:block;font:800 11px/1 var(--font-d,system-ui);color:#93c5fd;letter-spacing:.08em;margin-bottom:7px}
+      #kHelp71 .r{display:flex;align-items:center;gap:8px;margin:5px 0;font:600 12.5px/1.25 var(--font-d,system-ui)}
+      #kHelp71 .k{flex:0 0 auto;display:inline-flex;gap:3px;min-width:54px}
+      #kHelp71 kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:5px;background:rgba(255,255,255,.16);
+        border:1px solid rgba(255,255,255,.28);border-bottom-width:2px;font:800 11px/1 var(--font-m,ui-monospace,monospace);color:#fff}
+      #kHelp71 .t{opacity:.92}`;
+    document.head.appendChild(st); document.body.appendChild(HEL);
+  }
+  HEL.classList.add('on');
+}
+const helpOff=()=>{ HEL && HEL.classList.remove('on'); };
+addEventListener('keyup', e=>{ if(e.code==='Period' || e.key==='.') helpOff(); }, true);
+addEventListener('blur', helpOff);
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) helpOff(); });
+
 addEventListener('keydown', e=>{
   if(e.ctrlKey||e.metaKey||e.altKey) return;
   const t=e.target;
@@ -569,6 +607,7 @@ addEventListener('keydown', e=>{
   }
   if(popOpen() && /^Arrow/.test(e.code)) return;         /* 열린 창 안 목록 이동은 그 창 몫 */
   /* 예전 단축키는 모두 끔 — 글자·숫자·화살표·기호 키는 여기서 멈춘다 (기본 동작은 그대로: 스크롤 등) */
+  if(e.code==='Period' || e.key==='.'){ e.preventDefault(); e.stopImmediatePropagation(); helpOn(); return; }
   const mine=ACT[e.code];
   if(e.key && (e.key.length===1 || /^Arrow|^Process$|^Unidentified$/.test(e.key) || /^(Key|Digit|Numpad)/.test(e.code))) e.stopImmediatePropagation();
   if(!mine) return;
