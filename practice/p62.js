@@ -268,7 +268,7 @@ function paintBtns(){
     ].forEach(([k,txt,tip])=>{
       let b=lab.querySelector(`:scope > .ezxb[data-ezx="${k}"]`);
       /* ★ v361 — 한눈에서는 «이지뷰|원래대로» 를 문제 이름줄(미니맵 왼쪽)에 둔다 (p71) */
-      if(k==='off' && lab.closest('#ovl')){ if(b) b.remove(); return; }
+      if(k==='off'){ if(b) b.remove(); return; }   /* ★ v363 — 카드에서도 문제 이름줄로 (p71) */
       if(!b){
         b=document.createElement('button'); b.type='button'; b.className='ezxb'; b.dataset.ezx=k;
         const before=lab.querySelector(':scope > .ezsol, :scope > .ezfix, :scope > .edb');

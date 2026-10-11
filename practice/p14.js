@@ -40,6 +40,9 @@
         lab.__fold = 1;
         lab.addEventListener('click', e => {
           if(e.target.closest && e.target.closest('.edb')) return;   /* 고치기 단추는 비켜 준다 */
+          /* ★ v363 — 이름(문제·답안·쉬운 풀이)이나 빈 줄을 눌렀을 때만 접고 편다.
+             이름줄 안 단추·표시(해설 AUTO · √ 크기 · 해설 돌리기 …)를 누를 때마다 접혔다 펴지던 것 */
+          if(e.target!==lab && !(e.target.closest && e.target.closest('.plabt,.foldhint'))) return;
           e.preventDefault(); e.stopPropagation();
           FOLD[n] = !FOLD[n]; save();
           applyFold();

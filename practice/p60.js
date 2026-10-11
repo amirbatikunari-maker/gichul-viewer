@@ -557,6 +557,9 @@ function openPop(id, anchor){
   anchor && anchor.classList.add('open');
   setTimeout(()=>{ const i=PEL.querySelector('#qtQ'); if(i && matchMedia('(pointer:fine)').matches) i.focus(); },30);
 }
+window.__qtOpen=(id,anchor)=>openPop(id,anchor);   /* ★ v363 — 일반 보기 카드의 «🏷 유형» 단추가 씀 */
+window.__qtIsOpen=id=>POP.on && String(POP.id)===String(id);
+window.__qtClose=()=>closePop();
 function closePop(){
   POP.on=false; COMPOSING=false; PEL && PEL.classList.remove('on');
   $('#qtBtn')?.classList.remove('open');
@@ -1156,7 +1159,7 @@ document.addEventListener('click', e=>{
 document.addEventListener('pointerdown', e=>{
   const t=e.target;
   if(GP && GP.classList.contains('on') && !GP.contains(t) && !(t.closest && t.closest('.grpv'))) closeGrp();
-  if(POP.on && PEL && !PEL.contains(t) && !(t.closest && t.closest('#qtBtn,#ovrail,#pxPick,.grpv,.grppop'))) closePop();
+  if(POP.on && PEL && !PEL.contains(t) && !(t.closest && t.closest('#qtBtn,.qt71,#ovrail,#pxPick,.grpv,.grppop'))) closePop();
 }, true);
 addEventListener('keydown', e=>{
   if(e.key!=='Escape') return;
