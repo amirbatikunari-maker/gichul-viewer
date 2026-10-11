@@ -888,6 +888,26 @@ function inkBox(src, sx, sy, sw, sh){
   const pad=3;
   return { x0:Math.max(0,(x0-pad)/w), y0:Math.max(0,(y0-pad)/h), x1:Math.min(1,(x1+1+pad)/w), y1:Math.min(1,(y1+1+pad)/h) };
 }
+/* 글자 줄 높이(원본 px) — 가로로 잉크가 이어진 줄 묶음들의 높이 가운뎃값. 못 재면 0 */
+function lineH(src, sx, sy, sw, sh){
+  try{
+    const k=Math.min(1, 700/Math.max(1,sw));
+    const w=Math.max(1,Math.round(sw*k)), h=Math.max(1,Math.round(sh*k));
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+    const g=cv.getContext('2d',{willReadFrequently:true}); g.fillStyle='#fff'; g.fillRect(0,0,w,h);
+    g.drawImage(src, sx, sy, sw, sh, 0, 0, w, h);
+    const d=g.getImageData(0,0,w,h).data, need=Math.max(2, Math.round(w*0.006));
+    const runs=[]; let st=-1;
+    for(let y=0;y<=h;y++){
+      let n=0; if(y<h){ for(let x=0;x<w;x++){ const p=(y*w+x)*4; if(d[p]*0.3+d[p+1]*0.59+d[p+2]*0.11<170) n++; } }
+      const on=y<h && n>=need;
+      if(on && st<0) st=y; else if(!on && st>=0){ runs.push(y-st); st=-1; }
+    }
+    const ok=runs.filter(r=>r>=Math.max(3,h*0.006) && r<=h*0.35).sort((a,b)=>a-b);
+    if(!ok.length) return 0;
+    return ok[Math.floor(ok.length/2)]/k;
+  }catch(e){ globalThis.__q?.(e); return 0; }
+}
 function imgFromBlob(b){
   return new Promise((ok,no)=>{ const im=new Image(); im.onload=()=>ok(im); im.onerror=()=>no(new Error('그림을 읽지 못했습니다')); im.src=URL.createObjectURL(b); });
 }
@@ -919,8 +939,17 @@ function compose(i, maxW){
   const ib=inkBox(IMG, 0, sy, W, sh);
   const iw=t.img.naturalWidth, ih=t.img.naturalHeight;
   const cx=t.box.x0*iw, cy=t.box.y0*ih, cw=Math.max(1,(t.box.x1-t.box.x0)*iw), ch=Math.max(1,(t.box.y1-t.box.y0)*ih);
-  let tw=Math.max(8, (ib.x1-ib.x0)*bw*t.sc);
-  tw=Math.min(tw, bw);
+  /* ★ v368 — 기본은 «글자 크기 맞춤»: 칸 그림의 글자 줄 높이와 붙인 그림의 글자 줄 높이를 재서 같게.
+     (예전엔 «글자가 있는 폭» 에 맞춰 늘려서, 그림 폭이 넓은 칸에 한 줄을 붙이면 글자가 훨씬 커졌다)
+     못 재면 예전처럼 폭 맞춤. 폭 맞춤은 단추로 고를 수 있다 */
+  let tw=0;
+  if(t.fit!=='w'){
+    const lb=t.__lb && t.__lbk===i+'|'+sy+'|'+sh ? t.__lb : (t.__lbk=i+'|'+sy+'|'+sh, t.__lb=lineH(IMG, 0, sy, W, sh));
+    const lp=t.__lp && t.__lpk===JSON.stringify(t.box) ? t.__lp : (t.__lpk=JSON.stringify(t.box), t.__lp=lineH(t.img, cx, cy, cw, ch));
+    if(lb>0 && lp>0) tw=cw*(lb*sc/lp)*t.sc;
+  }
+  if(!(tw>0)) tw=(ib.x1-ib.x0)*bw*t.sc;
+  tw=Math.min(Math.max(8,tw), bw);
   const th=Math.max(1, Math.round(ch*tw/cw));
   let tx=Math.round(ib.x0*bw); if(tx+tw>bw) tx=Math.max(0, bw-tw);
   const gap=Math.round(10*sc+2);
@@ -942,6 +971,7 @@ function attDraw(i){
   host.innerHTML=`
     <div class="pxatt-row">
       <span class="pxslot pxpos"><button type="button" data-attpos2="${i}|top" class="${t.pos==='top'?'on':''}">⬆ 칸 <b>위에</b> 붙이기</button><button type="button" data-attpos2="${i}|bottom" class="${t.pos==='bottom'?'on':''}">⬇ 칸 <b>아래에</b> 붙이기</button></span>
+      <span class="pxslot"><button type="button" data-attfit="${i}|t" class="${t.fit!=='w'?'on':''}" title="칸 그림의 글자와 같은 크기로">가 글자 크기 맞춤</button><button type="button" data-attfit="${i}|w" class="${t.fit==='w'?'on':''}" title="칸 그림의 글자 있는 폭에 꽉 차게">↔ 폭 맞춤</button></span>
       <span class="pxatt-sc"><button type="button" data-attsc="${i}|-1" data-hold>−</button><b>${Math.round(t.sc*100)}%</b><button type="button" data-attsc="${i}|1" data-hold>＋</button></span>
       <button type="button" class="pxb" data-attauto="${i}" title="여백을 다시 저절로 잘라냅니다">✂ 여백 자동</button>
       <button type="button" class="pxb" data-attfull="${i}" title="자르기를 없애고 붙인 그림 전체">전체</button>
@@ -1006,6 +1036,8 @@ document.addEventListener('click', e=>{
     t.sc=Math.min(2, Math.max(0.3, Math.round((t.sc+d*0.05)*100)/100)); b.parentNode.querySelector('b').textContent=Math.round(t.sc*100)+'%'; return void attPrev(i); }
   if((b=q('data-attauto'))){ const i=+b.dataset.attauto, t=ATT.get(i); if(!t) return; t.box=inkBox(t.img,0,0,t.img.naturalWidth,t.img.naturalHeight); return void attDraw(i); }
   if((b=q('data-attfull'))){ const i=+b.dataset.attfull, t=ATT.get(i); if(!t) return; t.box={x0:0,y0:0,x1:1,y1:1}; return void attDraw(i); }
+  if((b=q('data-attfit'))){ const [i,m]=b.dataset.attfit.split('|'); const t=ATT.get(+i); if(!t) return; t.fit=m; t.sc=1;
+    $$(`[data-attfit^="${i}|"]`,OVX).forEach(x=>x.classList.toggle('on', x===b)); const sb=$(`.pxatt[data-att="${i}"] .pxatt-sc b`,OVX); if(sb) sb.textContent='100%'; return void attPrev(+i); }
   if((b=q('data-attpos2'))){ const [i,p]=b.dataset.attpos2.split('|'); const t=ATT.get(+i); if(!t) return; t.pos=p;
     $$(`[data-attpos2^="${i}|"]`,OVX).forEach(x=>x.classList.toggle('on', x===b)); return void attPrev(+i); }
   if((b=q('data-attdel'))){ const i=+b.dataset.attdel; ATT.delete(i); paintJoin(); return void attDraw(i); }
