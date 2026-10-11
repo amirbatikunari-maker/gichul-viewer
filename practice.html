@@ -786,7 +786,9 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
   <a href="./practice.html" class="on" id="navP">실기뷰어</a>
   <script>/* ★ v353 — 필기 화면(?w=1)이면 «필기뷰어» 를 켜고 제목도 바꿈 */
   if(/[?&]w=1\b/.test(location.search)){ document.getElementById("navW").classList.add("on"); document.getElementById("navP").classList.remove("on");
-    document.title="필기 · 기출 해설 노트"; document.documentElement.classList.add("wmode"); }</script>
+    document.title="필기 · 기출 해설 노트"; document.documentElement.classList.add("wmode");
+    /* ★ v354 — 필기 화면 메뉴에 «필기 가져오기» 를 늘 보이게 (과목이 생기면 빈 화면 안내가 사라져 들어갈 길이 없었음) */
+    const a=document.createElement("a"); a.href="./written-import.html"; a.textContent="📥 필기 가져오기"; document.getElementById("navP").after(a); }</script>
   <a href="./calc.html">계산기</a><a href="./upload.html">기계</a>
   <a href="./ingest.html">자동 변환</a>
   <a href="./interview.html">면접</a>
