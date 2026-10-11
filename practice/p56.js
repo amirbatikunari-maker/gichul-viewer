@@ -1146,7 +1146,7 @@ function applyFs(pt){
   const v=Math.min(15, Math.max(5, +pt || 9));
   document.documentElement.style.setProperty('--ezfs', v+'pt');
   try{ localStorage.setItem(FSKEY, String(v)); }catch(e){globalThis.__q?.(e)}
-  const n=$('#pxFsN'); if(n) n.textContent='가 '+v+'pt';
+  const n=$('#pxFsN'); if(n && n.textContent!=='가 '+v+'pt') n.textContent='가 '+v+'pt';
   $$('[data-ezfs]').forEach(b=>b.disabled=(+b.dataset.ezfs<0 ? v<=5 : v>=15));
   const r=$('#pxFs'); if(r && +r.value!==v) r.value=String(v);
 }
