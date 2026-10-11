@@ -540,7 +540,9 @@ const ACT={
   KeyQ:()=>pick('y'), KeyW:()=>pick('s'), KeyE:()=>pick('n'),
   KeyR:()=>$('#ovFs [data-ezfs="1"]')?.click(),  KeyT:()=>$('#ovFs [data-ezfs="-1"]')?.click(),
   KeyF:()=>$('#ovTs [data-ts="1"]')?.click(),    KeyG:()=>$('#ovTs [data-ts="-1"]')?.click(),
-  KeyV:()=>tap('KeyV', ()=>{ $('.ezgap [data-gap="1"]')?.click(); }, ()=>{ ovOn() ? $('#ovLeft .lay71')?.click() : $('.ezxb[data-ezx="off"]')?.click(); }),
+  KeyV:()=>{ $('.ezgap [data-gap="1"]')?.click(); },
+  /* ★ v374 — 이지뷰 ↔ 원래대로(칸 배치)는 J (V 두 번 대신 — V 한 번이 기다림 없이 바로 줄간격) */
+  KeyJ:()=>{ const b=$('#ovLeft .lay71'); if(b) b.click(); else if(!ovOn()){ say('이지뷰·원래대로는 한눈에에서 바뀝니다 — Esc 로 한눈에 열기'); } },
   KeyB:()=>$('.ezgap [data-gap="-1"]')?.click(),
   KeyL:()=>seq(),
   KeyC:()=>tap('KeyC', null, ()=>{ const id=curId(); if(id && window.__pxCut) window.__pxCut(id); }),
@@ -549,13 +551,13 @@ const ACT={
   KeyX:()=>{ ovOn() ? $('#ovl .oh [data-ova="no"]')?.click() : clickAny('.no71'); },
   KeyO:()=>{ clickAny('.rdk [data-rd="1"]'); }
 };
-const REPEAT=new Set(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','KeyR','KeyT','KeyF','KeyG','KeyB']);
+const REPEAT=new Set(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','KeyR','KeyT','KeyF','KeyG','KeyV','KeyB']);
 
 /* ★ v373 — « . » 을 누르고 있는 동안만 단축키 표를 반투명으로 (떼면 사라짐) */
 const HELP=[
-  ['이동',[['←  →','앞 / 뒤 문항'],['Esc','열린 창 닫기 · 한눈에 나가기'],['Q','연도 칸'],['W','회차 칸'],['E','번호 칸']]],
+  ['이동',[['←  →','앞 / 뒤 문항'],['Esc','한눈에 열기 / 나가기 (열린 창이 있으면 그것만 닫음)'],['Q','연도 칸'],['W','회차 칸'],['E','번호 칸']]],
   ['회독',[['↑  ↓','회독 +1 / −1 (그대로)'],['O','회독 +1 하고 다음'],['X','틀림 (기록하고 다음)']]],
-  ['보기',[['M','미니맵'],['N','공식'],['P','접기 / 펼치기'],['V V','이지뷰 ↔ 원래대로 (칸 배치)'],['L','최신순 켜기 / 끄기']]],
+  ['보기',[['M','미니맵'],['N','공식'],['P','접기 / 펼치기'],['J','이지뷰 ↔ 원래대로 (칸 배치)'],['L','최신순 켜기 / 끄기']]],
   ['크기',[['R  T','해설 글자 크게 / 작게'],['F  G','수식 크게 / 작게'],['V  B','줄간격 넓게 / 좁게']]],
   ['해설',[['S','상세 Sonnet 해설'],['N N','상세 Opus 해설'],['K','쉬운해설 고정 / 풀기'],['C C','잘라 넣기']]]
 ];
@@ -563,7 +565,7 @@ let HEL=null;
 function helpOn(){
   if(!HEL){
     HEL=document.createElement('div'); HEL.id='kHelp71';
-    HEL.innerHTML='<div class="hd">단축키 <small>« . » 을 떼면 닫힘 · V V 처럼 두 글자는 빠르게 두 번</small></div><div class="gr">'
+    HEL.innerHTML='<div class="hd">단축키 <small>« . » 을 떼면 닫힘 · N N · C C 는 빠르게 두 번</small></div><div class="gr">'
       + HELP.map(([g,rows])=>`<div class="col"><b class="g">${g}</b>${rows.map(([k,t])=>`<div class="r"><span class="k">${k.split(/\s+/).map(x=>`<kbd>${x}</kbd>`).join('')}</span><span class="t">${t}</span></div>`).join('')}</div>`).join('')
       + '</div>';
     const st=document.createElement('style');
@@ -596,7 +598,12 @@ addEventListener('keydown', e=>{
   /* Esc — 다른 창(잘라 넣기·유형·미니맵·공식·고르기 창 …)이 열려 있으면 그쪽이 닫히게 둔다 */
   if(e.key==='Escape'){
     if(popOpen()){ e.preventDefault(); e.stopImmediatePropagation(); closeTop(); return; }   /* 열린 창 하나만 닫고 끝 (한눈에는 그대로) */
-    if(ovOn()){ e.preventDefault(); e.stopImmediatePropagation(); try{ typeof ovClose==='function' ? ovClose() : $('#ovClose')?.click(); }catch(x){q_(x)} }
+    /* ★ v374 — Esc = 한눈에 열기 ↔ 나가기 */
+    e.preventDefault(); e.stopImmediatePropagation();
+    try{
+      if(ovOn()) typeof ovClose==='function' ? ovClose() : $('#ovClose')?.click();
+      else { const id=curId(); if(id && window.ovOpen) window.ovOpen(id); }
+    }catch(x){q_(x)}
     return;
   }
   const inSel = t && t.tagName==='SELECT';
