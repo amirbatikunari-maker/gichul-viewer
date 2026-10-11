@@ -787,14 +787,199 @@ function drawSegs(){
         <option value="q"${slotDef==='q'?' selected':''}>문제</option>
         <option value="a"${slotDef==='a'?' selected':''}>답</option>
       </select>
+      <div class="pxatt" data-att="${i}">
+        <div class="pxatt-bar">
+          <span class="pxnote">빠진 부분 붙이기</span>
+          <button type="button" class="pxb" data-attpaste="${i}" title="복사해 둔 그림을 붙입니다 (이 칸을 고른 뒤 Ctrl+V 도 됨)">📋 붙여넣기</button>
+          <label class="pxb pxfile" title="그림 파일을 골라 붙입니다">📁 파일<input type="file" accept="image/*" data-attfile="${i}" hidden></label>
+        </div>
+        <div class="pxatt-body"></div>
+      </div>
     </div>`;
   }).join('') || '<p class="pxnote">그림 위를 눌러 절단선을 그으세요.</p>';
+  $$('.pxatt', wrap).forEach(el=>attDraw(+el.dataset.att));
 }
+
+/* ══ ★ v359 — 칸에 «빠진 부분» 그림 붙이기 ══════════════════════════════
+   잘못 잘려서 (1)(2) 같은 줄이 빠진 칸에, 복사한 그림(Ctrl+V)·그림 파일을 위/아래로 이어 붙인다.
+   · 붙인 그림은 먼저 여백을 저절로 잘라 내고(자르기 테두리 — 네 변을 끌어 고칠 수 있음)
+   · 칸 그림의 «글자가 있는 폭» 에 맞춰 키우고·줄여서 같은 왼쪽 자리에 놓는다 (크기 −/＋ 로 더 조절)
+   · 아래 미리보기가 실제로 저장될 모양이다 */
+const ATT=new Map();                  /* 칸 번호 → { img, pos:'top'|'bottom', box:{x0,y0,x1,y1}(0~1), sc:1 } */
+let ATTCUR=0;                         /* Ctrl+V 가 들어갈 칸 */
+function inkBox(src, sx, sy, sw, sh){
+  /* 흰 바탕에서 글자·선이 있는 테두리 (0~1, src 기준) */
+  const k=Math.min(1, 500/Math.max(sw,sh));
+  const w=Math.max(1,Math.round(sw*k)), h=Math.max(1,Math.round(sh*k));
+  const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+  const g=cv.getContext('2d',{willReadFrequently:true}); g.fillStyle='#fff'; g.fillRect(0,0,w,h);
+  g.drawImage(src, sx, sy, sw, sh, 0, 0, w, h);
+  const d=g.getImageData(0,0,w,h).data;
+  const dark=(x,y)=>{ const p=(y*w+x)*4; return (d[p]*0.3+d[p+1]*0.59+d[p+2]*0.11) < 190; };
+  const rowN=y=>{ let n=0; for(let x=0;x<w;x++) if(dark(x,y)) n++; return n; };
+  const colN=x=>{ let n=0; for(let y=0;y<h;y++) if(dark(x,y)) n++; return n; };
+  const minR=Math.max(1, Math.round(w*0.004)), minC=Math.max(1, Math.round(h*0.004));
+  let y0=0; while(y0<h && rowN(y0)<minR) y0++;
+  let y1=h-1; while(y1>y0 && rowN(y1)<minR) y1--;
+  let x0=0; while(x0<w && colN(x0)<minC) x0++;
+  let x1=w-1; while(x1>x0 && colN(x1)<minC) x1--;
+  if(y0>=h || x0>=w) return { x0:0, y0:0, x1:1, y1:1 };
+  const pad=3;
+  return { x0:Math.max(0,(x0-pad)/w), y0:Math.max(0,(y0-pad)/h), x1:Math.min(1,(x1+1+pad)/w), y1:Math.min(1,(y1+1+pad)/h) };
+}
+function imgFromBlob(b){
+  return new Promise((ok,no)=>{ const im=new Image(); im.onload=()=>ok(im); im.onerror=()=>no(new Error('그림을 읽지 못했습니다')); im.src=URL.createObjectURL(b); });
+}
+async function attSet(i, blob){
+  if(!blob || !/^image\//.test(blob.type||'image/')) return void toast('그림이 아닙니다');
+  const img=await imgFromBlob(blob);
+  ATT.set(i, { img, pos:(ATT.get(i)||{}).pos||'top', box:inkBox(img,0,0,img.naturalWidth,img.naturalHeight), sc:1 });
+  const sel=$(`.pxseg[data-i="${i}"] [data-use]`, OVX); if(sel) sel.value='y';
+  attDraw(i);
+  toast('그림을 붙였습니다 — 자르기 테두리·크기를 맞춘 뒤 «잘라서 넣기»');
+}
+function segBox(i){
+  const el=$(`.pxseg[data-i="${i}"]`, OVX); if(!el||!IMG) return null;
+  return { a:+el.dataset.a, b:+el.dataset.b };
+}
+/* 칸 + 붙인 그림 → canvas (저장·미리보기 같은 함수) */
+function compose(i, maxW){
+  const sg=segBox(i); if(!sg) return null;
+  const W=IMG.naturalWidth, H=IMG.naturalHeight;
+  const sy=Math.round(H*sg.a), sh=Math.max(1,Math.round(H*(sg.b-sg.a)));
+  const sc=Math.min(1, (maxW||1600)/W);
+  const bw=Math.max(1,Math.round(W*sc)), bh=Math.max(1,Math.round(sh*sc));
+  const t=ATT.get(i);
+  if(!t){
+    const cv=document.createElement('canvas'); cv.width=bw; cv.height=bh;
+    cv.getContext('2d').drawImage(IMG, 0, sy, W, sh, 0, 0, bw, bh); return cv;
+  }
+  /* 칸 그림에서 글자가 있는 폭 → 붙인 그림을 그 폭·그 왼쪽에 */
+  const ib=inkBox(IMG, 0, sy, W, sh);
+  const iw=t.img.naturalWidth, ih=t.img.naturalHeight;
+  const cx=t.box.x0*iw, cy=t.box.y0*ih, cw=Math.max(1,(t.box.x1-t.box.x0)*iw), ch=Math.max(1,(t.box.y1-t.box.y0)*ih);
+  let tw=Math.max(8, (ib.x1-ib.x0)*bw*t.sc);
+  tw=Math.min(tw, bw);
+  const th=Math.max(1, Math.round(ch*tw/cw));
+  let tx=Math.round(ib.x0*bw); if(tx+tw>bw) tx=Math.max(0, bw-tw);
+  const gap=Math.round(10*sc+2);
+  const cv=document.createElement('canvas'); cv.width=bw; cv.height=bh+th+gap;
+  const g=cv.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height);
+  if(t.pos==='top'){
+    g.drawImage(t.img, cx, cy, cw, ch, tx, gap/2, tw, th);
+    g.drawImage(IMG, 0, sy, W, sh, 0, th+gap, bw, bh);
+  }else{
+    g.drawImage(IMG, 0, sy, W, sh, 0, 0, bw, bh);
+    g.drawImage(t.img, cx, cy, cw, ch, tx, bh+gap/2, tw, th);
+  }
+  return cv;
+}
+function attDraw(i){
+  const host=$(`.pxatt[data-att="${i}"] .pxatt-body`, OVX); if(!host) return;
+  const t=ATT.get(i);
+  if(!t){ host.innerHTML=''; return; }
+  host.innerHTML=`
+    <div class="pxatt-row">
+      <select data-attpos="${i}"><option value="top"${t.pos==='top'?' selected':''}>칸 위에 붙이기</option><option value="bottom"${t.pos==='bottom'?' selected':''}>칸 아래에 붙이기</option></select>
+      <span class="pxatt-sc"><button type="button" data-attsc="${i}|-1" data-hold>−</button><b>${Math.round(t.sc*100)}%</b><button type="button" data-attsc="${i}|1" data-hold>＋</button></span>
+      <button type="button" class="pxb" data-attauto="${i}" title="여백을 다시 저절로 잘라냅니다">✂ 여백 자동</button>
+      <button type="button" class="pxb" data-attfull="${i}" title="자르기를 없애고 붙인 그림 전체">전체</button>
+      <button type="button" class="pxb" data-attdel="${i}">붙인 그림 빼기</button>
+    </div>
+    <div class="pxatt-cols">
+      <div><span class="pxnote">붙인 그림 — 파란 테두리 안만 씀 (네 변을 끌어 자르기)</span>
+        <div class="pxcrop"><img src="${t.img.src}" alt="붙인 그림">
+          <div class="pxcbox" style="left:${t.box.x0*100}%;top:${t.box.y0*100}%;width:${(t.box.x1-t.box.x0)*100}%;height:${(t.box.y1-t.box.y0)*100}%">
+            <i data-e="t"></i><i data-e="b"></i><i data-e="l"></i><i data-e="r"></i></div></div></div>
+      <div><span class="pxnote">저장될 모양 (미리보기)</span><div class="pxprev"></div></div>
+    </div>`;
+  attPrev(i);
+  const crop=$('.pxcrop', host), bx=$('.pxcbox', host);
+  $$('i[data-e]', bx).forEach(h=>{
+    let on=false;
+    h.addEventListener('pointerdown', e=>{ on=true; h.setPointerCapture(e.pointerId); e.preventDefault(); e.stopPropagation(); });
+    h.addEventListener('pointermove', e=>{
+      if(!on) return;
+      const r=crop.getBoundingClientRect(), B=t.box, k=h.dataset.e;
+      const fx=Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)), fy=Math.min(1,Math.max(0,(e.clientY-r.top)/r.height));
+      if(k==='t') B.y0=Math.min(fy, B.y1-0.02); if(k==='b') B.y1=Math.max(fy, B.y0+0.02);
+      if(k==='l') B.x0=Math.min(fx, B.x1-0.02); if(k==='r') B.x1=Math.max(fx, B.x0+0.02);
+      Object.assign(bx.style,{ left:B.x0*100+'%', top:B.y0*100+'%', width:(B.x1-B.x0)*100+'%', height:(B.y1-B.y0)*100+'%' });
+    });
+    const up=()=>{ if(!on) return; on=false; attPrev(i); };
+    h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+  });
+}
+function attPrev(i){
+  const p=$(`.pxatt[data-att="${i}"] .pxprev`, OVX); if(!p) return;
+  const cv=compose(i, 800); if(!cv) return;
+  p.innerHTML=''; cv.style.cssText='width:100%;height:auto;display:block'; p.appendChild(cv);
+}
+async function attPaste(i){
+  ATTCUR=i;
+  try{
+    if(navigator.clipboard && navigator.clipboard.read){
+      const items=await navigator.clipboard.read();
+      for(const it of items){ const ty=it.types.find(x=>/^image\//.test(x)); if(ty) return void attSet(i, await it.getType(ty)); }
+      return void toast('클립보드에 그림이 없습니다 — 그림을 복사한 뒤 다시 누르세요');
+    }
+  }catch(e){ globalThis.__q?.(e); }
+  toast(`칸 ${i+1} 을 골랐습니다 — 이제 Ctrl+V 로 붙이세요`);
+}
+document.addEventListener('paste', e=>{
+  if(!OVX || !OVX.classList.contains('on')) return;
+  const f=[...(e.clipboardData?.items||[])].find(x=>/^image\//.test(x.type));
+  if(!f) return;
+  e.preventDefault();
+  const i=$(`.pxseg[data-i="${ATTCUR}"]`, OVX) ? ATTCUR : 0;
+  attSet(i, f.getAsFile());
+}, true);
+document.addEventListener('click', e=>{
+  if(!OVX || !OVX.contains(e.target)) return;
+  const seg=e.target.closest('.pxseg'); if(seg) { ATTCUR=+seg.dataset.i; $$('.pxseg',OVX).forEach(x=>x.classList.toggle('cur', x===seg)); }
+  const q=(k)=>e.target.closest(`[${k}]`);
+  let b;
+  if((b=q('data-attpaste'))) return void attPaste(+b.dataset.attpaste);
+  if((b=q('data-attsc'))){ const [i,d]=b.dataset.attsc.split('|').map(Number); const t=ATT.get(i); if(!t) return;
+    t.sc=Math.min(2, Math.max(0.3, Math.round((t.sc+d*0.05)*100)/100)); b.parentNode.querySelector('b').textContent=Math.round(t.sc*100)+'%'; return void attPrev(i); }
+  if((b=q('data-attauto'))){ const i=+b.dataset.attauto, t=ATT.get(i); if(!t) return; t.box=inkBox(t.img,0,0,t.img.naturalWidth,t.img.naturalHeight); return void attDraw(i); }
+  if((b=q('data-attfull'))){ const i=+b.dataset.attfull, t=ATT.get(i); if(!t) return; t.box={x0:0,y0:0,x1:1,y1:1}; return void attDraw(i); }
+  if((b=q('data-attdel'))){ const i=+b.dataset.attdel; ATT.delete(i); return void attDraw(i); }
+});
+document.addEventListener('change', e=>{
+  if(!OVX || !OVX.contains(e.target)) return;
+  const fi=e.target.closest('[data-attfile]');
+  if(fi){ const f=fi.files&&fi.files[0]; if(f) attSet(+fi.dataset.attfile, f); fi.value=''; return; }
+  const ps=e.target.closest('[data-attpos]');
+  if(ps){ const t=ATT.get(+ps.dataset.attpos); if(t){ t.pos=ps.value; attPrev(+ps.dataset.attpos); } }
+});
+(function(){ const st=document.createElement('style'); st.textContent=`
+.pxatt{flex-basis:100%;margin-top:4px;border-top:1px dashed var(--line,#e2e8f0);padding-top:6px}
+.pxatt-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pxatt .pxfile{cursor:pointer;display:inline-flex;align-items:center}
+.pxatt-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0}
+.pxatt-sc{display:inline-flex;align-items:center;border:1px solid var(--line,#e2e8f0);border-radius:8px;height:30px;overflow:hidden;background:#fff}
+.pxatt-sc button{width:28px;height:100%;border:0;background:none;cursor:pointer;color:#0f172a;font:800 14px/1 system-ui;user-select:none;touch-action:manipulation}
+.pxatt-sc b{min-width:44px;text-align:center;font:800 11px/1 var(--font-d,system-ui)}
+.pxatt-cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:620px){ .pxatt-cols{grid-template-columns:1fr} }
+.pxcrop{position:relative;border:1px solid var(--line,#e2e8f0);background:#fff;user-select:none;touch-action:none;margin-top:4px}
+.pxcrop img{width:100%;display:block;pointer-events:none}
+.pxcbox{position:absolute;outline:2px solid #2563eb;box-shadow:0 0 0 9999px rgba(15,23,42,.35)}
+.pxcrop{overflow:hidden}
+.pxcbox i{position:absolute;background:#2563eb;border-radius:3px}
+.pxcbox i[data-e="t"],.pxcbox i[data-e="b"]{left:50%;width:34px;height:8px;margin-left:-17px;cursor:ns-resize}
+.pxcbox i[data-e="t"]{top:-5px} .pxcbox i[data-e="b"]{bottom:-5px}
+.pxcbox i[data-e="l"],.pxcbox i[data-e="r"]{top:50%;height:34px;width:8px;margin-top:-17px;cursor:ew-resize}
+.pxcbox i[data-e="l"]{left:-5px} .pxcbox i[data-e="r"]{right:-5px}
+.pxprev{border:1px solid var(--line,#e2e8f0);background:#fff;margin-top:4px;max-height:420px;overflow:auto}
+.pxseg.cur{outline:2px solid #93c5fd}
+`; document.head.appendChild(st); })();
 
 async function openCut(id, src){
   const r=rowById(id); if(!r) return void toast('문항을 찾지 못했습니다');
   const sbx=db(); if(!sbx) return void toast('Supabase 를 쓸 수 없습니다');
-  BASE=r; SRC=src||(r.q_url?'q':'a'); LINES=[]; IMG=null;
+  BASE=r; SRC=src||(r.q_url?'q':'a'); LINES=[]; IMG=null; ATT.clear(); ATTCUR=0;
 
   if(!OVX){
     OVX=document.createElement('div');
@@ -825,9 +1010,9 @@ async function openCut(id, src){
     document.body.appendChild(OVX);
     OVX.addEventListener('click',e=>{ if(e.target===OVX) close(); });
     $('#pxClose',OVX).onclick=close;
-    $('#pxClr',OVX).onclick=()=>{ LINES=[]; drawLines(); drawSegs(); };
+    $('#pxClr',OVX).onclick=()=>{ LINES=[]; ATT.clear(); drawLines(); drawSegs(); };
     $('#pxAdd',OVX).onclick=()=>{ LINES.push(0.5); LINES.sort((a,b)=>a-b); drawLines(); drawSegs(); };
-    $('#pxSrc',OVX).onchange=()=>{ SRC=$('#pxSrc',OVX).value; LINES=[]; load(); };
+    $('#pxSrc',OVX).onchange=()=>{ SRC=$('#pxSrc',OVX).value; LINES=[]; ATT.clear(); load(); };
     $('#pxStage',OVX).addEventListener('click',e=>{
       if(e.target.classList.contains('pxline')||e.target.tagName==='I') return;
       const box=e.currentTarget.getBoundingClientRect();
@@ -877,7 +1062,11 @@ async function save(){
       const slot=$('[data-slot]',el).value;
       if(!tgt) continue;
       msg.textContent=`${tgt.no}번 ${slot==='q'?'문제':'답'} — 자르는 중…`;
-      const blob=await crop(IMG, a, b);
+      /* ★ v359 — 붙인 그림이 있으면 합친 모양으로 */
+      const ci=+el.dataset.i;
+      const blob = ATT.has(ci)
+        ? await new Promise((ok,no)=>compose(ci,1600).toBlob(bl=>bl?ok(bl):no(new Error('그림을 만들지 못했습니다')),'image/jpeg',0.88))
+        : await crop(IMG, a, b);
       const url=await put(pathOf(tgt, slot), blob);
       const patch={ [slot==='q'?'q_url':'a_url']: url, ['st_'+slot]:'draft' };
       let up=await sbx.from('practicals').update(patch).eq('id', tgt.id);

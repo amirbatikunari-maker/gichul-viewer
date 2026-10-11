@@ -284,10 +284,10 @@ function paintBtns(){
 }
 function resetTog(){ $$('.ezx .ezf.tog').forEach(el=>el.classList.remove('tog')); }
 /* ★ v279 — 식 줄 사이 간격 [+] 줄간격 [-] (기기에 기억) */
-const GKEY='prac:eqgap', GMIN=0, GMAX=10;
+const GKEY='prac:eqgap', GMIN=-5, GMAX=10;   /* ★ v359 — 더 촘촘하게 (−5 = 줄 높이 1.0) */
 let GAP=2; try{ const g=parseInt(localStorage.getItem(GKEY),10); if(!isNaN(g)) GAP=Math.min(GMAX,Math.max(GMIN,g)); }catch(e){globalThis.__q?.(e)}
 /* ★ v358 — 식 줄만이 아니라 글 줄 사이도 같이 (글만 있는 해설에서는 줄간격이 안 움직이던 것) */
-const gapApply=()=>{ const r=document.documentElement.style; r.setProperty('--eqg', (2+GAP*2)+'px'); r.setProperty('--ezlh', (1.3+GAP*0.06).toFixed(2)); };
+const gapApply=()=>{ const r=document.documentElement.style; r.setProperty('--eqg', Math.max(0,2+GAP*2)+'px'); r.setProperty('--ezlh', (1.3+GAP*0.06).toFixed(2)); };
 gapApply();
 function gapBtns(lab){
   let g=lab.querySelector(':scope > .ezgap');
@@ -313,7 +313,7 @@ function paintGap(){
   $$('.ezgap').forEach(g=>{
     const up=g.querySelector('[data-gap="1"]'), dn=g.querySelector('[data-gap="-1"]');
     if(up) up.disabled=GAP>=GMAX; if(dn) dn.disabled=GAP<=GMIN;
-    const l=g.querySelector('.gl'); if(l) l.title=`지금 줄 높이 ${(1.3+GAP*0.06).toFixed(2)} · 식 위아래 ${2+GAP*2}px`;
+    const l=g.querySelector('.gl'); if(l) l.title=`지금 줄 높이 ${(1.3+GAP*0.06).toFixed(2)} · 식 위아래 ${Math.max(0,2+GAP*2)}px`;
   });
 }
 /* ★ v278 — 해설 유형 고르기. 자동(AI 가 판단)이 기본, 틀리게 잡으면 여기서 고르고 다시 뽑는다.
