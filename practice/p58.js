@@ -43,6 +43,8 @@ function mount(){
     k.addEventListener('keydown',e=>e.stopPropagation());   /* ← → 가 문항 넘기기로 새지 않게 */
     k.addEventListener('change',e=>{
       const w={pxSelY:'y',pxSelS:'s',pxSelN:'n'}[e.target.id];
+      /* ★ v369 — 빠진 번호(«14번 — 없음») 를 고르면 빈 문항을 만들지 묻는다 */
+      if(w==='n' && /^new:/.test(e.target.value)){ const no=+e.target.value.slice(4); try{ e.target.blur() }catch(x){} PICKSIG=''; setTimeout(paintAt,50); return void makeMissing(no); }
       const hit=pickTarget($('#pxSelY').value,$('#pxSelS').value,$('#pxSelN').value,w);
       /* ★ v365 — 고른 뒤 칸에서 손을 뗀다. 칸이 «눌린 채»(focus) 남아 있으면 아래 paintAt 이 건너뛰어서,
          연도를 바꿔도 회차 목록이 옛 연도 것(18년인데 1·2회만)으로 남았다 */
@@ -79,8 +81,56 @@ const selOpts=(r)=>{
   const ss=[...new Set(rs.filter(x=>String(x.year)===String(r.year)).map(x=>String(x.session)))].sort((a,b)=>a-b);
   const ns=rs.filter(sameSess(r)).map(x=>String(x.no)).sort((a,b)=>a-b);
   const opt=(list,cur,f)=>list.map(v=>`<option value="${v}"${v===String(cur)?' selected':''}>${f(v)}</option>`).join('');
-  return { y:opt(ys,r.year,ylab), s:opt(ss,r.session,v=>slab(r.year,v)), n:opt(ns,r.no,v=>v+'번'), sig:[r.id,ys,ss,ns].join('|') };
+  /* ★ v369 — 1번부터 끝 번호 사이에 빠진 번호를 «없음» 으로 끼워 보여 준다 (표에 그 문항 자체가 없다는 뜻) */
+  const have=new Set(ns.map(Number)), mx=Math.max(0,...ns.map(Number)), ALL=[];
+  for(let k=1;k<=mx;k++) ALL.push(k);
+  const nOpt=ALL.map(k=>have.has(k)
+    ? `<option value="${k}"${String(k)===String(r.no)?' selected':''}>${k}번</option>`
+    : `<option value="new:${k}" style="color:#b42318">${k}번 — 없음 (＋ 만들기)</option>`).join('')
+    + ns.filter(v=>!(+v>=1 && +v<=mx && Number.isInteger(+v))).map(v=>`<option value="${v}"${v===String(r.no)?' selected':''}>${v}번</option>`).join('');
+  return { y:opt(ys,r.year,ylab), s:opt(ss,r.session,v=>slab(r.year,v)), n:nOpt, sig:[r.id,ys,ss,ns].join('|') };
 };
+/* ★ v369 — 빠진 번호를 빈 문항으로 만든다 → 그 문항을 열고 «✂ 잘라 넣기 · 통째 교체» 로 그림을 넣으면 됨 */
+async function makeMissing(no){
+  const r=nowRow(); if(!r) return;
+  let sb0=null; try{ sb0=sb }catch(e){}
+  /* ★ v370 — 먼저 서버에 정말 없는지 본다. 이 기기 목록(캐시)만 낡아서 안 보이던 것이면 받아서 끼우고 연다 */
+  if(sb0){
+    try{
+      const ex=await sb0.from('practicals').select('*').eq('subject_id',r.subject_id).eq('year',r.year).eq('session',r.session).eq('no',no).limit(1);
+      const er=ex.data&&ex.data[0];
+      if(er && String(er.no)===String(no) && String(er.year)===String(r.year) && String(er.session)===String(r.session)){
+        if(!ROWS.some(x=>String(x.id)===String(er.id))){
+          let at=-1; ROWS.forEach((x,i)=>{ if(sameSess(r)(x) && +x.no<no) at=i; });
+          ROWS.splice(at+1,0,er);
+          try{ typeof cacheSaveRows==='function' && cacheSaveRows(); }catch(e){globalThis.__q?.(e)}
+          try{ (window.__pracRedraw||window.drawList)?.() }catch(e){globalThis.__q?.(e)}
+        }
+        PICKSIG='';
+        try{ (window.__pxToast||console.log)(`${no}번은 서버에 있었습니다 — 이 기기 목록이 낡아서 안 보였던 것. 다시 넣었습니다`) }catch(e){}
+        return goRow(er);
+      }
+    }catch(e){ globalThis.__q?.(e); }
+  }
+  if(!confirm(`${r.year}년 제${r.session}회 ${no}번이 표에 없습니다.\n\n빈 문항으로 만들까요?\n(만든 뒤 «✂ 잘라 넣기» → «📋 붙여넣어 통째 교체» 로 문제·답 그림을 넣으면 됩니다)`)) return;
+  let sbx=null; try{ sbx=sb }catch(e){}
+  if(!sbx) return alert('Supabase 를 쓸 수 없습니다');
+  const row={ subject_id:r.subject_id, year:r.year, session:r.session, no };
+  let q=await sbx.from('practicals').insert(row).select('*');
+  if(q.error) return alert('만들지 못했습니다 — '+q.error.message);
+  const nr=(q.data&&q.data[0])||null; if(!nr) return alert('만들었지만 다시 읽지 못했습니다 — «↻ 새로 받기» 를 눌러 주세요');
+  try{
+    /* 같은 회차의 바로 앞 번호 뒤에 끼운다 (목록 순서 그대로) */
+    let at=-1; ROWS.forEach((x,i)=>{ if(sameSess(r)(x) && +x.no<no) at=i; });
+    if(at<0) at=ROWS.findIndex(sameSess(r))-1;
+    ROWS.splice(at+1, 0, nr);
+  }catch(e){ globalThis.__q?.(e); try{ ROWS.push(nr) }catch(x){} }
+  try{ typeof cacheSaveRows==='function' && cacheSaveRows(); }catch(e){globalThis.__q?.(e)}
+  try{ (window.__pracRedraw||window.drawList)?.() }catch(e){globalThis.__q?.(e)}
+  PICKSIG='';
+  try{ (window.__pxToast||console.log)(`${r.year}년 제${r.session}회 ${no}번을 빈 문항으로 만들었습니다 — ✂ 잘라 넣기로 그림을 넣으세요`) }catch(e){}
+  goRow(nr);
+}
 /* 고른 값 → 갈 문항 */
 function pickTarget(y,se,n,which){
   const rs=all();

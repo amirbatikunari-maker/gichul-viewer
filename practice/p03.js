@@ -258,7 +258,7 @@ async function loadList(opt){
   $("#list").innerHTML = `<div class="empty">불러오는 중…</div>`;
 
   /* ── ① 캐시가 쓸 만한지 먼저 본다 ── */
-  let out = null;
+  let out = null, fromCache = false;
   if(!force){
     const hit = await RCACHE.get("rows:" + sid);
     if(hit && Array.isArray(hit.rows) && hit.rows.length){
@@ -269,7 +269,7 @@ async function loadList(opt){
         /* 못 물어봤으면(오프라인 등) 여섯 시간까지는 캐시를 믿는다 */
         same = error ? (Date.now() - (hit.at || 0) < 6 * 3600e3) : (count === hit.rows.length);
       }catch(e){ same = true; }
-      if(same) out = hit.rows;
+      if(same){ out = hit.rows; fromCache = true; }
     }
   }
 
@@ -316,6 +316,50 @@ async function loadList(opt){
   try{ await loadMarks(ROWS.map(r => r.id), sid); }catch(e){ MARKS = {}; }
   drawList();
   setTimeout(() => inkSync(sid), 400);          /* 필기 자국은 화면을 그린 뒤 조용히 */
+  if(fromCache) setTimeout(() => verifyIds(sid), 1500);
+}
+
+/* ★ v370 — 캐시를 «문항 수가 같으면 그대로» 믿었더니, 한 문항이 지워지고 다른 문항이 생기면(수는 같음)
+   새 문항(예: 18년 3회 14번)이 목록·레일·번호 칸 어디에도 안 보였다 («↻ 새로 받기» 를 눌러야 나옴).
+   이제 캐시로 그린 뒤 뒤에서 조용히 «id 목록» 만 받아 맞춰 보고, 다르면 빠진 문항만 받아 끼우고 없어진 것은 뺀다. */
+async function verifyIds(sid){
+  try{
+    const ids = [];
+    for(let from = 0; from < 20000; from += 1000){
+      const { data, error } = await sb.from("practicals").select("id").eq("subject_id", sid).range(from, from + 999);
+      if(error || !data) return;
+      ids.push(...data.map(x => String(x.id)));
+      if(data.length < 1000) break;
+    }
+    if(+$("#fSub").value !== sid || CACHE_SID !== sid || !ids.length) return;
+    const want = new Set(ids), have = new Set(ROWS.map(r => String(r.id)));
+    const miss = ids.filter(i => !have.has(i)), gone = [...have].filter(i => !want.has(i));
+    if(!miss.length && !gone.length) return;
+    const cols = await listCols(sid), add = [];
+    for(let i = 0; i < miss.length; i += 150){
+      const { data, error } = await sb.from("practicals").select(cols).in("id", miss.slice(i, i + 150));
+      if(error) return void globalThis.__q?.(error);
+      add.push(...(data || []));
+    }
+    if(CACHE_SID !== sid) return;
+    const curId = (SHOWN[ONEAT] && String(SHOWN[ONEAT].id)) || "";
+    const realY = r => ((+r.year > 0 && +r.year < 3000) ? 0 : 1);
+    ROWS = ROWS.filter(r => want.has(String(r.id))).concat(add);
+    ROWS.sort((a,b) => realY(a) - realY(b) || ((+b.year||0) - (+a.year||0)) || ((+b.session||0) - (+a.session||0)) || ((+a.no||0) - (+b.no||0)));
+    try{ await RCACHE.put("rows:" + sid, { at:Date.now(), rows:ROWS }); }catch(e){globalThis.__q?.(e)}
+    /* 연도·회차 칸 — 고른 값은 그대로 */
+    const fy = $("#fYear"), fs = $("#fSess"), vy = fy.value, vs = fs.value;
+    const years = [...new Set(ROWS.map(r => r.year))].sort((a,b) => b-a);
+    fy.innerHTML = `<option value="">모든 연도</option>` + years.map(y => `<option>${y}</option>`).join("");
+    const sess = [...new Set(ROWS.map(r => r.session))].sort();
+    fs.innerHTML = `<option value="">모든 회차</option>` + sess.map(x => `<option value="${x}">제${x}회</option>`).join("");
+    if([...fy.options].some(o => o.value === vy)) fy.value = vy;
+    if([...fs.options].some(o => o.value === vs)) fs.value = vs;
+    drawList();
+    const i = curId ? SHOWN.findIndex(r => String(r.id) === curId) : -1;
+    if(i >= 0 && i !== ONEAT && ONEUP) showAt(i);
+    try{ (window.__pracLog || console.log)(`목록을 서버와 맞췄습니다 — 새로 생긴 문항 ${add.length}개 · 없어진 문항 ${gone.length}개`) }catch(e){globalThis.__q?.(e)}
+  }catch(e){ globalThis.__q?.(e); }
 }
 
 /* ── 한 문항씩 보기 ── */
