@@ -5,7 +5,9 @@
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const say=m=>{ try{ (window.__pxToast||window.AppUI?.toast||alert)(m) }catch(e){globalThis.__q?.(e)} };
-const COST0={ sonnet:30, opus:80 };
+/* ★ v355 — 필기는 한 번 부르고 짧아서 문항당 Sonnet 약 30원 · Opus 약 75원 (입력 ~3천·출력 ~1.5천 토큰 어림)
+   실기는 길고 다시 받기가 있어 더 큼 — 실제로 3문항 이상 돌리면 그 평균으로 바뀜 */
+const COST0=/[?&]w=1\b/.test(location.search) ? { sonnet:30, opus:75 } : { sonnet:130, opus:330 };
 /* ★ v328 — 예상 금액: 이 기기에서 실제로 쓴 평균(3번 이상 뽑은 뒤)이 있으면 그걸로 */
 const COST=new Proxy(COST0, { get:(t,k)=>{ try{ const a=window.__pxBillAvg&&window.__pxBillAvg(String(k)); if(a) return a; }catch(e){globalThis.__q?.(e)} return t[k]; } });
 const NM={ sonnet:'Sonnet', opus:'Opus' };
@@ -191,8 +193,8 @@ function panel(){
   PAN.innerHTML=`
     <div class="hd"><b>✎ 해설 돌리기</b><button class="x" type="button" data-x>✕</button></div>
     <div class="row"><span class="lb">모델</span><span class="seg" data-g="m">
-      <button type="button" data-v="sonnet">Sonnet<small>~30원</small></button>
-      <button type="button" data-v="opus">Opus<small>~80원</small></button></span></div>
+      <button type="button" data-v="sonnet">Sonnet<small>~${COST.sonnet}원</small></button>
+      <button type="button" data-v="opus">Opus<small>~${COST.opus}원</small></button></span></div>
     <div class="row"><span class="lb">범위</span><span class="seg" data-g="sc">
       <button type="button" data-v="one">이 문제</button>
       <button type="button" data-v="sess">이 회차</button>

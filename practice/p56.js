@@ -556,7 +556,9 @@ function solProbs(s){
 
 /* ★ v328 — 해설 한 문항에 «몇 자 · 얼마» (워커가 다시 받기·채우기까지 합쳐 계산해 보냄)
    이 기기에 모델별 평균·오늘 합계를 적어 두고 «✎ 해설 돌리기» 예상 금액에도 씀 */
-const BILLK='prac:bill:v1';
+/* ★ v355 — 필기(짧은 객관식 틀)와 실기(긴 틀·다시 받기)는 문항당 요금이 크게 달라 기록을 따로 둔다
+   (여태 필기 화면에서도 실기 평균으로 어림해서 Sonnet 이 Opus 보다 비싸게 나왔음) */
+const BILLK=IS_W?'prac:bill:w:v1':'prac:bill:v1';
 const billAll=()=>{ try{ return JSON.parse(localStorage.getItem(BILLK)||'{}')||{} }catch(e){ return {} } };
 const kfmt=n=>n>=1000?(n/1000).toFixed(1)+'k':String(n|0);
 function billNote(bill, which){
