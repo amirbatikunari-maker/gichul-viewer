@@ -7,7 +7,9 @@ const B=document.body;
 const KOFF='prac:ezx', KOPEN='prac:ezxopen';
 try{
   if(localStorage.getItem(KOFF)==='0') B.classList.add('ezx-off');
-  localStorage.removeItem(KOPEN);                /* ★ v275 — 펼침은 기억 안 함: 늘 접힌 채로 시작 */
+  localStorage.removeItem(KOPEN);
+  B.classList.add('ezx-open');                   /* ★ v358 — 펼치기 기본 OPEN (다른 문항으로 넘어가도 다시 펼친 채) */
+  localStorage.removeItem('prac:ezkind');        /* ★ v358 — 유형 고르기 없앰: 해설 AUTO. 문항마다 골라 둔 것도 싹 지움 */
 }catch(e){globalThis.__q?.(e)}
 let LASTQ='';
 
@@ -249,7 +251,7 @@ function boxes(){
 function all(){
   /* 다른 문항으로 넘어가면 다시 접힌 상태로 */
   let q=''; try{ q=(typeof OVID!=='undefined' && OVID!=null) ? String(OVID) : '' }catch(e){globalThis.__q?.(e)}
-  if(q!==LASTQ){ LASTQ=q; if(B.classList.contains('ezx-open')) B.classList.remove('ezx-open'); resetTog(); }
+  if(q!==LASTQ){ LASTQ=q; B.classList.add('ezx-open'); resetTog(); }
   boxes().forEach(b=>{ try{ tidy(b) }catch(e){globalThis.__q?.(e)} }); paintBtns();
 }
 
@@ -262,7 +264,7 @@ function paintBtns(){
     try{ kindSel(lab) }catch(e){globalThis.__q?.(e)}
     try{ gapBtns(lab) }catch(e){globalThis.__q?.(e)}
     [['open', open?'⇡ 접기':'⇣ 펼치기', open?'«왜» 설명을 모두 두 줄로 접습니다':'«왜» 설명·검산·흔한 실수를 모두 펼칩니다'],
-     ['off',  off?'◫ 정리 보기':'◫ 원래대로', off?'식 상자·접기·부호 표로 정리해서 봅니다':'정리를 끄고 예전 모양 그대로 봅니다']
+     ['off',  '', off?'지금 «원래대로» — 누르면 이지뷰(식 상자·접기·부호 표로 정리)':'지금 «이지뷰» — 누르면 원래대로(정리 끄고 예전 모양)']
     ].forEach(([k,txt,tip])=>{
       let b=lab.querySelector(`:scope > .ezxb[data-ezx="${k}"]`);
       if(!b){
@@ -270,9 +272,13 @@ function paintBtns(){
         const before=lab.querySelector(':scope > .ezsol, :scope > .ezfix, :scope > .edb');
         before ? lab.insertBefore(b, before) : lab.appendChild(b);
       }
-      if(b.textContent!==txt) b.textContent=txt;
+      if(k==='off'){                                /* ★ v358 — 이지뷰 / 원래대로 토글 (지금 것이 켜져 보임) */
+        b.classList.add('ezsw');
+        const h=`<span class="${off?'':'cur'}">이지뷰</span><span class="${off?'cur':''}">원래대로</span>`;
+        if(b.innerHTML!==h) b.innerHTML=h;
+      }else if(b.textContent!==txt) b.textContent=txt;
       b.title=tip;
-      b.classList.toggle('on', k==='open' ? open : off);
+      b.classList.toggle('on', k==='open' ? open : false);
     });
   });
 }
@@ -280,7 +286,8 @@ function resetTog(){ $$('.ezx .ezf.tog').forEach(el=>el.classList.remove('tog'))
 /* ★ v279 — 식 줄 사이 간격 [+] 줄간격 [-] (기기에 기억) */
 const GKEY='prac:eqgap', GMIN=0, GMAX=10;
 let GAP=2; try{ const g=parseInt(localStorage.getItem(GKEY),10); if(!isNaN(g)) GAP=Math.min(GMAX,Math.max(GMIN,g)); }catch(e){globalThis.__q?.(e)}
-const gapApply=()=>{ document.documentElement.style.setProperty('--eqg', (2+GAP*2)+'px'); };
+/* ★ v358 — 식 줄만이 아니라 글 줄 사이도 같이 (글만 있는 해설에서는 줄간격이 안 움직이던 것) */
+const gapApply=()=>{ const r=document.documentElement.style; r.setProperty('--eqg', (2+GAP*2)+'px'); r.setProperty('--ezlh', (1.3+GAP*0.06).toFixed(2)); };
 gapApply();
 function gapBtns(lab){
   let g=lab.querySelector(':scope > .ezgap');
@@ -306,7 +313,7 @@ function paintGap(){
   $$('.ezgap').forEach(g=>{
     const up=g.querySelector('[data-gap="1"]'), dn=g.querySelector('[data-gap="-1"]');
     if(up) up.disabled=GAP>=GMAX; if(dn) dn.disabled=GAP<=GMIN;
-    const l=g.querySelector('.gl'); if(l) l.title=`지금 ${2+GAP*2}px`;
+    const l=g.querySelector('.gl'); if(l) l.title=`지금 줄 높이 ${(1.3+GAP*0.06).toFixed(2)} · 식 위아래 ${2+GAP*2}px`;
   });
 }
 /* ★ v278 — 해설 유형 고르기. 자동(AI 가 판단)이 기본, 틀리게 잡으면 여기서 고르고 다시 뽑는다.
@@ -314,28 +321,15 @@ function paintGap(){
 const KINDS=['자동','계산','표·선정','나열','단답','서술','회로·시퀀스'];
 const KKEY='prac:ezkind';
 const kindAll=()=>{ try{ return JSON.parse(localStorage.getItem(KKEY)||'{}')||{} }catch(e){ return {} } };
-window.__ezKindFor=id=>{ const v=kindAll()[String(id)]; return v && v!=='자동' ? v : ''; };
+window.__ezKindFor=()=>'';                       /* ★ v358 — 늘 AUTO (AI 가 판단) */
 function kindSel(lab){
-  let s=lab.querySelector(':scope > select.ezkind');
-  const id=(()=>{ const c=lab.closest('.pcard'); if(c&&c.dataset.id) return c.dataset.id; try{ return OVID!=null?String(OVID):'' }catch(e){ return '' } })();
-  if(!s){
-    s=document.createElement('select'); s.className='ezkind'; s.title='해설 유형 — 다음에 해설을 뽑을 때 이 틀로 씁니다 (자동 = AI 가 판단)';
-    s.innerHTML=KINDS.map(k=>`<option value="${k}">${k==='자동'?'유형: 자동':'유형: '+k}</option>`).join('');
-    ['click','pointerdown','mousedown'].forEach(ev=>s.addEventListener(ev, e=>e.stopPropagation()));
-    s.addEventListener('change', ()=>{
-      const o=kindAll(), k=s.dataset.for; if(!k) return;
-      if(s.value==='자동') delete o[k]; else o[k]=s.value;
-      try{ localStorage.setItem(KKEY, JSON.stringify(o)) }catch(e){globalThis.__q?.(e)}
-      s.classList.toggle('set', s.value!=='자동');
-      try{ (window.__pxToast||console.log)(s.value==='자동' ? '유형: 자동 — AI 가 판단합니다' : `유형: ${s.value} — «상세 Opus/Sonnet» 으로 다시 뽑으면 이 틀로 씁니다`) }catch(e){globalThis.__q?.(e)}
-    });
-    const before=lab.querySelector(':scope > .ezsol, :scope > .ezfix, :scope > .edb');
-    before ? lab.insertBefore(s, before) : lab.appendChild(s);
-  }
-  if(s.dataset.for!==id){ s.dataset.for=id; }
-  const v=kindAll()[id]||'자동';
-  if(s.value!==v) s.value=v;
-  s.classList.toggle('set', v!=='자동');
+  /* ★ v358 — 유형 고르기 없앰 → «해설 AUTO» 표시만 */
+  lab.querySelector(':scope > select.ezkind')?.remove();
+  if(lab.querySelector(':scope > .ezauto')) return;
+  const t=document.createElement('span'); t.className='ezauto'; t.textContent='해설 AUTO';
+  t.title='해설 유형은 AI 가 문제를 보고 알아서 고릅니다';
+  const before=lab.querySelector(':scope > .ezsol, :scope > .ezfix, :scope > .edb');
+  before ? lab.insertBefore(t, before) : lab.appendChild(t);
 }
 
 document.addEventListener('click', e=>{
@@ -377,5 +371,5 @@ addEventListener('resize', remeasure);
 document.addEventListener('input', e=>{ if(e.target && e.target.id==='pxFs') remeasure(); }, true);
 document.addEventListener('click', e=>{ if(e.target.closest && e.target.closest('.ovfs button,[data-fs]')) remeasure(); }, false);
 setInterval(all, 1500);
-window.__ezxTidy=tidy;
+window.__ezxTidy=tidy; window.__ezxRemeasure=remeasure;
 })();

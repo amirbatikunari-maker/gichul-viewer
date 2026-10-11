@@ -58,7 +58,7 @@
      문서 맨 바깥(가로채기 단계)에서 듣는다. 넘기는 것은 기록이 끝난 뒤로 미룬다. */
   document.addEventListener('click',e=>{
     if(!AUTO) return;
-    const b=e.target.closest?.('[data-result]'); if(!b) return;
+    const b=e.target.closest?.('button[data-result]'); if(!b) return;   /* ★ v358 — 카드(data-result)가 아니라 단추만 */
     if(!oneup()) return;
     setTimeout(()=>{
       const at=(()=>{try{return window.ONEAT|0}catch(x){return 0}})();

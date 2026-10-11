@@ -450,7 +450,7 @@
 
   /* ── 체크를 가로챈다 (v6 의 기록과 나란히 쌓는다) ── */
   document.addEventListener('click',e=>{
-    const b=e.target.closest?.('[data-result]'); if(!b) return;
+    const b=e.target.closest?.('button[data-result]'); if(!b) return;   /* ★ v358 — 카드 자체에도 data-result 가 붙어 있어, 카드 안 아무 데나 눌러도 회독이 +1 되던 것 */
     const card=b.closest('.pcard'); if(!card) return;
     bump(card.dataset.id,b.dataset.result);
   },true);

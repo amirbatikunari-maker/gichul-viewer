@@ -72,7 +72,7 @@
       a.innerHTML=`<button type="button" data-result="ok" style="border:1px solid var(--line);border-radius:7px;background:var(--surface-2);padding:5px 7px;font:700 10px/1 var(--font-d);cursor:pointer">✓</button>
                    <button type="button" data-result="no" style="border:1px solid var(--line);border-radius:7px;background:var(--surface-2);padding:5px 7px;font:700 10px/1 var(--font-d);cursor:pointer">✕</button>`;
       p.appendChild(a);
-      a.addEventListener('click',e=>{const b=e.target.closest('[data-result]');if(!b)return; mark(card.dataset.id,b.dataset.result); rebuild(); toast(b.dataset.result==='ok'?'정답 기록':'오답 기록')});
+      a.addEventListener('click',e=>{const b=e.target.closest('button[data-result]');if(!b)return; mark(card.dataset.id,b.dataset.result); rebuild(); toast(b.dataset.result==='ok'?'정답 기록':'오답 기록')});
     });
   }
   function escClose(){

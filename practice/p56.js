@@ -591,10 +591,42 @@ function billTxt(bill, withToday){
 window.__pxBillAvg=w=>{ const m=billAll()[/opus/i.test(w)?'opus':'sonnet']; return m && m.n>=3 ? Math.round(m.krw/m.n) : 0; };
 window.__pxBillTxt=billTxt; window.__pxBillNote=billNote;
 
-let SOLBUSY=false;
+/* ★ v358 — 상세 Opus/Sonnet 은 문항마다 따로 돈다: 누르고 다음 문항으로 넘어가 또 누르면 «동시에» 진행.
+   같은 문항을 두 번 돌리지만 않게 막고, 한꺼번에는 SOLMAX 개까지. 단추 모양은 RUN 을 보고 1초마다 다시 칠한다
+   (한눈에 단추는 문항을 옮겨도 같은 단추라, 단추에 «뽑는 중» 을 묶어 두면 다음 문항에서 못 누르던 것) */
+const SOLMAX=6;
+const RUN=new Map();                        /* id → { which, t0 } */
+window.__pxSolRun=()=>RUN;
+function paintRun(){
+  document.querySelectorAll('[data-pxsol2]').forEach(b=>{
+    const [id]=String(b.dataset.pxsol2).split('|'), w=String(b.dataset.pxsol2).split('|')[1];
+    const j=RUN.get(String(id));
+    if(b.dataset.lbl0==null) b.dataset.lbl0=b.innerHTML;
+    if(j){
+      const t=`${NAME[j.which]} 뽑는 중… ${Math.round((Date.now()-j.t0)/1000)}초`;
+      if(j.which===w){ if(b.textContent!==t) b.textContent=t; }
+      else if(b.innerHTML!==b.dataset.lbl0) b.innerHTML=b.dataset.lbl0;
+      b.disabled=true; b.classList.add('run');
+    }else{
+      if(b.innerHTML!==b.dataset.lbl0) b.innerHTML=b.dataset.lbl0;
+      b.disabled=false; b.classList.remove('run');
+    }
+  });
+  let n=document.getElementById('pxRunN');
+  if(RUN.size){
+    if(!n){ n=document.createElement('div'); n.id='pxRunN';
+      n.style.cssText='position:fixed;right:14px;bottom:14px;z-index:99990;background:#1e3a8a;color:#fff;border-radius:999px;padding:6px 12px;font:800 12px/1 var(--font-d,system-ui);box-shadow:0 4px 14px #0003;pointer-events:none';
+      document.body.appendChild(n); }
+    const t=`✎ 해설 ${RUN.size}개 동시 진행 중 — `+[...RUN].map(([k,j])=>{ const r=rowById(k); return (r?r.no+'번':'?')+' '+NAME[j.which]; }).join(' · ');
+    if(n.textContent!==t) n.textContent=t;
+  }else if(n) n.remove();
+}
+setInterval(paintRun, 1000);
 async function makeSol(id, which, btn){
   const r=rowById(id); if(!r) return;
-  if(SOLBUSY) return void toast('해설을 하나 뽑는 중입니다');
+  id=String(id);
+  if(RUN.has(id)) return void toast(`${r.no}번은 이미 해설을 뽑는 중입니다`);
+  if(RUN.size>=SOLMAX) return void toast(`한꺼번에는 ${SOLMAX}개까지 — 하나 끝나면 다시 눌러 주세요`);
   if(!r.a_url && !r.a_text && !r.a_md)
     return void toast('답이 없는 문항입니다 — 근거가 없어 해설을 못 만듭니다');
   const sbx=db(); if(!sbx) return void toast('Supabase 를 쓸 수 없습니다');
@@ -604,11 +636,9 @@ async function makeSol(id, which, btn){
     if(!confirm(`${r.no}번은 🔒 쉬운해설 고정 문항입니다.\n\n이 단추(${NAME[which]})로만 다시 씁니다 — 고정은 그대로 유지되어\n«✎ 해설 돌리기»·자동 생성에서는 계속 빠집니다.\n\n다시 쓸까요?`)) return;
   }else if(r.easy_md && !confirm(`${r.no}번 해설이 이미 있습니다.\n${NAME[which]} 로 다시 쓸까요?`)) return;
 
-  SOLBUSY=true;
-  const old=btn?btn.innerHTML:'';
-  const t0=Date.now();
-  const tick=btn?setInterval(()=>{ btn.textContent=`${NAME[which]} 뽑는 중… ${Math.round((Date.now()-t0)/1000)}초` },1000):null;
-  if(btn){ btn.disabled=true; btn.textContent=`${NAME[which]} 뽑는 중… 0초`; }
+  if(RUN.has(id)) return;                    /* 확인 창 뜬 사이에 또 누른 것 */
+  RUN.set(id, { which, t0:Date.now() }); paintRun();
+  if(RUN.size>1) toast(`${r.no}번 ${NAME[which]} 시작 — 지금 ${RUN.size}개 동시 진행`);
   /* 카드 안에도 «쓰는 중» 을 남긴다 — 어디를 봐도 돌고 있는 것이 보이게 */
   const box=document.querySelector(`.pcard[data-id="${id}"] .easybox`);
   if(box){ box.classList.remove('empty'); box.innerHTML='<span class="wait">상세 해설을 쓰는 중입니다… 30~90초쯤 걸립니다.</span>'; }
@@ -640,9 +670,7 @@ async function makeSol(id, which, btn){
     if(r.easy_md){ try{ repaint(id) }catch(x){globalThis.__q?.(x)} }
     else if(box) box.innerHTML=`<span class="wait">해설을 쓰지 못했습니다 — ${why}</span>`;
   }finally{
-    SOLBUSY=false;
-    if(tick) clearInterval(tick);
-    if(btn){ btn.disabled=false; btn.innerHTML=old; }
+    RUN.delete(id); paintRun();
   }
 }
 
@@ -881,7 +909,8 @@ function applyFs(pt){
   const v=Math.min(15, Math.max(5, +pt || 9));
   document.documentElement.style.setProperty('--ezfs', v+'pt');
   try{ localStorage.setItem(FSKEY, String(v)); }catch(e){globalThis.__q?.(e)}
-  const n=$('#pxFsN'); if(n) n.textContent=v+'pt';
+  const n=$('#pxFsN'); if(n) n.textContent='가 '+v+'pt';
+  $$('[data-ezfs]').forEach(b=>b.disabled=(+b.dataset.ezfs<0 ? v<=5 : v>=15));
   const r=$('#pxFs'); if(r && +r.value!==v) r.value=String(v);
 }
 function curFs(){ try{ return +(localStorage.getItem(FSKEY) || 9) }catch(e){ return 9 } }
@@ -906,7 +935,31 @@ function ezOnly(force){
   try{ localStorage.setItem(EZKEY, on ? '1' : '0'); }catch(e){globalThis.__q?.(e)}
   paintEzOnly();
 }
-try{ if(localStorage.getItem(EZKEY)==='1') document.body.classList.add('ezonly'); }catch(e){globalThis.__q?.(e)}
+/* ★ v358 — «해설만» 단추를 없앴으니, 켜진 채 저장돼 있던 것도 끈다 (갇히지 않게) */
+try{ localStorage.setItem(EZKEY,'0'); document.body.classList.remove('ezonly'); }catch(e){globalThis.__q?.(e)}
+
+/* ★ v358 — 해설 글자 −/＋ (머리줄) · 0.5pt 씩 */
+document.addEventListener('click', e=>{
+  const b=e.target.closest && e.target.closest('[data-ezfs]'); if(!b) return;
+  e.preventDefault(); e.stopPropagation();
+  applyFs(Math.round((curFs()+(+b.dataset.ezfs)*0.5)*2)/2);
+  try{ window.__ezxRemeasure && window.__ezxRemeasure() }catch(x){globalThis.__q?.(x)}
+}, true);
+/* ★ v358 — [data-hold] 단추는 꾹 누르면 계속 눌린다 (0.4초 뒤부터 0.09초마다) */
+(function(){
+  let t1=0, t2=0, rep=false, auto=false;
+  const stop=()=>{ clearTimeout(t1); clearInterval(t2); t1=t2=0; };
+  document.addEventListener('pointerdown', e=>{
+    const b=e.target.closest && e.target.closest('[data-hold]'); if(!b || e.button>0) return;
+    stop(); rep=false;
+    t1=setTimeout(()=>{ rep=true; t2=setInterval(()=>{ if(b.disabled || !b.isConnected) return stop(); auto=true; b.click(); auto=false; }, 90); }, 400);
+  }, true);
+  ['pointerup','pointercancel'].forEach(ev=>addEventListener(ev, stop, true));
+  addEventListener('blur', e=>{ if(e.target===window) stop(); });
+  /* 꾹 눌러 계속 돈 뒤 손을 뗄 때 나오는 클릭 한 번은 버린다 (한 칸 더 가지 않게) */
+  addEventListener('click', e=>{ if(rep && !auto && e.target.closest && e.target.closest('[data-hold]')){ rep=false; e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+  document.addEventListener('contextmenu', e=>{ if(e.target.closest && e.target.closest('[data-hold]')) e.preventDefault(); }, true);
+})();
 
 function mount(){
   /* ① 한눈에 판 머리줄 */
@@ -917,9 +970,7 @@ function mount(){
     box.innerHTML=`<button type="button" class="pxb" data-pxsol="opus" title="비전공자용 상세 해설 — Opus 로 (문항당 약 80원)">✎ 상세해설 <b>Opus</b></button>
       <button type="button" class="pxb" data-pxsol="sonnet" title="비전공자용 상세 해설 — Sonnet 으로 (문항당 약 30원)">✎ 상세해설 <b>Sonnet</b></button>
       <button type="button" class="pxb" data-pxcut title="가로 절단선을 긋고 칸마다 문제·답으로 나눠 넣습니다">✂ 잘라 넣기</button>
-      <button type="button" class="pxb" data-pxezonly title="문제·답 칸을 접고 풀이만 화면 가득 봅니다. 다시 누르면 되돌아옵니다 (요금 안 붙음)">📖 해설만</button>
-      <label class="pxfs" title="해설 글자 크기 (5~15pt)"><span>글자</span>
-        <input type="range" id="pxFs" min="5" max="15" step="0.5"><b id="pxFsN">9pt</b></label>`;
+`;   /* ★ v358 — «해설만» 단추 · 글자 끌기막대 없앰 (글자는 머리줄 −/＋) */
     const after=$('#ovReformat',oh)||oh.lastElementChild;
     after ? after.after(box) : oh.appendChild(box);
   }

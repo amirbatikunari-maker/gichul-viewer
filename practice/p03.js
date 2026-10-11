@@ -3587,10 +3587,14 @@ $("#cvAll")?.addEventListener("click", () => cvRun(true));
     const sel = $("#fSize"); if(sel) sel.value = String(next);
   });
 
-  const TSTEPS = [0.55, 0.62, 0.7, 0.8, 0.9, 1, 1.15, 1.3, 1.5];   /* ★ v262 — 수식도 더 작게 */
+  /* ★ v358 — 5~10% 씩 고르게 (예전엔 한 번에 15~20% 씩 튀었다) · 지금 크기를 단추 사이에 보여 준다 */
+  const TSTEPS = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1, 1.05, 1.1, 1.15, 1.2, 1.3, 1.4, 1.5, 1.6, 1.8, 2];
   const curTs = () => { try{ return +(localStorage.getItem("prac:texscale") || "1"); }catch(e){ return 1; } };
   const nearestTs = v => TSTEPS.reduce((a, b) => Math.abs(b - v) < Math.abs(a - v) ? b : a);
-  const applyTs = v => { try{ localStorage.setItem("prac:texscale", String(v)); }catch(e){globalThis.__q?.(e)} document.documentElement.style.setProperty("--texScale", String(v)); };
+  const applyTs = v => { try{ localStorage.setItem("prac:texscale", String(v)); }catch(e){globalThis.__q?.(e)} document.documentElement.style.setProperty("--texScale", String(v));
+    const n = $("#ovTsN"); if(n) n.textContent = "√" + Math.round(v * 100) + "%";
+    $$('.ovfs [data-ts]').forEach(b => b.disabled = (+b.dataset.ts < 0 ? v <= TSTEPS[0] : v >= TSTEPS[TSTEPS.length - 1]));
+    const sel = document.getElementById("fTexScale"); if(sel && [...sel.options].some(o => o.value === String(v))) sel.value = String(v); };
   applyTs(curTs());   /* 페이지를 열 때 저장해 둔 값을 바로 입힌다 */
   $$('.ovfs [data-ts]').forEach(b => b.onclick = () => {
     const i = TSTEPS.indexOf(nearestTs(curTs()));

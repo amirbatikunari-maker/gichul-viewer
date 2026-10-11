@@ -182,6 +182,49 @@ window.__pracMinimap={ open:()=>{ const b=$('#ovl .mmb'); b&&openMM(b); }, close
 
 /* ★ v285 — 답안 «✎ 고치기» 옆 회독 −/+  (지금 문항을 몇 번 풀었나 = 체크 횟수) */
 /* ★ v288 — 한눈에 답안 칸 + 일반 보기 카드의 답안 칸 이름줄, 모두 같은 것 */
+function rdkNext(w, id){
+  try{
+    const inOv=!w.closest('.pcard') && $('#ovl')?.classList.contains('on');
+    if(inOv){ if(typeof ovStep==='function') ovStep(1); else $('#ovNext')?.click(); return; }
+    const R=(typeof SHOWN!=='undefined' && Array.isArray(SHOWN)) ? SHOWN : [];
+    const i=R.findIndex(r=>String(r.id)===String(id)); if(i<0 || i+1>=R.length) return;
+    if(document.body.classList.contains('oneup')){
+      if(typeof showAt==='function') showAt(i+1);
+      document.querySelector('#list > .pcard.show')?.scrollIntoView({block:'start',behavior:'smooth'});
+    }else{
+      document.querySelector(`#list > .pcard[data-id="${R[i+1].id}"]`)?.scrollIntoView({block:'start',behavior:'smooth'});
+    }
+  }catch(e){globalThis.__q?.(e)}
+}
+/* ★ v358 — 회독 단추를 «꾹» (0.7초) 누르면 그 문항 회독 초기화 (0회독 · 맞힘/틀림 기록도 0)
+   대상: 답안 이름줄 −/숫자/＋ · 한눈에 머리 «＋ 회독» · 일반 보기 머리 «회독» */
+(function holdReset(){
+  const SEL='.rdk [data-rd], .rdk b, [data-ova="ok"], .pxhd.r [data-hd="ok"]';
+  let tm=0, eat=false, sx=0, sy=0;
+  const idOf=el=>{ const c=el.closest('.pcard'); if(c && c.dataset.id) return String(c.dataset.id); return nowOv(); };
+  const cancel=()=>{ clearTimeout(tm); tm=0; };
+  document.addEventListener('pointerdown', e=>{
+    const el=e.target.closest && e.target.closest(SEL); if(!el || e.button>0) return;
+    cancel(); eat=false; sx=e.clientX; sy=e.clientY;
+    tm=setTimeout(()=>{
+      tm=0;
+      const id=idOf(el); if(!id || !window.__pracChkAdj) return;
+      const n=window.__pracChkN ? window.__pracChkN(id) : 0;
+      eat=true;                                   /* 손을 뗄 때 나오는 클릭(＋1·다음 문항)은 먹는다 */
+      if(n>0) window.__pracChkAdj(id, -n);
+      try{ navigator.vibrate && navigator.vibrate(30) }catch(x){}
+      try{ paintAns(); SIG=''; paint(); }catch(x){globalThis.__q?.(x)}
+      (window.__pxToast||console.log)(n>0 ? `회독 초기화 — ${n}회독 → 0` : '이미 0회독입니다');
+    }, 700);
+  }, true);
+  document.addEventListener('pointermove', e=>{ if(tm && Math.hypot(e.clientX-sx, e.clientY-sy)>12) cancel(); }, true);
+  ['pointerup','pointercancel','pointerleave'].forEach(ev=>document.addEventListener(ev, e=>{ if(ev!=='pointerleave' || e.target===document.documentElement) cancel(); }, true));
+  document.addEventListener('click', e=>{
+    if(!eat) return; eat=false;
+    if(e.target.closest && e.target.closest(SEL)){ e.preventDefault(); e.stopImmediatePropagation(); }
+  }, true);
+  document.addEventListener('contextmenu', e=>{ if(e.target.closest && e.target.closest(SEL)) e.preventDefault(); }, true);
+})();
 function rdkId(w){ const c=w.closest('.pcard'); return c ? String(c.dataset.id) : nowOv(); }
 function mountAns(){
   const labs=[...$$('#ovRight .seg[data-seg="a"] > .plab'), ...$$('#list > .pcard .plabel').filter(l=>/^답안/.test(labName(l)))];
@@ -194,7 +237,10 @@ function mountAns(){
         const b=e.target.closest('[data-rd]'); if(!b) return;
         e.preventDefault(); e.stopPropagation();
         const id=rdkId(w); if(!id || !window.__pracChkAdj) return;
-        window.__pracChkAdj(id, +b.dataset.rd); paintAns(); SIG=''; paint();
+        const d=+b.dataset.rd;
+        window.__pracChkAdj(id, d); paintAns(); SIG=''; paint();
+        /* ★ v358 — ＋ 를 누르면 «이 문항 풀었음» → 지금 보이는 문항의 다음 번호로 넘어간다 (− 는 숫자만 고침) */
+        if(d>0) setTimeout(()=>rdkNext(w, id), 120);
       });
       ['pointerdown','mousedown'].forEach(ev=>w.addEventListener(ev,e=>e.stopPropagation()));
       const ed=lab.querySelector('.edb'); ed ? lab.insertBefore(w, ed) : lab.appendChild(w);

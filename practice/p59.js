@@ -121,7 +121,7 @@ function solFor(lab, id){
       const fx=lab.querySelector(':scope > .ezfix');
       fx ? fx.before(b) : lab.appendChild(b);
     }
-    if(b.disabled) return;                          /* 뽑는 중엔 건드리지 않는다 */
+    /* ★ v358 — 뽑는 중이어도 지금 문항으로 바꿔 단다 (뽑는 중 표시는 p56 paintRun 이 문항별로 칠함) */
     const v=id+'|'+w;
     if(b.dataset.pxsol2!==v) b.dataset.pxsol2=v;
   });
