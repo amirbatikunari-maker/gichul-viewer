@@ -268,17 +268,14 @@ function paintBtns(){
     ].forEach(([k,txt,tip])=>{
       let b=lab.querySelector(`:scope > .ezxb[data-ezx="${k}"]`);
       /* ★ v361 — 한눈에서는 «이지뷰|원래대로» 를 문제 이름줄(미니맵 왼쪽)에 둔다 (p71) */
-      if(k==='off'){ if(b) b.remove(); return; }   /* ★ v363 — 카드에서도 문제 이름줄로 (p71) */
+      /* ★ v372 — «정리 보기» 켜고 끄기는 다시 쉬운 풀이 줄로 (작은 단추). 문제 줄의 «이지뷰|원래대로» 는 칸 배치(2단↔3단) 바꾸기 */
       if(!b){
         b=document.createElement('button'); b.type='button'; b.className='ezxb'; b.dataset.ezx=k;
         const before=lab.querySelector(':scope > .ezsol, :scope > .ezfix, :scope > .edb');
         before ? lab.insertBefore(b, before) : lab.appendChild(b);
       }
-      if(k==='off'){                                /* ★ v358 — 이지뷰 / 원래대로 토글 (지금 것이 켜져 보임) */
-        b.classList.add('ezsw');
-        const h=`<span class="${off?'':'cur'}">이지뷰</span><span class="${off?'cur':''}">원래대로</span>`;
-        if(b.innerHTML!==h) b.innerHTML=h;
-      }else if(b.textContent!==txt) b.textContent=txt;
+      if(k==='off'){ /* 글자는 paintSw 가 */ }
+      else if(b.textContent!==txt) b.textContent=txt;
       b.title=tip;
       b.classList.toggle('on', k==='open' ? open : false);
     });
@@ -288,9 +285,9 @@ function paintBtns(){
 /* ★ v361 — 어디에 있든 «이지뷰|원래대로» 토글을 지금 상태로 칠한다 */
 function paintSw(){
   const off=B.classList.contains('ezx-off');
-  const h=`<span class="${off?'':'cur'}">이지뷰</span><span class="${off?'cur':''}">원래대로</span>`;
-  $$('.ezxb[data-ezx="off"]').forEach(b=>{ b.classList.add('ezsw'); if(b.innerHTML!==h) b.innerHTML=h;
-    b.title=off?'지금 «원래대로» — 누르면 이지뷰(식 상자·접기·부호 표로 정리)':'지금 «이지뷰» — 누르면 원래대로(정리 끄고 예전 모양)'; });
+  const t=off?'◫ 정리 끔':'◫ 정리 켬';
+  $$('.ezxb[data-ezx="off"]').forEach(b=>{ b.classList.remove('ezsw'); if(b.textContent!==t) b.textContent=t; b.classList.toggle('on',!off);
+    b.title=off?'쉬운 풀이를 예전 모양 그대로 보는 중 — 누르면 식 상자·접기·부호 표로 정리':'쉬운 풀이를 식 상자·접기·부호 표로 정리해서 보는 중 — 누르면 예전 모양 그대로'; });
 }
 window.__ezxPaintSw=paintSw;
 function resetTog(){ $$('.ezx .ezf.tog').forEach(el=>el.classList.remove('tog')); }

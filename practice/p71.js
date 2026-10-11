@@ -46,7 +46,13 @@ st.textContent=`
 #ovLeft > .plab,#ovRight .seg > .plab,#list .pcard .plabel{flex-wrap:wrap!important;row-gap:3px;height:auto!important;min-height:22px}
 /* 문제 줄: 유형은 확대 −/＋ 바로 오른쪽 · 이지뷰|원래대로 · 잘라 넣기는 미니맵 왼쪽 */
 #ovLeft > .plab > #qtBtn,.plabel > .qt71{order:0!important;margin-left:4px}
-#ovLeft > .plab > .ezxb[data-ezx="off"],.plabel > .ezxb[data-ezx="off"]{order:9!important;margin-left:auto!important}
+#ovLeft > .plab > .lay71{order:9!important;margin-left:auto!important}
+.lay71{height:20px;padding:0;display:inline-flex;overflow:hidden;border:1px solid var(--line,#e2e8f0);border-radius:6px;background:var(--surface,#fff);cursor:pointer;flex:0 0 auto;
+  font:700 9.5px/1 var(--font-d,system-ui);letter-spacing:0}
+.lay71 span{padding:0 7px;display:inline-flex;align-items:center;height:100%;color:var(--muted,#64748b)}
+.lay71 span+span{border-left:1px solid var(--line,#e2e8f0)}
+.lay71 span.cur{background:#1e3a8a;color:#fff}
+.plabel > .cut71{margin-left:auto!important}
 #ovLeft > .plab > .cut71,.plabel > .cut71{order:9!important;margin-left:5px!important}
 #ovLeft > .plab > .mmb,.plabel > .cut71 + .mmb{margin-left:5px!important}
 /* 답안 줄: 틀림은 회독 바로 왼쪽 */
@@ -74,9 +80,18 @@ function mk(L, cls, html, attrs){
     Object.entries(attrs||{}).forEach(([k,v])=>b.setAttribute(k,v)); stopUp(b); }
   return b;
 }
+/* ★ v372 — 문제 줄 «이지뷰|원래대로» = 한눈에 칸 배치
+     이지뷰  : 왼쪽에 문제·답안 위아래, 오른쪽에 쉬운 풀이 길게 (2단)
+     원래대로: 문제 | 답안 | 쉬운 풀이 나란히 (3단) — 칸 사이 끌어서 폭 조절
+   (예전 이 자리의 «정리 보기 켜고 끄기» 는 쉬운 풀이 줄 «◫ 정리» 단추로) */
 function sw(L){
-  let b=L.querySelector(':scope > .ezxb[data-ezx="off"]');
-  if(!b){ b=document.createElement('button'); b.type='button'; b.className='ezxb ezsw'; b.dataset.ezx='off'; }
+  L.querySelector(':scope > .ezxb[data-ezx="off"]')?.remove();
+  let b=L.querySelector(':scope > .lay71');
+  if(!b){ b=document.createElement('button'); b.type='button'; b.className='lay71'; b.dataset.pxeasyview='1'; stopUp(b); b.addEventListener('click',()=>setTimeout(soon,40)); }
+  const ev=document.body.classList.contains('easyview');
+  const h=`<span class="${ev?'cur':''}">이지뷰</span><span class="${ev?'':'cur'}">원래대로</span>`;
+  if(b.innerHTML!==h) b.innerHTML=h;
+  b.title=ev?'지금 «이지뷰» — 문제·답안 왼쪽 위아래 · 쉬운 풀이 오른쪽. 누르면 원래대로(세 칸 나란히)':'지금 «원래대로» — 문제 | 답안 | 쉬운 풀이 나란히. 누르면 이지뷰(2단)';
   return b;
 }
 /* 한눈에 칸을 새로 그리면 옮겨 둔 진짜 단추도 같이 지워진다 → 붙잡아 두었다가 다시 단다 */
@@ -135,9 +150,10 @@ function arrangeCards(){
       const nm=nameOf(L);
       if(nm==='문제'){
         const mm=L.querySelector(':scope > .mmb');
-        const s=sw(L), cut=mk(L,'cut71','<i>✂</i>잘라 넣기',{'data-pxcut2':id,title:'가로 절단선을 긋고 칸마다 문제·답으로 나눠 넣습니다'});
+        L.querySelector(':scope > .ezxb[data-ezx="off"]')?.remove();   /* 칸 배치 바꾸기는 한눈에에만 */
+        const cut=mk(L,'cut71','<i>✂</i>잘라 넣기',{'data-pxcut2':id,title:'가로 절단선을 긋고 칸마다 문제·답으로 나눠 넣습니다'});
         if(cut.getAttribute('data-pxcut2')!==id) cut.setAttribute('data-pxcut2',id);
-        place(cut, L, mm, 'before'); place(s, L, cut, 'before');
+        place(cut, L, mm, 'before');
         const qt=mk(L,'qt71','🏷 유형',{'data-qt71':id,title:'이 문제의 유형(대·중·소문항)'});
         if(qt.dataset.qt71!==id) qt.dataset.qt71=id;
         qtPaint(qt, id);
@@ -524,7 +540,7 @@ const ACT={
   KeyQ:()=>pick('y'), KeyW:()=>pick('s'), KeyE:()=>pick('n'),
   KeyR:()=>$('#ovFs [data-ezfs="1"]')?.click(),  KeyT:()=>$('#ovFs [data-ezfs="-1"]')?.click(),
   KeyF:()=>$('#ovTs [data-ts="1"]')?.click(),    KeyG:()=>$('#ovTs [data-ts="-1"]')?.click(),
-  KeyV:()=>tap('KeyV', ()=>{ $('.ezgap [data-gap="1"]')?.click(); }, ()=>{ clickAny('.ezxb[data-ezx="off"]'); }),
+  KeyV:()=>tap('KeyV', ()=>{ $('.ezgap [data-gap="1"]')?.click(); }, ()=>{ ovOn() ? $('#ovLeft .lay71')?.click() : $('.ezxb[data-ezx="off"]')?.click(); }),
   KeyB:()=>$('.ezgap [data-gap="-1"]')?.click(),
   KeyL:()=>seq(),
   KeyC:()=>tap('KeyC', null, ()=>{ const id=curId(); if(id && window.__pxCut) window.__pxCut(id); }),
