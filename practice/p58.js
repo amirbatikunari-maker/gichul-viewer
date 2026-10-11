@@ -44,7 +44,12 @@ function mount(){
     k.addEventListener('change',e=>{
       const w={pxSelY:'y',pxSelS:'s',pxSelN:'n'}[e.target.id];
       const hit=pickTarget($('#pxSelY').value,$('#pxSelS').value,$('#pxSelN').value,w);
+      /* ★ v365 — 고른 뒤 칸에서 손을 뗀다. 칸이 «눌린 채»(focus) 남아 있으면 아래 paintAt 이 건너뛰어서,
+         연도를 바꿔도 회차 목록이 옛 연도 것(18년인데 1·2회만)으로 남았다 */
+      try{ e.target.blur() }catch(x){}
+      PICKSIG='';
       if(hit) goRow(hit);
+      setTimeout(paintAt, 50);
     });
   }
 }

@@ -24,12 +24,13 @@ const MODES={
 const MODS={
   nx: { nm:'회차外 −', tip:'진짜 기출 회차가 아닌 문제집 자료를 뺍니다 — 오고초려 · 핵심빈출 · 단답 · 소방 등' },
   ck: { nm:'체크 −', tip:'회독용 — 맞음·틀림 상관없이 N번 푼 문항을 뺍니다. 남은 게 없으면 N회독 끝 (− + 로 N)' },
-  un: { nm:'맞힘 −', tip:'숙달용 — N번 이상 맞힌 문항을 뺍니다. 틀린 것·안 푼 것은 남음 (− + 로 N)' },
   ord:{ nm:'확률순',   tip:'무작위 대신 출제확률이 높은 것부터 차례로 (같은 확률끼리는 섞음)' }
 };
 const MKEY='prac:randmod';
 let MOD={}; try{ MOD=JSON.parse(localStorage.getItem(MKEY)||'{}')||{} }catch(e){ MOD={} }
 const saveMod=()=>{ try{ localStorage.setItem(MKEY, JSON.stringify(MOD)) }catch(e){globalThis.__q?.(e)} };
+/* ★ v365 — «맞힘 −» (N번 맞힌 문항 빼기) 없앰. 켜 둔 채 저장된 것도 끈다 — 랜덤·최신순에서 맞힌 문항이 말없이 빠지던 것 */
+if(MOD.un){ MOD.un=false; saveMod(); }
 /* ★ v284 — «맞힌 것 빼기» 기준 N (1~20). N번 이상 맞힌 문항을 뺀다 = N회독째 */
 const unN=()=>Math.min(20,Math.max(1,+MOD.unN||1));
 const ckN=()=>Math.min(20,Math.max(1,+MOD.ckN||1));
