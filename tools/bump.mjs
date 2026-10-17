@@ -7,6 +7,7 @@
    하는 일
      1) sw.js            SHELL = "shell-v342"  → 기기들이 새 파일을 받아 감
      2) sw.js            PRACTICE_JS 목록을 practice/ 폴더 그대로 다시 만듦
+     2-1) practice.html  <title>기출_v342</title> · window.GV_VER (★ v376)
      3) 워커 index.js     const BUILD = "v342"  → /health 에 찍히는 번호
      4) changelog/CHANGELOG-v342.md 빈 틀 (이미 있으면 안 건드림)
 
@@ -37,6 +38,9 @@ patch("sw.js", /const SHELL = "shell-v\d+"/, `const SHELL = "shell-${ver}"`, `SH
 const pj = readdirSync(join(ROOT, "practice")).filter(f => /\.js$/.test(f)).sort()
   .map(f => `"./practice/${f}"`).join(",");
 patch("sw.js", /const PRACTICE_JS = \[[^\]]*\];/, `const PRACTICE_JS = [${pj}];`, `PRACTICE_JS 목록 (${pj.split(",").length}개)`);
+
+patch("practice.html", /<title>기출_v\d+<\/title>/, `<title>기출_${ver}</title>`, `탭 제목 → 기출_${ver}`);
+patch("practice.html", /window\.GV_VER="v\d+";/, `window.GV_VER="${ver}";`, `GV_VER → ${ver}`);
 
 patch("gichul-ai-worker/src/index.js", /const BUILD = "v\d+";/, `const BUILD = "${ver}";`, `워커 BUILD → ${ver}`);
 

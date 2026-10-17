@@ -4912,7 +4912,7 @@ function applyImportOnly(){
     /* 불러 쓰는 쪽에서는 늘 펼쳐 둔다 — 한 번 더 눌러야 하면 옮긴 보람이 없다 */
     files?.classList.add("open"); imp?.classList.add("open");
     view?.setAttribute("hidden", "");
-    document.title = "실기 변환 · 기출 해설 노트";
+    document.title = "기출_" + (window.GV_VER || "") + " · 변환";
     return;
   }
   /* 본화면 — 두 상자를 걷어내고, 어디로 갔는지만 적어 둔다 */

@@ -24,7 +24,8 @@
 
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>실기 · 기출 해설 노트</title>
+<title>기출_v376</title>
+<script>window.GV_VER="v376";</script>
 <link rel="icon" href="./favicon.ico?v=267" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=267">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png?v=267">
@@ -786,7 +787,7 @@ body.oneup #pnav .zb{background:var(--surface);border:1px solid var(--line);colo
   <a href="./practice.html" class="on" id="navP">실기뷰어</a>
   <script>/* ★ v353 — 필기 화면(?w=1)이면 «필기뷰어» 를 켜고 제목도 바꿈 */
   if(/[?&]w=1\b/.test(location.search)){ document.getElementById("navW").classList.add("on"); document.getElementById("navP").classList.remove("on");
-    document.title="필기 · 기출 해설 노트"; document.documentElement.classList.add("wmode");
+    document.title="기출_"+(window.GV_VER||"")+" · 필기"; document.documentElement.classList.add("wmode");
     /* ★ v354 — 필기 화면 메뉴에 «필기 가져오기» 를 늘 보이게 (과목이 생기면 빈 화면 안내가 사라져 들어갈 길이 없었음) */
     const a=document.createElement("a"); a.href="./written-import.html"; a.textContent="📥 필기 가져오기"; document.getElementById("navP").after(a); }</script>
   <a href="./calc.html">계산기</a><a href="./upload.html">기계</a>
